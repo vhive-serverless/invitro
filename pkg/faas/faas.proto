@@ -1,0 +1,24 @@
+// Python Compile: python3 -m grpc_tools.protoc faasfunction.proto -I=. --python_out=. --grpc_python_out=.
+// GO Compile: protoc -I=. --go_out=. --go-grpc_out=. faasfunction.proto
+syntax = "proto3";
+
+package faas;
+
+// The function service definition.
+service Executor {
+  // Executes the function
+  rpc Execute (FaasRequest) returns (FaasReply) {}
+}
+
+// Request message containing the function input (string)
+message FaasRequest {
+  string input = 1;
+  uint32 runtime = 2;
+  uint32 memory = 3;
+}
+
+// Response message containing the execution latency (microseconds)
+message FaasReply {
+  string response = 1;
+  int64 latency = 2;
+}
