@@ -10,16 +10,12 @@ import (
 	ctrdlog "github.com/containerd/containerd/log"
 	log "github.com/sirupsen/logrus"
 
-	fc "github.com/eth-easl/easyloader/cmd/function"
+	fc "github.com/eth-easl/easyloader/internal/function"
+	tc "github.com/eth-easl/easyloader/internal/trace"
 )
 
-func main() {
-	funcPath := flag.String("funcPath", "../../config/workloads", "Path to the folder with *.yml files")
-	funcJSONFile := flag.String("jsonFile", "../function/functions.json", "Path to the JSON file with functions to deploy")
-	// endpointsFile := flag.String("endpointsFile", "endpoints.json", "File with endpoints' metadata")
-	deploymentConcurrency := flag.Int("conc", 1, "Number of functions to deploy concurrently (for serving)")
+func init() {
 	debug := flag.Bool("dbg", false, "Enable debug logging")
-
 	flag.Parse()
 
 	log.SetFormatter(&log.TextFormatter{
@@ -33,6 +29,17 @@ func main() {
 	} else {
 		log.SetLevel(log.InfoLevel)
 	}
+}
+
+func main() {
+	funcPath := flag.String("funcPath", "workloads", "Path to the folder with *.yml files")
+	funcJSONFile := flag.String("jsonFile", "config/functions.json", "Path to the JSON file with functions to deploy")
+	deploymentConcurrency := flag.Int("conc", 1, "Number of functions to deploy concurrently (for serving)")
+
+	traces := tc.ParseInvocationTrace("data/invocations_10.csv", 1)
+	log.Info(traces)
+	tc.ParseDurationTrace(&traces, "data/durations_10.csv")
+	tc.ParseMemoryTrace(&traces, "data/memory_10.csv")
 
 	/* Deployment */
 	log.Info("Function files are taken from ", *funcPath)
