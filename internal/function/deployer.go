@@ -6,6 +6,9 @@ import (
 	"path/filepath"
 
 	log "github.com/sirupsen/logrus"
+
+	fc "github.com/eth-easl/easyloader/internal/function"
+	// tc "github.com/eth-easl/easyloader/internal/trace"
 )
 
 // Functions is an object for unmarshalled JSON with functions to deploy.
@@ -29,7 +32,7 @@ const (
 	namespaceName = "default"
 )
 
-func Deploy(funcPath string, funcSlice []FunctionType, deploymentConcurrency int) []string {
+func Deploy(functions []fc.Function, workloadPath string, deploymentConcurrency int) []string {
 	var urls []string
 	/**
 	 * Limit the number of parallel deployments
@@ -38,7 +41,7 @@ func Deploy(funcPath string, funcSlice []FunctionType, deploymentConcurrency int
 	sem := make(chan bool, deploymentConcurrency)
 
 	// log.Info("funcSlice: ", funcSlice)
-	for _, fType := range funcSlice {
+	for _, function := range functions {
 		for i := 0; i < fType.Count; i++ {
 
 			sem <- true
