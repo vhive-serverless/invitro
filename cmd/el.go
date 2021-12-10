@@ -15,8 +15,14 @@ import (
 	tc "github.com/eth-easl/easyloader/internal/trace"
 )
 
+var (
+	debug    = flag.Bool("dbg", false, "Enable debug logging")
+	rps      = flag.Int("rps", 100, "Request per second (default: 100)")
+	duration = flag.Int("duration", 1, "Duration of the experiment (default: 1 min)")
+)
+
 func init() {
-	debug := flag.Bool("dbg", false, "Enable debug logging")
+
 	flag.Parse()
 
 	log.SetFormatter(&log.TextFormatter{
@@ -33,24 +39,23 @@ func init() {
 }
 
 func main() {
-	// funcPath := flag.String("funcPath", "workloads", "Path to the folder with *.yml files")
-	// funcJSONFile := flag.String("jsonFile", "config/functions.json", "Path to the JSON file with functions to deploy")
 	// deploymentConcurrency := flag.Int("conc", 1, "Number of functions to deploy concurrently (for serving)")
 	serviceConfigPath := "workloads/timed.yaml"
+	// write the whole body at once
 
-	traces := tc.ParseInvocationTrace("data/invocations_10.csv", 1)
+	traces := tc.ParseInvocationTrace("data/invocations_10.csv", *duration)
 	tc.ParseDurationTrace(&traces, "data/durations_10.csv")
 	tc.ParseMemoryTrace(&traces, "data/memory_10.csv")
 
 	log.Info("Traces contain the following: ", len(traces.Functions), " functions")
 	for _, function := range traces.Functions {
-		fmt.Println("\t" + function.GetUrl())
+		fmt.Println("\t" + function.GetName())
 	}
 
 	/* Deployment */
 	log.Info("Using service config file: ", serviceConfigPath)
-	deployedEndpoints := fc.Deploy(traces.Functions, serviceConfigPath, 1) // TODO: Fixed number of functions per pod.
+	functions := fc.Deploy(traces.Functions, serviceConfigPath, 1) // TODO: Fixed number of functions per pod.
 
 	/* Invokation */
-	fc.Invoke(deployedEndpoints)
+	defer fc.Invoke(*rps, functions, traces.InvocationsPerMin, traces.TotalInvocationsEachMin)
 }
