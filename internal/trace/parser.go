@@ -54,10 +54,10 @@ type Function struct {
 }
 
 type FunctionTrace struct {
-	path                   string
-	Functions              []Function
-	InvocationsPerSec      [][]int
-	TotalInvocationsPerSec []int
+	path                    string
+	Functions               []Function
+	InvocationsPerMin       [][]int
+	TotalInvocationsEachMin []int
 }
 
 func hash(s string) uint32 {
@@ -74,8 +74,12 @@ func (f *Function) SetName(name string) {
 	f.name = name
 }
 
-func (f *Function) SetDeployed(b bool) {
+func (f *Function) SetStatus(b bool) {
 	f.deployed = b
+}
+
+func (f *Function) GetStatus() bool {
+	return f.deployed
 }
 
 func (f *Function) GetName() string {
@@ -92,8 +96,8 @@ func (f *Function) SetUrl(url string) {
 
 func ShuffleInvocations(trace FunctionTrace, traceDuration int) {
 	for t := 0; t < traceDuration; t++ {
-		rand.Shuffle(len(trace.InvocationsPerSec[t]), func(i, j int) {
-			trace.InvocationsPerSec[t][i], trace.InvocationsPerSec[t][j] = trace.InvocationsPerSec[t][j], trace.InvocationsPerSec[t][i]
+		rand.Shuffle(len(trace.InvocationsPerMin[t]), func(i, j int) {
+			trace.InvocationsPerMin[t][i], trace.InvocationsPerMin[t][j] = trace.InvocationsPerMin[t][j], trace.InvocationsPerMin[t][i]
 		})
 	}
 }
@@ -148,10 +152,10 @@ func ParseInvocationTrace(traceFile string, traceDuration int) FunctionTrace {
 	}
 
 	return FunctionTrace{
-		Functions:              functions,
-		InvocationsPerSec:      invocations,
-		TotalInvocationsPerSec: totalInvocations,
-		path:                   traceFile,
+		Functions:               functions,
+		InvocationsPerMin:       invocations,
+		TotalInvocationsEachMin: totalInvocations,
+		path:                    traceFile,
 	}
 }
 
@@ -284,6 +288,43 @@ func ParseMemoryTrace(trace *FunctionTrace, traceFile string) {
 	if foundDurations != len(trace.Functions) {
 		log.Fatal("Could not find all memory footprints for all invocations in the supplied trace ", foundDurations, len(trace.Functions))
 	}
+}
+
+// Make better later
+// Now also picking the percentile value, that's generally too high
+func GetExecutionSpecification(function Function) (int, int) {
+	// get function runtime and memory usage
+	percentile := rand.Intn(100) + 1 // rand gives numbers [0,100) but we need [1,100]
+	var runtime, memory int
+	runtimePercentile := function.durationStats
+	memoryPercentile := function.memoryStats
+	switch {
+	case percentile > 99:
+		runtime = runtimePercentile.percentile100
+		memory = memoryPercentile.percentile100
+	case percentile > 95:
+		runtime = runtimePercentile.percentile99
+		memory = memoryPercentile.percentile99
+	case percentile > 75:
+		runtime = runtimePercentile.percentile99
+		memory = memoryPercentile.percentile95
+	case percentile > 50:
+		runtime = runtimePercentile.percentile75
+		memory = memoryPercentile.percentile75
+	case percentile > 25:
+		runtime = runtimePercentile.percentile50
+		memory = memoryPercentile.percentile50
+	case percentile > 5:
+		runtime = runtimePercentile.percentile25
+		memory = memoryPercentile.percentile25
+	case percentile > 1:
+		runtime = runtimePercentile.percentile25
+		memory = memoryPercentile.percentile5
+	default:
+		runtime = runtimePercentile.percentile1
+		memory = memoryPercentile.percentile1
+	}
+	return runtime, memory
 }
 
 // // Functions is an object for unmarshalled JSON with functions to deploy.

@@ -3,12 +3,15 @@ package function
 import (
 	"os/exec"
 
-	// fc "github.com/eth-easl/easyloader/internal/function"
-	tc "github.com/eth-easl/easyloader/internal/trace"
 	log "github.com/sirupsen/logrus"
+
+	tc "github.com/eth-easl/easyloader/internal/trace"
 )
 
-func Deploy(functions []tc.Function, serviceConfigPath string, deploymentConcurrency int) []string {
+func Deploy(
+	functions []tc.Function,
+	serviceConfigPath string,
+	deploymentConcurrency int) []tc.Function {
 	var urls []string
 	/**
 	 * Limit the number of parallel deployments
@@ -24,7 +27,7 @@ func Deploy(functions []tc.Function, serviceConfigPath string, deploymentConcurr
 			defer func() { <-sem }()
 
 			has_deployed := deployFunction(&function, serviceConfigPath)
-			function.SetDeployed(has_deployed)
+			function.SetStatus(has_deployed)
 			if has_deployed {
 				urls = append(urls, function.GetUrl())
 			}
@@ -36,8 +39,7 @@ func Deploy(functions []tc.Function, serviceConfigPath string, deploymentConcurr
 	for i := 0; i < cap(sem); i++ {
 		sem <- true
 	}
-
-	return urls
+	return functions
 }
 
 func deployFunction(function *tc.Function, workloadPath string) bool {
