@@ -12,6 +12,12 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+const (
+	gatewayUrl = "192.168.1.240.sslip.io"
+	namespace  = "default"
+	port       = "80"
+)
+
 type FunctionDurationStats struct {
 	average       int
 	count         int
@@ -48,10 +54,10 @@ type Function struct {
 }
 
 type FunctionTrace struct {
-	path             string
-	Functions        []Function
-	Invocations      [][]int
-	TotalInvocations []int
+	path                   string
+	Functions              []Function
+	InvocationsPerSec      [][]int
+	TotalInvocationsPerSec []int
 }
 
 func hash(s string) uint32 {
@@ -68,14 +74,26 @@ func (f *Function) SetName(name string) {
 	f.name = name
 }
 
-func (f *Function) SetURL(url string) {
+func (f *Function) SetDeployed(b bool) {
+	f.deployed = b
+}
+
+func (f *Function) GetName() string {
+	return f.name
+}
+
+func (f *Function) GetUrl() string {
+	return f.url
+}
+
+func (f *Function) SetUrl(url string) {
 	f.url = url
 }
 
 func ShuffleInvocations(trace FunctionTrace, traceDuration int) {
 	for t := 0; t < traceDuration; t++ {
-		rand.Shuffle(len(trace.Invocations[t]), func(i, j int) {
-			trace.Invocations[t][i], trace.Invocations[t][j] = trace.Invocations[t][j], trace.Invocations[t][i]
+		rand.Shuffle(len(trace.InvocationsPerSec[t]), func(i, j int) {
+			trace.InvocationsPerSec[t][i], trace.InvocationsPerSec[t][j] = trace.InvocationsPerSec[t][j], trace.InvocationsPerSec[t][i]
 		})
 	}
 }
@@ -110,8 +128,8 @@ func ParseInvocationTrace(traceFile string, traceDuration int) FunctionTrace {
 		if l != -1 {
 			// Parse function
 			function := Function{appHash: record[1], hash: record[2]}
-			funcName := fmt.Sprintf("%s-%s", "function", function.hash[0:15])
-			function.name = funcName
+			function.name = fmt.Sprintf("%s-%d", "trace-func", l)
+			function.url = fmt.Sprintf("%s.%s.%s:%s", function.name, namespace, gatewayUrl, port)
 			functions = append(functions, function)
 
 			// Parse invocations
@@ -130,10 +148,10 @@ func ParseInvocationTrace(traceFile string, traceDuration int) FunctionTrace {
 	}
 
 	return FunctionTrace{
-		Functions:        functions,
-		Invocations:      invocations,
-		TotalInvocations: totalInvocations,
-		path:             traceFile,
+		Functions:              functions,
+		InvocationsPerSec:      invocations,
+		TotalInvocationsPerSec: totalInvocations,
+		path:                   traceFile,
 	}
 }
 
@@ -267,3 +285,32 @@ func ParseMemoryTrace(trace *FunctionTrace, traceFile string) {
 		log.Fatal("Could not find all memory footprints for all invocations in the supplied trace ", foundDurations, len(trace.Functions))
 	}
 }
+
+// // Functions is an object for unmarshalled JSON with functions to deploy.
+// type Functions struct {
+// 	Functions []FunctionType `json:"functions"`
+// }
+
+// type FunctionType struct {
+// 	Name string `json:"name"`
+// 	File string `json:"file"`
+
+// 	// Number of functions to deploy from the same file (with different names)
+// 	Count int `json:"count"`
+
+// 	Eventing    bool   `json:"eventing"`
+// 	ApplyScript string `json:"applyScript"`
+// }
+
+// func getFuncSlice(file string) []fc.FunctionType {
+// 	log.Info("Opening JSON file with functions: ", file)
+// 	byteValue, err := ioutil.ReadFile(file)
+// 	if err != nil {
+// 		log.Fatal(err)
+// 	}
+// 	var functions fc.Functions
+// 	if err := json.Unmarshal(byteValue, &functions); err != nil {
+// 		log.Fatal(err)
+// 	}
+// 	return functions.Functions
+// }

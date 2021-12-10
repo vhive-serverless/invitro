@@ -1,63 +1,36 @@
 package function
 
 import (
-	"fmt"
 	"os/exec"
-	"path/filepath"
 
+	// fc "github.com/eth-easl/easyloader/internal/function"
+	tc "github.com/eth-easl/easyloader/internal/trace"
 	log "github.com/sirupsen/logrus"
-
-	fc "github.com/eth-easl/easyloader/internal/function"
-	// tc "github.com/eth-easl/easyloader/internal/trace"
 )
 
-// Functions is an object for unmarshalled JSON with functions to deploy.
-type Functions struct {
-	Functions []FunctionType `json:"functions"`
-}
-
-type FunctionType struct {
-	Name string `json:"name"`
-	File string `json:"file"`
-
-	// Number of functions to deploy from the same file (with different names)
-	Count int `json:"count"`
-
-	Eventing    bool   `json:"eventing"`
-	ApplyScript string `json:"applyScript"`
-}
-
-const (
-	gatewayURL    = "192.168.1.240.sslip.io"
-	namespaceName = "default"
-)
-
-func Deploy(functions []fc.Function, workloadPath string, deploymentConcurrency int) []string {
+func Deploy(functions []tc.Function, serviceConfigPath string, deploymentConcurrency int) []string {
 	var urls []string
 	/**
 	 * Limit the number of parallel deployments
-	 * using a channel (semaphore).
+	 * using a channel (like semaphore).
 	 */
 	sem := make(chan bool, deploymentConcurrency)
 
 	// log.Info("funcSlice: ", funcSlice)
-	for _, function := range functions {
-		for i := 0; i < fType.Count; i++ {
+	for idx, function := range functions {
+		sem <- true
 
-			sem <- true
+		go func(function tc.Function, idx int) {
+			defer func() { <-sem }()
 
-			funcName := fmt.Sprintf("%s-%d", fType.Name, i)
-			url := fmt.Sprintf("%s.%s.%s", funcName, namespaceName, gatewayURL)
-			urls = append(urls, url)
+			has_deployed := deployFunction(&function, serviceConfigPath)
+			function.SetDeployed(has_deployed)
+			if has_deployed {
+				urls = append(urls, function.GetUrl())
+			}
 
-			filePath := filepath.Join(funcPath, fType.File)
-
-			go func(funcName, filePath string) {
-				defer func() { <-sem }()
-
-				deployFunction(funcName, filePath)
-			}(funcName, filePath)
-		}
+			functions[idx] = function
+		}(function, idx)
 	}
 
 	for i := 0; i < cap(sem); i++ {
@@ -67,14 +40,14 @@ func Deploy(functions []fc.Function, workloadPath string, deploymentConcurrency 
 	return urls
 }
 
-func deployFunction(funcName, filePath string) {
+func deployFunction(function *tc.Function, workloadPath string) bool {
 	cmd := exec.Command(
 		"kn",
 		"service",
 		"apply",
-		funcName,
+		function.GetName(),
 		"-f",
-		filePath,
+		workloadPath,
 		"--concurrency-target",
 		"1",
 	)
@@ -82,8 +55,11 @@ func deployFunction(funcName, filePath string) {
 	log.Debug("CMD response: ", string(stdoutStderr))
 
 	if err != nil {
-		log.Warnf("Failed to deploy function %s, %s: %v\n%s\n", funcName, filePath, err, stdoutStderr)
+		log.Warnf("Failed to deploy function %s: %v\n%s\n", function.GetName(), err, stdoutStderr)
+		return false
 	}
 
-	log.Info("Deployed function ", funcName)
+	// assemble function url from response from kubectl and the standard port
+	log.Info("Deployed function ", function.GetUrl())
+	return true
 }

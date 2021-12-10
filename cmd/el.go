@@ -1,10 +1,11 @@
 package main
 
 import (
-	"encoding/json"
+	// "encoding/json"
 	"flag"
-	_ "fmt"
-	"io/ioutil"
+	"fmt"
+
+	// "io/ioutil"
 	"os"
 
 	ctrdlog "github.com/containerd/containerd/log"
@@ -32,35 +33,24 @@ func init() {
 }
 
 func main() {
-	funcPath := flag.String("funcPath", "workloads", "Path to the folder with *.yml files")
-	funcJSONFile := flag.String("jsonFile", "config/functions.json", "Path to the JSON file with functions to deploy")
-	deploymentConcurrency := flag.Int("conc", 1, "Number of functions to deploy concurrently (for serving)")
+	// funcPath := flag.String("funcPath", "workloads", "Path to the folder with *.yml files")
+	// funcJSONFile := flag.String("jsonFile", "config/functions.json", "Path to the JSON file with functions to deploy")
+	// deploymentConcurrency := flag.Int("conc", 1, "Number of functions to deploy concurrently (for serving)")
+	serviceConfigPath := "workloads/timed.yaml"
 
 	traces := tc.ParseInvocationTrace("data/invocations_10.csv", 1)
-	log.Info(traces)
 	tc.ParseDurationTrace(&traces, "data/durations_10.csv")
 	tc.ParseMemoryTrace(&traces, "data/memory_10.csv")
 
-	/* Deployment */
-	log.Info("Function files are taken from ", *funcPath)
-	funcSlice := getFuncSlice(*funcJSONFile)
-	endpoints := fc.Deploy(*funcPath, funcSlice, *deploymentConcurrency)
+	log.Info("Traces contain the following: ", len(traces.Functions), " functions")
+	for _, function := range traces.Functions {
+		fmt.Println("\t" + function.GetUrl())
+	}
 
-	log.Info("Function endpoints: ", endpoints)
+	/* Deployment */
+	log.Info("Using service config file: ", serviceConfigPath)
+	deployedEndpoints := fc.Deploy(traces.Functions, serviceConfigPath, 1) // TODO: Fixed number of functions per pod.
 
 	/* Invokation */
-	fc.Invoke(endpoints)
-}
-
-func getFuncSlice(file string) []fc.FunctionType {
-	log.Info("Opening JSON file with functions: ", file)
-	byteValue, err := ioutil.ReadFile(file)
-	if err != nil {
-		log.Fatal(err)
-	}
-	var functions fc.Functions
-	if err := json.Unmarshal(byteValue, &functions); err != nil {
-		log.Fatal(err)
-	}
-	return functions.Functions
+	fc.Invoke(deployedEndpoints)
 }

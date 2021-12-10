@@ -21,15 +21,13 @@ func Invoke(endpoints []string) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	port := ":80"
 	wg := sync.WaitGroup{}
 	for i, endpoint := range endpoints {
 		wg.Add(1)
 
 		go func(i int, endpoint string) {
 			defer wg.Done()
-			invoke(ctx, endpoint+port, runDuration)
-			log.Info("Invoked function ", i)
+			invoke(ctx, endpoint, runDuration)
 		}(i, endpoint)
 	}
 	wg.Wait()
