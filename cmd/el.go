@@ -8,7 +8,7 @@ import (
 	// "io/ioutil"
 	"os"
 
-	ctrdlog "github.com/containerd/containerd/log"
+	// ctrdlog "github.com/containerd/containerd/log"
 	log "github.com/sirupsen/logrus"
 
 	fc "github.com/eth-easl/easyloader/internal/function"
@@ -26,7 +26,7 @@ func init() {
 	flag.Parse()
 
 	log.SetFormatter(&log.TextFormatter{
-		TimestampFormat: ctrdlog.RFC3339NanoFixed,
+		TimestampFormat: "[%Y-%m-%d %H:%M:%S]",
 		FullTimestamp:   true,
 	})
 	log.SetOutput(os.Stdout)
@@ -52,10 +52,10 @@ func main() {
 		fmt.Println("\t" + function.GetName())
 	}
 
-	/* Deployment */
+	/** Deployment */
 	log.Info("Using service config file: ", serviceConfigPath)
 	functions := fc.Deploy(traces.Functions, serviceConfigPath, 1) // TODO: Fixed number of functions per pod.
 
-	/* Invokation */
+	/** Invokation */
 	defer fc.Invoke(*rps, functions, traces.InvocationsPerMin, traces.TotalInvocationsEachMin)
 }
