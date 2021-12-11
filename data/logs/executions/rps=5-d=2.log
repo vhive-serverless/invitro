@@ -1,0 +1,7 @@
+Requested 300 invocations at min 1
+Issued    300 invocations at min 1
+
+Requested 300 invocations at min 2
+Issued    291 invocations at min 2
+
+Trace: 17820. Actually invoked: 591
