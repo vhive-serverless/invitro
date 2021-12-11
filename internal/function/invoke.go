@@ -82,10 +82,8 @@ func Invoke(
 				defer func() {
 					offset := funcSlot - time.Duration(latency)
 					log.Info("Slot offset: ", offset)
-					if offset > time.Duration(0) {
-						//* Function invocation exceeded allotted the slot.
-						time.Sleep(offset / 2) //! Don't fill the slot completely.
-					}
+					//* Function invocation exceeded allotted the slot.
+					time.Sleep(offset / 2) //! Don't fill the slot completely.
 					wg.Done()
 				}()
 				wg.Add(1)
@@ -114,7 +112,9 @@ func Invoke(
 				continue
 			}
 		}
-		time.Sleep(time.Since(start) - time.Minute) //* Fill this minute if necessary.
+		timeLeft := time.Since(start) - time.Minute - tolerance
+		log.Info("Time to sleep ", timeLeft)
+		time.Sleep(timeLeft) //* Fill this minute if necessary.
 		wg.Wait()
 		totalInvocaked += invocationCount
 
