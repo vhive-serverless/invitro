@@ -47,32 +47,32 @@ func Invoke(
 	totalInvocaked := 0
 
 	for min := 0; min < len(totalInvocationsEachMin); min++ {
+		/** Set up timer to bound the one-minute invocation. */
 		tolerance := time.Second * 2 // ! Tolerate 2s difference.
 		timeout := time.After(time.Duration(60)*time.Second + tolerance)
 		tick := time.NewTicker(time.Duration(1000/rps) * time.Millisecond).C
-		start := time.Now()
 
 		invocationCount := 0
 		totalInvocationsThisMinute := totalInvocationsEachMin[min]
-		// totalInvocationsThisMinute := 1 // ! Test memory over-commission.
+		// totalInvocationsThisMinute := 1 // Test memory over-commission.
 
+		/** Compute function slot. */
 		var oneMinuteInMicrosec int = 60e6
 		funcSlot := time.Duration(int64(oneMinuteInMicrosec/totalInvocationsThisMinute)) * time.Microsecond
 		log.Info("(Minute", min+1, ") Slot duration: ", funcSlot)
 
 		wg := sync.WaitGroup{}
-
 	this_minute:
-		// Only invoke the number of functions limited by `rps`.
+		/** Invoke functions of this minute (# bounded by `rps`). */
 		for i := 0; i < totalInvocationsThisMinute; i++ {
+			start := time.Now()
 			// TODO: Bulk the computation and move it out
 			shuffleInplaceInvocationOfOneMinute(&invocationsPerMin[min])
 
 			functionIdx := invocationsPerMin[min][i]
 			function := functions[functionIdx]
 			if !function.GetStatus() {
-				// Failed in deployment.
-				continue
+				continue //* Failed in deployment.
 			}
 			go func() {
 				var (
@@ -83,38 +83,41 @@ func Invoke(
 					offset := funcSlot - time.Duration(latency)
 					log.Info("Offset of this invocation: ", offset)
 					if offset > time.Duration(0) {
+						//* Function invocation exceeded allotted the slot.
 						time.Sleep(offset)
 					}
 					wg.Done()
 				}()
-
 				wg.Add(1)
-				// Bound invocation.
+
+				/** Time-box gRPC dialling. */
 				// diallingBound := funcSlot
-				diallingBound := time.Minute * 2 // ! Do not bound for now.
+				diallingBound := time.Minute * 2 // ! NO bound for dialling currently.
 				ctx, cancel := context.WithTimeout(context.Background(), diallingBound)
 				defer cancel()
-				hasInvoked, latency = invoke(ctx, function)
 
+				hasInvoked, latency = invoke(ctx, function)
 				if hasInvoked {
 					invocationCount++
-				} else {
-					return
 				}
 			}()
+
+			/** Check one-minute timeout. */
+			time.Sleep(time.Duration(30)*time.Second + tolerance) // * Test timeout.
+			duration := time.Since(start).Seconds()
 			select {
 			case <-timeout:
-				log.Warn("TIME OUT during invocation ", i, " round ", min)
+				log.Warn("TIME OUT (", duration, "[s]) during invocation ", i+1, " round ", min+1)
 				break this_minute
 			case <-tick:
-				duration := time.Since(start).Seconds()
 				log.Info("One-minute excution duration: ", duration, " [s]")
 				continue
 			}
 		}
 		wg.Wait()
-
 		totalInvocaked += invocationCount
+
+		/** Write results out */
 		// TODO: Move IO elsewhere.
 		if _, err := f.Write(
 			[]byte(
@@ -123,7 +126,6 @@ func Invoke(
 			log.Fatal(err)
 		}
 	}
-	// Wait for all -- don't wait on a min-by-min basis.
 	if _, err := f.Write(
 		[]byte(
 			fmt.Sprintf("Original requested: %d. Actually invoked: %d\n",
@@ -167,8 +169,9 @@ func invoke(ctx context.Context, function tc.Function) (bool, int64) {
 		return false, 0
 	}
 
-	log.Info("gRPC response: ", reply.Response)
-	log.Info("gRPC execution time: ", reply.Latency)
+	// log.Info("gRPC response: ", reply.Response)
+	executionTime := reply.Latency
+	log.Info("gRPC execution time: ", executionTime)
 
 	latency := time.Since(start).Microseconds()
 
