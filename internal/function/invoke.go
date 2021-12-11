@@ -62,10 +62,10 @@ func Invoke(
 		log.Info("(Minute", min+1, ") Slot duration: ", funcSlot)
 
 		wg := sync.WaitGroup{}
+		start := time.Now()
 	this_minute:
 		/** Invoke functions of this minute (# bounded by `rps`). */
 		for i := 0; i < totalInvocationsThisMinute; i++ {
-			start := time.Now()
 			// TODO: Bulk the computation and move it out
 			shuffleInplaceInvocationOfOneMinute(&invocationsPerMin[min])
 
@@ -81,7 +81,7 @@ func Invoke(
 				)
 				defer func() {
 					offset := funcSlot - time.Duration(latency)
-					log.Info("Offset of this invocation: ", offset)
+					log.Info("Slot offset: ", offset)
 					if offset > time.Duration(0) {
 						//* Function invocation exceeded allotted the slot.
 						time.Sleep(offset)
@@ -103,7 +103,7 @@ func Invoke(
 			}()
 
 			/** Check one-minute timeout. */
-			time.Sleep(time.Duration(30)*time.Second + tolerance) // * Test timeout.
+			// time.Sleep(time.Duration(30)*time.Second + tolerance) // * Test timeout.
 			duration := time.Since(start).Seconds()
 			select {
 			case <-timeout:
@@ -128,7 +128,7 @@ func Invoke(
 	}
 	if _, err := f.Write(
 		[]byte(
-			fmt.Sprintf("Original requested: %d. Actually invoked: %d\n",
+			fmt.Sprintf("Trace: %d. Actually invoked: %d\n",
 				requestedInvocation, totalInvocaked))); err != nil {
 		log.Fatal(err)
 	}
@@ -171,7 +171,7 @@ func invoke(ctx context.Context, function tc.Function) (bool, int64) {
 
 	// log.Info("gRPC response: ", reply.Response)
 	executionTime := reply.Latency
-	log.Info("gRPC execution time: ", executionTime)
+	log.Info("Function execution time (gRPC): ", executionTime)
 
 	latency := time.Since(start).Microseconds()
 
