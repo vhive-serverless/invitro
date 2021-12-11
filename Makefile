@@ -9,6 +9,7 @@ proto:
 clean: # make -i clean
 	kn service delete --all
 	rm -f el
+	rm -f *.log
 	go mod tidy
 
 build:
