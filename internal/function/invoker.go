@@ -29,13 +29,13 @@ func Invoke(
 		log.Fatal(err)
 	}
 
-	timeout := 1000 * time.Hour // TODO: Inifinite wait.
-
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-
-	/** Limit the number of invocations per minute based upon `rps`. */
+	/**
+	 * Limit the number of invocations per minute based upon `rps`.
+	 * TODO: Extract out.
+	 * */
+	requestedInvocation := sum(totalInvocationsEachMin)
 	requestLimit := rps * 60
+	log.Info("Maximum #requests/min: ", requestLimit)
 	for min, minuteInvocations := range totalInvocationsEachMin {
 		if minuteInvocations > requestLimit {
 			log.Warnf("Total number requests exceed capacity by %d at minute %d/%d",
@@ -44,23 +44,28 @@ func Invoke(
 			totalInvocationsEachMin[min] = requestLimit
 		}
 	}
-	totalInvocations := sum(totalInvocationsEachMin)
 	totalInvocaked := 0
 
 	for min := 0; min < len(totalInvocationsEachMin); min++ {
 		invocationCount := 0
-		totalInvocationsThisMin := totalInvocationsEachMin[min]
+		totalInvocationsThisMinute := totalInvocationsEachMin[min]
 		// totalInvocationThisMin := 1 // ! Test memory over-commission.
 
 		oneMinuteInSec := 60
 		// invocationOffset := time.Duration(1e5) // ! This is a rough estimation and is thus to be improved.
-		funcSlot := time.Duration(oneMinuteInSec/totalInvocationsThisMin) * time.Millisecond * time.Microsecond
-		log.Info("Function slot: ", funcSlot)
+		funcSlot := time.Duration(int64(oneMinuteInSec/totalInvocationsThisMinute)) * time.Millisecond * time.Microsecond
+		log.Info("(Minute", min+1, ") Slot duration: ", funcSlot)
 
 		wg := sync.WaitGroup{}
 		// Only invoke the number of functions limited by `rps`.
-		for i := 0; i < totalInvocationsThisMin; i++ {
+		for i := 0; i < totalInvocationsThisMinute; i++ {
+			// TODO: Bulk the computation and move it out
 			shuffleInvocationOfOneMin(&invocationsPerMin[min])
+
+			// Bound invocation by minute.
+			timeout := funcSlot
+			ctx, cancel := context.WithTimeout(context.Background(), timeout)
+			defer cancel()
 
 			functionIdx := invocationsPerMin[min][i]
 			function := functions[functionIdx]
@@ -69,15 +74,23 @@ func Invoke(
 				continue
 			}
 			go func() {
+				select {
+				case <-ctx.Done():
+					log.Warn("TIME OUT when invoking ", function.GetName())
+					break
+				default:
+					goto Invocation
+				}
+			Invocation:
 				var (
 					has_invoked bool
 					latency     int64
 				)
 				defer func() {
-					interval := funcSlot - time.Duration(latency)
-					log.Info("Idle for ", interval)
-					if interval > 0 {
-						time.Sleep(interval)
+					offset := funcSlot - time.Duration(latency)
+					log.Info("Offset of this invocation: ", offset)
+					if offset > 0 {
+						time.Sleep(offset)
 					}
 					wg.Done()
 				}()
@@ -106,7 +119,7 @@ func Invoke(
 	// Wait for all -- don't wait on a min-by-min basis.
 	if _, err := f.Write(
 		[]byte(
-			fmt.Sprintf("Total requested: %d. Actually invoked: %d\n", totalInvocations, totalInvocaked))); err != nil {
+			fmt.Sprintf("Original requested: %d. Actually invoked: %d\n", requestedInvocation, totalInvocaked))); err != nil {
 		log.Fatal(err)
 	}
 
