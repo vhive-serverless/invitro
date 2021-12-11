@@ -8,7 +8,7 @@ import (
 	// "io/ioutil"
 	"os"
 
-	// ctrdlog "github.com/containerd/containerd/log"
+	ctrdlog "github.com/containerd/containerd/log"
 	log "github.com/sirupsen/logrus"
 
 	fc "github.com/eth-easl/easyloader/internal/function"
@@ -26,7 +26,7 @@ func init() {
 	flag.Parse()
 
 	log.SetFormatter(&log.TextFormatter{
-		TimestampFormat: "[%Y-%m-%d %H:%M:%S]",
+		TimestampFormat: ctrdlog.RFC3339NanoFixed,
 		FullTimestamp:   true,
 	})
 	log.SetOutput(os.Stdout)
