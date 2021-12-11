@@ -43,9 +43,9 @@ func main() {
 	serviceConfigPath := "workloads/timed.yaml"
 	// write the whole body at once
 
-	traces := tc.ParseInvocationTrace("data/invocations_10.csv", *duration)
-	tc.ParseDurationTrace(&traces, "data/durations_10.csv")
-	tc.ParseMemoryTrace(&traces, "data/memory_10.csv")
+	traces := tc.ParseInvocationTrace("data/traces/invocations_10.csv", *duration)
+	tc.ParseDurationTrace(&traces, "data/traces/durations_10.csv")
+	tc.ParseMemoryTrace(&traces, "data/traces/memory_10.csv")
 
 	log.Info("Traces contain the following: ", len(traces.Functions), " functions")
 	for _, function := range traces.Functions {

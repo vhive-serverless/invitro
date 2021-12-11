@@ -1,0 +1,132 @@
+$ watch kn service list
+Every 2.0s: kn service list                                                   node-0.loader.faas-sched-pg0.utah.cloudlab.us: Sat Dec 11 02:39:53 2021
+
+NAME           URL                                                  LATEST               AGE     CONDITIONS   READY   REASON
+trace-func-0   http://trace-func-0.default.192.168.1.240.sslip.io   trace-func-0-00001   7h31m   1 OK / 3     False   RevisionFailed : Revision "trac
+e-func-0-00001" failed with message: 0/2 nodes are available: 1 node(s) had taint {node-role.kubernetes.io/master: }, that the pod didn't tolerate, 1
+ node(s) had taint {node.kubernetes.io/not-ready: }, that the pod didn't tolerate..
+trace-func-1   http://trace-func-1.default.192.168.1.240.sslip.io   trace-func-1-00001   7h31m   3 OK / 3     True
+trace-func-2   http://trace-func-2.default.192.168.1.240.sslip.io   trace-func-2-00001   7h31m   1 OK / 3     False   RevisionFailed : Revision "trac
+e-func-2-00001" failed with message: 0/2 nodes are available: 1 node(s) had taint {node-role.kubernetes.io/master: }, that the pod didn't tolerate, 1
+ node(s) had taint {node.kubernetes.io/not-ready: }, that the pod didn't tolerate..
+trace-func-3   http://trace-func-3.default.192.168.1.240.sslip.io   trace-func-3-00001   7h31m   3 OK / 3     True
+trace-func-4   http://trace-func-4.default.192.168.1.240.sslip.io   trace-func-4-00001   7h31m   3 OK / 3     True
+trace-func-5   http://trace-func-5.default.192.168.1.240.sslip.io   trace-func-5-00001   7h31m   1 OK / 3     False   RevisionFailed : Revision "trac
+e-func-5-00001" failed with message: 0/2 nodes are available: 1 node(s) had taint {node-role.kubernetes.io/master: }, that the pod didn't tolerate, 1
+ node(s) had taint {node.kubernetes.io/not-ready: }, that the pod didn't tolerate..
+trace-func-6   http://trace-func-6.default.192.168.1.240.sslip.io   trace-func-6-00001   7h31m   3 OK / 3     True
+trace-func-7   http://trace-func-7.default.192.168.1.240.sslip.io   trace-func-7-00001   7h31m   3 OK / 3     True
+trace-func-8   http://trace-func-8.default.192.168.1.240.sslip.io   trace-func-8-00001   7h31m   3 OK / 3     True
+trace-func-9   http://trace-func-9.default.192.168.1.240.sslip.io   trace-func-9-00001   7h31m   3 OK / 3     True
+
+$ kubectl get pods
+NAME                                             READY   STATUS        RESTARTS   AGE
+trace-func-0-00001-deployment-c6c46b5d9-22cnz    0/2     Pending       0          6h15m
+trace-func-0-00001-deployment-c6c46b5d9-22x24    0/2     Pending       0          6h15m
+trace-func-0-00001-deployment-c6c46b5d9-24k4t    0/2     Pending       0          5h52m
+trace-func-0-00001-deployment-c6c46b5d9-29pr5    0/2     Pending       0          6h15m
+trace-func-0-00001-deployment-c6c46b5d9-2b42b    0/2     Pending       0          6h15m
+trace-func-0-00001-deployment-c6c46b5d9-2bmwj    0/2     Pending       0          5h52m
+trace-func-0-00001-deployment-c6c46b5d9-2fgrq    0/2     Pending       0          6h15m
+trace-func-0-00001-deployment-c6c46b5d9-2hzvd    0/2     Pending       0          6h15m
+trace-func-0-00001-deployment-c6c46b5d9-2jkpv    0/2     Pending       0          5h52m
+trace-func-0-00001-deployment-c6c46b5d9-2lrnq    0/2     Pending       0          6h15m
+trace-func-0-00001-deployment-c6c46b5d9-2ndss    0/2     Pending       0          6h15m
+trace-func-0-00001-deployment-c6c46b5d9-2r5k8    0/2     Pending       0          6h15m
+trace-func-0-00001-deployment-c6c46b5d9-2r7qt    0/2     Pending       0          6h14m
+trace-func-0-00001-deployment-c6c46b5d9-2wbz8    0/2     Terminating   50         6h15m
+trace-func-0-00001-deployment-c6c46b5d9-2x29t    0/2     Pending       0          6h15m
+trace-func-0-00001-deployment-c6c46b5d9-458fv    0/2     Pending       0          6h15m
+...
+
+$ kubectl describe pod trace-func-0-00001-deployment-c6c46b5d9-2jkpv
+Name:           trace-func-0-00001-deployment-c6c46b5d9-2jkpv
+Namespace:      default
+Priority:       0
+Node:           <none>
+Labels:         app=trace-func-0-00001
+                pod-template-hash=c6c46b5d9
+                service.istio.io/canonical-name=trace-func-0
+                service.istio.io/canonical-revision=trace-func-0-00001
+                serving.knative.dev/configuration=trace-func-0
+                serving.knative.dev/configurationGeneration=1
+                serving.knative.dev/configurationUID=ed7615cc-0714-447f-86a7-c9d83428050b
+                serving.knative.dev/revision=trace-func-0-00001
+                serving.knative.dev/revisionUID=998e4a36-14b4-4500-aa3b-40b58bdcdd7f
+                serving.knative.dev/service=trace-func-0
+                serving.knative.dev/serviceUID=52d03f63-847d-4cfe-b02c-67f48de0cc58
+Annotations:    autoscaling.knative.dev/target: 1
+                serving.knative.dev/creator: kubernetes-admin
+Status:         Pending
+IP:             
+IPs:            <none>
+Controlled By:  ReplicaSet/trace-func-0-00001-deployment-c6c46b5d9
+Containers:
+  user-container:
+    Image:      index.docker.io/crccheck/hello-world@sha256:0404ca69b522f8629d7d4e9034a7afe0300b713354e8bf12ec9657581cf59400
+    Port:       50051/TCP
+    Host Port:  0/TCP
+    Environment:
+      GUEST_PORT:       50051
+      GUEST_IMAGE:      amohoste/timed:latest
+      MEM_SIZE_MB:      2048
+      PORT:             50051
+      K_REVISION:       trace-func-0-00001
+      K_CONFIGURATION:  trace-func-0
+      K_SERVICE:        trace-func-0
+    Mounts:
+      /var/run/secrets/kubernetes.io/serviceaccount from default-token-x2xj9 (ro)
+  queue-proxy:
+    Image:       docker.io/vhiveease/queue-39be6f1d08a095bd076a71d288d295b6@sha256:2792802ac51ee222f01035c450b6718e3b40e810dec6b1d7f3ce7beefb5db2e0
+    Ports:       8022/TCP, 9090/TCP, 9091/TCP, 8013/TCP
+    Host Ports:  0/TCP, 0/TCP, 0/TCP, 0/TCP
+    Requests:
+      cpu:      25m
+    Readiness:  http-get http://:8013/ delay=0s timeout=1s period=1s #success=1 #failure=3
+    Environment:
+      SERVING_NAMESPACE:                 default
+      SERVING_SERVICE:                   trace-func-0
+      SERVING_CONFIGURATION:             trace-func-0
+      SERVING_REVISION:                  trace-func-0-00001
+      QUEUE_SERVING_PORT:                8013
+      CONTAINER_CONCURRENCY:             1
+      REVISION_TIMEOUT_SECONDS:          300
+      SERVING_POD:                       trace-func-0-00001-deployment-c6c46b5d9-2jkpv (v1:metadata.name)
+      SERVING_POD_IP:                     (v1:status.podIP)
+      SERVING_LOGGING_CONFIG:            
+      SERVING_LOGGING_LEVEL:             
+      SERVING_REQUEST_LOG_TEMPLATE:      {"httpRequest": {"requestMethod": "{{.Request.Method}}", "requestUrl": "{{js .Request.RequestURI}}", "requestSize": "{{.Request.ContentLength}}", "status": {{.Response.Code}}, "responseSize": "{{.Response.Size}}", "userAgent": "{{js .Request.UserAgent}}", "remoteIp": "{{js .Request.RemoteAddr}}", "serverIp": "{{.Revision.PodIP}}", "referer": "{{js .Request.Referer}}", "latency": "{{.Response.Latency}}s", "protocol": "{{.Request.Proto}}"}, "traceId": "{{index .Request.Header "X-B3-Traceid"}}"}
+      SERVING_ENABLE_REQUEST_LOG:        false
+      SERVING_REQUEST_METRICS_BACKEND:   prometheus
+      TRACING_CONFIG_BACKEND:            none
+      TRACING_CONFIG_ZIPKIN_ENDPOINT:    
+      TRACING_CONFIG_DEBUG:              false
+      TRACING_CONFIG_SAMPLE_RATE:        0.1
+      USER_PORT:                         50051
+      SYSTEM_NAMESPACE:                  knative-serving
+      METRICS_DOMAIN:                    knative.dev/internal/serving
+      SERVING_READINESS_PROBE:           {"tcpSocket":{"port":50051,"host":"127.0.0.1"},"successThreshold":1}
+      ENABLE_PROFILING:                  false
+      SERVING_ENABLE_PROBE_REQUEST_LOG:  false
+      METRICS_COLLECTOR_ADDRESS:         
+      CONCURRENCY_STATE_ENDPOINT:        
+      CONCURRENCY_STATE_TOKEN_PATH:      /var/run/secrets/tokens/state-token
+      ENABLE_HTTP2_AUTO_DETECTION:       false
+    Mounts:
+      /var/run/secrets/kubernetes.io/serviceaccount from default-token-x2xj9 (ro)
+Conditions:
+  Type           Status
+  PodScheduled   False 
+Volumes:
+  default-token-x2xj9:
+    Type:        Secret (a volume populated by a Secret)
+    SecretName:  default-token-x2xj9
+    Optional:    false
+QoS Class:       Burstable
+Node-Selectors:  <none>
+Tolerations:     node.kubernetes.io/not-ready:NoExecute op=Exists for 300s
+                 node.kubernetes.io/unreachable:NoExecute op=Exists for 300s
+Events:
+  Type     Reason            Age                     From               Message
+  ----     ------            ----                    ----               -------
+  Warning  FailedScheduling  3m5s (x178 over 5h57m)  default-scheduler  0/2 nodes are available: 1 node(s) had taint {node-role.kubernetes.io/master: }, that the pod didn't tolerate, 1 node(s) had taint {node.kubernetes.io/not-ready: }, that the pod didn't tolerate.
