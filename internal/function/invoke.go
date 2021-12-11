@@ -84,7 +84,7 @@ func Invoke(
 					log.Info("Slot offset: ", offset)
 					if offset > time.Duration(0) {
 						//* Function invocation exceeded allotted the slot.
-						time.Sleep(offset)
+						time.Sleep(offset / 2) //! Don't fill the slot completely.
 					}
 					wg.Done()
 				}()
@@ -92,7 +92,7 @@ func Invoke(
 
 				/** Time-box gRPC dialling. */
 				// diallingBound := funcSlot
-				diallingBound := time.Minute * 2 // ! NO bound for dialling currently.
+				diallingBound := time.Minute * 2 //! NO bound for dialling currently.
 				ctx, cancel := context.WithTimeout(context.Background(), diallingBound)
 				defer cancel()
 
