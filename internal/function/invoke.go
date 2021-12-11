@@ -149,7 +149,7 @@ func invoke(ctx context.Context, function tc.Function) (bool, int64) {
 	// Start latency measurement.
 	start := time.Now()
 
-	conn, err := grpc.DialContext(ctx, function.GetUrl(), grpc.WithInsecure(), grpc.WithBlock())
+	conn, err := grpc.DialContext(ctx, function.GetUrl(), grpc.WithInsecure())
 	if err != nil {
 		log.Fatalf("Failed to connect: %v", err)
 		return false, 0
