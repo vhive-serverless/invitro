@@ -47,7 +47,8 @@ func Invoke(
 	totalInvocaked := 0
 
 	for min := 0; min < len(totalInvocationsEachMin); min++ {
-		timeout := time.After(time.Duration(60) * time.Second)
+		tolerance := time.Second * 2 // ! Tolerate 2s difference.
+		timeout := time.After(time.Duration(60)*time.Second + tolerance)
 		tick := time.NewTicker(time.Duration(1000/rps) * time.Millisecond).C
 		start := time.Now()
 
