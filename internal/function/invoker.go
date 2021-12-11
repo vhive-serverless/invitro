@@ -85,7 +85,8 @@ func Invoke(
 
 func invoke(ctx context.Context, function tc.Function) {
 	runtime, _ := tc.GetExecutionSpecification(function)
-	// ! Memory allocation has problems.
+	// ! Memory allocations over-committed the server, which caused pods constantly fail
+	// ! and be brought back to life again.
 	memory := 10
 	// Start latency measurement.
 	start := time.Now()
