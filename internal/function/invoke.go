@@ -59,7 +59,7 @@ func Invoke(
 		/** Compute function slot. */
 		var oneMinuteInMicrosec int = 60e6
 		funcSlot := time.Duration(int64(oneMinuteInMicrosec/totalInvocationsThisMinute)) * time.Microsecond
-		log.Info("(Minute", min+1, ") Slot duration: ", funcSlot)
+		log.Info("(Minute ", min+1, ") Slot duration: ", funcSlot)
 
 		wg := sync.WaitGroup{}
 		start := time.Now()
@@ -110,10 +110,11 @@ func Invoke(
 				log.Warn("TIME OUT (", duration, "[s]) during invocation ", i+1, " round ", min+1)
 				break this_minute
 			case <-tick:
-				log.Info("One-minute excution duration: ", duration, " [s]")
+				log.Info("Minute ", min+1, " -- Accumulative duration: ", duration, " [s]")
 				continue
 			}
 		}
+		time.Sleep(time.Since(start) - time.Minute) //* Fill this minute if necessary.
 		wg.Wait()
 		totalInvocaked += invocationCount
 
