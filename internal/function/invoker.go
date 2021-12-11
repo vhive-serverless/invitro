@@ -29,24 +29,26 @@ func Invoke(
 	defer cancel()
 
 	for min := 0; min < len(totalInvocationsEachMin); min++ {
+		// TODO: Extract the computation out so that total #waits can be computed.
 		requestLimit := rps * 60
-		totalInvocation := totalInvocationsEachMin[min]
+		// totalInvocationThisMin := totalInvocationsEachMin[min]
+		totalInvocationThisMin := 1 // ! Test memory over-commission.
 
 		invocationCount := 0
 
-		if totalInvocation > requestLimit {
+		if totalInvocationThisMin > requestLimit {
 			log.Warn("Total number requests exceed capacity at minute: ", min+1,
-				" by ", totalInvocation-requestLimit)
+				" by ", totalInvocationThisMin-requestLimit)
 
-			totalInvocation = requestLimit
+			totalInvocationThisMin = requestLimit
 		}
 
 		wg := sync.WaitGroup{}
-		wg.Add(totalInvocation)
+		wg.Add(totalInvocationThisMin)
 
-		interval := time.Duration(60*1e6/totalInvocation) * time.Microsecond
+		interval := time.Duration(60*1e6/totalInvocationThisMin) * time.Microsecond
 
-		for i := 0; i < totalInvocation; i++ {
+		for i := 0; i < totalInvocationThisMin; i++ {
 			shuffleInvocationOfOneMin(&invocationsPerMin[min])
 
 			functionIdx := invocationsPerMin[min][i]
@@ -58,12 +60,14 @@ func Invoke(
 
 			go func(i int, endpoint string) {
 				defer wg.Done()
-				invoke(ctx, function)
-				invocationCount++
+				if invoke(ctx, function) {
+					invocationCount++
+				}
 			}(i, function.GetUrl())
 
 			time.Sleep(interval)
 		}
+		// ! Moving waiting outside -- don't wait on a min-by-min basis.
 		wg.Wait()
 		// If the file doesn't exist, create it, or append to the file.
 		f, err := os.OpenFile("invocation.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
@@ -83,17 +87,18 @@ func Invoke(
 	}
 }
 
-func invoke(ctx context.Context, function tc.Function) {
-	runtime, _ := tc.GetExecutionSpecification(function)
+func invoke(ctx context.Context, function tc.Function) bool {
+	runtime, memory := tc.GetExecutionSpecification(function)
 	// ! Memory allocations over-committed the server, which caused pods constantly fail
 	// ! and be brought back to life again.
-	memory := 10
+	// memory := 10
 	// Start latency measurement.
 	start := time.Now()
 
 	conn, err := grpc.DialContext(ctx, function.GetUrl(), grpc.WithInsecure(), grpc.WithBlock())
 	if err != nil {
-		log.Fatalf("did not connect: %v", err)
+		log.Fatalf("Failed to connect: %v", err)
+		return false
 	}
 	defer conn.Close()
 
@@ -108,12 +113,13 @@ func invoke(ctx context.Context, function tc.Function) {
 
 	if err != nil {
 		log.Warnf("Failed to invoke %s, err=%v", function.GetName(), err)
+		return false
 	}
 
 	latency := time.Since(start).Microseconds()
 
 	log.Infof("Invoked %s in %d [µs]\n", function.GetName(), latency)
-
+	return true
 }
 
 /**
