@@ -98,7 +98,9 @@ func Invoke(
 
 				wg.Add(1)
 				// Bound invocation.
-				ctx, cancel := context.WithTimeout(context.Background(), funcSlot)
+				// diallingBound := funcSlot
+				diallingBound := time.Minute * 2 // ! Do not bound for now.
+				ctx, cancel := context.WithTimeout(context.Background(), diallingBound)
 				defer cancel()
 				hasInvoked, latency = invoke(ctx, function)
 
