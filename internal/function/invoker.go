@@ -54,8 +54,8 @@ func Invoke(
 
 		oneMinuteInSec := 60
 		// invocationOffset := time.Duration(1e5) // ! This is a rough estimation and is thus to be improved.
-		interval := time.Duration(oneMinuteInSec/totalInvocationsThisMin) * time.Microsecond
-		log.Info("Interval: ", interval)
+		funcSlot := time.Duration(oneMinuteInSec/totalInvocationsThisMin) * time.Millisecond * time.Microsecond
+		log.Info("Function slot: ", funcSlot)
 
 		wg := sync.WaitGroup{}
 		// Only invoke the number of functions limited by `rps`.
@@ -69,16 +69,28 @@ func Invoke(
 				continue
 			}
 			go func() {
-				defer wg.Done()
+				var (
+					has_invoked bool
+					latency     int64
+				)
+				defer func() {
+					interval := funcSlot - time.Duration(latency)
+					log.Info("Idle for ", interval)
+					if interval > 0 {
+						time.Sleep(interval)
+					}
+					wg.Done()
+				}()
+
 				wg.Add(1)
-				if invoke(ctx, function) {
+				has_invoked, latency = invoke(ctx, function)
+
+				if has_invoked {
 					invocationCount++
 				} else {
 					return
 				}
 			}()
-
-			time.Sleep(interval)
 		}
 		wg.Wait()
 
@@ -103,7 +115,7 @@ func Invoke(
 	}
 }
 
-func invoke(ctx context.Context, function tc.Function) bool {
+func invoke(ctx context.Context, function tc.Function) (bool, int64) {
 	runtime, _ := tc.GetExecutionSpecification(function)
 	// ! * Memory allocations over-committed the server, which caused pods constantly fail
 	// ! and be brought back to life again.
@@ -116,7 +128,7 @@ func invoke(ctx context.Context, function tc.Function) bool {
 	conn, err := grpc.DialContext(ctx, function.GetUrl(), grpc.WithInsecure(), grpc.WithBlock())
 	if err != nil {
 		log.Fatalf("Failed to connect: %v", err)
-		return false
+		return false, 0
 	}
 	defer conn.Close()
 
@@ -131,13 +143,13 @@ func invoke(ctx context.Context, function tc.Function) bool {
 
 	if err != nil {
 		log.Warnf("Failed to invoke %s, err=%v", function.GetName(), err)
-		return false
+		return false, 0
 	}
 
 	latency := time.Since(start).Microseconds()
 
 	log.Infof("Invoked %s in %d [µs]\n", function.GetName(), latency)
-	return true
+	return true, latency
 }
 
 /**
