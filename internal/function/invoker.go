@@ -38,8 +38,8 @@ func Invoke(
 	requestLimit := rps * 60
 	for min, minuteInvocations := range totalInvocationsEachMin {
 		if minuteInvocations > requestLimit {
-			log.Warn("Total number requests exceed capacity at minute: ", min+1,
-				" by ", minuteInvocations-requestLimit)
+			log.Warnf("Total number requests exceed capacity by %d at minute %d/%d",
+				minuteInvocations-requestLimit, min+1, len(totalInvocationsEachMin))
 
 			totalInvocationsEachMin[min] = requestLimit
 		}
@@ -47,16 +47,17 @@ func Invoke(
 	totalInvocations := sum(totalInvocationsEachMin)
 	totalInvocaked := 0
 
-	wg := sync.WaitGroup{}
 	for min := 0; min < len(totalInvocationsEachMin); min++ {
 		invocationCount := 0
 		totalInvocationsThisMin := totalInvocationsEachMin[min]
 		// totalInvocationThisMin := 1 // ! Test memory over-commission.
 
 		oneMinuteInSec := 60
-		invocationOffset := time.Duration(2e6) // ! This is a rough estimation and is thus to be improved.
-		interval := time.Duration(oneMinuteInSec/totalInvocationsThisMin)*time.Microsecond - invocationOffset
+		// invocationOffset := time.Duration(1e5) // ! This is a rough estimation and is thus to be improved.
+		interval := time.Duration(oneMinuteInSec/totalInvocationsThisMin) * time.Microsecond
+		log.Info("Interval: ", interval)
 
+		wg := sync.WaitGroup{}
 		// Only invoke the number of functions limited by `rps`.
 		for i := 0; i < totalInvocationsThisMin; i++ {
 			shuffleInvocationOfOneMin(&invocationsPerMin[min])
@@ -67,18 +68,21 @@ func Invoke(
 				// Failed in deployment.
 				continue
 			}
-			wg.Add(1)
-			go func(i int, endpoint string) {
+			go func() {
 				defer wg.Done()
+				wg.Add(1)
 				if invoke(ctx, function) {
 					invocationCount++
 				} else {
 					return
 				}
-			}(i, function.GetUrl())
+			}()
 
 			time.Sleep(interval)
 		}
+		wg.Wait()
+
+		totalInvocaked += invocationCount
 		// TODO: Move IO elsewhere.
 		if _, err := f.Write(
 			[]byte(
@@ -86,11 +90,8 @@ func Invoke(
 					fmt.Sprintf("Issued    %d invocations at min %d\n\n", invocationCount, min+1))); err != nil {
 			log.Fatal(err)
 		}
-
-		totalInvocaked += invocationCount
 	}
 	// Wait for all -- don't wait on a min-by-min basis.
-	wg.Wait()
 	if _, err := f.Write(
 		[]byte(
 			fmt.Sprintf("Total requested: %d. Actually invoked: %d\n", totalInvocations, totalInvocaked))); err != nil {

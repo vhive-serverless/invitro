@@ -1,0 +1,42 @@
+$ kn service delete --all
+Error: Internal error occurred: failed calling webhook "validation.webhook.serving.knative.dev": Post "https://webhook.knative-serving.svc:443/resource-validation?timeout=10s": dial tcp 10.105.37.73:443: connect: connection refused
+Error: Internal error occurred: failed calling webhook "validation.webhook.serving.knative.dev": Post "https://webhook.knative-serving.svc:443/resource-validation?timeout=10s": dial tcp 10.105.37.73:443: connect: connection refused
+Error: Internal error occurred: failed calling webhook "validation.webhook.serving.knative.dev": Post "https://webhook.knative-serving.svc:443/resource-validation?timeout=10s": dial tcp 10.105.37.73:443: connect: connection refused
+Error: Internal error occurred: failed calling webhook "validation.webhook.serving.knative.dev": Post "https://webhook.knative-serving.svc:443/resource-validation?timeout=10s": dial tcp 10.105.37.73:443: connect: connection refused
+
+...
+
+$ make run
+WARN[2021-12-11T04:15:35.614463615-07:00] Failed to deploy function trace-func-0: exit status 1
+Creating service 'trace-func-0' in namespace 'default':
+
+  0.040s The Route is still working to reflect the latest desired specification.
+  0.049s ...
+  0.071s Configuration "trace-func-0" is waiting for a Revision to become ready.
+  2.134s Revision "trace-func-0-00001" failed with message: 0/2 nodes are available: 1 node(s) had taint {node-role.kubernetes.io/master: }, that the pod didn't tolerate, 1 node(s) had taint {node.kubernetes.io/not-ready: }, that the pod didn't tolerate..
+  2.171s Configuration "trace-func-0" does not have any ready Revision.
+Error: RevisionFailed: Revision "trace-func-0-00001" failed with message: 0/2 nodes are available: 1 node(s) had taint {node-role.kubernetes.io/master: }, that the pod didn't tolerate, 1 node(s) had taint {node.kubernetes.io/not-ready: }, that the pod didn't tolerate..
+Run 'kn --help' for usage
+ 
+WARN[2021-12-11T04:15:39.297956528-07:00] Failed to deploy function trace-func-1: exit status 1
+Creating service 'trace-func-1' in namespace 'default':
+
+  0.054s The Route is still working to reflect the latest desired specification.
+  0.086s ...
+  0.103s Configuration "trace-func-1" is waiting for a Revision to become ready.
+  1.604s Revision "trace-func-1-00001" failed with message: 0/2 nodes are available: 1 node(s) had taint {node-role.kubernetes.io/master: }, that the pod didn't tolerate, 1 node(s) had taint {node.kubernetes.io/not-ready: }, that the pod didn't tolerate..
+  1.617s Configuration "trace-func-1" does not have any ready Revision.
+Error: RevisionFailed: Revision "trace-func-1-00001" failed with message: 0/2 nodes are available: 1 node(s) had taint {node-role.kubernetes.io/master: }, that the pod didn't tolerate, 1 node(s) had taint {node.kubernetes.io/not-ready: }, that the pod didn't tolerate..
+Run 'kn --help' for usage
+
+...
+
+WARN[2021-12-11T04:40:58.751726567-07:00] Failed to deploy function trace-func-0: exit status 1
+Error: Internal error occurred: failed calling webhook "webhook.serving.knative.dev": Post "https://webhook.knative-serving.svc:443/defaulting?timeout=10s": dial tcp 10.106.41.11:443: connect: connection refused
+Run 'kn --help' for usage
+ 
+WARN[2021-12-11T04:40:59.810088242-07:00] Failed to deploy function trace-func-1: exit status 1
+Error: Internal error occurred: failed calling webhook "webhook.serving.knative.dev": Post "https://webhook.knative-serving.svc:443/defaulting?timeout=10s": dial tcp 10.106.41.11:443: connect: connection refused
+Run 'kn --help' for usage
+ 
+... 

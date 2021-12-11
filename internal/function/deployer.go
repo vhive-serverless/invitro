@@ -19,7 +19,6 @@ func Deploy(
 	 */
 	sem := make(chan bool, deploymentConcurrency)
 
-	// log.Info("funcSlice: ", funcSlice)
 	for idx, function := range functions {
 		sem <- true
 
@@ -61,7 +60,6 @@ func deployFunction(function *tc.Function, workloadPath string) bool {
 		return false
 	}
 
-	// assemble function url from response from kubectl and the standard port
 	log.Info("Deployed function ", function.GetUrl())
 	return true
 }
