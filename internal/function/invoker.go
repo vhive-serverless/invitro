@@ -66,7 +66,7 @@ func Invoke(
 		// Only invoke the number of functions limited by `rps`.
 		for i := 0; i < totalInvocationsThisMinute; i++ {
 			// TODO: Bulk the computation and move it out
-			shuffleInvocationOfOneMin(&invocationsPerMin[min])
+			shuffleInplaceInvocationOfOneMinute(&invocationsPerMin[min])
 
 			functionIdx := invocationsPerMin[min][i]
 			function := functions[functionIdx]
@@ -75,14 +75,6 @@ func Invoke(
 				continue
 			}
 			go func() {
-				// 	select {
-				// 	case <-ctx.Done():
-				// 		log.Warn("TIME OUT when invoking ", function.GetName())
-				// 		break
-				// 	default:
-				// 		goto Invocation
-				// 	}
-				// Invocation:
 				var (
 					hasInvoked bool
 					latency    int64
@@ -167,13 +159,16 @@ func invoke(ctx context.Context, function tc.Function) (bool, int64) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	_, err = c.Execute(ctx, &faas.FaasRequest{
+	reply, err := c.Execute(ctx, &faas.FaasRequest{
 		Input: "", Runtime: uint32(runtime), Memory: uint32(memory)})
 
 	if err != nil {
 		log.Warnf("Failed to invoke %s, err=%v", function.GetName(), err)
 		return false, 0
 	}
+
+	log.Info("gRPC response: ", reply.Response)
+	log.Info("gRPC execution time: ", reply.Latency)
 
 	latency := time.Since(start).Microseconds()
 
@@ -185,7 +180,7 @@ func invoke(ctx context.Context, function tc.Function) (bool, int64) {
  * This function has/uses side-effects, but for the sake of performance
  * keep it for now.
  */
-func shuffleInvocationOfOneMin(invocations *[]int) {
+func shuffleInplaceInvocationOfOneMinute(invocations *[]int) {
 	for i := range *invocations {
 		j := rand.Intn(i + 1)
 		(*invocations)[i], (*invocations)[j] = (*invocations)[j], (*invocations)[i]
