@@ -47,25 +47,25 @@ func Invoke(
 	totalInvocaked := 0
 
 	for min := 0; min < len(totalInvocationsEachMin); min++ {
+		timeout := time.After(time.Duration(60) * time.Second)
+		tick := time.NewTicker(time.Duration(1000/rps) * time.Millisecond).C
+		start := time.Now()
+
 		invocationCount := 0
 		totalInvocationsThisMinute := totalInvocationsEachMin[min]
-		// totalInvocationThisMin := 1 // ! Test memory over-commission.
+		// totalInvocationsThisMinute := 1 // ! Test memory over-commission.
 
-		oneMinuteInSec := 60
-		// invocationOffset := time.Duration(1e5) // ! This is a rough estimation and is thus to be improved.
-		funcSlot := time.Duration(int64(oneMinuteInSec/totalInvocationsThisMinute)) * time.Millisecond * time.Microsecond
+		var oneMinuteInMicrosec int = 60e6
+		funcSlot := time.Duration(int64(oneMinuteInMicrosec/totalInvocationsThisMinute)) * time.Microsecond
 		log.Info("(Minute", min+1, ") Slot duration: ", funcSlot)
 
 		wg := sync.WaitGroup{}
+
+	this_minute:
 		// Only invoke the number of functions limited by `rps`.
 		for i := 0; i < totalInvocationsThisMinute; i++ {
 			// TODO: Bulk the computation and move it out
 			shuffleInvocationOfOneMin(&invocationsPerMin[min])
-
-			// Bound invocation by minute.
-			timeout := funcSlot
-			ctx, cancel := context.WithTimeout(context.Background(), timeout)
-			defer cancel()
 
 			functionIdx := invocationsPerMin[min][i]
 			function := functions[functionIdx]
@@ -74,36 +74,48 @@ func Invoke(
 				continue
 			}
 			go func() {
-				select {
-				case <-ctx.Done():
-					log.Warn("TIME OUT when invoking ", function.GetName())
-					break
-				default:
-					goto Invocation
-				}
-			Invocation:
+				// 	select {
+				// 	case <-ctx.Done():
+				// 		log.Warn("TIME OUT when invoking ", function.GetName())
+				// 		break
+				// 	default:
+				// 		goto Invocation
+				// 	}
+				// Invocation:
 				var (
-					has_invoked bool
-					latency     int64
+					hasInvoked bool
+					latency    int64
 				)
 				defer func() {
 					offset := funcSlot - time.Duration(latency)
 					log.Info("Offset of this invocation: ", offset)
-					if offset > 0 {
+					if offset > time.Duration(0) {
 						time.Sleep(offset)
 					}
 					wg.Done()
 				}()
 
 				wg.Add(1)
-				has_invoked, latency = invoke(ctx, function)
+				// Bound invocation.
+				ctx, cancel := context.WithTimeout(context.Background(), funcSlot)
+				defer cancel()
+				hasInvoked, latency = invoke(ctx, function)
 
-				if has_invoked {
+				if hasInvoked {
 					invocationCount++
 				} else {
 					return
 				}
 			}()
+			select {
+			case <-timeout:
+				log.Warn("TIME OUT during invocation ", i, " round ", min)
+				break this_minute
+			case <-tick:
+				duration := time.Since(start).Seconds()
+				log.Info("One-minute excution duration: ", duration, " [s]")
+				continue
+			}
 		}
 		wg.Wait()
 
@@ -119,7 +131,8 @@ func Invoke(
 	// Wait for all -- don't wait on a min-by-min basis.
 	if _, err := f.Write(
 		[]byte(
-			fmt.Sprintf("Original requested: %d. Actually invoked: %d\n", requestedInvocation, totalInvocaked))); err != nil {
+			fmt.Sprintf("Original requested: %d. Actually invoked: %d\n",
+				requestedInvocation, totalInvocaked))); err != nil {
 		log.Fatal(err)
 	}
 
