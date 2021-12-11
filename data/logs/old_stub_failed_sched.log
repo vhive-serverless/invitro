@@ -130,3 +130,15 @@ Events:
   Type     Reason            Age                     From               Message
   ----     ------            ----                    ----               -------
   Warning  FailedScheduling  3m5s (x178 over 5h57m)  default-scheduler  0/2 nodes are available: 1 node(s) had taint {node-role.kubernetes.io/master: }, that the pod didn't tolerate, 1 node(s) had taint {node.kubernetes.io/not-ready: }, that the pod didn't tolerate.
+
+$ kn service delete --all
+Error: Internal error occurred: failed calling webhook "validation.webhook.serving.knative.dev": Post "https://webhook.knative-serving.svc:443/resource-validation?timeout=10s": dial tcp 10.105.37.73:443: connect: connection refused
+Error: Internal error occurred: failed calling webhook "validation.webhook.serving.knative.dev": Post "https://webhook.knative-serving.svc:443/resource-validation?timeout=10s": dial tcp 10.105.37.73:443: connect: connection refused
+Error: Internal error occurred: failed calling webhook "validation.webhook.serving.knative.dev": Post "https://webhook.knative-serving.svc:443/resource-validation?timeout=10s": dial tcp 10.105.37.73:443: connect: connection refused
+Error: Internal error occurred: failed calling webhook "validation.webhook.serving.knative.dev": Post "https://webhook.knative-serving.svc:443/resource-validation?timeout=10s": dial tcp 10.105.37.73:443: connect: connection refused
+Error: Internal error occurred: failed calling webhook "validation.webhook.serving.knative.dev": Post "https://webhook.knative-serving.svc:443/resource-validation?timeout=10s": dial tcp 10.105.37.73:443: connect: connection refused
+Error: Internal error occurred: failed calling webhook "validation.webhook.serving.knative.dev": Post "https://webhook.knative-serving.svc:443/resource-validation?timeout=10s": dial tcp 10.105.37.73:443: connect: connection refused
+Error: Internal error occurred: failed calling webhook "validation.webhook.serving.knative.dev": Post "https://webhook.knative-serving.svc:443/resource-validation?timeout=10s": dial tcp 10.105.37.73:443: connect: connection refused
+Error: Internal error occurred: failed calling webhook "validation.webhook.serving.knative.dev": Post "https://webhook.knative-serving.svc:443/resource-validation?timeout=10s": dial tcp 10.105.37.73:443: connect: connection refused
+Error: Internal error occurred: failed calling webhook "validation.webhook.serving.knative.dev": Post "https://webhook.knative-serving.svc:443/resource-validation?timeout=10s": dial tcp 10.105.37.73:443: connect: connection refused
+Error: Internal error occurred: failed calling webhook "validation.webhook.serving.knative.dev": Post "https://webhook.knative-serving.svc:443/resource-validation?timeout=10s": dial tcp 10.105.37.73:443: connect: connection refused

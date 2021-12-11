@@ -17,7 +17,7 @@ import (
 
 var (
 	debug    = flag.Bool("dbg", false, "Enable debug logging")
-	rps      = flag.Int("rps", 100, "Request per second (default: 100)")
+	rps      = flag.Int("rps", 1, "Request per second (default: 1)")
 	duration = flag.Int("duration", 1, "Duration of the experiment (default: 1 min)")
 )
 
