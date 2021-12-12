@@ -3,7 +3,7 @@ module github.com/eth-easl/easyloader
 go 1.17
 
 require (
-	github.com/containerd/containerd v1.5.8
+	github.com/gocarina/gocsv v0.0.0-20211203214250-4735fba0c1d9
 	github.com/golang/protobuf v1.5.2
 	github.com/sirupsen/logrus v1.8.1
 	golang.org/x/sys v0.0.0-20210510120138-977fb7262007 // indirect
