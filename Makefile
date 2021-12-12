@@ -6,7 +6,8 @@ proto:
 		--go-grpc_opt=paths=source_relative \
 		pkg/faas/*.proto 
 
-clean: # make -i clean
+# make -i clean
+clean: 
 	kn service delete --all
 	rm -f el
 	rm -f *.log
@@ -15,5 +16,6 @@ clean: # make -i clean
 build:
 	go build cmd/el.go
 
+# make ARGS="--rps X --duration X" run
 run:
-	go run cmd/el.go
+	go run cmd/el.go $(ARGS)

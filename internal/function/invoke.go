@@ -17,22 +17,31 @@ import (
 	faas "github.com/eth-easl/easyloader/pkg/faas"
 )
 
-func Invoke(rps int, functions []tc.Function, invocationsEachMinute [][]int, totalNumInvocationsEachMinute []int) {
+func Invoke(
+	rps int,
+	functions []tc.Function,
+	invocationsEachMinute [][]int,
+	totalNumInvocationsEachMinute []int) {
 
+	start := time.Now()
 	wg := sync.WaitGroup{}
+
 	totalFuncInvocaked := 0
+	idleDuration := time.Duration(0)
 
 	for minute := 0; minute < len(totalNumInvocationsEachMinute); minute++ {
+		iter_start := time.Now()
 		/** Set up timer to bound the one-minute invocation. */
-		tolerance := time.Second * 2 // ! Tolerate 2s difference.
+		tolerance := time.Second * 1 // ! Tolerate 2s difference.
 		timeout := time.After(time.Duration(60)*time.Second + tolerance)
-		ticker := time.NewTicker(time.Duration(1000/rps) * time.Millisecond)
+		interval := time.Duration(1000/rps) * time.Millisecond
+		ticker := time.NewTicker(interval)
 		done := make(chan bool)
 
 		/** Timer. */
 		go func() {
 			t := <-timeout
-			log.Info("Timeout at ", t, "\tMinute Nbr. ", minute)
+			log.Warn("(regular) TIMEOUT at ", t, "\tMinute Nbr. ", minute)
 			ticker.Stop()
 			done <- true
 		}()
@@ -47,14 +56,15 @@ func Invoke(rps int, functions []tc.Function, invocationsEachMinute [][]int, tot
 			select {
 			case t := <-ticker.C:
 				if next >= numFuncToInvokeThisMinute {
-					log.Info("Idle ticking at ", t, "\tMinute Nbr. ", minute, " Itr. ", next)
-					// *We can `continue` if we don't fill the slot.
+					log.Info("Idle ticking at ", t.Format(time.StampMilli), "\tMinute Nbr. ", minute, " Itr. ", next)
+					idleDuration += interval
+					continue
 				}
 				go func() {
 					defer wg.Done()
 					wg.Add(1)
 
-					diallingBound := 2 * time.Hour //! NO bound for dialling currently.
+					diallingBound := 2 * time.Hour // ! NO bound for dialling currently.
 					ctx, cancel := context.WithTimeout(context.Background(), diallingBound)
 					defer cancel()
 
@@ -68,17 +78,81 @@ func Invoke(rps int, functions []tc.Function, invocationsEachMinute [][]int, tot
 				}()
 			case <-done:
 				totalFuncInvocaked += invocationCount
+				log.Info("Iteration spent: ", time.Since(iter_start), "\tMinute Nbr. ", minute)
 				log.Info("Required #invocations=", numFuncToInvokeThisMinute,
 					" Fired #functions=", totalFuncInvocaked, "\tMinute Nbr. ", minute)
-				break // *OR `break`. Done with traces of this minute.
+				goto next_minute // *`break` doesn't work here as it's somehow ambiguous to Golang.
 			}
 			next++
 		}
+	next_minute:
 	}
 	wg.Wait()
+	duration := time.Since(start)
+	log.Info("Total invocation duration: ", duration, "\tIdle ", idleDuration, "\n")
 }
 
-func OldInvoke(rps int, functions []tc.Function,
+func invoke(ctx context.Context, function tc.Function) (bool, int64) {
+	runtime, _ := tc.GetExecutionSpecification(function)
+	// ! * Memory allocations over-committed the server, which caused pods constantly fail
+	// ! and be brought back to life again.
+	// ! * Set to 1 MB for testing purposes.
+	memory := 1
+
+	// Start latency measurement.
+	start := time.Now()
+
+	conn, err := grpc.DialContext(ctx, function.GetUrl(), grpc.WithInsecure(), grpc.WithBlock())
+	if err != nil {
+		log.Fatalf("Failed to connect: %v", err)
+		return false, 0
+	}
+	defer conn.Close()
+
+	c := faas.NewExecutorClient(conn)
+
+	// Contact the server and print out its response.
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	reply, err := c.Execute(ctx, &faas.FaasRequest{
+		Input: "", Runtime: uint32(runtime), Memory: uint32(memory)})
+
+	if err != nil {
+		log.Warnf("Failed to invoke %s, err=%v", function.GetName(), err)
+		return false, 0
+	}
+
+	// log.Info("gRPC response: ", reply.Response)
+	executionTime := reply.Latency
+	log.Info("(gRPC) Function execution time: ", executionTime, " [µs]")
+
+	latency := time.Since(start).Microseconds()
+
+	log.Infof("Invoked %s in %d [µs]\n", function.GetName(), latency)
+	return true, latency
+}
+
+/**
+ * This function has/uses side-effects, but for the sake of performance
+ * keep it for now.
+ */
+func shuffleInplaceInvocationOfOneMinute(invocations *[]int) {
+	for i := range *invocations {
+		j := rand.Intn(i + 1)
+		(*invocations)[i], (*invocations)[j] = (*invocations)[j], (*invocations)[i]
+	}
+}
+
+func sum(array []int) int {
+	result := 0
+	for _, v := range array {
+		result += v
+	}
+	return result
+}
+
+func DeprecatedInvoke(rps int, functions []tc.Function,
 	invocationsPerMin [][]int, totalInvocationsEachMin []int) {
 
 	// If the file doesn't exist, create it, or append to the file.
@@ -195,64 +269,4 @@ func OldInvoke(rps int, functions []tc.Function,
 	if err := f.Close(); err != nil {
 		log.Fatal(err)
 	}
-}
-
-func invoke(ctx context.Context, function tc.Function) (bool, int64) {
-	runtime, _ := tc.GetExecutionSpecification(function)
-	// ! * Memory allocations over-committed the server, which caused pods constantly fail
-	// ! and be brought back to life again.
-	// ! * Set to 1 MB for testing purposes.
-	memory := 1
-
-	// Start latency measurement.
-	start := time.Now()
-
-	conn, err := grpc.DialContext(ctx, function.GetUrl(), grpc.WithInsecure(), grpc.WithBlock())
-	if err != nil {
-		log.Fatalf("Failed to connect: %v", err)
-		return false, 0
-	}
-	defer conn.Close()
-
-	c := faas.NewExecutorClient(conn)
-
-	// Contact the server and print out its response.
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	reply, err := c.Execute(ctx, &faas.FaasRequest{
-		Input: "", Runtime: uint32(runtime), Memory: uint32(memory)})
-
-	if err != nil {
-		log.Warnf("Failed to invoke %s, err=%v", function.GetName(), err)
-		return false, 0
-	}
-
-	// log.Info("gRPC response: ", reply.Response)
-	executionTime := reply.Latency
-	log.Info("Function execution time (gRPC): ", executionTime)
-
-	latency := time.Since(start).Microseconds()
-
-	log.Infof("Invoked %s in %d [µs]\n", function.GetName(), latency)
-	return true, latency
-}
-
-/**
- * This function has/uses side-effects, but for the sake of performance
- * keep it for now.
- */
-func shuffleInplaceInvocationOfOneMinute(invocations *[]int) {
-	for i := range *invocations {
-		j := rand.Intn(i + 1)
-		(*invocations)[i], (*invocations)[j] = (*invocations)[j], (*invocations)[i]
-	}
-}
-
-func sum(array []int) int {
-	result := 0
-	for _, v := range array {
-		result += v
-	}
-	return result
 }
