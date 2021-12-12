@@ -75,7 +75,7 @@ func Invoke(
 					defer wg.Done()
 					wg.Add(1)
 
-					diallingBound := 2 * time.Minute //* 2-min timeout to circumvent hanging.
+					diallingBound := 2 * time.Minute //* 2-min timeout for circumventing hanging.
 					ctx, cancel := context.WithTimeout(context.Background(), diallingBound)
 					defer cancel()
 
@@ -112,12 +112,12 @@ func Invoke(
 	log.Info("Total invocation duration: ", totalDuration, "\tIdle ", idleDuration, "\n")
 
 	//TODO: Extract IO out.
-	invocFileName := "data/out/invoke_rps-" + strconv.Itoa(rps) + "dur-" + strconv.Itoa(len(invocRecords)) + ".csv"
+	invocFileName := "data/out/invoke_rps-" + strconv.Itoa(rps) + "_dur-" + strconv.Itoa(len(invocRecords)) + ".csv"
 	invocF, err := os.Create(invocFileName)
 	check(err)
 	gocsv.MarshalFile(&invocRecords, invocF)
 
-	latencyFileName := "data/out/latency_rps-" + strconv.Itoa(rps) + "dur-" + strconv.Itoa(len(invocRecords)) + ".csv"
+	latencyFileName := "data/out/latency_rps-" + strconv.Itoa(rps) + "_dur-" + strconv.Itoa(len(invocRecords)) + ".csv"
 	latencyF, err := os.Create(latencyFileName)
 	check(err)
 	gocsv.MarshalFile(&latencyRecords, latencyF)
