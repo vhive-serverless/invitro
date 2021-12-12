@@ -1,5 +1,6 @@
 el
 out
+out/*
 
 ### CMake ###
 CMakeLists.txt.user
