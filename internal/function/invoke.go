@@ -30,10 +30,12 @@ func Invoke(
 	idleDuration := time.Duration(0)
 
 	for minute := 0; minute < len(totalNumInvocationsEachMinute); minute++ {
+		// TODO: Bulk the computation and move it out
+		shuffleInplaceInvocationOfOneMinute(&invocationsEachMinute[minute])
 		iter_start := time.Now()
 		/** Set up timer to bound the one-minute invocation. */
-		tolerance := time.Second * 1 // ! Tolerate 2s difference.
-		timeout := time.After(time.Duration(60)*time.Second + tolerance)
+		epsilon := time.Second / 2 // ! Tolerate 0.5s.
+		timeout := time.After(time.Duration(60)*time.Second - epsilon)
 		interval := time.Duration(1000/rps) * time.Millisecond
 		ticker := time.NewTicker(interval)
 		done := make(chan bool)
@@ -48,8 +50,6 @@ func Invoke(
 
 		invocationCount := 0
 		numFuncToInvokeThisMinute := totalNumInvocationsEachMinute[minute]
-		// TODO: Bulk the computation and move it out
-		shuffleInplaceInvocationOfOneMinute(&invocationsEachMinute[minute])
 
 		next := 0
 		for {
@@ -60,6 +60,7 @@ func Invoke(
 					idleDuration += interval
 					continue
 				}
+				// TODO: Enable cucurrent invocations.
 				go func() {
 					defer wg.Done()
 					wg.Add(1)
