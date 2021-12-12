@@ -17,11 +17,69 @@ import (
 	faas "github.com/eth-easl/easyloader/pkg/faas"
 )
 
-func Invoke(
-	rps int,
-	functions []tc.Function,
-	invocationsPerMin [][]int,
-	totalInvocationsEachMin []int) {
+func Invoke(rps int, functions []tc.Function, invocationsEachMinute [][]int, totalNumInvocationsEachMinute []int) {
+
+	wg := sync.WaitGroup{}
+	totalFuncInvocaked := 0
+
+	for minute := 0; minute < len(totalNumInvocationsEachMinute); minute++ {
+		/** Set up timer to bound the one-minute invocation. */
+		tolerance := time.Second * 2 // ! Tolerate 2s difference.
+		timeout := time.After(time.Duration(60)*time.Second + tolerance)
+		ticker := time.NewTicker(time.Duration(1000/rps) * time.Millisecond)
+		done := make(chan bool)
+
+		/** Timer. */
+		go func() {
+			t := <-timeout
+			log.Info("Timeout at ", t, "\tMinute Nbr. ", minute)
+			ticker.Stop()
+			done <- true
+		}()
+
+		invocationCount := 0
+		numFuncToInvokeThisMinute := totalNumInvocationsEachMinute[minute]
+		// TODO: Bulk the computation and move it out
+		shuffleInplaceInvocationOfOneMinute(&invocationsEachMinute[minute])
+
+		next := 0
+		for {
+			select {
+			case t := <-ticker.C:
+				if next >= numFuncToInvokeThisMinute {
+					log.Info("Idle ticking at ", t, "\tMinute Nbr. ", minute, " Itr. ", next)
+					// *We can `continue` if we don't fill the slot.
+				}
+				go func() {
+					defer wg.Done()
+					wg.Add(1)
+
+					diallingBound := 2 * time.Hour //! NO bound for dialling currently.
+					ctx, cancel := context.WithTimeout(context.Background(), diallingBound)
+					defer cancel()
+
+					funcIndx := invocationsEachMinute[minute][next]
+					function := functions[funcIndx]
+					hasInvoked, _ := invoke(ctx, function)
+
+					if hasInvoked {
+						invocationCount++
+					}
+				}()
+			case <-done:
+				totalFuncInvocaked += invocationCount
+				log.Info("Required #invocations=", numFuncToInvokeThisMinute,
+					" Fired #functions=", totalFuncInvocaked, "\tMinute Nbr. ", minute)
+				break // *OR `break`. Done with traces of this minute.
+			}
+			next++
+		}
+	}
+	wg.Wait()
+}
+
+func OldInvoke(rps int, functions []tc.Function,
+	invocationsPerMin [][]int, totalInvocationsEachMin []int) {
 
 	// If the file doesn't exist, create it, or append to the file.
 	f, err := os.OpenFile("invocation.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
@@ -149,7 +207,7 @@ func invoke(ctx context.Context, function tc.Function) (bool, int64) {
 	// Start latency measurement.
 	start := time.Now()
 
-	conn, err := grpc.DialContext(ctx, function.GetUrl(), grpc.WithInsecure())
+	conn, err := grpc.DialContext(ctx, function.GetUrl(), grpc.WithInsecure(), grpc.WithBlock())
 	if err != nil {
 		log.Fatalf("Failed to connect: %v", err)
 		return false, 0

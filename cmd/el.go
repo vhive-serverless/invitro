@@ -4,11 +4,11 @@ import (
 	// "encoding/json"
 	"flag"
 	"fmt"
+	"time"
 
 	// "io/ioutil"
 	"os"
 
-	ctrdlog "github.com/containerd/containerd/log"
 	log "github.com/sirupsen/logrus"
 
 	fc "github.com/eth-easl/easyloader/internal/function"
@@ -26,7 +26,7 @@ func init() {
 	flag.Parse()
 
 	log.SetFormatter(&log.TextFormatter{
-		TimestampFormat: ctrdlog.RFC3339NanoFixed,
+		TimestampFormat: time.StampMilli,
 		FullTimestamp:   true,
 	})
 	log.SetOutput(os.Stdout)
