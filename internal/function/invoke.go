@@ -24,6 +24,7 @@ func Invoke(
 	invocationsEachMinute [][]int,
 	totalNumInvocationsEachMinute []int) {
 
+	totalDuration := time.Duration(len(totalNumInvocationsEachMinute)) * time.Minute
 	start := time.Now()
 	wg := sync.WaitGroup{}
 
@@ -31,7 +32,7 @@ func Invoke(
 	latencyRecords := []*tc.LatencyRecord{}
 	idleDuration := time.Duration(0)
 
-	for minute := 0; minute < len(totalNumInvocationsEachMinute); minute++ {
+	for minute := 0; minute < int(totalDuration); minute++ {
 		numFuncInvocaked := 0
 		idleDuration = time.Duration(0)
 		//TODO: Bulk the computation and move it out
@@ -107,9 +108,13 @@ func Invoke(
 		}
 	next_minute:
 	}
-	wg.Wait()
-	totalDuration := time.Since(start)
-	log.Info("Total invocation duration: ", totalDuration, "\tIdle ", idleDuration, "\n")
+	forceTimeout := totalDuration * 2 //! Force timeout as the last resort.
+	if wgWaitWithTimeout(&wg, forceTimeout) {
+		log.Warn("Timed out waiting for fired invocations to return.")
+	} else {
+		totalDuration := time.Since(start)
+		log.Info("Total invocation duration: ", totalDuration, "\tIdle ", idleDuration, "\n")
+	}
 
 	//TODO: Extract IO out.
 	invocFileName := "data/out/invoke_rps-" + strconv.Itoa(rps) + "_dur-" + strconv.Itoa(len(invocRecords)) + ".csv"
@@ -169,6 +174,24 @@ func invoke(ctx context.Context, function tc.Function) (bool, tc.LatencyRecord) 
 	log.Infof("Invoked %s in %d [µs]\n", function.GetName(), latency)
 
 	return true, record
+}
+
+/**
+ * This function waits for the waitgroup for the specified max timeout.
+ * Returns true if waiting timed out.
+ */
+func wgWaitWithTimeout(wg *sync.WaitGroup, timeout time.Duration) bool {
+	c := make(chan struct{})
+	go func() {
+		defer close(c)
+		wg.Wait()
+	}()
+	select {
+	case <-c:
+		return false
+	case <-time.After(timeout):
+		return true
+	}
 }
 
 /**
