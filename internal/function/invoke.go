@@ -57,8 +57,9 @@ func Invoke(
 			done <- true
 		}()
 
+		//! Bound the #invocations by `rps`.
+		numFuncToInvokeThisMinute := MinOf(rps*60, totalNumInvocationsEachMinute[minute])
 		invocationCount := 0
-		numFuncToInvokeThisMinute := totalNumInvocationsEachMinute[minute]
 
 		next := 0
 		for {
@@ -91,14 +92,14 @@ func Invoke(
 			case <-done:
 				numFuncInvocaked += invocationCount
 				log.Info("Iteration spent: ", time.Since(iter_start), "\tMinute Nbr. ", minute)
-				log.Info("Required #invocations=", numFuncToInvokeThisMinute,
+				log.Info("Required #invocations=", totalNumInvocationsEachMinute[minute],
 					" Fired #functions=", numFuncInvocaked, "\tMinute Nbr. ", minute)
 
 				record.Duration = time.Since(iter_start).Microseconds()
 				record.IdleDuration = idleDuration.Microseconds()
-				record.NumFuncRequested = numFuncToInvokeThisMinute
+				record.NumFuncRequested = totalNumInvocationsEachMinute[minute]
 				record.NumFuncInvoked = numFuncInvocaked
-				record.NumFuncFailed = (rps * 60) - numFuncInvocaked
+				record.NumFuncFailed = numFuncToInvokeThisMinute - numFuncInvocaked
 				invocRecords = append(invocRecords, &record)
 				goto next_minute // *`break` doesn't work here as it's somehow ambiguous to Golang.
 			}
@@ -179,6 +180,18 @@ func shuffleInplaceInvocationOfOneMinute(invocations *[]int) {
 		j := rand.Intn(i + 1)
 		(*invocations)[i], (*invocations)[j] = (*invocations)[j], (*invocations)[i]
 	}
+}
+
+func MinOf(vars ...int) int {
+	min := vars[0]
+
+	for _, i := range vars {
+		if min > i {
+			min = i
+		}
+	}
+
+	return min
 }
 
 // func sum(array []int) int {
