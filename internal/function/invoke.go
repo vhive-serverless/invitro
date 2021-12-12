@@ -74,7 +74,7 @@ func Invoke(
 					defer wg.Done()
 					wg.Add(1)
 
-					diallingBound := 2 * time.Hour //! NO bound for dialling currently.
+					diallingBound := 2 * time.Minute //* 2-min timeout to circumvent hanging.
 					ctx, cancel := context.WithTimeout(context.Background(), diallingBound)
 					defer cancel()
 
@@ -138,7 +138,7 @@ func invoke(ctx context.Context, function tc.Function) (bool, tc.LatencyRecord) 
 
 	conn, err := grpc.DialContext(ctx, function.GetUrl(), grpc.WithInsecure(), grpc.WithBlock())
 	if err != nil {
-		log.Fatalf("Failed to connect: %v", err)
+		log.Warnf("Failed to connect: %v", err)
 		return false, tc.LatencyRecord{}
 	}
 	defer conn.Close()

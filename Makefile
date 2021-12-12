@@ -1,3 +1,5 @@
+.PHONY : proto clean build run coldstart
+
 proto:
 	protoc \
 		--go_out=. \
@@ -19,3 +21,5 @@ build:
 # make ARGS="--rps X --duration X" run
 run:
 	go run cmd/el.go $(ARGS)
+
+coldstart: clean run
