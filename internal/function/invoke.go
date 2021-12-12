@@ -27,12 +27,13 @@ func Invoke(
 	start := time.Now()
 	wg := sync.WaitGroup{}
 
-	totalFuncInvocaked := 0
-	idleDuration := time.Duration(0)
 	invocRecords := []*tc.MinuteInvocationRecord{}
 	latencyRecords := []*tc.LatencyRecord{}
+	idleDuration := time.Duration(0)
 
 	for minute := 0; minute < len(totalNumInvocationsEachMinute); minute++ {
+		numFuncInvocaked := 0
+		idleDuration = time.Duration(0)
 		//TODO: Bulk the computation and move it out
 		shuffleInplaceInvocationOfOneMinute(&invocationsEachMinute[minute])
 
@@ -88,16 +89,16 @@ func Invoke(
 					}
 				}()
 			case <-done:
-				totalFuncInvocaked += invocationCount
+				numFuncInvocaked += invocationCount
 				log.Info("Iteration spent: ", time.Since(iter_start), "\tMinute Nbr. ", minute)
 				log.Info("Required #invocations=", numFuncToInvokeThisMinute,
-					" Fired #functions=", totalFuncInvocaked, "\tMinute Nbr. ", minute)
+					" Fired #functions=", numFuncInvocaked, "\tMinute Nbr. ", minute)
 
 				record.Duration = time.Since(iter_start).Microseconds()
 				record.IdleDuration = idleDuration.Microseconds()
 				record.NumFuncRequested = numFuncToInvokeThisMinute
-				record.NumFuncInvoked = totalFuncInvocaked
-				record.NumFuncFailed = numFuncToInvokeThisMinute - totalFuncInvocaked
+				record.NumFuncInvoked = numFuncInvocaked
+				record.NumFuncFailed = (rps * 60) - numFuncInvocaked
 				invocRecords = append(invocRecords, &record)
 				goto next_minute // *`break` doesn't work here as it's somehow ambiguous to Golang.
 			}
@@ -110,12 +111,12 @@ func Invoke(
 	log.Info("Total invocation duration: ", totalDuration, "\tIdle ", idleDuration, "\n")
 
 	//TODO: Extract IO out.
-	invocFileName := "data/out/invoke_rps=" + strconv.Itoa(rps) + "dur=" + strconv.Itoa(len(invocRecords)) + ".csv"
+	invocFileName := "data/out/invoke_rps-" + strconv.Itoa(rps) + "dur-" + strconv.Itoa(len(invocRecords)) + ".csv"
 	invocF, err := os.Create(invocFileName)
 	check(err)
 	gocsv.MarshalFile(&invocRecords, invocF)
 
-	latencyFileName := "data/out/latency_rps=" + strconv.Itoa(rps) + "dur=" + strconv.Itoa(len(invocRecords)) + ".csv"
+	latencyFileName := "data/out/latency_rps-" + strconv.Itoa(rps) + "dur-" + strconv.Itoa(len(invocRecords)) + ".csv"
 	latencyF, err := os.Create(latencyFileName)
 	check(err)
 	gocsv.MarshalFile(&latencyRecords, latencyF)
