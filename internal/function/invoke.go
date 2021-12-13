@@ -108,7 +108,10 @@ func Invoke(
 		}
 	next_minute:
 	}
-	forceTimeout := time.Duration(2*totalDurationInMinute) * time.Minute //! Force timeout as the last resort.
+	//! Hyperparameter for busy-wait (currently it's the same duration as that of the traces).
+	delta := time.Duration(1)
+	//! Force timeout as the last resort.
+	forceTimeout := time.Duration(totalDurationInMinute) * time.Minute / delta
 	if wgWaitWithTimeout(&wg, forceTimeout) {
 		log.Warn("Timed out waiting for fired invocations to return.")
 	} else {
@@ -188,6 +191,7 @@ func wgWaitWithTimeout(wg *sync.WaitGroup, timeout time.Duration) bool {
 	}()
 	select {
 	case <-c:
+		log.Info("Busy waiting finished at the end of all invocations.")
 		return false
 	case <-time.After(timeout):
 		return true
