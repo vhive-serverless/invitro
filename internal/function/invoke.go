@@ -24,7 +24,7 @@ func Invoke(
 	invocationsEachMinute [][]int,
 	totalNumInvocationsEachMinute []int) {
 
-	totalDuration := time.Duration(len(totalNumInvocationsEachMinute)) * time.Minute
+	totalDurationInMinute := len(totalNumInvocationsEachMinute)
 	start := time.Now()
 	wg := sync.WaitGroup{}
 
@@ -32,7 +32,7 @@ func Invoke(
 	latencyRecords := []*tc.LatencyRecord{}
 	idleDuration := time.Duration(0)
 
-	for minute := 0; minute < int(totalDuration); minute++ {
+	for minute := 0; minute < int(totalDurationInMinute); minute++ {
 		numFuncInvocaked := 0
 		idleDuration = time.Duration(0)
 		//TODO: Bulk the computation and move it out
@@ -50,10 +50,10 @@ func Invoke(
 		ticker := time.NewTicker(interval)
 		done := make(chan bool)
 
-		/** Timer. */
+		/** Launch a timer. */
 		go func() {
 			t := <-timeout
-			log.Warn("(regular) TIMEOUT at ", t, "\tMinute Nbr. ", minute)
+			log.Warn("(regular) TIMEOUT at ", t.Format(time.StampMilli), "\tMinute Nbr. ", minute)
 			ticker.Stop()
 			done <- true
 		}()
@@ -108,7 +108,7 @@ func Invoke(
 		}
 	next_minute:
 	}
-	forceTimeout := totalDuration * 2 //! Force timeout as the last resort.
+	forceTimeout := time.Duration(2*totalDurationInMinute) * time.Minute //! Force timeout as the last resort.
 	if wgWaitWithTimeout(&wg, forceTimeout) {
 		log.Warn("Timed out waiting for fired invocations to return.")
 	} else {
