@@ -1,6 +1,6 @@
 # EasyLoader
 
-A simplified version of the [faas-load-generator](https://github.com/eth-easl/faas-load-generator).
+A load generator for serverless computing based upon [faas-load-generator](https://github.com/eth-easl/faas-load-generator) and the example code of [vHive](https://github.com/ease-lab/vhive).
 
 ## Usage
 
