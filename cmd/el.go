@@ -40,8 +40,8 @@ func init() {
 
 func main() {
 	// deploymentConcurrency := flag.Int("conc", 1, "Number of functions to deploy concurrently (for serving)")
-	serviceConfigPath := "workloads/timed.yaml"
-	// serviceConfigPath := "workloads/helloword.yaml"
+	// serviceConfigPath := "workloads/timed.yaml"
+	serviceConfigPath := "workloads/func_stub.yaml"
 	// write the whole body at once
 
 	traces := tc.ParseInvocationTrace("data/traces/invocations_10.csv", *duration)

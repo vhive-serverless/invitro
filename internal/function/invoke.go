@@ -15,7 +15,6 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	tc "github.com/eth-easl/easyloader/internal/trace"
-	faas "github.com/eth-easl/easyloader/pkg/faas"
 )
 
 func Invoke(
@@ -133,11 +132,11 @@ func Invoke(
 }
 
 func invoke(ctx context.Context, function tc.Function) (bool, tc.LatencyRecord) {
-	runtimeRequested, _ := tc.GetExecutionSpecification(function)
+	tc.GetExecutionSpecification(function)
 	//! * Memory allocations over-committed the server, which caused pods constantly fail
 	//! and be brought back to life again.
 	//! * Set to 1 MB for testing purposes.
-	memory := 1
+	// memory := 1
 
 	var record tc.LatencyRecord
 	record.FuncName = function.GetName()
@@ -153,25 +152,25 @@ func invoke(ctx context.Context, function tc.Function) (bool, tc.LatencyRecord) 
 	}
 	defer conn.Close()
 
-	c := faas.NewExecutorClient(conn)
+	// c := faas.NewExecutorClient(conn)
 
-	// Contact the server and print out its response.
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	// // Contact the server and print out its response.
+	// ctx, cancel := context.WithCancel(context.Background())
+	// defer cancel()
 
-	response, err := c.Execute(ctx, &faas.FaasRequest{
-		Input: "", Runtime: uint32(runtimeRequested), Memory: uint32(memory)})
+	// response, err := c.Execute(ctx, &faas.FaasRequest{
+	// 	Input: "", Runtime: uint32(runtimeRequested), Memory: uint32(memory)})
 
-	if err != nil {
-		log.Warnf("Failed to invoke %s, err=%v", function.GetName(), err)
-		return false, tc.LatencyRecord{}
-	}
+	// if err != nil {
+	// 	log.Warnf("Failed to invoke %s, err=%v", function.GetName(), err)
+	// 	return false, tc.LatencyRecord{}
+	// }
 
-	//TODO: Improve the sever-side.
-	// log.Info("gRPC response: ", reply.Response)
-	runtime := response.Latency
-	record.Runtime = runtime
-	log.Info("(gRPC) Function execution time: ", runtime, " [µs]")
+	// //TODO: Improve the sever-side.
+	// // log.Info("gRPC response: ", reply.Response)
+	// runtime := response.Latency
+	// record.Runtime = runtime
+	// log.Info("(gRPC) Function execution time: ", runtime, " [µs]")
 
 	latency := time.Since(start).Microseconds()
 	record.Latency = latency
