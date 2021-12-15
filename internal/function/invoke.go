@@ -59,7 +59,8 @@ func Invoke(
 		}()
 
 		//! Bound the #invocations by `rps`.
-		numFuncToInvokeThisMinute := MinOf(rps*60, totalNumInvocationsEachMinute[minute])
+		// numFuncToInvokeThisMinute := MinOf(rps*60, totalNumInvocationsEachMinute[minute])
+		numFuncToInvokeThisMinute := 1
 		invocationCount := 0
 
 		next := 0
