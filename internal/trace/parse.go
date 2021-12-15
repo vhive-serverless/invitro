@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	gatewayUrl = "192.168.1.240.sslip.io"
+	gatewayUrl = "192.168.1.240.sslip.io" // Address of the load balancer.
 	namespace  = "default"
 	port       = "80"
 )
