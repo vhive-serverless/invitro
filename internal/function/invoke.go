@@ -58,8 +58,7 @@ func Invoke(
 		}()
 
 		//! Bound the #invocations by `rps`.
-		// numFuncToInvokeThisMinute := MinOf(rps*60, totalNumInvocationsEachMinute[minute])
-		numFuncToInvokeThisMinute := 1
+		numFuncToInvokeThisMinute := MinOf(rps*60, totalNumInvocationsEachMinute[minute])
 		invocationCount := 0
 
 		next := 0
@@ -152,8 +151,8 @@ func invoke(ctx context.Context, function tc.Function) (bool, tc.LatencyRecord) 
 	}
 	defer conn.Close()
 
+	//TODO: Write a function stub based upon the Producer of vSwarm.
 	// c := faas.NewExecutorClient(conn)
-
 	// // Contact the server and print out its response.
 	// ctx, cancel := context.WithCancel(context.Background())
 	// defer cancel()
@@ -165,8 +164,6 @@ func invoke(ctx context.Context, function tc.Function) (bool, tc.LatencyRecord) 
 	// 	log.Warnf("Failed to invoke %s, err=%v", function.GetName(), err)
 	// 	return false, tc.LatencyRecord{}
 	// }
-
-	// //TODO: Improve the sever-side.
 	// // log.Info("gRPC response: ", reply.Response)
 	// runtime := response.Latency
 	// record.Runtime = runtime
@@ -220,14 +217,6 @@ func MinOf(vars ...int) int {
 
 	return min
 }
-
-// func sum(array []int) int {
-// 	result := 0
-// 	for _, v := range array {
-// 		result += v
-// 	}
-// 	return result
-// }
 
 func check(e error) {
 	if e != nil {
