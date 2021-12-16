@@ -42,6 +42,7 @@ func Deploy(
 }
 
 func deployFunction(function *tc.Function, workloadPath string) bool {
+	//TODO: Make concurrency configurable.
 	cmd := exec.Command(
 		"kn",
 		"service",
