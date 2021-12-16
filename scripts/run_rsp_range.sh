@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 START=$1
 END=$2
 STEP=$3

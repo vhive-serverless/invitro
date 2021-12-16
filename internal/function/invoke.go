@@ -6,7 +6,7 @@ import (
 	"os"
 	"strconv"
 	"sync"
-	_ "sync/atomic"
+	"sync/atomic"
 	"time"
 
 	"google.golang.org/grpc"
@@ -59,7 +59,7 @@ func Invoke(
 
 		//! Bound the #invocations by `rps`.
 		numFuncToInvokeThisMinute := MinOf(rps*60, totalNumInvocationsEachMinute[minute])
-		invocationCount := 0
+		var invocationCount int32
 
 		next := 0
 		for {
@@ -79,6 +79,9 @@ func Invoke(
 					ctx, cancel := context.WithTimeout(context.Background(), diallingBound)
 					defer cancel()
 
+					if next >= numFuncToInvokeThisMinute {
+						return
+					}
 					funcIndx := invocationsEachMinute[minute][next]
 					function := functions[funcIndx]
 					hasInvoked, latencyRecord := invoke(ctx, function)
@@ -86,11 +89,12 @@ func Invoke(
 
 					if hasInvoked {
 						invocationCount++
+						atomic.AddInt32(&invocationCount, 1)
 						latencyRecords = append(latencyRecords, &latencyRecord)
 					}
 				}()
 			case <-done:
-				numFuncInvocaked += invocationCount
+				numFuncInvocaked += int(invocationCount)
 				log.Info("Iteration spent: ", time.Since(iter_start), "\tMinute Nbr. ", minute)
 				log.Info("Required #invocations=", totalNumInvocationsEachMinute[minute],
 					" Fired #functions=", numFuncInvocaked, "\tMinute Nbr. ", minute)

@@ -17,8 +17,8 @@ import (
 
 var (
 	debug    = flag.Bool("dbg", false, "Enable debug logging")
-	rps      = flag.Int("rps", 1, "Request per second (default: 1)")
-	duration = flag.Int("duration", 1, "Duration of the experiment (default: 1 min)")
+	rps      = flag.Int("rps", 1, "Request per second")
+	duration = flag.Int("duration", 1, "Duration of the experiment")
 )
 
 func init() {
@@ -40,8 +40,8 @@ func init() {
 
 func main() {
 	// deploymentConcurrency := flag.Int("conc", 1, "Number of functions to deploy concurrently (for serving)")
-	// serviceConfigPath := "workloads/timed.yaml"
-	serviceConfigPath := "workloads/func_stub.yaml"
+	// serviceConfigPath := "workloads/func_stub.yaml"
+	serviceConfigPath := "workloads/producer.yaml"
 	// write the whole body at once
 
 	traces := tc.ParseInvocationTrace("data/traces/invocations_10.csv", *duration)
