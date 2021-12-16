@@ -70,7 +70,6 @@ func Invoke(
 					idleDuration += interval
 					continue
 				}
-				//TODO: Enable cucurrent invocations.
 				go func(m int, nxt int) {
 					defer wg.Done()
 					wg.Add(1)
