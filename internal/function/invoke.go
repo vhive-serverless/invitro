@@ -71,7 +71,7 @@ func Invoke(
 					continue
 				}
 				//TODO: Enable cucurrent invocations.
-				go func() {
+				go func(m int, nxt int) {
 					defer wg.Done()
 					wg.Add(1)
 
@@ -79,20 +79,16 @@ func Invoke(
 					ctx, cancel := context.WithTimeout(context.Background(), diallingBound)
 					defer cancel()
 
-					if next >= numFuncToInvokeThisMinute {
-						return
-					}
-					funcIndx := invocationsEachMinute[minute][next]
+					funcIndx := invocationsEachMinute[m][nxt]
 					function := functions[funcIndx]
 					hasInvoked, latencyRecord := invoke(ctx, function)
 					latencyRecord.Rps = rps
 
 					if hasInvoked {
-						invocationCount++
 						atomic.AddInt32(&invocationCount, 1)
 						latencyRecords = append(latencyRecords, &latencyRecord)
 					}
-				}()
+				}(minute, next)
 			case <-done:
 				numFuncInvocaked += int(invocationCount)
 				log.Info("Iteration spent: ", time.Since(iter_start), "\tMinute Nbr. ", minute)
