@@ -6,7 +6,7 @@ spec:
   template:
     spec:
       containers:
-        - image: docker.io/hyhe/helloworld
+        - image: docker.io/hyhe/helloworld:go1.7
           env:
             - name: TARGET
               value: "there!"
