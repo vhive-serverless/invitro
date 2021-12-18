@@ -7,6 +7,7 @@ RUN apk add --no-cache py3-pip py3-grpcio py3-protobuf py3-psutil py3-numpy git 
 WORKDIR /app
 COPY *.py ./
 
+# EXPOSE is primarily a no-op now.
 EXPOSE 80
 
 STOPSIGNAL SIGKILL

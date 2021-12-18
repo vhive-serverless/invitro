@@ -3,14 +3,20 @@ package trace
 import (
 	"encoding/csv"
 	"fmt"
-	"hash/fnv"
 	"io"
 	"math/rand"
 	"os"
 	"strconv"
+	"time"
 
+	util "github.com/eth-easl/easyloader/internal"
 	log "github.com/sirupsen/logrus"
 )
+
+/** Seed the math/rand package for it to be different on each run. */
+func init() {
+	rand.Seed(time.Now().UnixNano())
+}
 
 const (
 	gatewayUrl = "192.168.1.240.sslip.io" // Address of the load balancer.
@@ -54,60 +60,90 @@ type Function struct {
 }
 
 type FunctionTrace struct {
-	path                    string
-	Functions               []Function
-	InvocationsPerMin       [][]int
-	TotalInvocationsEachMin []int
+	path                       string
+	Functions                  []Function
+	InvocationsPerMinute       [][]int
+	TotalInvocationsEachMinute []int
 }
 
-func hash(s string) uint32 {
-	h := fnv.New32a()
-	h.Write([]byte(s))
-	return h.Sum32()
-}
+func GenerateExecutionSpecs(function Function) (int, int) {
+	var runtime, memory int
+	//* Generate a random persentile in [0, 100).
+	quantile := rand.Float32()
+	runtimePct := function.durationStats
+	memoryPct := function.memoryStats
+	flag := util.GetRandBool()
 
-func (f *Function) SetHash(hash int) {
-	f.hash = fmt.Sprintf("%015d", hash)
-}
-
-func (f *Function) SetName(name string) {
-	f.name = name
-}
-
-func (f *Function) SetStatus(b bool) {
-	f.deployed = b
-}
-
-func (f *Function) GetStatus() bool {
-	return f.deployed
-}
-
-func (f *Function) GetName() string {
-	return f.name
-}
-
-func (f *Function) GetUrl() string {
-	return f.url
-}
-
-func (f *Function) SetUrl(url string) {
-	f.url = url
-}
-
-func ShuffleInvocations(trace FunctionTrace, traceDuration int) {
-	for t := 0; t < traceDuration; t++ {
-		rand.Shuffle(len(trace.InvocationsPerMin[t]), func(i, j int) {
-			trace.InvocationsPerMin[t][i], trace.InvocationsPerMin[t][j] = trace.InvocationsPerMin[t][j], trace.InvocationsPerMin[t][i]
-		})
+	/**
+	 * With 50% prob., returns average values.
+	 * With 25% prob., returns the upper bound of the quantile interval.
+	 * With 25% prob., returns the average between the two bounds of the interval.
+	 */
+	if runtime, memory = runtimePct.average, memoryPct.average; flag {
+		switch {
+		case quantile <= 0.01:
+			runtime, memory = getSubduedSpecs(
+				runtimePct.percentile1, runtimePct.percentile0,
+				memoryPct.percentile1, memoryPct.percentile1, // Pct=0 is missing (see: https://github.com/Azure/AzurePublicDataset/blob/master/AzureFunctionsDataset2019.md#notes-2)
+			)
+		case quantile <= 0.05:
+			runtime, memory = getSubduedSpecs(
+				runtimePct.percentile1, runtimePct.percentile0,
+				memoryPct.percentile5, memoryPct.percentile1,
+			)
+		case quantile <= 0.25:
+			runtime, memory = getSubduedSpecs(
+				runtimePct.percentile25, runtimePct.percentile1,
+				memoryPct.percentile25, memoryPct.percentile5,
+			)
+		case quantile <= 0.50:
+			runtime, memory = getSubduedSpecs(
+				runtimePct.percentile50, runtimePct.percentile25,
+				memoryPct.percentile50, memoryPct.percentile25,
+			)
+		case quantile <= 0.75:
+			runtime, memory = getSubduedSpecs(
+				runtimePct.percentile75, runtimePct.percentile50,
+				memoryPct.percentile75, memoryPct.percentile50,
+			)
+		case quantile <= 0.95:
+			runtime, memory = getSubduedSpecs(
+				runtimePct.percentile75, runtimePct.percentile50,
+				memoryPct.percentile95, memoryPct.percentile75,
+			)
+		case quantile <= 0.99:
+			runtime, memory = getSubduedSpecs(
+				runtimePct.percentile99, runtimePct.percentile75,
+				memoryPct.percentile99, memoryPct.percentile95,
+			)
+		case quantile < 1:
+			runtime, memory = getSubduedSpecs(
+				runtimePct.percentile100, runtimePct.percentile99,
+				memoryPct.percentile100, memoryPct.percentile99,
+			)
+		}
 	}
+	return runtime, memory
+}
+
+func getSubduedSpecs(
+	runtimeUpper int, runtimeLower int,
+	memUpper int, memLower int) (int, int) {
+
+	var runtime, memory int
+	flag := util.GetRandBool()
+	if runtime, memory = runtimeUpper, memUpper; flag {
+		runtime, memory = (runtimeUpper+runtimeLower)/2, (memUpper+memLower)/2
+	}
+	return runtime, memory
 }
 
 func ParseInvocationTrace(traceFile string, traceDuration int) FunctionTrace {
 	log.Infof("Parsing function invocation trace: %s", traceFile)
 
 	var functions []Function
-	// Array functions (position) to invoke
-	invocations := make([][]int, traceDuration)
+	// Indices of functions to invoke.
+	invocationIdices := make([][]int, traceDuration)
 	totalInvocations := make([]int, traceDuration)
 
 	csvfile, err := os.Open(traceFile)
@@ -115,11 +151,11 @@ func ParseInvocationTrace(traceFile string, traceDuration int) FunctionTrace {
 		log.Fatal("Failed to load CSV file", err)
 	}
 
-	r := csv.NewReader(csvfile)
-	l := -1
+	reader := csv.NewReader(csvfile)
+	funcIdx := -1
 	for {
 		// Read each record from csv
-		record, err := r.Read()
+		record, err := reader.Read()
 
 		if err != nil {
 			if err == io.EOF {
@@ -129,36 +165,40 @@ func ParseInvocationTrace(traceFile string, traceDuration int) FunctionTrace {
 		}
 
 		// Skip header
-		if l != -1 {
+		if funcIdx != -1 {
 			// Parse function
 			function := Function{appHash: record[1], hash: record[2]}
-			function.name = fmt.Sprintf("%s-%d", "trace-func", l)
+			function.name = fmt.Sprintf("%s-%d", "trace-func", funcIdx)
 			function.url = fmt.Sprintf("%s.%s.%s:%s", function.name, namespace, gatewayUrl, port)
 			functions = append(functions, function)
 
 			// Parse invocations
-			for i := 4; i < 4+traceDuration; i++ {
+			headerLen := 4
+			for i := headerLen; i < headerLen+traceDuration; i++ {
+				minute := i - headerLen
 				num, err := strconv.Atoi(record[i])
-				if err != nil {
-					log.Fatal("Failed to parse number", err)
-				}
+				util.Check(err)
+
 				for j := 0; j < num; j++ {
-					invocations[i-4] = append(invocations[i-4], l)
+					//* For `num` invocationso of function of index `funcIdx`,
+					//* we append (N*funcIdx) to the `invocationIdices`.
+					invocationIdices[minute] = append(invocationIdices[minute], funcIdx)
 				}
-				totalInvocations[i-4] = totalInvocations[i-4] + num
+				totalInvocations[minute] = totalInvocations[minute] + num
 			}
 		}
-		l++
+		funcIdx++
 	}
 
 	return FunctionTrace{
-		Functions:               functions,
-		InvocationsPerMin:       invocations,
-		TotalInvocationsEachMin: totalInvocations,
-		path:                    traceFile,
+		Functions:                  functions,
+		InvocationsPerMinute:       invocationIdices,
+		TotalInvocationsEachMinute: totalInvocations,
+		path:                       traceFile,
 	}
 }
 
+/** Get execution times in ms. */
 func getDurationStats(record []string) FunctionDurationStats {
 	return FunctionDurationStats{
 		average:       parseToInt(record[3]),
@@ -230,6 +270,7 @@ func ParseDurationTrace(trace *FunctionTrace, traceFile string) {
 	}
 }
 
+/** Get memoru usages in MB. */
 func getMemoryStats(record []string) FunctionMemoryStats {
 	return FunctionMemoryStats{
 		average:       parseToInt(record[3]),
@@ -290,41 +331,38 @@ func ParseMemoryTrace(trace *FunctionTrace, traceFile string) {
 	}
 }
 
-// Make better later
-// Now also picking the percentile value, that's generally too high
-func GetExecutionSpecification(function Function) (int, int) {
-	// get function runtime and memory usage
-	percentile := rand.Intn(100) + 1 // rand gives numbers [0,100) but we need [1,100]
-	var runtime, memory int
-	runtimePercentile := function.durationStats
-	memoryPercentile := function.memoryStats
-	switch {
-	case percentile > 99:
-		runtime = runtimePercentile.percentile100
-		memory = memoryPercentile.percentile100
-	case percentile > 95:
-		runtime = runtimePercentile.percentile99
-		memory = memoryPercentile.percentile99
-	case percentile > 75:
-		runtime = runtimePercentile.percentile99
-		memory = memoryPercentile.percentile95
-	case percentile > 50:
-		runtime = runtimePercentile.percentile75
-		memory = memoryPercentile.percentile75
-	case percentile > 25:
-		runtime = runtimePercentile.percentile50
-		memory = memoryPercentile.percentile50
-	case percentile > 5:
-		runtime = runtimePercentile.percentile25
-		memory = memoryPercentile.percentile25
-	case percentile > 1:
-		runtime = runtimePercentile.percentile25
-		memory = memoryPercentile.percentile5
-	default:
-		runtime = runtimePercentile.percentile1
-		memory = memoryPercentile.percentile1
-	}
-	return runtime, memory
+// func hash(s string) uint32 {
+// 	h := fnv.New32a()
+// 	h.Write([]byte(s))
+// 	return h.Sum32()
+// }
+
+func (f *Function) SetHash(hash int) {
+	f.hash = fmt.Sprintf("%015d", hash)
+}
+
+func (f *Function) SetName(name string) {
+	f.name = name
+}
+
+func (f *Function) SetStatus(b bool) {
+	f.deployed = b
+}
+
+func (f *Function) GetStatus() bool {
+	return f.deployed
+}
+
+func (f *Function) GetName() string {
+	return f.name
+}
+
+func (f *Function) GetUrl() string {
+	return f.url
+}
+
+func (f *Function) SetUrl(url string) {
+	f.url = url
 }
 
 // // Functions is an object for unmarshalled JSON with functions to deploy.
