@@ -68,5 +68,5 @@ func main() {
 	functions := fc.Deploy(traces.Functions, serviceConfigPath, 1) // TODO: Fixed number of functions per pod.
 
 	/** Invokation */
-	defer fc.Invoke(*rps, functions, traces.InvocationsPerMin, traces.TotalInvocationsEachMin)
+	defer fc.Invoke(*rps, functions, traces.InvocationsPerMinute, traces.TotalInvocationsEachMinute)
 }

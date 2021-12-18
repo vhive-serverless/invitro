@@ -134,7 +134,8 @@ func Invoke(
 }
 
 func invoke(ctx context.Context, function tc.Function) (bool, tc.LatencyRecord) {
-	runtimeRequested, memoryRequested := tc.GetExecutionSpecification(function)
+	runtimeRequested, memoryRequested := tc.GenerateExecutionSpecs(function)
+	log.Infof("Invoke function with params.: %d[ms], %d[MB]", runtimeRequested, memoryRequested)
 	//! * Memory allocations over-committed the server, which caused pods constantly fail
 	//! and be brought back to life again.
 	//! * Set to 1 MB for testing purposes.
