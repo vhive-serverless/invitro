@@ -11,14 +11,20 @@ import (
 
 	log "github.com/sirupsen/logrus"
 
+	tracer "github.com/ease-lab/vhive/utils/tracing/go"
 	fc "github.com/eth-easl/easyloader/internal/function"
 	tc "github.com/eth-easl/easyloader/internal/trace"
 )
 
+const (
+	zipkinAddr = "http://localhost:9411/api/v2/spans"
+)
+
 var (
-	debug    = flag.Bool("dbg", false, "Enable debug logging")
-	rps      = flag.Int("rps", 1, "Request per second")
-	duration = flag.Int("duration", 1, "Duration of the experiment")
+	debug       = flag.Bool("dbg", false, "Enable debug logging")
+	rps         = flag.Int("rps", 1, "Request per second")
+	duration    = flag.Int("duration", 1, "Duration of the experiment")
+	withTracing = flag.Bool("trace", false, "Enable tracing in the client")
 )
 
 func init() {
@@ -36,14 +42,18 @@ func init() {
 	} else {
 		log.SetLevel(log.InfoLevel)
 	}
+	if *withTracing {
+		shutdown, err := tracer.InitBasicTracer(zipkinAddr, "invoker")
+		if err != nil {
+			log.Print(err)
+		}
+		defer shutdown()
+	}
 }
 
 func main() {
-	// deploymentConcurrency := flag.Int("conc", 1, "Number of functions to deploy concurrently (for serving)")
 	// serviceConfigPath := "workloads/producer.yaml"
 	serviceConfigPath := "workloads/func_stub.yaml"
-	// write the whole body at once
-
 	traces := tc.ParseInvocationTrace("data/traces/invocations_10.csv", *duration)
 	tc.ParseDurationTrace(&traces, "data/traces/durations_10.csv")
 	tc.ParseMemoryTrace(&traces, "data/traces/memory_10.csv")
