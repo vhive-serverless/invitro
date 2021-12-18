@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Spin up vHive under container mode.
 
+# Spin up vHive under container mode.
 if [ -z $1 ]; then
     BRANCH="main"
 fi

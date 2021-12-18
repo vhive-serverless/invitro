@@ -14,6 +14,7 @@ import (
 	"github.com/gocarina/gocsv" // Use `csv:-`` to ignore a field.
 	log "github.com/sirupsen/logrus"
 
+	util "github.com/eth-easl/easyloader/internal"
 	tc "github.com/eth-easl/easyloader/internal/trace"
 )
 
@@ -58,7 +59,7 @@ func Invoke(
 		}()
 
 		//! Bound the #invocations by `rps`.
-		numFuncToInvokeThisMinute := MinOf(rps*60, totalNumInvocationsEachMinute[minute])
+		numFuncToInvokeThisMinute := util.MinOf(rps*60, totalNumInvocationsEachMinute[minute])
 		var invocationCount int32
 
 		next := 0
@@ -73,7 +74,7 @@ func Invoke(
 				go func(m int, nxt int) {
 					defer wg.Done()
 					wg.Add(1)
-
+					//TODO: Make Dialling timeout customisable.
 					diallingBound := 2 * time.Minute //* 2-min timeout for circumventing hanging.
 					ctx, cancel := context.WithTimeout(context.Background(), diallingBound)
 					defer cancel()
@@ -107,6 +108,7 @@ func Invoke(
 	next_minute:
 	}
 	//! Hyperparameter for busy-wait (currently it's the same duration as that of the traces).
+	//TODO: Make this force wait customisable.
 	delta := time.Duration(1)
 	//! Force timeout as the last resort.
 	forceTimeout := time.Duration(totalDurationInMinute) * time.Minute / delta
@@ -120,12 +122,12 @@ func Invoke(
 	//TODO: Extract IO out.
 	invocFileName := "data/out/invoke_rps-" + strconv.Itoa(rps) + "_dur-" + strconv.Itoa(len(invocRecords)) + ".csv"
 	invocF, err := os.Create(invocFileName)
-	check(err)
+	util.Check(err)
 	gocsv.MarshalFile(&invocRecords, invocF)
 
 	latencyFileName := "data/out/latency_rps-" + strconv.Itoa(rps) + "_dur-" + strconv.Itoa(len(invocRecords)) + ".csv"
 	latencyF, err := os.Create(latencyFileName)
-	check(err)
+	util.Check(err)
 	gocsv.MarshalFile(&latencyRecords, latencyF)
 }
 
@@ -202,23 +204,5 @@ func shuffleInplaceInvocationOfOneMinute(invocations *[]int) {
 	for i := range *invocations {
 		j := rand.Intn(i + 1)
 		(*invocations)[i], (*invocations)[j] = (*invocations)[j], (*invocations)[i]
-	}
-}
-
-func MinOf(vars ...int) int {
-	min := vars[0]
-
-	for _, i := range vars {
-		if min > i {
-			min = i
-		}
-	}
-
-	return min
-}
-
-func check(e error) {
-	if e != nil {
-		panic(e)
 	}
 }
