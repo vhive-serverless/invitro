@@ -110,11 +110,12 @@ func Invoke(
 	}
 	//! Hyperparameter for busy-wait (currently it's the same duration as that of the traces).
 	//TODO: Make this force wait customisable.
+	log.Info("\tFinished invoking all functions.\n\tStart waiting for all requests to return.")
 	delta := time.Duration(1)
 	//! Force timeout as the last resort.
 	forceTimeout := time.Duration(totalDurationInMinute) * time.Minute / delta
 	if wgWaitWithTimeout(&wg, forceTimeout) {
-		log.Warn("Timed out waiting for fired invocations to return.")
+		log.Warn("Time out waiting for fired invocations to return.")
 	} else {
 		totalDuration := time.Since(start)
 		log.Info("Total invocation duration: ", totalDuration, "\tIdle ", idleDuration, "\n")
@@ -133,11 +134,11 @@ func Invoke(
 }
 
 func invoke(ctx context.Context, function tc.Function) (bool, tc.LatencyRecord) {
-	runtimeRequested, _ := tc.GetExecutionSpecification(function)
+	runtimeRequested, memoryRequested := tc.GetExecutionSpecification(function)
 	//! * Memory allocations over-committed the server, which caused pods constantly fail
 	//! and be brought back to life again.
 	//! * Set to 1 MB for testing purposes.
-	memory := 1
+	// memory := 1
 
 	var record tc.LatencyRecord
 	record.FuncName = function.GetName()
@@ -160,7 +161,7 @@ func invoke(ctx context.Context, function tc.Function) (bool, tc.LatencyRecord) 
 	defer cancel()
 
 	response, err := c.Execute(ctx, &faas.FaasRequest{
-		Input: "", Runtime: uint32(runtimeRequested), Memory: uint32(memory)})
+		Input: "", Runtime: uint32(runtimeRequested), Memory: uint32(memoryRequested)})
 
 	if err != nil {
 		log.Warnf("Failed to invoke %s, err=%v", function.GetName(), err)
