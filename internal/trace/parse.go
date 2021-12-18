@@ -40,6 +40,7 @@ type FunctionDurationStats struct {
 
 type FunctionMemoryStats struct {
 	average       int
+	count         int
 	percentile1   int
 	percentile5   int
 	percentile25  int
@@ -238,12 +239,12 @@ func ParseDurationTrace(trace *FunctionTrace, traceFile string) {
 		log.Fatal("Failed to load CSV file", err)
 	}
 
-	r := csv.NewReader(csvfile)
+	reader := csv.NewReader(csvfile)
 	l := -1
 	foundDurations := 0
 	for {
 		// Read each record from csv
-		record, err := r.Read()
+		record, err := reader.Read()
 
 		if err != nil {
 			if err == io.EOF {
@@ -273,15 +274,16 @@ func ParseDurationTrace(trace *FunctionTrace, traceFile string) {
 /** Get memoru usages in MB. */
 func getMemoryStats(record []string) FunctionMemoryStats {
 	return FunctionMemoryStats{
-		average:       parseToInt(record[3]),
-		percentile1:   parseToInt(record[4]),
-		percentile5:   parseToInt(record[5]),
-		percentile25:  parseToInt(record[6]),
-		percentile50:  parseToInt(record[7]),
-		percentile75:  parseToInt(record[8]),
-		percentile95:  parseToInt(record[9]),
-		percentile99:  parseToInt(record[10]),
-		percentile100: parseToInt(record[11]),
+		count:         parseToInt(record[3]),
+		average:       parseToInt(record[4]),
+		percentile1:   parseToInt(record[5]),
+		percentile5:   parseToInt(record[6]),
+		percentile25:  parseToInt(record[7]),
+		percentile50:  parseToInt(record[8]),
+		percentile75:  parseToInt(record[9]),
+		percentile95:  parseToInt(record[10]),
+		percentile99:  parseToInt(record[11]),
+		percentile100: parseToInt(record[12]),
 	}
 }
 
