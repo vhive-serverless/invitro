@@ -2,6 +2,7 @@ package function
 
 import (
 	"context"
+	"math"
 	"math/rand"
 	"os"
 	"strconv"
@@ -136,7 +137,7 @@ func Invoke(
 func invoke(ctx context.Context, function tc.Function) (bool, tc.LatencyRecord) {
 	runtimeRequested, memoryRequested := tc.GenerateExecutionSpecs(function)
 
-	log.Infof("Invoke function with params.: %d[ms], %d[MB]", runtimeRequested, memoryRequested)
+	log.Infof("(Invoke)\t %s: %d[µs], %d[MB]", function.GetName(), runtimeRequested*int(math.Pow10(3)), memoryRequested)
 
 	var record tc.LatencyRecord
 	record.FuncName = function.GetName()
@@ -173,11 +174,11 @@ func invoke(ctx context.Context, function tc.Function) (bool, tc.LatencyRecord) 
 	record.Memory = memoryUsage
 	record.Runtime = runtime
 
-	log.Infof("(gRPC)\tFunction execution time: %d [µs], %d [MB]", runtime, memoryUsage)
+	log.Infof("(gRPC)\t %s: %d[µs], %d[MB]", function.GetName(), runtime, memoryUsage)
 
 	latency := time.Since(start).Microseconds()
 	record.Latency = latency
-	log.Infof("Invoked %s in %d [µs]\n", function.GetName(), latency)
+	log.Infof("(Latency)\t %s: %d[µs]\n", function.GetName(), latency)
 
 	return true, record
 }
