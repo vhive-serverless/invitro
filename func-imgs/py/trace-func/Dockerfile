@@ -12,4 +12,4 @@ EXPOSE 80
 
 STOPSIGNAL SIGKILL
 
-CMD ["python", "server.py"]
+CMD ["python", "trace_func_server.py"]
