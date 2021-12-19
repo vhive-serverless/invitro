@@ -17,7 +17,7 @@ server_exec 'tmux new -d -s cluster'
 server_exec 'tmux send-keys -t containerd "sudo containerd" ENTER'
 sleep 3s
 server_exec 'cd vhive; ./scripts/cluster/create_one_node_cluster.sh stock-only'
-sleep 4m
+# sleep 4m
 server_exec 'tmux send-keys -t cluster "watch -n 0.5 kubectl get pods -A" ENTER'
 
 # Update golang.
@@ -35,7 +35,7 @@ server_exec 'ssh-keyscan -t rsa github.com >> ~/.ssh/known_hosts'
 # server_exec 'RSA=$(cat ~/.ssh/id_rsa.pub)'
 
 server_exec 'curl -H "Authorization: token '"$ACCESS_TOKEH"'" --data "{\"title\":\"'"key:\$(hostname)"'\",\"key\":\"'"\$(cat ~/.ssh/id_rsa.pub)"'\"}" https://api.github.com/user/keys'
-server_exec 'sleep 5'
+# server_exec 'sleep 5'
 
 # Get easyloader.
 server_exec "git clone --branch=$EL_BRANCH git@github.com:eth-easl/easyloader.git"
