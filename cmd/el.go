@@ -52,8 +52,8 @@ func init() {
 }
 
 func main() {
-	// serviceConfigPath := "workloads/producer.yaml"
-	serviceConfigPath := "workloads/trace_func.yaml"
+	// serviceConfigPath := "workloads/trace_func_py.yaml"
+	serviceConfigPath := "workloads/trace_func_go.yaml"
 	traces := tc.ParseInvocationTrace("data/traces/invocations_10.csv", *duration)
 	tc.ParseDurationTrace(&traces, "data/traces/durations_10.csv")
 	tc.ParseMemoryTrace(&traces, "data/traces/memory_10.csv")

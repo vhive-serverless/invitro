@@ -135,11 +135,8 @@ func Invoke(
 
 func invoke(ctx context.Context, function tc.Function) (bool, tc.LatencyRecord) {
 	runtimeRequested, memoryRequested := tc.GenerateExecutionSpecs(function)
+
 	log.Infof("Invoke function with params.: %d[ms], %d[MB]", runtimeRequested, memoryRequested)
-	//! * Memory allocations over-committed the server, which caused pods constantly fail
-	//! and be brought back to life again.
-	//! * Set to 1 MB for testing purposes.
-	// memory := 1
 
 	var record tc.LatencyRecord
 	record.FuncName = function.GetName()
@@ -156,22 +153,27 @@ func invoke(ctx context.Context, function tc.Function) (bool, tc.LatencyRecord) 
 	defer conn.Close()
 
 	//TODO: Write a function stub based upon the Producer of vSwarm.
-	c := faas.NewExecutorClient(conn)
+	grpcClient := faas.NewExecutorClient(conn)
 	// Contact the server and print out its response.
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	response, err := c.Execute(ctx, &faas.FaasRequest{
-		Input: "", Runtime: uint32(runtimeRequested), Memory: uint32(memoryRequested)})
+	response, err := grpcClient.Execute(ctx, &faas.FaasRequest{
+		Input: "nothing", Runtime: uint32(runtimeRequested), Memory: uint32(memoryRequested)})
 
 	if err != nil {
 		log.Warnf("Failed to invoke %s, err=%v", function.GetName(), err)
 		return false, tc.LatencyRecord{}
 	}
 	// log.Info("gRPC response: ", reply.Response)
+	memoryUsage, err := strconv.Atoi(response.Response)
+	util.Check(err)
 	runtime := response.Latency
+
+	record.Memory = memoryUsage
 	record.Runtime = runtime
-	log.Info("(gRPC) Function execution time: ", runtime, " [µs]")
+
+	log.Infof("(gRPC)\tFunction execution time: %d [µs], %d [MB]", runtime, memoryUsage)
 
 	latency := time.Since(start).Microseconds()
 	record.Latency = latency
