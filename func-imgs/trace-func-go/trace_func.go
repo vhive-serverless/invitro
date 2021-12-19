@@ -19,9 +19,10 @@ import (
 )
 
 var (
-	megaByteInByte = uint32(math.Pow(2, 20))
-	serverPort     = 80
-	pi             = strings.Replace(fmt.Sprintf("%f", math.Pi), ".", "", -1)
+	megaByteInByte    = uint32(math.Pow(2, 20))
+	callingStackBytes = 0
+	serverPort        = 80
+	pi                = strings.Replace(fmt.Sprintf("%f", math.Pi), ".", "", -1)
 )
 
 type funcServer struct {
@@ -34,9 +35,11 @@ func (s *funcServer) Execute(ctx context.Context, req *rpc.FaasRequest) (*rpc.Fa
 	runtimeRequested := req.Runtime
 	timeoutCh := time.After(time.Duration(runtimeRequested) * time.Millisecond)
 
-	memoryRequested := req.Memory * megaByteInByte   // To bytes.
-	buffer := make([]byte, memoryRequested)          // Use `make()` to allocate on heap.
-	memoryRequested -= uint32(unsafe.Sizeof(buffer)) // Deduct the memory allocated for the slice reference.
+	memoryRequested := req.Memory * megaByteInByte // To bytes.
+	buffer := make([]byte, memoryRequested)        //* Use `make()` to allocate on heap.
+
+	//* Deduct the memory allocated for the slice reference and that of the calling stack.
+	memoryRequested -= uint32(unsafe.Sizeof(buffer)) - uint32(callingStackBytes)
 
 	next := 0
 pi_loop:
@@ -54,8 +57,8 @@ pi_loop:
 	//TODO: Add the memory allocated to proto.
 	memoryAllocated := memoryRequested / megaByteInByte
 	return &rpc.FaasReply{
-		Response: strconv.Itoa(int(memoryAllocated)),
-		Latency:  time.Since(start).Microseconds(),
+		Response: strconv.Itoa(int(memoryAllocated)), // MB
+		Latency:  time.Since(start).Microseconds(),   // µs
 	}, nil
 }
 

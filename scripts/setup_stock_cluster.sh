@@ -9,14 +9,14 @@ server_exec() {
 }
 
 # Spin up vHive under container mode.
-# server_exec 'DEBIAN_FRONTEND=noninteractive apt-get autoremove' 
+server_exec 'sudo DEBIAN_FRONTEND=noninteractive apt-get autoremove' 
 server_exec "git clone --branch=$VHIVE_BRANCH https://github.com/ease-lab/vhive"
 server_exec 'cd vhive; ./scripts/cloudlab/setup_node.sh stock-only'
 server_exec 'tmux new -d -s containerd'
 server_exec 'tmux new -d -s cluster'
 server_exec 'tmux send-keys -t containerd "sudo containerd" ENTER'
 sleep 3s
-server_exec './scripts/cluster/create_one_node_cluster.sh stock-only'
+server_exec 'cd vhive; ./scripts/cluster/create_one_node_cluster.sh stock-only'
 sleep 4m
 server_exec 'tmux send-keys -t cluster "watch -n 0.5 kubectl get pods -A" ENTER'
 
