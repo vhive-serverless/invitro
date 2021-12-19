@@ -1,4 +1,8 @@
-.PHONY : proto clean build run coldstart
+.PHONY : proto clean build run coldstart image
+
+image:
+	docker build -t hyhe/trace-func-go .
+	docker push hyhe/trace-func-go:latest
 
 proto:
 	protoc \
