@@ -79,6 +79,9 @@ func GenerateExecutionSpecs(function Function) (int, int) {
 	 * With 50% prob., returns average values.
 	 * With 25% prob., returns the upper bound of the quantile interval.
 	 * With 25% prob., returns the average between the two bounds of the interval.
+	 *
+	 * TODO: Later when can choose between the last two base upon #samples.
+	 **NB: The smaller the #samples, the closer the pct. values to the actual ones.
 	 */
 	if runtime, memory = runtimePct.average, memoryPct.average; flag {
 		switch {
