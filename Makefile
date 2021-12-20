@@ -15,6 +15,7 @@ proto:
 # make -i clean
 clean: 
 	kn service delete --all
+	kubectl delete --all pods --namespace=default
 	rm -f el
 	rm -f *.log
 	go mod tidy
