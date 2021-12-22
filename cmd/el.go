@@ -1,13 +1,11 @@
 package main
 
 import (
-	// "encoding/json"
 	"flag"
 	"fmt"
-	"time"
-
-	// "io/ioutil"
 	"os"
+	"strconv"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 
@@ -21,14 +19,18 @@ const (
 )
 
 var (
+	traces            tc.FunctionTraces
+	serviceConfigPath = "workloads/trace_func_go.yaml"
+
 	debug       = flag.Bool("dbg", false, "Enable debug logging")
 	rps         = flag.Int("rps", 1, "Request per second")
 	duration    = flag.Int("duration", 1, "Duration of the experiment")
+	sampleSize  = flag.Int("size", 5, "Sample size of the traces")
 	withTracing = flag.Bool("trace", false, "Enable tracing in the client")
 )
 
 func init() {
-
+	/** Logging. */
 	flag.Parse()
 
 	log.SetFormatter(&log.TextFormatter{
@@ -49,20 +51,22 @@ func init() {
 		}
 		defer shutdown()
 	}
-}
 
-func main() {
-	// serviceConfigPath := "workloads/trace_func_py.yaml"
-	serviceConfigPath := "workloads/trace_func_go.yaml"
-	traces := tc.ParseInvocationTrace("data/traces/invocations_10.csv", *duration)
-	tc.ParseDurationTrace(&traces, "data/traces/durations_10.csv")
-	tc.ParseMemoryTrace(&traces, "data/traces/memory_10.csv")
+	/** Trace parsing. */
+	traces = tc.ParseInvocationTrace(
+		"data/traces/"+strconv.Itoa(*sampleSize)+"/invocations.csv", *duration)
+	tc.ParseDurationTrace(
+		&traces, "data/traces/"+strconv.Itoa(*sampleSize)+"/durations.csv")
+	tc.ParseMemoryTrace(
+		&traces, "data/traces/"+strconv.Itoa(*sampleSize)+"/memory.csv")
 
 	log.Info("Traces contain the following: ", len(traces.Functions), " functions")
 	for _, function := range traces.Functions {
 		fmt.Println("\t" + function.GetName())
 	}
+}
 
+func main() {
 	/** Deployment */
 	log.Info("Using service config file: ", serviceConfigPath)
 	functions := fc.Deploy(traces.Functions, serviceConfigPath, 1) // TODO: Fixed number of functions per pod.
