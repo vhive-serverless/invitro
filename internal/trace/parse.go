@@ -60,7 +60,7 @@ type Function struct {
 	memoryStats   FunctionMemoryStats
 }
 
-type FunctionTrace struct {
+type FunctionTraces struct {
 	path                       string
 	Functions                  []Function
 	InvocationsPerMinute       [][]int
@@ -142,7 +142,7 @@ func getSubduedSpecs(
 	return runtime, memory
 }
 
-func ParseInvocationTrace(traceFile string, traceDuration int) FunctionTrace {
+func ParseInvocationTrace(traceFile string, traceDuration int) FunctionTraces {
 	log.Infof("Parsing function invocation trace: %s", traceFile)
 
 	var functions []Function
@@ -194,7 +194,7 @@ func ParseInvocationTrace(traceFile string, traceDuration int) FunctionTrace {
 		funcIdx++
 	}
 
-	return FunctionTrace{
+	return FunctionTraces{
 		Functions:                  functions,
 		InvocationsPerMinute:       invocationIdices,
 		TotalInvocationsEachMinute: totalInvocations,
@@ -228,7 +228,7 @@ func parseToInt(text string) int {
 	}
 }
 
-func ParseDurationTrace(trace *FunctionTrace, traceFile string) {
+func ParseDurationTrace(trace *FunctionTraces, traceFile string) {
 	log.Infof("Parsing function duration trace: %s", traceFile)
 
 	// Create mapping from function hash to function position in trace
@@ -290,7 +290,7 @@ func getMemoryStats(record []string) FunctionMemoryStats {
 	}
 }
 
-func ParseMemoryTrace(trace *FunctionTrace, traceFile string) {
+func ParseMemoryTrace(trace *FunctionTraces, traceFile string) {
 	log.Infof("Parsing function memory trace: %s", traceFile)
 
 	// Create mapping from function hash to function position in trace
