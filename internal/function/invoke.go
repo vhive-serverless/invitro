@@ -176,7 +176,7 @@ func invoke(ctx context.Context, function tc.Function) (bool, tc.LatencyRecord) 
 	record.Memory = memoryUsage
 	record.Runtime = runtime
 
-	log.Infof("(gRPC)\t %s: %d[µs], %d[MB]", function.GetName(), runtime, memoryUsage)
+	log.Infof("(gRPC)\t %s: %d[µs], %d[B]", function.GetName(), runtime, memoryUsage)
 
 	latency := time.Since(start).Microseconds()
 	record.Latency = latency
