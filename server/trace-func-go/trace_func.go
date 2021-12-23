@@ -18,7 +18,7 @@ import (
 )
 
 var (
-	megaByteToByte    = uint32(math.Pow(2, 20))
+	mebiByteToByte    = uint32(math.Pow(2, 20))
 	callingStackBytes = 0
 	serverPort        = 80
 	pi                = strings.Replace(fmt.Sprintf("%f", math.Pi), ".", "", -1)
@@ -34,7 +34,7 @@ func (s *funcServer) Execute(ctx context.Context, req *rpc.FaasRequest) (*rpc.Fa
 	runtimeRequested := req.RuntimeInMilliSec
 	timeoutCh := time.After(time.Duration(runtimeRequested) * time.Millisecond)
 
-	memoryRequestedInBytes := req.MemoryInMegaBytes * megaByteToByte // MB to bytes.
+	memoryRequestedInBytes := req.MemoryInMebiBytes * mebiByteToByte // MiB to bytes.
 	buffer := make([]byte, memoryRequestedInBytes)                   //* Use `make()` to allocate on heap.
 
 	//* Deduct the memory allocated for the slice reference and that of the calling stack.
