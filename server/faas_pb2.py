@@ -19,7 +19,7 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   syntax='proto3',
   serialized_options=b'Z%github.com/eth-easl/easyloader/server',
   create_key=_descriptor._internal_create_key,
-  serialized_pb=b'\n\x11server/faas.proto\x12\x04\x66\x61\x61s\"T\n\x0b\x46\x61\x61sRequest\x12\x0f\n\x07message\x18\x01 \x01(\t\x12\x19\n\x11runtimeInMilliSec\x18\x02 \x01(\r\x12\x19\n\x11memoryInMegaBytes\x18\x03 \x01(\r\"S\n\tFaasReply\x12\x0f\n\x07message\x18\x01 \x01(\t\x12\x19\n\x11latencyInMicroSec\x18\x02 \x01(\r\x12\x1a\n\x12memoryUsageInBytes\x18\x03 \x01(\r2;\n\x08\x45xecutor\x12/\n\x07\x45xecute\x12\x11.faas.FaasRequest\x1a\x0f.faas.FaasReply\"\x00\x42\'Z%github.com/eth-easl/easyloader/serverb\x06proto3'
+  serialized_pb=b'\n\x11server/faas.proto\x12\x04\x66\x61\x61s\"T\n\x0b\x46\x61\x61sRequest\x12\x0f\n\x07message\x18\x01 \x01(\t\x12\x19\n\x11runtimeInMilliSec\x18\x02 \x01(\r\x12\x19\n\x11memoryInMebiBytes\x18\x03 \x01(\r\"S\n\tFaasReply\x12\x0f\n\x07message\x18\x01 \x01(\t\x12\x19\n\x11latencyInMicroSec\x18\x02 \x01(\r\x12\x1a\n\x12memoryUsageInBytes\x18\x03 \x01(\r2;\n\x08\x45xecutor\x12/\n\x07\x45xecute\x12\x11.faas.FaasRequest\x1a\x0f.faas.FaasReply\"\x00\x42\'Z%github.com/eth-easl/easyloader/serverb\x06proto3'
 )
 
 
@@ -48,7 +48,7 @@ _FAASREQUEST = _descriptor.Descriptor(
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='memoryInMegaBytes', full_name='faas.FaasRequest.memoryInMegaBytes', index=2,
+      name='memoryInMebiBytes', full_name='faas.FaasRequest.memoryInMebiBytes', index=2,
       number=3, type=13, cpp_type=3, label=1,
       has_default_value=False, default_value=0,
       message_type=None, enum_type=None, containing_type=None,

@@ -137,7 +137,7 @@ func Invoke(
 func invoke(ctx context.Context, function tc.Function) (bool, tc.LatencyRecord) {
 	runtimeRequested, memoryRequested := tc.GenerateExecutionSpecs(function)
 
-	log.Infof("(Invoke)\t %s: %d[µs], %d[MB]", function.GetName(), runtimeRequested*int(math.Pow10(3)), memoryRequested)
+	log.Infof("(Invoke)\t %s: %d[µs], %d[MiB]", function.GetName(), runtimeRequested*int(math.Pow10(3)), memoryRequested)
 
 	var record tc.LatencyRecord
 	record.FuncName = function.GetName()
@@ -162,7 +162,7 @@ func invoke(ctx context.Context, function tc.Function) (bool, tc.LatencyRecord) 
 	response, err := grpcClient.Execute(ctx, &rpc.FaasRequest{
 		Message:           "nothing",
 		RuntimeInMilliSec: uint32(runtimeRequested),
-		MemoryInMegaBytes: uint32(memoryRequested),
+		MemoryInMebiBytes: uint32(memoryRequested),
 	})
 
 	if err != nil {

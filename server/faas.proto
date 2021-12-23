@@ -25,7 +25,7 @@ service Executor {
 message FaasRequest {
   string message = 1;           // Text message field (unused).
   uint32 runtimeInMilliSec = 2; // Execution runtime [ms].
-  uint32 memoryInMegaBytes = 3; // Request memory usage [MB].
+  uint32 memoryInMebiBytes = 3; // Request memory usage [MiB].
 }
 
 message FaasReply {
