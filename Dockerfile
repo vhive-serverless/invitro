@@ -17,10 +17,10 @@ RUN go mod download
 COPY . ./
 
 # Build the binary.
+WORKDIR /app/server/trace-func-go
 # -mod=readonly: ensures immutable go.mod and go.sum in container builds.
 # CGO_ENABLED=0: avoid using common libraries are found on most major OS distributions.
-RUN CGO_ENABLED=0 GOOS=linux go build -mod=readonly -v -o server\
-    server/trace-func-go/trace_func.go
+RUN CGO_ENABLED=0 GOOS=linux go build -mod=readonly -v -o server
 
 # Stage 1: Run #
 # Use the official Alpine image for a lean production container.
@@ -30,7 +30,7 @@ FROM alpine:3
 RUN apk add --no-cache ca-certificates
 
 # Copy the binary to the production image from the builder stage.
-COPY --from=builder /app/server /server
+COPY --from=builder /app/server/trace-func-go/server /server
 
 # Run the web service on container startup.
 CMD ["/server"]
