@@ -22,6 +22,6 @@ type LatencyRecord struct {
 	Timestamp int64  `csv:"timestamp"`
 	FuncName  string `csv:"func_name"`
 	Latency   int64  `csv:"latency"`
-	Runtime   int64  `csv:"runtime"`
-	Memory    int    `csv:"memory"`
+	Runtime   uint32 `csv:"runtime"`
+	Memory    uint32 `csv:"memory"`
 }

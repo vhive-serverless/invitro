@@ -17,7 +17,7 @@ import (
 
 	util "github.com/eth-easl/easyloader/internal"
 	tc "github.com/eth-easl/easyloader/internal/trace"
-	faas "github.com/eth-easl/easyloader/pkg/faas"
+	rpc "github.com/eth-easl/easyloader/server"
 )
 
 func Invoke(
@@ -60,7 +60,7 @@ func Invoke(
 			done <- true
 		}()
 
-		//! Bound the #invocations by `rps`.
+		//* Bound the #invocations by `rps`.
 		numFuncToInvokeThisMinute := util.MinOf(rps*60, totalNumInvocationsEachMinute[minute])
 		var invocationCount int32
 
@@ -154,22 +154,24 @@ func invoke(ctx context.Context, function tc.Function) (bool, tc.LatencyRecord) 
 	defer conn.Close()
 
 	//TODO: Write a function stub based upon the Producer of vSwarm.
-	grpcClient := faas.NewExecutorClient(conn)
+	grpcClient := rpc.NewExecutorClient(conn)
 	// Contact the server and print out its response.
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	response, err := grpcClient.Execute(ctx, &faas.FaasRequest{
-		Input: "nothing", Runtime: uint32(runtimeRequested), Memory: uint32(memoryRequested)})
+	response, err := grpcClient.Execute(ctx, &rpc.FaasRequest{
+		Message:           "nothing",
+		RuntimeInMilliSec: uint32(runtimeRequested),
+		MemoryInMegaBytes: uint32(memoryRequested),
+	})
 
 	if err != nil {
 		log.Warnf("Failed to invoke %s, err=%v", function.GetName(), err)
 		return false, tc.LatencyRecord{}
 	}
 	// log.Info("gRPC response: ", reply.Response)
-	memoryUsage, err := strconv.Atoi(response.Response)
-	util.Check(err)
-	runtime := response.Latency
+	memoryUsage := response.MemoryUsageInBytes
+	runtime := response.LatencyInMicroSec
 
 	record.Memory = memoryUsage
 	record.Runtime = runtime

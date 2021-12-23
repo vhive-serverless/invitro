@@ -20,7 +20,7 @@ COPY . ./
 # -mod=readonly: ensures immutable go.mod and go.sum in container builds.
 # CGO_ENABLED=0: avoid using common libraries are found on most major OS distributions.
 RUN CGO_ENABLED=0 GOOS=linux go build -mod=readonly -v -o server\
-    func-imgs/trace-func-go/trace_func.go
+    server/trace-func-go/trace_func.go
 
 # Stage 1: Run #
 # Use the official Alpine image for a lean production container.
