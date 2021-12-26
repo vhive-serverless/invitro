@@ -10,8 +10,8 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	tracer "github.com/ease-lab/vhive/utils/tracing/go"
-	fc "github.com/eth-easl/easyloader/internal/function"
-	tc "github.com/eth-easl/easyloader/internal/trace"
+	fc "github.com/eth-easl/loader/internal/function"
+	tc "github.com/eth-easl/loader/internal/trace"
 )
 
 const (

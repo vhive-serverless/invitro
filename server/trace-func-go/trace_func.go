@@ -2,62 +2,63 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"math"
 	"net"
-	"unsafe"
 
-	"strings"
 	"time"
 
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 
-	rpc "github.com/eth-easl/easyloader/server"
+	rpc "github.com/eth-easl/loader/server"
 )
 
 var (
-	mebiByteToByte    = uint32(math.Pow(2, 20))
-	callingStackBytes = 0
-	serverPort        = 80
-	pi                = strings.Replace(fmt.Sprintf("%f", math.Pi), ".", "", -1)
+	start time.Time
+	//* Use `make()` to allocate a static array (NOT a linked slice) on heap.
+	osPage     = [4 * 1024]byte{}
+	kb         = cap(osPage) / 4
+	serverPort = 80
 )
 
 type funcServer struct {
-	//? Embed the following to have forward compatible implementations.
 	rpc.UnimplementedExecutorServer
 }
 
 func (s *funcServer) Execute(ctx context.Context, req *rpc.FaasRequest) (*rpc.FaasReply, error) {
-	start := time.Now()
+	start = time.Now()
+
 	runtimeRequested := req.RuntimeInMilliSec
-	timeoutCh := time.After(time.Duration(runtimeRequested) * time.Millisecond)
+	memoryRequestedInKbs := req.MemoryInMebiBytes * uint32(kb) // MiB to KB.
+	timeoutSem := time.After(time.Duration(runtimeRequested) * time.Millisecond)
 
-	memoryRequestedInBytes := req.MemoryInMebiBytes * mebiByteToByte // MiB to bytes.
-	buffer := make([]byte, memoryRequestedInBytes)                   //* Use `make()` to allocate on heap.
-
-	//* Deduct the memory allocated for the slice reference and that of the calling stack.
-	memoryRequestedInBytes -= uint32(unsafe.Sizeof(buffer)) - uint32(callingStackBytes)
-
-	next := 0
-pi_loop:
-	for {
+	//* To avoid unecessary overhead, memory allocation is at the granularity of linux pages.
+	numPagesRequested := memoryRequestedInKbs/4 - 1
+	for i := 0; i < int(numPagesRequested); i++ {
 		select {
-		case <-timeoutCh:
-			break pi_loop
+		case <-timeoutSem:
+			return makeReply(uint32((i + 1) * 4 * kb)),
+				errors.New("timeout when allocating memory")
 		default:
-			/** Compute the next digit of π. */
-			buffer[next] = pi[next%len(pi)]
+			//* Create a NEW page by copying the existing one.
+			newPage := osPage
+			//* Write to the first byte to consolidate virtual mem. into physical mem.
+			newPage[0] = byte(i)
 		}
-		next = int(uint32(next+1) % memoryRequestedInBytes)
 	}
 
+	<-timeoutSem //* Fulfil requested runtime.
+	return makeReply(memoryRequestedInKbs), nil
+}
+
+func makeReply(memoryUsage uint32) *rpc.FaasReply {
 	return &rpc.FaasReply{
-		Message:            "", // Unused
-		LatencyInMicroSec:  uint32(time.Since(start).Microseconds()),
-		MemoryUsageInBytes: memoryRequestedInBytes,
-	}, nil
+		Message:           "", // Unused
+		LatencyInMicroSec: uint32(time.Since(start).Microseconds()),
+		MemoryUsageInKb:   memoryUsage,
+	}
 }
 
 func main() {
@@ -67,15 +68,8 @@ func main() {
 	}
 
 	funcServer := &funcServer{}
-
-	/** The grpcServer is currently configured to serve h2c traffic by default.
-	 * To configure credentials or encryption,
-	 * see: https://grpc.io/docs/guides/auth.html#go */
 	grpcServer := grpc.NewServer()
-	/** gRPC Server Reflection provides information about publicly-accessible gRPC services on a server,
-	 * and assists clients at runtime to construct RPC requests and responses without precompiled service information.
-	 * It is used by gRPC CLI, which can be used to introspect server protos and send/receive test RPCs. */
-	reflection.Register(grpcServer)
+	reflection.Register(grpcServer) // gRPC Server Reflection is used by gRPC CLI.
 	rpc.RegisterExecutorServer(grpcServer, funcServer)
 	grpcServer.Serve(lis)
 }

@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"time"
 
-	util "github.com/eth-easl/easyloader/internal"
+	util "github.com/eth-easl/loader/internal"
 	log "github.com/sirupsen/logrus"
 )
 

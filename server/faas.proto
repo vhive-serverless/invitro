@@ -13,7 +13,7 @@
 */
 syntax = "proto3";
 
-option go_package = "github.com/eth-easl/easyloader/server";
+option go_package = "github.com/eth-easl/loader/server";
 
 package faas;
 
@@ -31,5 +31,5 @@ message FaasRequest {
 message FaasReply {
   string message = 1;             // Text message field (unused).
   uint32 latencyInMicroSec = 2;   // Execution latency [µs].
-  uint32 memoryUsageInBytes = 3;  // Memory usage [B].
+  uint32 memoryUsageInKb = 3;     // Memory usage [KB].
 }

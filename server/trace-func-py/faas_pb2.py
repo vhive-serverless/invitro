@@ -17,9 +17,9 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   name='faas.proto',
   package='faasfunction',
   syntax='proto3',
-  serialized_options=b'Z\'github.com/eth-easl/easyloader/pkg/faas',
+  serialized_options=b'Z\'github.com/eth-easl/loader/pkg/faas',
   create_key=_descriptor._internal_create_key,
-  serialized_pb=b'\n\nfaas.proto\x12\x0c\x66\x61\x61sfunction\"=\n\x0b\x46\x61\x61sRequest\x12\r\n\x05input\x18\x01 \x01(\t\x12\x0f\n\x07runtime\x18\x02 \x01(\r\x12\x0e\n\x06memory\x18\x03 \x01(\r\".\n\tFaasReply\x12\x10\n\x08response\x18\x01 \x01(\t\x12\x0f\n\x07latency\x18\x02 \x01(\x03\x32K\n\x08\x45xecutor\x12?\n\x07\x45xecute\x12\x19.faasfunction.FaasRequest\x1a\x17.faasfunction.FaasReply\"\x00\x42)Z\'github.com/eth-easl/easyloader/pkg/faasb\x06proto3'
+  serialized_pb=b'\n\nfaas.proto\x12\x0c\x66\x61\x61sfunction\"=\n\x0b\x46\x61\x61sRequest\x12\r\n\x05input\x18\x01 \x01(\t\x12\x0f\n\x07runtime\x18\x02 \x01(\r\x12\x0e\n\x06memory\x18\x03 \x01(\r\".\n\tFaasReply\x12\x10\n\x08response\x18\x01 \x01(\t\x12\x0f\n\x07latency\x18\x02 \x01(\x03\x32K\n\x08\x45xecutor\x12?\n\x07\x45xecute\x12\x19.faasfunction.FaasRequest\x1a\x17.faasfunction.FaasReply\"\x00\x42)Z\'github.com/eth-easl/loader/pkg/faasb\x06proto3'
 )
 
 

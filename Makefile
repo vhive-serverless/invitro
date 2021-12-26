@@ -20,15 +20,15 @@ proto:
 clean: 
 	kn service delete --all
 	kubectl delete --all pods --namespace=default
-	rm -f el
+	rm -f load
 	rm -f *.log
 	go mod tidy
 
 build:
-	go build cmd/el.go
+	go build cmd/load.go
 
 # make ARGS="--rps X --duration X" run
 run:
-	go run cmd/el.go $(ARGS)
+	go run cmd/load.go $(ARGS)
 
 coldstart: clean run

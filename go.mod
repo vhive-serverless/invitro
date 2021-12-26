@@ -1,4 +1,4 @@
-module github.com/eth-easl/easyloader
+module github.com/eth-easl/loader
 
 go 1.17
 
