@@ -7,6 +7,7 @@ spec:
     spec:
       containers:
         - image: docker.io/hyhe/trace-func-go:latest
+          # imagePullPolicy: Always # No need if the tag is `latest`.
           ports:
             - name: h2c # For gRPC support
               containerPort: 80

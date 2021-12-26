@@ -15,9 +15,9 @@ import (
 	"github.com/gocarina/gocsv" // Use `csv:-`` to ignore a field.
 	log "github.com/sirupsen/logrus"
 
-	util "github.com/eth-easl/easyloader/internal"
-	tc "github.com/eth-easl/easyloader/internal/trace"
-	rpc "github.com/eth-easl/easyloader/server"
+	util "github.com/eth-easl/loader/internal"
+	tc "github.com/eth-easl/loader/internal/trace"
+	rpc "github.com/eth-easl/loader/server"
 )
 
 func Invoke(
@@ -166,17 +166,17 @@ func invoke(ctx context.Context, function tc.Function) (bool, tc.LatencyRecord) 
 	})
 
 	if err != nil {
-		log.Warnf("Failed to invoke %s, err=%v", function.GetName(), err)
+		log.Warnf("%s: err=%v", function.GetName(), err)
 		return false, tc.LatencyRecord{}
 	}
 	// log.Info("gRPC response: ", reply.Response)
-	memoryUsage := response.MemoryUsageInBytes
+	memoryUsage := response.MemoryUsageInKb
 	runtime := response.LatencyInMicroSec
 
 	record.Memory = memoryUsage
 	record.Runtime = runtime
 
-	log.Infof("(gRPC)\t %s: %d[µs], %d[B]", function.GetName(), runtime, memoryUsage)
+	log.Infof("(gRPC)\t %s: %d[µs], %d[KB]", function.GetName(), runtime, memoryUsage)
 
 	latency := time.Since(start).Microseconds()
 	record.Latency = latency

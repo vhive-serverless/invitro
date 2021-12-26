@@ -2,7 +2,7 @@
 SERVER=$1
 
 cd
-source ~/Projects/Research/easyloader/scripts/cluster_config
+source ~/Projects/Research/loader/scripts/cluster_config
 
 server_exec() { 
     ssh -oStrictHostKeyChecking=no -p 22 "$SERVER" $1; 
@@ -37,7 +37,7 @@ server_exec 'ssh-keyscan -t rsa github.com >> ~/.ssh/known_hosts'
 server_exec 'curl -H "Authorization: token '"$ACCESS_TOKEH"'" --data "{\"title\":\"'"key:\$(hostname)"'\",\"key\":\"'"\$(cat ~/.ssh/id_rsa.pub)"'\"}" https://api.github.com/user/keys'
 # server_exec 'sleep 5'
 
-# Get easyloader.
-server_exec "git clone --branch=$EL_BRANCH git@github.com:eth-easl/easyloader.git"
+# Get loader.
+server_exec "git clone --branch=$EL_BRANCH git@github.com:eth-easl/loader.git"
 
 cd -

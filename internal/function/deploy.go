@@ -5,7 +5,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 
-	tc "github.com/eth-easl/easyloader/internal/trace"
+	tc "github.com/eth-easl/loader/internal/trace"
 )
 
 func Deploy(
