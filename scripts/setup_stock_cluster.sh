@@ -38,6 +38,6 @@ server_exec 'curl -H "Authorization: token '"$ACCESS_TOKEH"'" --data "{\"title\"
 # server_exec 'sleep 5'
 
 # Get loader.
-server_exec "git clone --branch=$EL_BRANCH git@github.com:eth-easl/loader.git"
+server_exec "git clone --branch=$LOADER_BRANCH git@github.com:eth-easl/loader.git"
 
 cd -
