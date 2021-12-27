@@ -45,7 +45,7 @@ func init() {
 		log.SetLevel(log.InfoLevel)
 	}
 	if *withTracing {
-		shutdown, err := tracer.InitBasicTracer(zipkinAddr, "invoker")
+		shutdown, err := tracer.InitBasicTracer(zipkinAddr, "loader")
 		if err != nil {
 			log.Print(err)
 		}

@@ -43,7 +43,7 @@ func Invoke(
 		var record tc.MinuteInvocationRecord
 		record.Rps = rps
 		record.MinuteIdx = minute
-		iter_start := time.Now()
+		iterStart := time.Now()
 
 		/** Set up timer to bound the one-minute invocation. */
 		epsilon := time.Duration(0)
@@ -93,17 +93,17 @@ func Invoke(
 				}(minute, next)
 			case <-done:
 				numFuncInvocaked += int(invocationCount)
-				log.Info("Iteration spent: ", time.Since(iter_start), "\tMinute Nbr. ", minute)
+				log.Info("Iteration spent: ", time.Since(iterStart), "\tMinute Nbr. ", minute)
 				log.Info("Required #invocations=", totalNumInvocationsEachMinute[minute],
 					" Fired #functions=", numFuncInvocaked, "\tMinute Nbr. ", minute)
 
-				record.Duration = time.Since(iter_start).Microseconds()
+				record.Duration = time.Since(iterStart).Microseconds()
 				record.IdleDuration = idleDuration.Microseconds()
 				record.NumFuncRequested = totalNumInvocationsEachMinute[minute]
 				record.NumFuncInvoked = numFuncInvocaked
 				record.NumFuncFailed = numFuncToInvokeThisMinute - numFuncInvocaked
 				invocRecords = append(invocRecords, &record)
-				goto next_minute // *`break` doesn't work here as it's somehow ambiguous to Golang.
+				goto next_minute //* `break` doesn't work here as it's somehow ambiguous to Golang.
 			}
 			next++
 		}

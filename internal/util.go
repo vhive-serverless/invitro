@@ -10,6 +10,14 @@ func init() {
 	rand.Seed(time.Now().UnixNano())
 }
 
+func B2Kib(numB uint32) uint32 {
+	return numB / 1024
+}
+
+func Mib2b(numMb uint32) uint32 {
+	return numMb * 1024 * 1024
+}
+
 func GetRandBool() bool {
 	return rand.Int31()&0x01 == 0
 }
