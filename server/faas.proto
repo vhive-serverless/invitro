@@ -30,6 +30,6 @@ message FaasRequest {
 
 message FaasReply {
   string message = 1;             // Text message field (unused).
-  uint32 latencyInMicroSec = 2;   // Execution latency [µs].
+  uint32 durationInMicroSec = 2;   // Execution latency [µs].
   uint32 memoryUsageInKb = 3;     // Memory usage [KB].
 }

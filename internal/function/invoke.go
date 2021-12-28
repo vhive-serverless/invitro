@@ -171,7 +171,7 @@ func invoke(ctx context.Context, function tc.Function) (bool, tc.LatencyRecord) 
 	}
 	// log.Info("gRPC response: ", reply.Response)
 	memoryUsage := response.MemoryUsageInKb
-	runtime := response.LatencyInMicroSec
+	runtime := response.DurationInMicroSec
 
 	record.Memory = memoryUsage
 	record.Runtime = runtime
