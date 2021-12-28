@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"time"
@@ -36,12 +37,18 @@ func (s *funcServer) Execute(ctx context.Context, req *rpc.FaasRequest) (*rpc.Fa
 	err = unix.Munmap(pages)
 	util.Check(err)
 
+	if uint32(time.Since(start).Milliseconds()) > runtimeRequested {
+		err = errors.New("timeout in function excecution")
+	} else {
+		err = nil
+	}
+
 	<-timeoutSem //* Fulfil requested runtime.
 	return &rpc.FaasReply{
-		Message:           "", // Unused
-		LatencyInMicroSec: uint32(time.Since(start).Microseconds()),
-		MemoryUsageInKb:   util.B2Kib(numPagesRequested * uint32(unix.Getpagesize())),
-	}, nil
+		Message:            "", // Unused
+		DurationInMicroSec: uint32(time.Since(start).Microseconds()),
+		MemoryUsageInKb:    util.B2Kib(numPagesRequested * uint32(unix.Getpagesize())),
+	}, err
 }
 
 func main() {
