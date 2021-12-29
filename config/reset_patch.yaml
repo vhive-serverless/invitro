@@ -1,0 +1,4 @@
+metadata:
+  annotations:
+    autoscaling.knative.dev/min-scale: "1"
+    autoscaling.knative.dev/scale-down-delay: "0s"
