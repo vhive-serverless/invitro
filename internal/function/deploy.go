@@ -2,6 +2,7 @@ package function
 
 import (
 	"os/exec"
+	"sync"
 
 	log "github.com/sirupsen/logrus"
 
@@ -10,30 +11,32 @@ import (
 
 func Deploy(
 	functions []tc.Function,
-	serviceConfigPath string,
-	deploymentConcurrency int) []tc.Function {
+	serviceConfigPath string) []tc.Function {
+
 	var urls []string
-	/**
-	 * Limit the number of parallel deployments
-	 * using a channel (like semaphore).
-	 */
+	deploymentConcurrency := len(functions) //* Fully parallelise deployment.
 	sem := make(chan bool, deploymentConcurrency)
 
+	wg := sync.WaitGroup{}
 	for idx, function := range functions {
 		sem <- true
 
 		go func(function tc.Function, idx int) {
-			defer func() { <-sem }()
+			defer func() {
+				<-sem
+				wg.Done()
+			}()
 
+			wg.Add(1)
 			has_deployed := deployFunction(&function, serviceConfigPath)
 			function.SetStatus(has_deployed)
 			if has_deployed {
 				urls = append(urls, function.GetUrl())
 			}
-
-			functions[idx] = function
+			functions[idx] = function // Update function data.
 		}(function, idx)
 	}
+	wg.Wait()
 
 	for i := 0; i < cap(sem); i++ {
 		sem <- true

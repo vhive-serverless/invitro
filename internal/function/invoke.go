@@ -119,7 +119,7 @@ func Invoke(
 		log.Warn("Time out waiting for fired invocations to return.")
 	} else {
 		totalDuration := time.Since(start)
-		log.Info("Total invocation duration: ", totalDuration, "\tIdle ", idleDuration, "\n")
+		log.Info("Total invocation + waiting duration: ", totalDuration, "\tIdle ", idleDuration, "\n")
 	}
 
 	//TODO: Extract IO out.
