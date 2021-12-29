@@ -18,6 +18,10 @@ func Mib2b(numMb uint32) uint32 {
 	return numMb * 1024 * 1024
 }
 
+func Mib2Kib(numMb uint32) uint32 {
+	return numMb * 1024
+}
+
 func GetRandBool() bool {
 	return rand.Int31()&0x01 == 0
 }

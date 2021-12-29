@@ -55,7 +55,7 @@ func Invoke(
 		/** Launch a timer. */
 		go func() {
 			t := <-timeout
-			log.Warn("(regular) TIMEOUT at ", t.Format(time.StampMilli), "\tMinute Nbr. ", minute)
+			log.Warn("(Slot finished)\t", t.Format(time.StampMilli), "\tMinute Nbr. ", minute)
 			ticker.Stop()
 			done <- true
 		}()
