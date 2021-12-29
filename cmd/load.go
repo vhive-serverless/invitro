@@ -25,7 +25,7 @@ var (
 	debug       = flag.Bool("dbg", false, "Enable debug logging")
 	rps         = flag.Int("rps", 1, "Request per second")
 	duration    = flag.Int("duration", 1, "Duration of the experiment")
-	sampleSize  = flag.Int("size", 5, "Sample size of the traces")
+	sampleSize  = flag.Int("sample", 5, "Sample size of the traces")
 	withTracing = flag.Bool("trace", false, "Enable tracing in the client")
 )
 
@@ -69,7 +69,7 @@ func init() {
 func main() {
 	/** Deployment */
 	log.Info("Using service config file: ", serviceConfigPath)
-	functions := fc.Deploy(traces.Functions, serviceConfigPath, 1) // TODO: Fixed number of functions per pod.
+	functions := fc.Deploy(traces.Functions, serviceConfigPath)
 
 	/** Invokation */
 	defer fc.Invoke(*rps, functions, traces.InvocationsPerMinute, traces.TotalInvocationsEachMinute)
