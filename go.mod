@@ -7,13 +7,19 @@ require (
 	github.com/gocarina/gocsv v0.0.0-20211203214250-4735fba0c1d9
 	github.com/golang/protobuf v1.5.2
 	github.com/sirupsen/logrus v1.8.1
-	golang.org/x/sys v0.0.0-20210510120138-977fb7262007 // indirect
+	github.com/stretchr/testify v1.7.0
+	golang.org/x/sys v0.0.0-20210510120138-977fb7262007
 	google.golang.org/grpc v1.42.0
+	gotest.tools/v3 v3.0.3
 )
 
 require (
 	github.com/containerd/containerd v1.5.2 // indirect
+	github.com/davecgh/go-spew v1.1.1 // indirect
+	github.com/google/go-cmp v0.5.5 // indirect
 	github.com/openzipkin/zipkin-go v0.2.5 // indirect
+	github.com/pkg/errors v0.9.1 // indirect
+	github.com/pmezard/go-difflib v1.0.0 // indirect
 	go.opentelemetry.io/contrib v0.20.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.20.0 // indirect
 	go.opentelemetry.io/otel v0.20.0 // indirect
@@ -25,4 +31,5 @@ require (
 	golang.org/x/text v0.3.6 // indirect
 	google.golang.org/genproto v0.0.0-20211208223120-3a66f561d7aa // indirect
 	google.golang.org/protobuf v1.27.1 // indirect
+	gopkg.in/yaml.v3 v3.0.0-20200313102051-9f266ea9e77c // indirect
 )
