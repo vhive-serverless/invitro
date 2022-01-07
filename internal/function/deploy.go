@@ -2,6 +2,7 @@ package function
 
 import (
 	"os/exec"
+	"strconv"
 	"sync"
 
 	log "github.com/sirupsen/logrus"
@@ -9,10 +10,7 @@ import (
 	tc "github.com/eth-easl/loader/internal/trace"
 )
 
-func Deploy(
-	functions []tc.Function,
-	serviceConfigPath string) []tc.Function {
-
+func Deploy(functions []tc.Function, serviceConfigPath string, warmupEnabled bool) []tc.Function {
 	var urls []string
 	deploymentConcurrency := len(functions) //* Fully parallelise deployment.
 	sem := make(chan bool, deploymentConcurrency)
@@ -26,10 +24,18 @@ func Deploy(
 				<-sem
 				wg.Done()
 			}()
-
 			wg.Add(1)
-			has_deployed := deployFunction(&function, serviceConfigPath)
+
+			var minScale int
+			if minScale = 0; warmupEnabled {
+				minScale = function.GetMaxConcurrency()
+			}
+
+			log.Info(function.GetName(), " -> min-scale: ", minScale)
+
+			has_deployed := deployFunction(&function, serviceConfigPath, minScale)
 			function.SetStatus(has_deployed)
+
 			if has_deployed {
 				urls = append(urls, function.GetUrl())
 			}
@@ -44,7 +50,7 @@ func Deploy(
 	return functions
 }
 
-func deployFunction(function *tc.Function, workloadPath string) bool {
+func deployFunction(function *tc.Function, workloadPath string, minScale int) bool {
 	//TODO: Make concurrency configurable.
 	cmd := exec.Command(
 		"kn",
@@ -53,6 +59,8 @@ func deployFunction(function *tc.Function, workloadPath string) bool {
 		function.GetName(),
 		"-f",
 		workloadPath,
+		"--scale-min",
+		strconv.Itoa(minScale),
 		"--concurrency-target",
 		"1",
 	)
