@@ -38,8 +38,26 @@ func MinOf(vars ...int) int {
 	return min
 }
 
+func MaxOf(vars ...int) int {
+	max := vars[0]
+
+	for _, i := range vars {
+		if max < i {
+			max = i
+		}
+	}
+
+	return max
+}
+
 func Check(e error) {
 	if e != nil {
 		panic(e)
 	}
 }
+
+// func Hash(s string) uint32 {
+// 	h := fnv.New32a()
+// 	h.Write([]byte(s))
+// 	return h.Sum32()
+// }

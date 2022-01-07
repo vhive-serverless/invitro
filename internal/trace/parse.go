@@ -24,49 +24,6 @@ const (
 	port       = "80"
 )
 
-type FunctionDurationStats struct {
-	average       int
-	count         int
-	minimum       int
-	maximum       int
-	percentile0   int
-	percentile1   int
-	percentile25  int
-	percentile50  int
-	percentile75  int
-	percentile99  int
-	percentile100 int
-}
-
-type FunctionMemoryStats struct {
-	average       int
-	count         int
-	percentile1   int
-	percentile5   int
-	percentile25  int
-	percentile50  int
-	percentile75  int
-	percentile95  int
-	percentile99  int
-	percentile100 int
-}
-type Function struct {
-	name          string
-	url           string
-	appHash       string
-	hash          string
-	deployed      bool
-	durationStats FunctionDurationStats
-	memoryStats   FunctionMemoryStats
-}
-
-type FunctionTraces struct {
-	path                       string
-	Functions                  []Function
-	InvocationsPerMinute       [][]int
-	TotalInvocationsEachMinute []int
-}
-
 func GenerateExecutionSpecs(function Function) (int, int) {
 	var runtime, memory int
 	//* Generate a random persentile in [0, 100).
@@ -143,7 +100,10 @@ func getSubduedSpecs(
 }
 
 func ParseInvocationTrace(traceFile string, traceDuration int) FunctionTraces {
-	log.Infof("Parsing function invocation trace: %s", traceFile)
+	// Clamp duration to (0, 1440].
+	traceDuration = util.MaxOf(util.MinOf(traceDuration, 1440), 1)
+
+	log.Infof("Parsing function invocation trace %s (duration: %dmin)", traceFile, traceDuration)
 
 	var functions []Function
 	// Indices of functions to invoke.
@@ -158,7 +118,7 @@ func ParseInvocationTrace(traceFile string, traceDuration int) FunctionTraces {
 	reader := csv.NewReader(csvfile)
 	funcIdx := -1
 	for {
-		// Read each record from csv
+		// Read each record from csv.
 		record, err := reader.Read()
 
 		if err != nil {
@@ -168,28 +128,43 @@ func ParseInvocationTrace(traceFile string, traceDuration int) FunctionTraces {
 			log.Fatal(err)
 		}
 
-		// Skip header
+		// Skip header.
 		if funcIdx != -1 {
-			// Parse function
-			function := Function{appHash: record[1], hash: record[2]}
-			function.name = fmt.Sprintf("%s-%d", "trace-func", funcIdx)
-			function.url = fmt.Sprintf("%s.%s.%s:%s", function.name, namespace, gatewayUrl, port)
-			functions = append(functions, function)
-
-			// Parse invocations
+			// Parse invocations.
+			max, min, count := 0, 0, 0
 			headerLen := 4
 			for i := headerLen; i < headerLen+traceDuration; i++ {
 				minute := i - headerLen
 				num, err := strconv.Atoi(record[i])
 				util.Check(err)
 
+				count += num
+				max = util.MaxOf(max, num)
+				min = util.MinOf(min, num)
+
 				for j := 0; j < num; j++ {
-					//* For `num` invocationso of function of index `funcIdx`,
+					//* For `num` invocations of function with index `funcIdx`,
 					//* we append (N*funcIdx) to the `invocationIdices`.
 					invocationIdices[minute] = append(invocationIdices[minute], funcIdx)
 				}
 				totalInvocations[minute] = totalInvocations[minute] + num
 			}
+
+			// Create function profile.
+			funcName := fmt.Sprintf("%s-%d", "trace-func", funcIdx)
+			function := Function{
+				appHash: record[1],
+				hash:    record[2],
+				name:    funcName,
+				url:     fmt.Sprintf("%s.%s.%s:%s", funcName, namespace, gatewayUrl, port),
+				invocationStats: FunctionInvocationStats{
+					average: count / traceDuration,
+					count:   count,
+					minimum: min,
+					maximum: max,
+				},
+			}
+			functions = append(functions, function)
 		}
 		funcIdx++
 	}
@@ -274,7 +249,7 @@ func ParseDurationTrace(trace *FunctionTraces, traceFile string) {
 	}
 }
 
-/** Get memoru usages in MB. */
+/** Get memory usages in MiB. */
 func getMemoryStats(record []string) FunctionMemoryStats {
 	return FunctionMemoryStats{
 		count:         parseToInt(record[3]),
@@ -334,40 +309,6 @@ func ParseMemoryTrace(trace *FunctionTraces, traceFile string) {
 	if foundDurations != len(trace.Functions) {
 		log.Fatal("Could not find all memory footprints for all invocations in the supplied trace ", foundDurations, len(trace.Functions))
 	}
-}
-
-// func hash(s string) uint32 {
-// 	h := fnv.New32a()
-// 	h.Write([]byte(s))
-// 	return h.Sum32()
-// }
-
-func (f *Function) SetHash(hash int) {
-	f.hash = fmt.Sprintf("%015d", hash)
-}
-
-func (f *Function) SetName(name string) {
-	f.name = name
-}
-
-func (f *Function) SetStatus(b bool) {
-	f.deployed = b
-}
-
-func (f *Function) GetStatus() bool {
-	return f.deployed
-}
-
-func (f *Function) GetName() string {
-	return f.name
-}
-
-func (f *Function) GetUrl() string {
-	return f.url
-}
-
-func (f *Function) SetUrl(url string) {
-	f.url = url
 }
 
 // // Functions is an object for unmarshalled JSON with functions to deploy.

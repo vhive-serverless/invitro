@@ -1,0 +1,4 @@
+data:
+ enable-scale-to-zero: "false"
+ max-scale-up-rate: "1000000.0"
+ max-scale-down-rate: "1.0"  # Do not scale down whatsoever.

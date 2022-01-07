@@ -10,6 +10,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	tracer "github.com/ease-lab/vhive/utils/tracing/go"
+	wu "github.com/eth-easl/loader/cmd/warmup"
 	fc "github.com/eth-easl/loader/internal/function"
 	tc "github.com/eth-easl/loader/internal/trace"
 )
@@ -27,6 +28,7 @@ var (
 	duration    = flag.Int("duration", 1, "Duration of the experiment")
 	sampleSize  = flag.Int("sample", 5, "Sample size of the traces")
 	withTracing = flag.Bool("trace", false, "Enable tracing in the client")
+	withWarmup  = flag.Bool("warmup", true, "Enable warmup phase")
 )
 
 func init() {
@@ -69,8 +71,40 @@ func init() {
 func main() {
 	/** Deployment */
 	log.Info("Using service config file: ", serviceConfigPath)
-	functions := fc.Deploy(traces.Functions, serviceConfigPath)
+	functions := fc.Deploy(traces.Functions, serviceConfigPath, *withWarmup)
+	realInvocationStart := 0
 
-	/** Invokation */
-	defer fc.Invoke(*rps, functions, traces.InvocationsPerMinute, traces.TotalInvocationsEachMinute)
+	/** Warmup */
+	if *withWarmup {
+		// wu.SetKnGlobal("config/kn_init_global_path.yaml")
+
+		totalNumPhases := 3
+		phaseDuration := *duration / totalNumPhases
+
+		phasesCh := wu.PhasePartition(len(traces.InvocationsPerMinute), phaseDuration)
+
+		sem := make(chan bool, 1) //* Enforce sequential execution using semphore.
+
+		for i := 1; i < totalNumPhases; i++ {
+			sem <- true
+
+			phase := <-phasesCh
+			go func(i int) {
+				defer func() { <-sem }()
+
+				log.Infof("Start warmup phase %d in range [%d, %d)", i, phase.Start, phase.End)
+				fc.Generate(*rps, functions,
+					traces.InvocationsPerMinute[phase.Start:phase.End],
+					traces.TotalInvocationsEachMinute[phase.Start:phase.End])
+			}(i)
+		}
+
+		wu.SetKnGlobal("config/kn_reset_global_path.yaml")
+		realInvocationStart = (<-phasesCh).Start
+	}
+
+	/** Invocation */
+	defer fc.Generate(*rps, functions,
+		traces.InvocationsPerMinute[realInvocationStart:],
+		traces.TotalInvocationsEachMinute[realInvocationStart:])
 }
