@@ -28,7 +28,9 @@ var (
 	duration    = flag.Int("duration", 1, "Duration of the experiment")
 	sampleSize  = flag.Int("sample", 5, "Sample size of the traces")
 	withTracing = flag.Bool("trace", false, "Enable tracing in the client")
-	withWarmup  = flag.Bool("warmup", true, "Enable warmup phase")
+
+	withWarmup     = flag.Bool("warmup", true, "Enable warmup phase")
+	warmupDuration = flag.Int("warmp-time", 20, "Duration of the warmup")
 )
 
 func init() {
@@ -76,33 +78,46 @@ func main() {
 
 	/** Warmup */
 	if *withWarmup {
-		// wu.SetKnGlobal("config/kn_init_global_path.yaml")
+		//* Enforce sequential execution using semphore.
+		sem := make(chan bool, 1)
 
-		totalNumPhases := 3
-		phaseDuration := *duration / totalNumPhases
+		totalNumPhases := 2
+		//* Partition equally over phase 1 and 2.
+		phaseDuration := *warmupDuration / totalNumPhases
+		phasesCh := wu.ComputePhasePartition(*warmupDuration, phaseDuration)
 
-		phasesCh := wu.PhasePartition(len(traces.InvocationsPerMinute), phaseDuration)
-
-		sem := make(chan bool, 1) //* Enforce sequential execution using semphore.
-
-		for i := 1; i < totalNumPhases; i++ {
+		var phase wu.IdxRange
+		for i := 1; i <= totalNumPhases; i++ {
 			sem <- true
 
-			phase := <-phasesCh
 			go func(i int) {
 				defer func() { <-sem }()
 
-				log.Infof("Start warmup phase %d in range [%d, %d)", i, phase.Start, phase.End)
+				if i == 1 {
+					wu.SetKnConfigMap("config/kn_configmap_init_patch.yaml")
+				}
+
+				phase = <-phasesCh
+				log.Infof("Start warmup phase %d for minutes in [%d, %d)", i, phase.Start, phase.End)
 				fc.Generate(*rps, functions,
 					traces.InvocationsPerMinute[phase.Start:phase.End],
 					traces.TotalInvocationsEachMinute[phase.Start:phase.End])
+
+				if i == 1 {
+					wu.SetKnConfigMap("config/kn_configmap_reset_patch.yaml")
+					wu.LivePatchKpas("config/kpa_reset_patch.yaml")
+				}
 			}(i)
 		}
 
-		wu.SetKnGlobal("config/kn_reset_global_path.yaml")
-		realInvocationStart = (<-phasesCh).Start
+		for i := 0; i < cap(sem); i++ {
+			sem <- true
+		}
+
+		realInvocationStart = phase.End
 	}
 
+	log.Info("Generate real workload at minute index: ", realInvocationStart)
 	/** Invocation */
 	defer fc.Generate(*rps, functions,
 		traces.InvocationsPerMinute[realInvocationStart:],
