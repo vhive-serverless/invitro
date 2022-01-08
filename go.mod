@@ -17,6 +17,7 @@ require (
 	github.com/containerd/containerd v1.5.2 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/google/go-cmp v0.5.5 // indirect
+	github.com/montanaflynn/stats v0.6.6 // indirect
 	github.com/openzipkin/zipkin-go v0.2.5 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect

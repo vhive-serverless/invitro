@@ -2,7 +2,6 @@ package trace
 
 import (
 	"encoding/csv"
-	"fmt"
 	"io"
 	"math/rand"
 	"os"
@@ -17,12 +16,6 @@ import (
 func init() {
 	rand.Seed(time.Now().UnixNano())
 }
-
-const (
-	gatewayUrl = "192.168.1.240.sslip.io" // Address of the load balancer.
-	namespace  = "default"
-	port       = "80"
-)
 
 func GenerateExecutionSpecs(function Function) (int, int) {
 	var runtime, memory int
@@ -131,16 +124,14 @@ func ParseInvocationTrace(traceFile string, traceDuration int) FunctionTraces {
 		// Skip header.
 		if funcIdx != -1 {
 			// Parse invocations.
-			max, min, count := 0, 0, 0
+			var invocations []int
 			headerLen := 4
 			for i := headerLen; i < headerLen+traceDuration; i++ {
 				minute := i - headerLen
 				num, err := strconv.Atoi(record[i])
 				util.Check(err)
 
-				count += num
-				max = util.MaxOf(max, num)
-				min = util.MinOf(min, num)
+				invocations = append(invocations, num)
 
 				for j := 0; j < num; j++ {
 					//* For `num` invocations of function with index `funcIdx`,
@@ -151,19 +142,9 @@ func ParseInvocationTrace(traceFile string, traceDuration int) FunctionTraces {
 			}
 
 			// Create function profile.
-			funcName := fmt.Sprintf("%s-%d", "trace-func", funcIdx)
-			function := Function{
-				appHash: record[1],
-				hash:    record[2],
-				name:    funcName,
-				url:     fmt.Sprintf("%s.%s.%s:%s", funcName, namespace, gatewayUrl, port),
-				invocationStats: FunctionInvocationStats{
-					average: count / traceDuration,
-					count:   count,
-					minimum: min,
-					maximum: max,
-				},
-			}
+			function := ProfileFunctionInvocations(funcIdx, invocations)
+			function.appHash = record[1]
+			function.hash = record[2]
 			functions = append(functions, function)
 		}
 		funcIdx++
