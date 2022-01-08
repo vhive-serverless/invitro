@@ -24,7 +24,7 @@ var (
 	serviceConfigPath = "workloads/trace_func_go.yaml"
 
 	debug       = flag.Bool("dbg", false, "Enable debug logging")
-	rps         = flag.Int("rps", 1, "Request per second")
+	rps         = flag.Int("rps", -1, "Request per second")
 	duration    = flag.Int("duration", 30, "Duration of the experiment")
 	sampleSize  = flag.Int("sample", 5, "Sample size of the traces")
 	withTracing = flag.Bool("trace", false, "Enable tracing in the client")

@@ -22,7 +22,7 @@ func Generate(
 	invocationsEachMinute [][]int,
 	totalNumInvocationsEachMinute []int) {
 
-	totalDurationInMinute := len(totalNumInvocationsEachMinute)
+	totalDurationMinutes := len(totalNumInvocationsEachMinute)
 	start := time.Now()
 	wg := sync.WaitGroup{}
 
@@ -30,18 +30,25 @@ func Generate(
 	latencyRecords := []*tc.LatencyRecord{}
 	idleDuration := time.Duration(0)
 
-	for minute := 0; minute < int(totalDurationInMinute); minute++ {
+	for minute := 0; minute < int(totalDurationMinutes); minute++ {
+		if rps < 1 {
+			//* If `rps` is not specified, we distribute invocations uniformly for now.
+			//TODO: Implement Poisson.
+			rps = totalNumInvocationsEachMinute[minute]/60 + 1
+		}
+		log.Info("RPS: ", rps)
+
 		numFuncInvocaked := 0
 		idleDuration = time.Duration(0)
 		//TODO: Bulk the computation and move it out
 		shuffleInplaceInvocationOfOneMinute(&invocationsEachMinute[minute])
 
 		var record tc.MinuteInvocationRecord
-		record.Rps = rps
 		record.MinuteIdx = minute
-		iterStart := time.Now()
+		record.Rps = rps
 
 		/** Set up timer to bound the one-minute invocation. */
+		iterStart := time.Now()
 		epsilon := time.Duration(0)
 		timeout := time.After(time.Duration(60)*time.Second - epsilon)
 		interval := time.Duration(1000/rps) * time.Millisecond
@@ -110,7 +117,7 @@ func Generate(
 	log.Info("\tFinished invoking all functions.\n\tStart waiting for all requests to return.")
 	delta := time.Duration(1)
 	//! Force timeout as the last resort.
-	forceTimeout := time.Duration(totalDurationInMinute) * time.Minute / delta
+	forceTimeout := time.Duration(totalDurationMinutes) * time.Minute / delta
 	if wgWaitWithTimeout(&wg, forceTimeout) {
 		log.Warn("Time out waiting for fired invocations to return.")
 	} else {

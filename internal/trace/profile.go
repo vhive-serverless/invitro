@@ -68,13 +68,13 @@ type FunctionTraces struct {
 }
 
 const (
-	MAX_CONCURRENCY = 100
+	MAX_CONCURRENCY = 50
 	MIN_CONCURRENCY = 2
 )
 
 func (f *Function) GetExpectedConcurrency() int {
-	expectedRps := f.invocationStats.average / 60
-	expectedFinishingRatePerSec := float64(f.durationStats.percentile99) / 1000
+	expectedRps := f.invocationStats.median / 60
+	expectedFinishingRatePerSec := float64(f.durationStats.percentile100) / 1000
 	expectedConcurrency := float64(expectedRps) * expectedFinishingRatePerSec
 
 	// log.Info(expectedRps, expectedFinishingRatePerSec, expectedConcurrency)
