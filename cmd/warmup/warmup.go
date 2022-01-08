@@ -7,7 +7,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func SetKnGlobal(patchFilePath string) {
+func SetKnConfigMap(patchFilePath string) {
 	cmd := exec.Command(
 		"kubectl",
 		"patch",
@@ -24,7 +24,14 @@ func SetKnGlobal(patchFilePath string) {
 	util.Check(err)
 }
 
-func PhasePartition(collectionLen, partitionSize int) chan IdxRange {
+func LivePatchKpas(scriptPath string) {
+	cmd := exec.Command("bash", scriptPath)
+	stdoutStderr, err := cmd.CombinedOutput()
+	log.Debug("CMD response: ", string(stdoutStderr))
+	util.Check(err)
+}
+
+func ComputePhasePartition(collectionLen, partitionSize int) chan IdxRange {
 	c := make(chan IdxRange)
 	if partitionSize <= 0 {
 		close(c)
