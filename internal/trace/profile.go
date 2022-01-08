@@ -1,6 +1,18 @@
 package trace
 
-import "fmt"
+import (
+	"fmt"
+	"math"
+
+	util "github.com/eth-easl/loader/internal"
+	"github.com/montanaflynn/stats"
+)
+
+const (
+	gatewayUrl = "192.168.1.240.sslip.io" // Address of the load balancer.
+	namespace  = "default"
+	port       = "80"
+)
 
 type FunctionDurationStats struct {
 	average       int
@@ -32,6 +44,7 @@ type FunctionMemoryStats struct {
 type FunctionInvocationStats struct {
 	average int
 	count   int
+	median  int
 	minimum int
 	maximum int
 }
@@ -54,8 +67,48 @@ type FunctionTraces struct {
 	TotalInvocationsEachMinute []int
 }
 
-func (f *Function) GetMaxConcurrency() int {
-	return f.invocationStats.maximum / 60
+const (
+	MAX_CONCURRENCY = 100
+	MIN_CONCURRENCY = 2
+)
+
+func (f *Function) GetExpectedConcurrency() int {
+	expectedRps := f.invocationStats.average / 60
+	expectedFinishingRatePerSec := float64(f.durationStats.percentile99) / 1000
+	expectedConcurrency := float64(expectedRps) * expectedFinishingRatePerSec
+
+	// log.Info(expectedRps, expectedFinishingRatePerSec, expectedConcurrency)
+
+	return util.MaxOf(
+		MIN_CONCURRENCY,
+		util.MinOf(
+			MAX_CONCURRENCY,
+			int(math.Ceil(expectedConcurrency)),
+		),
+	)
+}
+
+func ProfileFunctionInvocations(funcIdx int, invocations []int) Function {
+	data := stats.LoadRawData(invocations)
+	median, _ := stats.Median(data)
+	median, _ = stats.Round(median, 0)
+	max, _ := stats.Max(data)
+	min, _ := stats.Min(data)
+	count, _ := stats.Sum(data)
+	average, _ := stats.Mean(data)
+
+	funcName := fmt.Sprintf("%s-%d", "trace-func", funcIdx)
+	return Function{
+		name: funcName,
+		url:  fmt.Sprintf("%s.%s.%s:%s", funcName, namespace, gatewayUrl, port),
+		invocationStats: FunctionInvocationStats{
+			average: int(average),
+			count:   int(count),
+			median:  int(median),
+			minimum: int(min),
+			maximum: int(max),
+		},
+	}
 }
 
 func (f *Function) SetHash(hash int) {
