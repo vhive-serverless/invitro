@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 CFG_F=$1
 if [ -z "$CFG_F" ]; then
-    CFG_F='config/kn_local_patch.yaml'
+    CFG_F='config/kpa_reset_patch.yaml'
 fi
 echo "Patching all podautoscalers using $CFG_F"
 

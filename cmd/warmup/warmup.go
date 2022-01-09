@@ -20,14 +20,14 @@ func SetKnConfigMap(patchFilePath string) {
 		patchFilePath,
 	)
 	stdoutStderr, err := cmd.CombinedOutput()
-	log.Debug("CMD response: ", string(stdoutStderr))
+	log.Info("CMD response: ", string(stdoutStderr))
 	util.Check(err)
 }
 
 func LivePatchKpas(scriptPath string) {
 	cmd := exec.Command("bash", scriptPath)
 	stdoutStderr, err := cmd.CombinedOutput()
-	log.Debug("CMD response: ", string(stdoutStderr))
+	log.Info("CMD response: ", string(stdoutStderr))
 	util.Check(err)
 }
 

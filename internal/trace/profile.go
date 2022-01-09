@@ -14,6 +14,13 @@ const (
 	port       = "80"
 )
 
+type FunctionInvocationStats struct {
+	average int
+	count   int
+	median  int
+	minimum int
+	maximum int
+}
 type FunctionDurationStats struct {
 	average       int
 	count         int
@@ -41,23 +48,16 @@ type FunctionMemoryStats struct {
 	percentile100 int
 }
 
-type FunctionInvocationStats struct {
-	average int
-	count   int
-	median  int
-	minimum int
-	maximum int
-}
-
 type Function struct {
-	name            string
-	url             string
-	appHash         string
-	hash            string
-	deployed        bool
-	invocationStats FunctionInvocationStats
-	durationStats   FunctionDurationStats
-	memoryStats     FunctionMemoryStats
+	name                    string
+	url                     string
+	appHash                 string
+	hash                    string
+	deployed                bool
+	concurrenciesEachMinute []float64
+	invocationStats         FunctionInvocationStats
+	durationStats           FunctionDurationStats
+	memoryStats             FunctionMemoryStats
 }
 
 type FunctionTraces struct {

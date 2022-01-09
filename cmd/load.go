@@ -26,7 +26,7 @@ var (
 	debug       = flag.Bool("dbg", false, "Enable debug logging")
 	rps         = flag.Int("rps", -1, "Request per second")
 	duration    = flag.Int("duration", 30, "Duration of the experiment")
-	sampleSize  = flag.Int("sample", 5, "Sample size of the traces")
+	sampleSize  = flag.Int("sample", 1, "Sample size of the traces")
 	withTracing = flag.Bool("trace", false, "Enable tracing in the client")
 
 	withWarmup     = flag.Bool("warmup", true, "Enable warmup phase")
@@ -105,7 +105,7 @@ func main() {
 
 				if i == 1 {
 					wu.SetKnConfigMap("config/kn_configmap_reset_patch.yaml")
-					wu.LivePatchKpas("config/kpa_reset_patch.yaml")
+					wu.LivePatchKpas("scripts/warmup/livepatch_kpas.sh")
 				}
 			}(i)
 		}
