@@ -29,8 +29,7 @@ var (
 	sampleSize  = flag.Int("sample", 1, "Sample size of the traces")
 	withTracing = flag.Bool("trace", false, "Enable tracing in the client")
 
-	withWarmup     = flag.Bool("warmup", true, "Enable warmup phase")
-	warmupDuration = flag.Int("warmup-time", 20, "Duration of the warmup")
+	warmup = flag.Int("warmup", 20, "Duration of the warmup")
 )
 
 func init() {
@@ -75,11 +74,11 @@ func main() {
 	var measurementStart int
 
 	/* Profiling */
-	if *withWarmup {
+	if *warmup > 0 {
 		for funcIdx := 0; funcIdx < len(traces.Functions); funcIdx++ {
 			function := traces.Functions[funcIdx]
 			traces.Functions[funcIdx].ConcurrencySats =
-				tc.ProfileFunctionConcurrencies(function, *warmupDuration)
+				tc.ProfileFunctionConcurrencies(function, *warmup)
 		}
 		//* `WarmupScales` are initialised to 0's by default.
 		traces.WarmupScales = wu.ComputeFunctionsWarmupScales(traces.Functions)
@@ -89,13 +88,13 @@ func main() {
 	functions := fc.Deploy(traces.Functions, serviceConfigPath, traces.WarmupScales)
 
 	/** Warmup (Phase 1 and 2) */
-	if *withWarmup {
+	if *warmup > 0 {
 		//* Enforce sequential execution using semphore.
 		sem := make(chan bool, 1)
 
 		//* Partition warmup duration equally over phase 1 and 2.
-		phaseDuration := *warmupDuration / 2
-		phasesCh := wu.GetPhasePartitions(*warmupDuration, phaseDuration)
+		phaseDuration := *warmup / 2
+		phasesCh := wu.GetPhasePartitions(*warmup, phaseDuration)
 
 		var phase wu.IdxRange
 		for phaseIdx := 1; phaseIdx < totalNumPhases; phaseIdx++ {
