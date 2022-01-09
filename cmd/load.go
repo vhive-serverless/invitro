@@ -80,7 +80,6 @@ func main() {
 			traces.Functions[funcIdx].ConcurrencySats =
 				tc.ProfileFunctionConcurrencies(function, *warmup)
 		}
-		//* `WarmupScales` are initialised to 0's by default.
 		traces.WarmupScales = wu.ComputeFunctionsWarmupScales(traces.Functions)
 	}
 
