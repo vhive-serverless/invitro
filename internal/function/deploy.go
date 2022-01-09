@@ -21,7 +21,12 @@ func Deploy(functions []tc.Function, serviceConfigPath string, minScales []int) 
 		go func(function tc.Function, funcIdx int) {
 			defer func() { <-sem }()
 
-			minScale := minScales[funcIdx]
+			var minScale int
+			if len(minScales) == len(functions) {
+				minScale = minScales[funcIdx]
+			} else {
+				minScale = 0 //* No-warmup (`minScales` is not populated).
+			}
 			// log.Info(function.GetName(), " -> minScale: ", minScale)
 
 			has_deployed := deployFunction(&function, serviceConfigPath, minScale)
