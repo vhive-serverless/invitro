@@ -2,6 +2,7 @@ package function
 
 import (
 	"context"
+	"math"
 	"math/rand"
 	"os"
 	"strconv"
@@ -17,6 +18,9 @@ import (
 )
 
 func Generate(
+	phaseIdx int,
+	phaseOffset int,
+	withBlocking bool,
 	rps int,
 	functions []tc.Function,
 	invocationsEachMinute [][]int,
@@ -24,28 +28,29 @@ func Generate(
 
 	totalDurationMinutes := len(totalNumInvocationsEachMinute)
 	start := time.Now()
+	idleDuration := time.Duration(0)
 	wg := sync.WaitGroup{}
 
 	invocRecords := []*tc.MinuteInvocationRecord{}
 	latencyRecords := []*tc.LatencyRecord{}
-	idleDuration := time.Duration(0)
 
 	for minute := 0; minute < int(totalDurationMinutes); minute++ {
 		if rps < 1 {
 			//* If `rps` is not specified, we distribute invocations uniformly for now.
 			//TODO: Implement Poisson.
-			rps = totalNumInvocationsEachMinute[minute]/60 + 1
+			rps = int(math.Ceil(float64(totalNumInvocationsEachMinute[minute]) / 60))
 		}
-		log.Info("RPS: ", rps)
+		log.Infof("Minute[%d]\t RPS=%d", minute, rps)
 
 		numFuncInvocaked := 0
 		idleDuration = time.Duration(0)
 		//TODO: Bulk the computation and move it out
 		shuffleInplaceInvocationOfOneMinute(&invocationsEachMinute[minute])
 
-		var record tc.MinuteInvocationRecord
-		record.MinuteIdx = minute
-		record.Rps = rps
+		var invocRecord tc.MinuteInvocationRecord
+		invocRecord.MinuteIdx = minute + phaseOffset
+		invocRecord.Phase = phaseIdx
+		invocRecord.Rps = rps
 
 		/** Set up timer to bound the one-minute invocation. */
 		iterStart := time.Now()
@@ -76,7 +81,7 @@ func Generate(
 					idleDuration += interval
 					continue
 				}
-				go func(m int, nxt int) {
+				go func(m int, nxt int, phase int, rps int) {
 					defer wg.Done()
 					wg.Add(1)
 					//TODO: Make Dialling timeout customisable.
@@ -87,51 +92,57 @@ func Generate(
 					funcIndx := invocationsEachMinute[m][nxt]
 					function := functions[funcIndx]
 					hasInvoked, latencyRecord := invoke(ctx, function)
+
+					latencyRecord.Phase = phase
 					latencyRecord.Rps = rps
 
 					if hasInvoked {
 						atomic.AddInt32(&invocationCount, 1)
 						latencyRecords = append(latencyRecords, &latencyRecord)
 					}
-				}(minute, next)
+				}(minute, next, phaseIdx, rps)
 			case <-done:
 				numFuncInvocaked += int(invocationCount)
 				log.Info("Iteration spent: ", time.Since(iterStart), "\tMinute Nbr. ", minute)
 				log.Info("Required #invocations=", totalNumInvocationsEachMinute[minute],
 					" Fired #functions=", numFuncInvocaked, "\tMinute Nbr. ", minute)
 
-				record.Duration = time.Since(iterStart).Microseconds()
-				record.IdleDuration = idleDuration.Microseconds()
-				record.NumFuncRequested = totalNumInvocationsEachMinute[minute]
-				record.NumFuncInvoked = numFuncInvocaked
-				record.NumFuncFailed = numFuncToInvokeThisMinute - numFuncInvocaked
-				invocRecords = append(invocRecords, &record)
+				invocRecord.Duration = time.Since(iterStart).Microseconds()
+				invocRecord.IdleDuration = idleDuration.Microseconds()
+				invocRecord.NumFuncRequested = totalNumInvocationsEachMinute[minute]
+				invocRecord.NumFuncInvoked = numFuncInvocaked
+				invocRecord.NumFuncFailed = numFuncToInvokeThisMinute - numFuncInvocaked
+				invocRecords = append(invocRecords, &invocRecord)
 				goto next_minute //* `break` doesn't work here as it's somehow ambiguous to Golang.
 			}
 			next++
 		}
 	next_minute:
 	}
-	//! Hyperparameter for busy-wait (currently it's the same duration as that of the traces).
-	//TODO: Make this force wait customisable.
 	log.Info("\tFinished invoking all functions.\n\tStart waiting for all requests to return.")
-	delta := time.Duration(1)
-	//! Force timeout as the last resort.
-	forceTimeout := time.Duration(totalDurationMinutes) * time.Minute / delta
-	if wgWaitWithTimeout(&wg, forceTimeout) {
-		log.Warn("Time out waiting for fired invocations to return.")
+
+	//* Hyperparameter for busy-wait
+	delta := time.Duration(1) //TODO: Make this force wait customisable (currently it's the same duration as that of the traces).
+	forceTimeoutDuration := time.Duration(totalDurationMinutes) * time.Minute / delta
+
+	if !withBlocking {
+		forceTimeoutDuration = time.Second * 2
+	}
+
+	if wgWaitWithTimeout(&wg, forceTimeoutDuration) {
+		log.Warn("Time out waiting for ALL invocations to return.")
 	} else {
 		totalDuration := time.Since(start)
-		log.Info("Total invocation + waiting duration: ", totalDuration, "\tIdle ", idleDuration, "\n")
+		log.Info("[No time out] Total invocation + waiting duration: ", totalDuration, "\tIdle ", idleDuration, "\n")
 	}
 
 	//TODO: Extract IO out.
-	invocFileName := "data/out/invoke_rps-" + strconv.Itoa(rps) + "_dur-" + strconv.Itoa(len(invocRecords)) + ".csv"
+	invocFileName := "data/out/invoke_phase-" + strconv.Itoa(phaseIdx) + "_dur-" + strconv.Itoa(len(invocRecords)) + ".csv"
 	invocF, err := os.Create(invocFileName)
 	util.Check(err)
 	gocsv.MarshalFile(&invocRecords, invocF)
 
-	latencyFileName := "data/out/latency_rps-" + strconv.Itoa(rps) + "_dur-" + strconv.Itoa(len(invocRecords)) + ".csv"
+	latencyFileName := "data/out/latency_phase-" + strconv.Itoa(phaseIdx) + "_dur-" + strconv.Itoa(len(invocRecords)) + ".csv"
 	latencyF, err := os.Create(latencyFileName)
 	util.Check(err)
 	gocsv.MarshalFile(&latencyRecords, latencyF)

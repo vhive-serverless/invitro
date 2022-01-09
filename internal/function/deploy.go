@@ -3,35 +3,26 @@ package function
 import (
 	"os/exec"
 	"strconv"
-	"sync"
 
 	log "github.com/sirupsen/logrus"
 
 	tc "github.com/eth-easl/loader/internal/trace"
 )
 
-func Deploy(functions []tc.Function, serviceConfigPath string, warmupEnabled bool) []tc.Function {
+func Deploy(functions []tc.Function, serviceConfigPath string, minScales []int) []tc.Function {
+	log.Info("Using service config file: ", serviceConfigPath)
 	var urls []string
-	deploymentConcurrency := len(functions) //* Fully parallelise deployment.
+	deploymentConcurrency := 1 //* Serialise deployment.
+	// deploymentConcurrency := len(functions) //* Fully parallelise deployment.
 	sem := make(chan bool, deploymentConcurrency)
 
-	wg := sync.WaitGroup{}
-	for idx, function := range functions {
+	for funcIdx, function := range functions {
 		sem <- true
+		go func(function tc.Function, funcIdx int) {
+			defer func() { <-sem }()
 
-		go func(function tc.Function, idx int) {
-			defer func() {
-				<-sem
-				wg.Done()
-			}()
-			wg.Add(1)
-
-			var minScale int
-			if minScale = 0; warmupEnabled {
-				minScale = function.GetExpectedConcurrency()
-			}
-
-			log.Info(function.GetName(), " -> min-scale: ", minScale)
+			minScale := minScales[funcIdx]
+			// log.Info(function.GetName(), " -> minScale: ", minScale)
 
 			has_deployed := deployFunction(&function, serviceConfigPath, minScale)
 			function.SetStatus(has_deployed)
@@ -39,11 +30,9 @@ func Deploy(functions []tc.Function, serviceConfigPath string, warmupEnabled boo
 			if has_deployed {
 				urls = append(urls, function.GetUrl())
 			}
-			functions[idx] = function // Update function data.
-		}(function, idx)
+			functions[funcIdx] = function // Update function data.
+		}(function, funcIdx)
 	}
-	wg.Wait()
-
 	for i := 0; i < cap(sem); i++ {
 		sem <- true
 	}

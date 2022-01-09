@@ -5,6 +5,7 @@ import (
 )
 
 type MinuteInvocationRecord struct {
+	Phase            int   `csv:"phase"`
 	Rps              int   `csv:"request_per_sec"`
 	MinuteIdx        int   `csv:"index"`
 	Duration         int64 `csv:"duration"`
@@ -18,6 +19,7 @@ type LatencyRecord struct {
 	// Locking should not be necessary (https://stackoverflow.com/a/29497244) but just in case.
 	*sync.Mutex
 
+	Phase     int    `csv:"phase"`
 	Rps       int    `csv:"request_per_sec"`
 	Timestamp int64  `csv:"timestamp"`
 	FuncName  string `csv:"func_name"`

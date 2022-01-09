@@ -2,6 +2,7 @@ package trace
 
 import (
 	"encoding/csv"
+	"fmt"
 	"io"
 	"math/rand"
 	"os"
@@ -10,6 +11,12 @@ import (
 
 	util "github.com/eth-easl/loader/internal"
 	log "github.com/sirupsen/logrus"
+)
+
+const (
+	gatewayUrl = "192.168.1.240.sslip.io" // Address of the load balancer.
+	namespace  = "default"
+	port       = "80"
 )
 
 /** Seed the math/rand package for it to be different on each run. */
@@ -21,8 +28,8 @@ func GenerateExecutionSpecs(function Function) (int, int) {
 	var runtime, memory int
 	//* Generate a random persentile in [0, 100).
 	quantile := rand.Float32()
-	runtimePct := function.durationStats
-	memoryPct := function.memoryStats
+	runtimePct := function.DurationStats
+	memoryPct := function.MemoryStats
 	flag := util.GetRandBool()
 
 	/**
@@ -142,24 +149,30 @@ func ParseInvocationTrace(traceFile string, traceDuration int) FunctionTraces {
 			}
 
 			// Create function profile.
-			function := ProfileFunctionInvocations(funcIdx, invocations)
-			function.appHash = record[1]
-			function.hash = record[2]
+			funcName := fmt.Sprintf("%s-%d", "trace-func", funcIdx)
+
+			function := Function{
+				name:            funcName,
+				url:             fmt.Sprintf("%s.%s.%s:%s", funcName, namespace, gatewayUrl, port),
+				appHash:         record[1],
+				hash:            record[2],
+				InvocationStats: ProfileFunctionInvocations(invocations),
+			}
 			functions = append(functions, function)
 		}
 		funcIdx++
 	}
 
 	return FunctionTraces{
-		Functions:                  functions,
-		InvocationsPerMinute:       invocationIdices,
-		TotalInvocationsEachMinute: totalInvocations,
-		path:                       traceFile,
+		Functions:                 functions,
+		InvocationsEachMinute:     invocationIdices,
+		TotalInvocationsPerMinute: totalInvocations,
+		path:                      traceFile,
 	}
 }
 
 /** Get execution times in ms. */
-func getDurationStats(record []string) FunctionDurationStats {
+func parseDurationStats(record []string) FunctionDurationStats {
 	return FunctionDurationStats{
 		average:       parseToInt(record[3]),
 		count:         parseToInt(record[4]),
@@ -218,7 +231,9 @@ func ParseDurationTrace(trace *FunctionTraces, traceFile string) {
 			functionHash := record[2]
 			funcIdx, contained := funcPos[functionHash]
 			if contained {
-				trace.Functions[funcIdx].durationStats = getDurationStats(record)
+				trace.Functions[funcIdx].DurationStats = parseDurationStats(record)
+				// //TODO: Move to a better place later.
+				// trace.Functions[funcIdx].ConcurrencySats = ProfileFunctionConcurrencies(trace.Functions[funcIdx])
 				foundDurations += 1
 			}
 		}
@@ -231,7 +246,7 @@ func ParseDurationTrace(trace *FunctionTraces, traceFile string) {
 }
 
 /** Get memory usages in MiB. */
-func getMemoryStats(record []string) FunctionMemoryStats {
+func parseMemoryStats(record []string) FunctionMemoryStats {
 	return FunctionMemoryStats{
 		count:         parseToInt(record[3]),
 		average:       parseToInt(record[4]),
@@ -280,7 +295,7 @@ func ParseMemoryTrace(trace *FunctionTraces, traceFile string) {
 			functionHash := record[1]
 			funcIdx, contained := funcPos[functionHash]
 			if contained {
-				trace.Functions[funcIdx].memoryStats = getMemoryStats(record)
+				trace.Functions[funcIdx].MemoryStats = parseMemoryStats(record)
 				foundDurations += 1
 			}
 		}
