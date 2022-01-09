@@ -26,6 +26,11 @@ func Generate(
 	invocationsEachMinute [][]int,
 	totalNumInvocationsEachMinute []int) {
 
+	isFixedRate := true
+	if rps < 1 {
+		isFixedRate = false
+	}
+
 	totalDurationMinutes := len(totalNumInvocationsEachMinute)
 	start := time.Now()
 	idleDuration := time.Duration(0)
@@ -35,8 +40,8 @@ func Generate(
 	latencyRecords := []*tc.LatencyRecord{}
 
 	for minute := 0; minute < int(totalDurationMinutes); minute++ {
-		if rps < 1 {
-			//* If `rps` is not specified, we distribute invocations uniformly for now.
+		if !isFixedRate {
+			//* We distribute invocations uniformly for now.
 			//TODO: Implement Poisson.
 			rps = int(math.Ceil(float64(totalNumInvocationsEachMinute[minute]) / 60))
 		}
