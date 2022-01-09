@@ -8,18 +8,22 @@ import (
 	"github.com/montanaflynn/stats"
 )
 
-const (
-	gatewayUrl = "192.168.1.240.sslip.io" // Address of the load balancer.
-	namespace  = "default"
-	port       = "80"
-)
+type FunctionConcurrencyStats struct {
+	Average float64
+	Count   float64
+	Median  float64
+	Minimum float64
+	Maximum float64
+	data    []float64
+}
 
 type FunctionInvocationStats struct {
-	average int
-	count   int
-	median  int
-	minimum int
-	maximum int
+	Average int
+	Count   int
+	Median  int
+	Minimum int
+	Maximum int
+	data    []int
 }
 type FunctionDurationStats struct {
 	average       int
@@ -49,22 +53,23 @@ type FunctionMemoryStats struct {
 }
 
 type Function struct {
-	name                    string
-	url                     string
-	appHash                 string
-	hash                    string
-	deployed                bool
-	concurrenciesEachMinute []float64
-	invocationStats         FunctionInvocationStats
-	durationStats           FunctionDurationStats
-	memoryStats             FunctionMemoryStats
+	name            string
+	url             string
+	appHash         string
+	hash            string
+	deployed        bool
+	ConcurrencySats FunctionConcurrencyStats
+	InvocationStats FunctionInvocationStats
+	DurationStats   FunctionDurationStats
+	MemoryStats     FunctionMemoryStats
 }
 
 type FunctionTraces struct {
-	path                       string
-	Functions                  []Function
-	InvocationsPerMinute       [][]int
-	TotalInvocationsEachMinute []int
+	path                      string
+	Functions                 []Function
+	WarmupScales              []int
+	InvocationsEachMinute     [][]int
+	TotalInvocationsPerMinute []int
 }
 
 const (
@@ -73,8 +78,8 @@ const (
 )
 
 func (f *Function) GetExpectedConcurrency() int {
-	expectedRps := f.invocationStats.median / 60
-	expectedFinishingRatePerSec := float64(f.durationStats.percentile100) / 1000
+	expectedRps := f.InvocationStats.Median / 60
+	expectedFinishingRatePerSec := float64(f.DurationStats.percentile100) / 1000
 	expectedConcurrency := float64(expectedRps) * expectedFinishingRatePerSec
 
 	// log.Info(expectedRps, expectedFinishingRatePerSec, expectedConcurrency)
@@ -88,7 +93,34 @@ func (f *Function) GetExpectedConcurrency() int {
 	)
 }
 
-func ProfileFunctionInvocations(funcIdx int, invocations []int) Function {
+func ProfileFunctionConcurrencies(function Function, duration int) FunctionConcurrencyStats {
+	var concurrencies []float64
+	for _, numInocations := range function.InvocationStats.data[:duration] {
+		expectedRps := numInocations / 60
+		expectedDepartureRatePerSec := float64(function.DurationStats.percentile100) / 1000
+		expectedConcurrency := float64(expectedRps) * expectedDepartureRatePerSec
+		concurrencies = append(concurrencies, expectedConcurrency)
+	}
+
+	data := stats.LoadRawData(concurrencies)
+	median, _ := stats.Median(data)
+	median, _ = stats.Round(median, 0)
+	max, _ := stats.Max(data)
+	min, _ := stats.Min(data)
+	count, _ := stats.Sum(data)
+	average, _ := stats.Mean(data)
+
+	return FunctionConcurrencyStats{
+		Average: average,
+		Count:   count,
+		Median:  median,
+		Minimum: min,
+		Maximum: max,
+		data:    concurrencies,
+	}
+}
+
+func ProfileFunctionInvocations(invocations []int) FunctionInvocationStats {
 	data := stats.LoadRawData(invocations)
 	median, _ := stats.Median(data)
 	median, _ = stats.Round(median, 0)
@@ -97,17 +129,13 @@ func ProfileFunctionInvocations(funcIdx int, invocations []int) Function {
 	count, _ := stats.Sum(data)
 	average, _ := stats.Mean(data)
 
-	funcName := fmt.Sprintf("%s-%d", "trace-func", funcIdx)
-	return Function{
-		name: funcName,
-		url:  fmt.Sprintf("%s.%s.%s:%s", funcName, namespace, gatewayUrl, port),
-		invocationStats: FunctionInvocationStats{
-			average: int(average),
-			count:   int(count),
-			median:  int(median),
-			minimum: int(min),
-			maximum: int(max),
-		},
+	return FunctionInvocationStats{
+		Average: int(average),
+		Count:   int(count),
+		Median:  int(median),
+		Minimum: int(min),
+		Maximum: int(max),
+		data:    invocations,
 	}
 }
 
