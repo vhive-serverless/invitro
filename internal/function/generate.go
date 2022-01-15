@@ -71,7 +71,7 @@ load_generation:
 		}()
 
 		//* Bound the #invocations by `rps`.
-		numFuncToInvokeThisMinute := util.MinOf(rps*60-1, totalNumInvocationsEachMinute[minute])
+		numFuncToInvokeThisMinute := util.MinOf(rps*60+1, totalNumInvocationsEachMinute[minute])
 		var invocationCount int32
 
 		next := 0
@@ -138,7 +138,7 @@ load_generation:
 	forceTimeoutDuration := time.Duration(totalDurationMinutes) * time.Minute / delta
 
 	if !withBlocking {
-		forceTimeoutDuration = time.Second * 2
+		forceTimeoutDuration = time.Second * 1
 	}
 
 	if wgWaitWithTimeout(&wg, forceTimeoutDuration) {
@@ -148,7 +148,7 @@ load_generation:
 		log.Info("[No time out] Total invocation + waiting duration: ", totalDuration, "\tIdle ", idleDuration, "\n")
 	}
 
-	exporter.FinishAndSave(phaseIdx, totalDurationMinutes)
+	defer exporter.FinishAndSave(phaseIdx, totalDurationMinutes)
 	return minute + 1
 }
 
