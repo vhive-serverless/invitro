@@ -85,7 +85,7 @@ func Generate(
 					funcIndx := invocationsEachMinute[m][nxt]
 					function := functions[funcIndx]
 					//TODO: Make Dialling timeout customisable.
-					diallingBound := 2 * time.Duration(function.RuntimeStats.Average) * time.Millisecond //* 2xruntime timeout for circumventing hanging.
+					diallingBound := 10 * time.Duration(function.RuntimeStats.Average) * time.Millisecond //* 2xruntime timeout for circumventing hanging.
 					ctx, cancel := context.WithTimeout(context.Background(), diallingBound)
 					defer cancel()
 
