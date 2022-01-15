@@ -5,10 +5,8 @@ import (
 	"math"
 	"time"
 
-	"google.golang.org/grpc"
-
-	// Use `csv:-`` to ignore a field.
 	log "github.com/sirupsen/logrus"
+	"google.golang.org/grpc"
 
 	mc "github.com/eth-easl/loader/internal/metric"
 	tc "github.com/eth-easl/loader/internal/trace"

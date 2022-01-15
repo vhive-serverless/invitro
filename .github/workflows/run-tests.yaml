@@ -17,10 +17,18 @@ jobs:
   runt-tests:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@master
+      - uses: actions/checkout@v2
       - uses: actions/setup-go@v2
         with:
           go-version: '1.17'
+      # - uses: actions/setup-python@v2
+      #   with:
+      #     python-version: '3.8'
+      # - uses: BSFishy/pip-action@v1
+      #   with:
+      #     packages: |
+      #       statsmodels
+      #       numpy
 
       - name: Test internal
         run: go test -v ./internal/test/

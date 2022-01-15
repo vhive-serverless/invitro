@@ -16,6 +16,8 @@ import (
 	tc "github.com/eth-easl/loader/internal/trace"
 )
 
+const pvalue = 0.05
+
 func Generate(
 	phaseIdx int,
 	phaseOffset int,
@@ -23,7 +25,9 @@ func Generate(
 	rps int,
 	functions []tc.Function,
 	invocationsEachMinute [][]int,
-	totalNumInvocationsEachMinute []int) {
+	totalNumInvocationsEachMinute []int) int {
+
+	ShuffleAllInvocationsInplace(&invocationsEachMinute)
 
 	isFixedRate := true
 	if rps < 1 {
@@ -36,9 +40,10 @@ func Generate(
 	idleDuration := time.Duration(0)
 	totalDurationMinutes := len(totalNumInvocationsEachMinute)
 
-	ShuffleAllInvocationsInplace(&invocationsEachMinute)
+	minute := 0
 
-	for minute := 0; minute < int(totalDurationMinutes); minute++ {
+load_generation:
+	for ; minute < int(totalDurationMinutes); minute++ {
 		if !isFixedRate {
 			//* We distribute invocations uniformly for now.
 			//TODO: Implement Poisson.
@@ -66,7 +71,7 @@ func Generate(
 		}()
 
 		//* Bound the #invocations by `rps`.
-		numFuncToInvokeThisMinute := util.MinOf(rps*60, totalNumInvocationsEachMinute[minute])
+		numFuncToInvokeThisMinute := util.MinOf(rps*60-1, totalNumInvocationsEachMinute[minute])
 		var invocationCount int32
 
 		next := 0
@@ -115,7 +120,12 @@ func Generate(
 					NumFuncFailed:    numFuncToInvokeThisMinute - numFuncInvocaked,
 				}
 				exporter.ReportInvocation(invocRecord)
-				goto next_minute //* `break` doesn't work here as it's somehow ambiguous to Golang.
+
+				if exporter.HasReachedStationarity(pvalue) {
+					break load_generation
+				} else {
+					goto next_minute
+				}
 			}
 			next++
 		}
@@ -139,6 +149,7 @@ func Generate(
 	}
 
 	exporter.FinishAndSave(phaseIdx, totalDurationMinutes)
+	return minute + 1
 }
 
 /**
@@ -174,12 +185,5 @@ func ShuffleAllInvocationsInplace(invocationsEachMinute *[][]int) {
 
 	for minute := range *invocationsEachMinute {
 		suffleOneMinute(&(*invocationsEachMinute)[minute])
-	}
-}
-
-func shuffleInplaceInvocationOfOneMinute(invocations *[]int) {
-	for i := range *invocations {
-		j := rand.Intn(i + 1)
-		(*invocations)[i], (*invocations)[j] = (*invocations)[j], (*invocations)[i]
 	}
 }

@@ -59,3 +59,18 @@ func TestGetLatenciesInOrder(t *testing.T) {
 
 	assert.EqualValues(t, []float64{1, 0, 2}, exporter.GetLatenciesInOrder())
 }
+
+// func TestIsLatencyStationary(t *testing.T) {
+// 	exporter := mc.NewExporter()
+
+// 	for i := 0; i < 10; i++ {
+// 		exporter.ReportLantency(
+// 			mc.LatencyRecord{
+// 				Timestamp: int64(i),
+// 				Latency:   int64(i + 10),
+// 			},
+// 		)
+// 	}
+// 	assert.False(t, exporter.IsLatencyStationary(0.05))
+// 	assert.True(t, exporter.IsLatencyStationary(0.98))
+// }

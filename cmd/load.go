@@ -29,7 +29,8 @@ var (
 	sampleSize  = flag.Int("sample", 1, "Sample size of the traces")
 	withTracing = flag.Bool("trace", false, "Enable tracing in the client")
 
-	warmup = flag.Int("warmup", -1000, "Duration of the warmup")
+	// withWarmup = flag.Int("withWarmup", -1000, "Duration of the withWarmup")
+	withWarmup = flag.Bool("warmup", false, "Enable warmup")
 )
 
 func init() {
@@ -71,14 +72,14 @@ func init() {
 
 func main() {
 	totalNumPhases := 3
-	var measurementStart int
+	profilingMinutes := *duration/2 + 1 //TODO
 
 	/* Profiling */
-	if *warmup > 0 {
+	if *withWarmup {
 		for funcIdx := 0; funcIdx < len(traces.Functions); funcIdx++ {
 			function := traces.Functions[funcIdx]
 			traces.Functions[funcIdx].ConcurrencySats =
-				tc.ProfileFunctionConcurrencies(function, *warmup)
+				tc.ProfileFunctionConcurrencies(function, profilingMinutes)
 		}
 		traces.WarmupScales = wu.ComputeFunctionsWarmupScales(traces.Functions)
 	}
@@ -86,61 +87,63 @@ func main() {
 	/** Deployment */
 	functions := fc.Deploy(traces.Functions, serviceConfigPath, traces.WarmupScales)
 
+	nextPhaseStart := 0
 	/** Warmup (Phase 1 and 2) */
-	if *warmup > 0 {
+	if *withWarmup {
 		//* Enforce sequential execution using semphore.
-		sem := make(chan bool, 1)
+		// sem := make(chan bool, 1)
 
 		//* Partition warmup duration equally over phase 1 and 2.
-		phaseDuration := *warmup / 2
-		phasesCh := wu.GetPhasePartitions(*warmup, phaseDuration)
+		// phaseDuration := *withWarmup / 2
+		// phasesCh := wu.GetPhasePartitions(*withWarmup, phaseDuration)
 
-		var phase wu.IdxRange
+		// var phase wu.IdxRange
 		for phaseIdx := 1; phaseIdx < totalNumPhases; phaseIdx++ {
-			sem <- true
+			// sem <- true
 
-			go func(phaseIdx int) {
-				defer func() { <-sem }()
-				//* Set up kn environment
-				if phaseIdx == 1 {
-					wu.SetKnConfigMap("config/kn_configmap_init_patch.yaml")
-				}
+			// go func(phaseIdx int) {
+			// 	defer func() { <-sem }()
+			//* Set up kn environment
+			if phaseIdx == 1 {
+				wu.SetKnConfigMap("config/kn_configmap_init_patch.yaml")
+			}
 
-				phase = <-phasesCh
-				log.Infof("Phase %d: Warmup within [%d, %d)", phaseIdx, phase.Start, phase.End)
-				fc.Generate(
-					phaseIdx,
-					phase.Start,
-					false, //! Non-blocking: directly go into the next phase.
-					*rps,
-					functions,
-					traces.InvocationsEachMinute[phase.Start:phase.End],
-					traces.TotalInvocationsPerMinute[phase.Start:phase.End])
+			// phase = <-phasesCh
+			log.Infof("Enter Phase %d as of Minute[%d]", phaseIdx, nextPhaseStart)
+			// log.Infof("Phase %d: Warmup within [%d, %d)", phaseIdx, phase.Start, phase.End)
+			nextPhaseStart = fc.Generate(
+				phaseIdx,
+				nextPhaseStart,
+				false, //! Non-blocking: directly go into the next phase.
+				*rps,
+				functions,
+				traces.InvocationsEachMinute[nextPhaseStart:],
+				traces.TotalInvocationsPerMinute[nextPhaseStart:])
 
-				//* Reset kn environment
-				if phaseIdx == 1 {
-					wu.SetKnConfigMap("config/kn_configmap_reset_patch.yaml")
-					wu.LivePatchKpas("scripts/warmup/livepatch_kpas.sh")
-				}
-			}(phaseIdx)
+			//* Reset kn environment
+			if phaseIdx == 1 {
+				wu.SetKnConfigMap("config/kn_configmap_reset_patch.yaml")
+				wu.LivePatchKpas("scripts/warmup/livepatch_kpas.sh")
+			}
+			// }(phaseIdx)
 		}
 
 		//* Block until all slots are refilled (after they have all been consumed).
-		for i := 0; i < cap(sem); i++ {
-			sem <- true
-		}
+		// for i := 0; i < cap(sem); i++ {
+		// 	sem <- true
+		// }
 
-		measurementStart = phase.End
+		// measurementStart = phase.End
 	}
 
-	log.Info("Phase 3: Generate real workloads as of minute index: ", measurementStart)
+	log.Infof("Phase 3: Generate real workloads as of Minute[%d]", nextPhaseStart)
 	/** Measurement (Phase 3) */
 	defer fc.Generate(
-		3,
-		measurementStart,
+		totalNumPhases,
+		nextPhaseStart,
 		true,
 		*rps,
 		functions,
-		traces.InvocationsEachMinute[measurementStart:],
-		traces.TotalInvocationsPerMinute[measurementStart:])
+		traces.InvocationsEachMinute[nextPhaseStart:],
+		traces.TotalInvocationsPerMinute[nextPhaseStart:])
 }
