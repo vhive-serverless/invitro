@@ -22,5 +22,5 @@ func TestShuffling(t *testing.T) {
 			return a[i] < a[j]
 		})
 	}
-	assert.Equal(t, true, isShuffled)
+	assert.True(t, isShuffled)
 }

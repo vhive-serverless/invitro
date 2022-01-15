@@ -1,20 +1,39 @@
 package metric
 
 import (
+	"encoding/json"
+	"fmt"
 	"os"
+	"os/exec"
 	"sort"
 	"strconv"
+	"strings"
 	"sync"
 
-	adfTest "github.com/berkmancenter/adf"
 	util "github.com/eth-easl/loader/internal"
 	"github.com/gocarina/gocsv"
+	log "github.com/sirupsen/logrus"
 )
 
 type Exporter struct {
 	mutex             sync.Mutex
 	invocationRecords []MinuteInvocationRecord
 	latencyRecords    []LatencyRecord
+}
+
+type AdfResult struct {
+	TestStats    float64 `json:"statistics"`
+	Pvalue       float64 `json:"pvalue"`
+	Lag          int     `json:"usedlag"`
+	NumObs       int     `json:"nobs"`
+	CriticalVals TValues `json:"critical_vals"`
+	IcBest       float64 `json:"icbest"`
+}
+
+type TValues struct {
+	Pct1  float64 `json:"1%"`
+	Pct5  float64 `json:"5%"`
+	Pct10 float64 `json:"10%"`
 }
 
 func NewExporter() Exporter {
@@ -26,15 +45,32 @@ func NewExporter() Exporter {
 	}
 }
 
-func (ep *Exporter) IsLatencyStationary() bool {
+func (ep *Exporter) HasReachedStationarity(pvalue float64) bool {
 	latencies := ep.GetLatenciesInOrder()
-	sort.Float64s(latencies)
+	latenciesStr := strings.Trim(strings.Join(
+		strings.Fields(fmt.Sprint(latencies)), " "), "[]")
 
-	//* Use default p-value threshold (-3.45) and default lag value.
-	//TODO: Write a python script instead.
-	adf := adfTest.New(ep.GetLatenciesInOrder(), 0, -1)
-	adf.Run()
-	return adf.IsStationary()
+	cmd := exec.Command(
+		"python3",
+		"internal/metric/run_adf.py",
+		latenciesStr,
+	)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		log.Warn("Fail to run ADF test: ", err)
+		return false
+	}
+
+	var result AdfResult
+	err = json.Unmarshal(out, &result)
+	if err != nil {
+		log.Warn("Fail to parse ADF test result: ", string(out[:]), err)
+		return false
+	}
+
+	log.Info(result)
+
+	return pvalue >= result.Pvalue
 }
 
 func (ep *Exporter) GetLatenciesInOrder() []float64 {

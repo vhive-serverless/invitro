@@ -38,6 +38,7 @@ func Deploy(functions []tc.Function, serviceConfigPath string, minScales []int) 
 			functions[funcIdx] = function // Update function data.
 		}(function, funcIdx)
 	}
+	//* Block until all slots are refilled (after they have all been consumed).
 	for i := 0; i < cap(sem); i++ {
 		sem <- true
 	}
