@@ -37,7 +37,9 @@ server_exec 'ssh-keyscan -t rsa github.com >> ~/.ssh/known_hosts'
 server_exec 'curl -H "Authorization: token '"$ACCESS_TOKEH"'" --data "{\"title\":\"'"key:\$(hostname)"'\",\"key\":\"'"\$(cat ~/.ssh/id_rsa.pub)"'\"}" https://api.github.com/user/keys'
 # server_exec 'sleep 5'
 
-# Get loader.
+# Get loader and dependencies.
 server_exec "git clone --branch=$LOADER_BRANCH git@github.com:eth-easl/loader.git"
+server_exec 'echo -en "\n\n" | sudo apt-get install python3-pip python-dev'
+server_exec 'cd loader; pip install -r config/requirements.txt'
 
 cd -
