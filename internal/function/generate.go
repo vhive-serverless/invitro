@@ -4,16 +4,15 @@ import (
 	"context"
 	"math"
 	"math/rand"
-	"os"
-	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
 
-	"github.com/gocarina/gocsv" // Use `csv:-`` to ignore a field.
+	// Use `csv:-`` to ignore a field.
 	log "github.com/sirupsen/logrus"
 
 	util "github.com/eth-easl/loader/internal"
+	mc "github.com/eth-easl/loader/internal/metric"
 	tc "github.com/eth-easl/loader/internal/trace"
 )
 
@@ -31,13 +30,13 @@ func Generate(
 		isFixedRate = false
 	}
 
-	totalDurationMinutes := len(totalNumInvocationsEachMinute)
 	start := time.Now()
-	idleDuration := time.Duration(0)
 	wg := sync.WaitGroup{}
+	exporter := mc.NewExporter()
+	idleDuration := time.Duration(0)
+	totalDurationMinutes := len(totalNumInvocationsEachMinute)
 
-	invocRecords := []*tc.MinuteInvocationRecord{}
-	latencyRecords := []*tc.LatencyRecord{}
+	ShuffleAllInvocationsInplace(&invocationsEachMinute)
 
 	for minute := 0; minute < int(totalDurationMinutes); minute++ {
 		if !isFixedRate {
@@ -49,13 +48,6 @@ func Generate(
 
 		numFuncInvocaked := 0
 		idleDuration = time.Duration(0)
-		//TODO: Bulk the computation and move it out
-		shuffleInplaceInvocationOfOneMinute(&invocationsEachMinute[minute])
-
-		var invocRecord tc.MinuteInvocationRecord
-		invocRecord.MinuteIdx = minute + phaseOffset
-		invocRecord.Phase = phaseIdx
-		invocRecord.Rps = rps
 
 		/** Set up timer to bound the one-minute invocation. */
 		iterStart := time.Now()
@@ -89,21 +81,21 @@ func Generate(
 				go func(m int, nxt int, phase int, rps int) {
 					defer wg.Done()
 					wg.Add(1)
-					//TODO: Make Dialling timeout customisable.
-					diallingBound := 2 * time.Minute //* 2-min timeout for circumventing hanging.
-					ctx, cancel := context.WithTimeout(context.Background(), diallingBound)
-					defer cancel()
 
 					funcIndx := invocationsEachMinute[m][nxt]
 					function := functions[funcIndx]
-					hasInvoked, latencyRecord := invoke(ctx, function)
+					//TODO: Make Dialling timeout customisable.
+					diallingBound := 2 * time.Duration(function.RuntimeStats.Average) * time.Millisecond //* 2xruntime timeout for circumventing hanging.
+					ctx, cancel := context.WithTimeout(context.Background(), diallingBound)
+					defer cancel()
 
-					latencyRecord.Phase = phase
-					latencyRecord.Rps = rps
+					hasInvoked, latencyRecord := invoke(ctx, function)
 
 					if hasInvoked {
 						atomic.AddInt32(&invocationCount, 1)
-						latencyRecords = append(latencyRecords, &latencyRecord)
+						latencyRecord.Phase = phase
+						latencyRecord.Rps = rps
+						exporter.ReportLantency(latencyRecord)
 					}
 				}(minute, next, phaseIdx, rps)
 			case <-done:
@@ -112,12 +104,17 @@ func Generate(
 				log.Info("Required #invocations=", totalNumInvocationsEachMinute[minute],
 					" Fired #functions=", numFuncInvocaked, "\tMinute Nbr. ", minute)
 
-				invocRecord.Duration = time.Since(iterStart).Microseconds()
-				invocRecord.IdleDuration = idleDuration.Microseconds()
-				invocRecord.NumFuncRequested = totalNumInvocationsEachMinute[minute]
-				invocRecord.NumFuncInvoked = numFuncInvocaked
-				invocRecord.NumFuncFailed = numFuncToInvokeThisMinute - numFuncInvocaked
-				invocRecords = append(invocRecords, &invocRecord)
+				invocRecord := mc.MinuteInvocationRecord{
+					MinuteIdx:        minute + phaseOffset,
+					Phase:            phaseIdx,
+					Rps:              rps,
+					Duration:         time.Since(iterStart).Microseconds(),
+					IdleDuration:     idleDuration.Microseconds(),
+					NumFuncRequested: totalNumInvocationsEachMinute[minute],
+					NumFuncInvoked:   numFuncInvocaked,
+					NumFuncFailed:    numFuncToInvokeThisMinute - numFuncInvocaked,
+				}
+				exporter.ReportInvocation(invocRecord)
 				goto next_minute //* `break` doesn't work here as it's somehow ambiguous to Golang.
 			}
 			next++
@@ -141,16 +138,7 @@ func Generate(
 		log.Info("[No time out] Total invocation + waiting duration: ", totalDuration, "\tIdle ", idleDuration, "\n")
 	}
 
-	//TODO: Extract IO out.
-	invocFileName := "data/out/invoke_phase-" + strconv.Itoa(phaseIdx) + "_dur-" + strconv.Itoa(len(invocRecords)) + ".csv"
-	invocF, err := os.Create(invocFileName)
-	util.Check(err)
-	gocsv.MarshalFile(&invocRecords, invocF)
-
-	latencyFileName := "data/out/latency_phase-" + strconv.Itoa(phaseIdx) + "_dur-" + strconv.Itoa(len(invocRecords)) + ".csv"
-	latencyF, err := os.Create(latencyFileName)
-	util.Check(err)
-	gocsv.MarshalFile(&latencyRecords, latencyF)
+	exporter.FinishAndSave(phaseIdx, totalDurationMinutes)
 }
 
 /**
@@ -176,6 +164,19 @@ func wgWaitWithTimeout(wg *sync.WaitGroup, timeout time.Duration) bool {
  * This function has/uses side-effects, but for the sake of performance
  * keep it for now.
  */
+func ShuffleAllInvocationsInplace(invocationsEachMinute *[][]int) {
+	suffleOneMinute := func(invocations *[]int) {
+		for i := range *invocations {
+			j := rand.Intn(i + 1)
+			(*invocations)[i], (*invocations)[j] = (*invocations)[j], (*invocations)[i]
+		}
+	}
+
+	for minute := range *invocationsEachMinute {
+		suffleOneMinute(&(*invocationsEachMinute)[minute])
+	}
+}
+
 func shuffleInplaceInvocationOfOneMinute(invocations *[]int) {
 	for i := range *invocations {
 		j := rand.Intn(i + 1)

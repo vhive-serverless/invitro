@@ -26,7 +26,7 @@ func (s *funcServer) Execute(ctx context.Context, req *rpc.FaasRequest) (*rpc.Fa
 	runtimeRequested := req.RuntimeInMilliSec
 	//* To avoid unecessary overhead, memory allocation is at the granularity of os pages.
 	numPagesRequested := util.Mib2b(req.MemoryInMebiBytes) / uint32(unix.Getpagesize())
-	if numPagesRequested > util.Mib2Kib(containerMemoryLimitMib)/uint32(unix.Getpagesize()) ||
+	if numPagesRequested > util.Mib2b(containerMemoryLimitMib)/uint32(unix.Getpagesize()) ||
 		runtimeRequested < 1 {
 		return &rpc.FaasReply{}, errors.New("erroneous request")
 	}

@@ -1,4 +1,4 @@
-package trace
+package metric
 
 import (
 	"sync"

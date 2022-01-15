@@ -10,16 +10,17 @@ import (
 	// Use `csv:-`` to ignore a field.
 	log "github.com/sirupsen/logrus"
 
+	mc "github.com/eth-easl/loader/internal/metric"
 	tc "github.com/eth-easl/loader/internal/trace"
 	rpc "github.com/eth-easl/loader/server"
 )
 
-func invoke(ctx context.Context, function tc.Function) (bool, tc.LatencyRecord) {
+func invoke(ctx context.Context, function tc.Function) (bool, mc.LatencyRecord) {
 	runtimeRequested, memoryRequested := tc.GenerateExecutionSpecs(function)
 
 	log.Infof("(Invoke)\t %s: %d[µs], %d[MiB]", function.GetName(), runtimeRequested*int(math.Pow10(3)), memoryRequested)
 
-	var record tc.LatencyRecord
+	var record mc.LatencyRecord
 	record.FuncName = function.GetName()
 
 	// Start latency measurement.
@@ -29,7 +30,7 @@ func invoke(ctx context.Context, function tc.Function) (bool, tc.LatencyRecord) 
 	conn, err := grpc.DialContext(ctx, function.GetUrl(), grpc.WithInsecure(), grpc.WithBlock())
 	if err != nil {
 		log.Warnf("Failed to connect: %v", err)
-		return false, tc.LatencyRecord{}
+		return false, mc.LatencyRecord{}
 	}
 	defer conn.Close()
 
@@ -47,7 +48,7 @@ func invoke(ctx context.Context, function tc.Function) (bool, tc.LatencyRecord) 
 
 	if err != nil {
 		log.Warnf("%s: err=%v", function.GetName(), err)
-		return false, tc.LatencyRecord{}
+		return false, mc.LatencyRecord{}
 	}
 	// log.Info("gRPC response: ", reply.Response)
 	memoryUsage := response.MemoryUsageInKb

@@ -25,11 +25,11 @@ var (
 
 	debug       = flag.Bool("dbg", false, "Enable debug logging")
 	rps         = flag.Int("rps", -900_000, "Request per second")
-	duration    = flag.Int("duration", 30, "Duration of the experiment")
+	duration    = flag.Int("duration", 3, "Duration of the experiment")
 	sampleSize  = flag.Int("sample", 1, "Sample size of the traces")
 	withTracing = flag.Bool("trace", false, "Enable tracing in the client")
 
-	warmup = flag.Int("warmup", 20, "Duration of the warmup")
+	warmup = flag.Int("warmup", -1000, "Duration of the warmup")
 )
 
 func init() {
