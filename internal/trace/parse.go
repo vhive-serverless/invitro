@@ -28,7 +28,7 @@ func GenerateExecutionSpecs(function Function) (int, int) {
 	var runtime, memory int
 	//* Generate a random persentile in [0, 100).
 	quantile := rand.Float32()
-	runtimePct := function.DurationStats
+	runtimePct := function.RuntimeStats
 	memoryPct := function.MemoryStats
 	flag := util.GetRandBool()
 
@@ -40,7 +40,7 @@ func GenerateExecutionSpecs(function Function) (int, int) {
 	 * TODO: Later when can choose between the last two base upon #samples.
 	 **NB: The smaller the #samples, the closer the pct. values to the actual ones.
 	 */
-	if runtime, memory = runtimePct.average, memoryPct.average; flag {
+	if runtime, memory = runtimePct.Average, memoryPct.average; flag {
 		switch {
 		case quantile <= 0.01:
 			runtime, memory = getSubduedSpecs(
@@ -172,12 +172,12 @@ func ParseInvocationTrace(traceFile string, traceDuration int) FunctionTraces {
 }
 
 /** Get execution times in ms. */
-func parseDurationStats(record []string) FunctionDurationStats {
-	return FunctionDurationStats{
-		average:       parseToInt(record[3]),
-		count:         parseToInt(record[4]),
-		minimum:       parseToInt(record[5]),
-		maximum:       parseToInt(record[6]),
+func parseDurationStats(record []string) FunctionRuntimeStats {
+	return FunctionRuntimeStats{
+		Average:       parseToInt(record[3]),
+		Count:         parseToInt(record[4]),
+		Minimum:       parseToInt(record[5]),
+		Maximum:       parseToInt(record[6]),
 		percentile0:   parseToInt(record[7]),
 		percentile1:   parseToInt(record[8]),
 		percentile25:  parseToInt(record[9]),
@@ -231,7 +231,7 @@ func ParseDurationTrace(trace *FunctionTraces, traceFile string) {
 			functionHash := record[2]
 			funcIdx, contained := funcPos[functionHash]
 			if contained {
-				trace.Functions[funcIdx].DurationStats = parseDurationStats(record)
+				trace.Functions[funcIdx].RuntimeStats = parseDurationStats(record)
 				// //TODO: Move to a better place later.
 				// trace.Functions[funcIdx].ConcurrencySats = ProfileFunctionConcurrencies(trace.Functions[funcIdx])
 				foundDurations += 1

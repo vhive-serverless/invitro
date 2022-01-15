@@ -21,7 +21,7 @@ func TestExecute(t *testing.T) {
 	assert.EqualError(t, err, "erroneous request")
 
 	req.RuntimeInMilliSec = 1
-	req.MemoryInMebiBytes = 1000_000_000
+	req.MemoryInMebiBytes = 600
 
 	_, err = server.Execute(context.TODO(), &req)
 	assert.EqualError(t, err, "erroneous request")

@@ -25,11 +25,11 @@ type FunctionInvocationStats struct {
 	Maximum int
 	data    []int
 }
-type FunctionDurationStats struct {
-	average       int
-	count         int
-	minimum       int
-	maximum       int
+type FunctionRuntimeStats struct {
+	Average       int
+	Count         int
+	Minimum       int
+	Maximum       int
 	percentile0   int
 	percentile1   int
 	percentile25  int
@@ -60,7 +60,7 @@ type Function struct {
 	deployed        bool
 	ConcurrencySats FunctionConcurrencyStats
 	InvocationStats FunctionInvocationStats
-	DurationStats   FunctionDurationStats
+	RuntimeStats    FunctionRuntimeStats
 	MemoryStats     FunctionMemoryStats
 }
 
@@ -79,7 +79,7 @@ const (
 
 func (f *Function) GetExpectedConcurrency() int {
 	expectedRps := f.InvocationStats.Median / 60
-	expectedFinishingRatePerSec := float64(f.DurationStats.percentile100) / 1000
+	expectedFinishingRatePerSec := float64(f.RuntimeStats.percentile100) / 1000
 	expectedConcurrency := float64(expectedRps) * expectedFinishingRatePerSec
 
 	// log.Info(expectedRps, expectedFinishingRatePerSec, expectedConcurrency)
@@ -97,7 +97,7 @@ func ProfileFunctionConcurrencies(function Function, duration int) FunctionConcu
 	var concurrencies []float64
 	for _, numInocations := range function.InvocationStats.data[:duration] {
 		expectedRps := numInocations / 60
-		expectedDepartureRatePerSec := float64(function.DurationStats.percentile100) / 1000
+		expectedDepartureRatePerSec := float64(function.RuntimeStats.percentile100) / 1000
 		expectedConcurrency := float64(expectedRps) * expectedDepartureRatePerSec
 		concurrencies = append(concurrencies, expectedConcurrency)
 	}
