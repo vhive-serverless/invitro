@@ -7,7 +7,7 @@ import warnings
 warnings.filterwarnings("ignore")
 
 if __name__ == "__main__": 
-    latencies = list(map(float, sys.argv[1].split()))
+    latencies = list(map(float, sys.argv[1].split('-')))
     try:
         res = adfuller(latencies)
     except ValueError as e:

@@ -39,23 +39,27 @@ type TValues struct {
 func NewExporter() Exporter {
 	return Exporter{
 		//* Note that the zero value of a mutex is usable as-is, so no
-		//* initialization is required here. (mutex: sync.Mutex{})
+		//* initialization is required here (e.g., mutex: sync.Mutex{}).
 		invocationRecords: []MinuteInvocationRecord{},
 		latencyRecords:    []LatencyRecord{},
 	}
 }
 
-func (ep *Exporter) HasReachedStationarity(pvalue float64) bool {
+func (ep *Exporter) IsLatencyStationary(pvalue float64) bool {
 	latencies := ep.GetLatenciesInOrder()
+	//* Here `-` is used to form a single cmd argument to prevent
+	//* the violation of the calling convention.
 	latenciesStr := strings.Trim(strings.Join(
-		strings.Fields(fmt.Sprint(latencies)), " "), "[]")
+		strings.Fields(fmt.Sprint(latencies)), "-"), "[]")
 
 	cmd := exec.Command(
 		"python3",
 		"internal/metric/run_adf.py",
+		// "run_adf.py", //* For testing (due to POSX constraint)
 		latenciesStr,
 	)
 	out, err := cmd.CombinedOutput()
+	// log.Info(string(out[:]))
 	if err != nil {
 		log.Warn("Fail to run ADF test: ", err)
 		return false
@@ -67,10 +71,21 @@ func (ep *Exporter) HasReachedStationarity(pvalue float64) bool {
 		log.Warn("Fail to parse ADF test result: ", string(out[:]), err)
 		return false
 	}
-
 	log.Info(result)
 
-	return pvalue >= result.Pvalue
+	isStationary := pvalue >= result.Pvalue
+	switch {
+	case pvalue <= 0.01:
+		isStationary = isStationary &&
+			(result.TestStats <= result.CriticalVals.Pct1)
+	case pvalue <= 0.05:
+		isStationary = isStationary &&
+			(result.TestStats <= result.CriticalVals.Pct5)
+	case pvalue <= 0.10:
+		isStationary = isStationary &&
+			(result.TestStats <= result.CriticalVals.Pct10)
+	}
+	return isStationary
 }
 
 func (ep *Exporter) GetLatenciesInOrder() []float64 {
