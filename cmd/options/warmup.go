@@ -27,7 +27,7 @@ func ComputeFunctionsWarmupScales(functions []tc.Function) []int {
 	scalesData := stats.LoadRawData(scales)
 	totalScale, _ := stats.Sum(scalesData)
 	log.Info("Total #pods required:\t", totalScale)
-	log.Info("Warmup scales:\t", scales)
+	log.Info("Warmup scales:\t\t", scales)
 
 	if totalScale > CAPACITY {
 		//* Rescale warmup scales.
@@ -35,8 +35,11 @@ func ComputeFunctionsWarmupScales(functions []tc.Function) []int {
 			ratio := float64(scales[i]) / totalScale
 			scales[i] = int(float64(CAPACITY) * ratio) //! Round down to prevent kn outage.
 		}
-		log.Info("Rescale to:\t", scales)
 	}
+	scalesData = stats.LoadRawData(scales)
+	totalScale, _ = stats.Sum(scalesData)
+	log.Info("Rescale to:\t", scales)
+	log.Info("Total #pods granted:\t", totalScale)
 	return scales
 }
 

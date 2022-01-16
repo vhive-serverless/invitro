@@ -63,11 +63,11 @@ func TestGetLatenciesInOrder(t *testing.T) {
 // func TestIsLatencyStationary(t *testing.T) {
 // 	exporter := mc.NewExporter()
 
-// 	for i := 0; i < 10; i++ {
+// 	for i := 0; i < 100; i++ {
 // 		exporter.ReportLantency(
 // 			mc.LatencyRecord{
 // 				Timestamp: int64(i),
-// 				Latency:   int64(i + 10),
+// 				Latency:   int64(i + 5000),
 // 			},
 // 		)
 // 	}

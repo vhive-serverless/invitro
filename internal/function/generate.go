@@ -121,7 +121,9 @@ load_generation:
 				}
 				exporter.ReportInvocation(invocRecord)
 
-				if exporter.HasReachedStationarity(pvalue) {
+				//* Do not evaluate stationarity in the measurement phase (3).
+				if phaseIdx != 3 && exporter.IsLatencyStationary(pvalue) {
+					minute++
 					break load_generation
 				} else {
 					goto next_minute
@@ -148,8 +150,8 @@ load_generation:
 		log.Info("[No time out] Total invocation + waiting duration: ", totalDuration, "\tIdle ", idleDuration, "\n")
 	}
 
-	defer exporter.FinishAndSave(phaseIdx, totalDurationMinutes)
-	return minute + 1
+	defer exporter.FinishAndSave(phaseIdx, minute)
+	return phaseOffset + minute
 }
 
 /**
