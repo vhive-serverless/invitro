@@ -1,6 +1,7 @@
 package test
 
 import (
+	"math/rand"
 	"sort"
 	"testing"
 
@@ -10,9 +11,16 @@ import (
 )
 
 func TestGenerateIat(t *testing.T) {
-	invocationsPerMinute := 90_000
-	iats := fc.GenerateInterarrivalTimesInMilli(invocationsPerMinute)
+	invocationsPerMinute := 6_000
+	iats := fc.GenerateInterarrivalTimesInMilli(invocationsPerMinute, true)
 	duration, _ := stats.Sum(stats.LoadRawData(iats))
+
+	assert.Equal(t, iats[rand.Intn(len(iats))], iats[rand.Intn(len(iats))])
+	assert.Equal(t, invocationsPerMinute, len(iats))
+	assert.Greater(t, 60_000.0, duration)
+
+	iats = fc.GenerateInterarrivalTimesInMilli(invocationsPerMinute, false)
+	duration, _ = stats.Sum(stats.LoadRawData(iats))
 
 	assert.Equal(t, invocationsPerMinute, len(iats))
 	assert.Greater(t, 60_000.0, duration)
