@@ -16,8 +16,11 @@ import (
 
 const pvalue = 0.05
 
-func GenerateInterarrivalTimesInMilli(invocationsPerMinute int, uniform bool) []float64 {
+func GenerateInterarrivalTimesInMicro(invocationsPerMinute int, uniform bool) []float64 {
 	rand.Seed(time.Now().UnixNano())
+	oneSecondInMicro := 1000_000.0
+	oneMinuteInMicro := 60*oneSecondInMicro - 1000
+
 	rps := float64(invocationsPerMinute) / 60
 	interArrivalTimes := []float64{}
 
@@ -25,19 +28,18 @@ func GenerateInterarrivalTimesInMilli(invocationsPerMinute int, uniform bool) []
 	for i := 0; i < invocationsPerMinute; i++ {
 		var iat float64
 		if uniform {
-			iat = 1000 / rps
+			iat = oneSecondInMicro / rps
 		} else {
-			iat = rand.ExpFloat64() / rps * 1000
+			iat = rand.ExpFloat64() / rps * oneSecondInMicro
 		}
 		interArrivalTimes = append(interArrivalTimes, iat)
 		totoalDuration += iat
 	}
 
-	oneMinuteInMilli := 60_000 - 100
-	if totoalDuration > float64(oneMinuteInMilli) {
+	if totoalDuration > oneMinuteInMicro {
 		//* Normalise if it's longer than 1min.
 		for i, iat := range interArrivalTimes {
-			interArrivalTimes[i] = iat / float64(totoalDuration) * float64(oneMinuteInMilli)
+			interArrivalTimes[i] = iat / totoalDuration * oneMinuteInMicro
 		}
 	}
 
@@ -75,7 +77,7 @@ load_generation:
 		var iats []float64
 
 		rps = int(float64(totalNumInvocationsEachMinute[minute]) / 60)
-		iats = GenerateInterarrivalTimesInMilli(
+		iats = GenerateInterarrivalTimesInMicro(
 			totalNumInvocationsEachMinute[minute], isFixedRate)
 		log.Infof("Minute[%d]\t RPS=%d", minute, rps)
 
@@ -86,7 +88,7 @@ load_generation:
 		iterStart := time.Now()
 		epsilon := time.Duration(0)
 		timeout := time.After(time.Duration(60)*time.Second - epsilon)
-		interval := time.Duration(iats[tick]) * time.Millisecond
+		interval := time.Duration(iats[tick]) * time.Microsecond
 		ticker := time.NewTicker(interval)
 		done := make(chan bool)
 
@@ -158,7 +160,7 @@ load_generation:
 			}
 			//* Load the next inter-arrival time.
 			tick++
-			interval = time.Duration(iats[tick]) * time.Millisecond
+			interval = time.Duration(iats[tick]) * time.Microsecond
 			ticker = time.NewTicker(interval)
 		}
 	next_minute:

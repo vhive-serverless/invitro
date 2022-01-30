@@ -11,19 +11,19 @@ import (
 )
 
 func TestGenerateIat(t *testing.T) {
-	invocationsPerMinute := 6_000
-	iats := fc.GenerateInterarrivalTimesInMilli(invocationsPerMinute, true)
+	invocationsPerMinute := 20_000
+	iats := fc.GenerateInterarrivalTimesInMicro(invocationsPerMinute, true)
 	duration, _ := stats.Sum(stats.LoadRawData(iats))
 
 	assert.Equal(t, iats[rand.Intn(len(iats))], iats[rand.Intn(len(iats))])
 	assert.Equal(t, invocationsPerMinute, len(iats))
-	assert.Greater(t, 60_000.0, duration)
+	assert.Greater(t, 60_000_000.0, duration)
 
-	iats = fc.GenerateInterarrivalTimesInMilli(invocationsPerMinute, false)
+	iats = fc.GenerateInterarrivalTimesInMicro(invocationsPerMinute, false)
 	duration, _ = stats.Sum(stats.LoadRawData(iats))
 
 	assert.Equal(t, invocationsPerMinute, len(iats))
-	assert.Greater(t, 60_000.0, duration)
+	assert.Greater(t, 60_000_000.0, duration)
 }
 
 func TestShuffling(t *testing.T) {
