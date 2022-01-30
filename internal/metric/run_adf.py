@@ -9,14 +9,14 @@ warnings.filterwarnings("ignore")
 if __name__ == "__main__": 
     latencies = list(map(float, sys.argv[1].split('-')))
     try:
-        res = adfuller(latencies)
+        res = adfuller(latencies, autolag='AIC')
     except ValueError as e:
         print(json.dumps("{}"))
         exit()
     
 
     out = {
-        "statistics": res[0] if not np.isinf(res[0]) else 99999,
+        "statistic": res[0] if not np.isinf(res[0]) else 99999,
         "pvalue": res[1],
         "usedlag": res[2],
         "nobs": res[3],
