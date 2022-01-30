@@ -77,22 +77,6 @@ const (
 	MIN_CONCURRENCY = 2
 )
 
-func (f *Function) GetExpectedConcurrency() int {
-	expectedRps := f.InvocationStats.Median / 60
-	expectedFinishingRatePerSec := float64(f.RuntimeStats.percentile100) / 1000
-	expectedConcurrency := float64(expectedRps) * expectedFinishingRatePerSec
-
-	// log.Info(expectedRps, expectedFinishingRatePerSec, expectedConcurrency)
-
-	return util.MaxOf(
-		MIN_CONCURRENCY,
-		util.MinOf(
-			MAX_CONCURRENCY,
-			int(math.Ceil(expectedConcurrency)),
-		),
-	)
-}
-
 func ProfileFunctionConcurrencies(function Function, duration int) FunctionConcurrencyStats {
 	var concurrencies []float64
 	for _, numInocations := range function.InvocationStats.data[:duration] {
@@ -165,4 +149,20 @@ func (f *Function) GetUrl() string {
 
 func (f *Function) SetUrl(url string) {
 	f.url = url
+}
+
+func (f *Function) GetExpectedConcurrency() int {
+	expectedRps := f.InvocationStats.Median / 60
+	expectedFinishingRatePerSec := float64(f.RuntimeStats.percentile100) / 1000
+	expectedConcurrency := float64(expectedRps) * expectedFinishingRatePerSec
+
+	// log.Info(expectedRps, expectedFinishingRatePerSec, expectedConcurrency)
+
+	return util.MaxOf(
+		MIN_CONCURRENCY,
+		util.MinOf(
+			MAX_CONCURRENCY,
+			int(math.Ceil(expectedConcurrency)),
+		),
+	)
 }

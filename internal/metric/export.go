@@ -22,7 +22,7 @@ type Exporter struct {
 }
 
 type AdfResult struct {
-	TestStats    float64 `json:"statistics"`
+	TestStats    float64 `json:"statistic"`
 	Pvalue       float64 `json:"pvalue"`
 	Lag          int     `json:"usedlag"`
 	NumObs       int     `json:"nobs"`
@@ -59,7 +59,7 @@ func (ep *Exporter) IsLatencyStationary(pvalue float64) bool {
 		latenciesStr,
 	)
 	out, err := cmd.CombinedOutput()
-	// log.Info(string(out[:]))
+	log.Info(string(out[:]))
 	if err != nil {
 		log.Warn("Fail to run ADF test: ", err)
 		return false

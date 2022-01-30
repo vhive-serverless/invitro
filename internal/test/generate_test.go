@@ -5,8 +5,18 @@ import (
 	"testing"
 
 	fc "github.com/eth-easl/loader/internal/function"
+	"github.com/montanaflynn/stats"
 	"github.com/stretchr/testify/assert"
 )
+
+func TestGenerateIat(t *testing.T) {
+	invocationsPerMinute := 90_000
+	iats := fc.GenerateInterarrivalTimesInMilli(invocationsPerMinute)
+	duration, _ := stats.Sum(stats.LoadRawData(iats))
+
+	assert.Equal(t, invocationsPerMinute, len(iats))
+	assert.Greater(t, 60_000.0, duration)
+}
 
 func TestShuffling(t *testing.T) {
 	arr := [][]int{}

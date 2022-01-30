@@ -2,13 +2,11 @@ package function
 
 import (
 	"context"
-	"math"
 	"math/rand"
 	"sync"
 	"sync/atomic"
 	"time"
 
-	// Use `csv:-`` to ignore a field.
 	log "github.com/sirupsen/logrus"
 
 	util "github.com/eth-easl/loader/internal"
@@ -18,7 +16,31 @@ import (
 
 const pvalue = 0.05
 
-func Generate(
+func GenerateInterarrivalTimesInMilli(invocationsPerMinute int) []float64 {
+	rand.Seed(time.Now().UnixNano())
+	rps := float64(invocationsPerMinute) / 60
+	interArrivalTimes := []float64{}
+
+	totoalDuration := 0.0
+	for i := 0; i < invocationsPerMinute; i++ {
+		iat := rand.ExpFloat64() / rps * 1000
+		interArrivalTimes = append(interArrivalTimes, iat)
+		totoalDuration += iat
+	}
+
+	oneMinuteInMilli := 60_000 - 100
+	if totoalDuration > float64(oneMinuteInMilli) {
+		//* Normalise if it's longer than 1min.
+		for i, iat := range interArrivalTimes {
+			interArrivalTimes[i] = iat / float64(totoalDuration) * float64(oneMinuteInMilli)
+		}
+	}
+
+	// log.Info(stats.Sum(stats.LoadRawData(interArrivalTimes)))
+	return interArrivalTimes
+}
+
+func GenerateLoads(
 	phaseIdx int,
 	phaseOffset int,
 	withBlocking bool,
@@ -44,10 +66,14 @@ func Generate(
 
 load_generation:
 	for ; minute < int(totalDurationMinutes); minute++ {
+		tick := 0
+		var iats []float64
+
 		if !isFixedRate {
 			//* We distribute invocations uniformly for now.
 			//TODO: Implement Poisson.
-			rps = int(math.Ceil(float64(totalNumInvocationsEachMinute[minute]) / 60))
+			rps = int(float64(totalNumInvocationsEachMinute[minute]) / 60)
+			iats = GenerateInterarrivalTimesInMilli(totalNumInvocationsEachMinute[minute])
 		}
 		log.Infof("Minute[%d]\t RPS=%d", minute, rps)
 
@@ -58,7 +84,7 @@ load_generation:
 		iterStart := time.Now()
 		epsilon := time.Duration(0)
 		timeout := time.After(time.Duration(60)*time.Second - epsilon)
-		interval := time.Duration(1000/rps) * time.Millisecond
+		interval := time.Duration(int(iats[tick])) * time.Millisecond
 		ticker := time.NewTicker(interval)
 		done := make(chan bool)
 
@@ -71,15 +97,14 @@ load_generation:
 		}()
 
 		//* Bound the #invocations by `rps`.
-		numFuncToInvokeThisMinute := util.MinOf(rps*60+1, totalNumInvocationsEachMinute[minute])
+		numInvocatonsThisMinute := util.MinOf(rps*60, totalNumInvocationsEachMinute[minute])
 		var invocationCount int32
 
-		next := 0
 		for {
 			select {
 			case t := <-ticker.C:
-				if next >= numFuncToInvokeThisMinute {
-					log.Info("Idle ticking at ", t.Format(time.StampMilli), "\tMinute Nbr. ", minute, " Itr. ", next)
+				if tick >= numInvocatonsThisMinute {
+					log.Info("Idle ticking at ", t.Format(time.StampMilli), "\tMinute Nbr. ", minute, " Itr. ", tick)
 					idleDuration += interval
 					continue
 				}
@@ -102,7 +127,7 @@ load_generation:
 						latencyRecord.Rps = rps
 						exporter.ReportLantency(latencyRecord)
 					}
-				}(minute, next, phaseIdx, rps)
+				}(minute, tick, phaseIdx, rps)
 			case <-done:
 				numFuncInvocaked += int(invocationCount)
 				log.Info("Iteration spent: ", time.Since(iterStart), "\tMinute Nbr. ", minute)
@@ -117,7 +142,7 @@ load_generation:
 					IdleDuration:     idleDuration.Microseconds(),
 					NumFuncRequested: totalNumInvocationsEachMinute[minute],
 					NumFuncInvoked:   numFuncInvocaked,
-					NumFuncFailed:    numFuncToInvokeThisMinute - numFuncInvocaked,
+					NumFuncFailed:    numInvocatonsThisMinute - numFuncInvocaked,
 				}
 				exporter.ReportInvocation(invocRecord)
 
@@ -129,7 +154,10 @@ load_generation:
 					goto next_minute
 				}
 			}
-			next++
+			//* Load the next inter-arrival time.
+			tick++
+			interval = time.Duration(int(iats[tick])) * time.Millisecond
+			ticker = time.NewTicker(interval)
 		}
 	next_minute:
 	}

@@ -87,31 +87,18 @@ func main() {
 	/** Deployment */
 	functions := fc.Deploy(traces.Functions, serviceConfigPath, traces.WarmupScales)
 
-	nextPhaseStart := 0
+	//TODO: Extract to warmup.go
 	/** Warmup (Phase 1 and 2) */
+	nextPhaseStart := 0
 	if *withWarmup {
-		//* Enforce sequential execution using semphore.
-		// sem := make(chan bool, 1)
-
-		//* Partition warmup duration equally over phase 1 and 2.
-		// phaseDuration := *withWarmup / 2
-		// phasesCh := wu.GetPhasePartitions(*withWarmup, phaseDuration)
-
-		// var phase wu.IdxRange
 		for phaseIdx := 1; phaseIdx < totalNumPhases; phaseIdx++ {
-			// sem <- true
-
-			// go func(phaseIdx int) {
-			// 	defer func() { <-sem }()
 			//* Set up kn environment
 			if phaseIdx == 1 {
 				wu.SetKnConfigMap("config/kn_configmap_init_patch.yaml")
 			}
 
-			// phase = <-phasesCh
 			log.Infof("Enter Phase %d as of Minute[%d]", phaseIdx, nextPhaseStart)
-			// log.Infof("Phase %d: Warmup within [%d, %d)", phaseIdx, phase.Start, phase.End)
-			nextPhaseStart = fc.Generate(
+			nextPhaseStart = fc.GenerateLoads(
 				phaseIdx,
 				nextPhaseStart,
 				false, //! Non-blocking: directly go into the next phase.
@@ -125,20 +112,12 @@ func main() {
 				wu.SetKnConfigMap("config/kn_configmap_reset_patch.yaml")
 				wu.LivePatchKpas("scripts/warmup/livepatch_kpas.sh")
 			}
-			// }(phaseIdx)
 		}
-
-		//* Block until all slots are refilled (after they have all been consumed).
-		// for i := 0; i < cap(sem); i++ {
-		// 	sem <- true
-		// }
-
-		// measurementStart = phase.End
 	}
 
-	log.Infof("Phase 3: Generate real workloads as of Minute[%d]", nextPhaseStart)
 	/** Measurement (Phase 3) */
-	defer fc.Generate(
+	log.Infof("Phase 3: Generate real workloads as of Minute[%d]", nextPhaseStart)
+	defer fc.GenerateLoads(
 		totalNumPhases,
 		nextPhaseStart,
 		true,
