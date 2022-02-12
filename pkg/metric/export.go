@@ -45,8 +45,14 @@ func NewExporter() Exporter {
 	}
 }
 
+const LATENCY_WINDOW = 10_000
+
 func (ep *Exporter) IsLatencyStationary(pvalue float64) bool {
 	latencies := ep.GetLatenciesInOrder()
+	//* Prevent overflow.
+	if len(latencies) > LATENCY_WINDOW {
+		latencies = latencies[len(latencies)-LATENCY_WINDOW:]
+	}
 	//* Here `-` is used to form a single cmd argument to prevent
 	//* the violation of the calling convention.
 	latenciesStr := strings.Trim(strings.Join(
