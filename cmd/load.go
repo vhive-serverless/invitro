@@ -27,7 +27,7 @@ var (
 	debug       = flag.Bool("dbg", false, "Enable debug logging")
 	rps         = flag.Int("rps", -900_000, "Request per second")
 	duration    = flag.Int("duration", 3, "Duration of the experiment")
-	sampleSize  = flag.Int("sample", 1, "Sample size of the traces")
+	sampleSize  = flag.Int("sample", 6, "Sample size of the traces")
 	withTracing = flag.Bool("trace", false, "Enable tracing in the client")
 
 	// withWarmup = flag.Int("withWarmup", -1000, "Duration of the withWarmup")
@@ -59,11 +59,11 @@ func init() {
 
 	/** Trace parsing. */
 	traces = tc.ParseInvocationTrace(
-		"data/traces/"+strconv.Itoa(*sampleSize)+"/inv.csv", *duration)
+		"data/traces/"+strconv.Itoa(*sampleSize)+"/"+strconv.Itoa(*sampleSize)+"_inv.csv", *duration)
 	tc.ParseDurationTrace(
-		&traces, "data/traces/"+strconv.Itoa(*sampleSize)+"/run.csv")
+		&traces, "data/traces/"+strconv.Itoa(*sampleSize)+"/"+strconv.Itoa(*sampleSize)+"_run.csv")
 	tc.ParseMemoryTrace(
-		&traces, "data/traces/"+strconv.Itoa(*sampleSize)+"/mem.csv")
+		&traces, "data/traces/"+strconv.Itoa(*sampleSize)+"/"+strconv.Itoa(*sampleSize)+"_mem.csv")
 
 	log.Info("Traces contain the following: ", len(traces.Functions), " functions")
 	for _, function := range traces.Functions {
