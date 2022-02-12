@@ -88,32 +88,10 @@ func main() {
 	/** Deployment */
 	functions := fc.Deploy(traces.Functions, serviceConfigPath, traces.WarmupScales)
 
-	//TODO: Extract to warmup.go
 	/** Warmup (Phase 1 and 2) */
 	nextPhaseStart := 0
 	if *withWarmup {
-		for phaseIdx := 1; phaseIdx < totalNumPhases; phaseIdx++ {
-			//* Set up kn environment
-			if phaseIdx == 1 {
-				wu.SetKnConfigMap("config/kn_configmap_init_patch.yaml")
-			}
-
-			log.Infof("Enter Phase %d as of Minute[%d]", phaseIdx, nextPhaseStart)
-			nextPhaseStart = gen.GenerateLoads(
-				phaseIdx,
-				nextPhaseStart,
-				false, //! Non-blocking: directly go into the next phase.
-				*rps,
-				functions,
-				traces.InvocationsEachMinute[nextPhaseStart:],
-				traces.TotalInvocationsPerMinute[nextPhaseStart:])
-
-			//* Reset kn environment
-			if phaseIdx == 1 {
-				wu.SetKnConfigMap("config/kn_configmap_reset_patch.yaml")
-				wu.LivePatchKpas("scripts/warmup/livepatch_kpas.sh")
-			}
-		}
+		nextPhaseStart = wu.Warmup(totalNumPhases, *rps, functions, traces)
 	}
 
 	/** Measurement (Phase 3) */

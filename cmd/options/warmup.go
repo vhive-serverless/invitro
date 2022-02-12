@@ -5,6 +5,7 @@ import (
 	"os/exec"
 
 	util "github.com/eth-easl/loader/pkg"
+	gen "github.com/eth-easl/loader/pkg/generate"
 	tc "github.com/eth-easl/loader/pkg/trace"
 	"github.com/montanaflynn/stats"
 	log "github.com/sirupsen/logrus"
@@ -43,7 +44,35 @@ func ComputeFunctionsWarmupScales(functions []tc.Function) []int {
 	return scales
 }
 
-func SetKnConfigMap(patchFilePath string) {
+func Warmup(totalNumPhases int, rps int,
+	functions []tc.Function, traces tc.FunctionTraces) int {
+	nextPhaseStart := 0
+	for phaseIdx := 1; phaseIdx < totalNumPhases; phaseIdx++ {
+		//* Set up kn environment
+		if phaseIdx == 1 {
+			setKnConfigMap("config/kn_configmap_init_patch.yaml")
+		}
+
+		log.Infof("Enter Phase %d as of Minute[%d]", phaseIdx, nextPhaseStart)
+		nextPhaseStart = gen.GenerateLoads(
+			phaseIdx,
+			nextPhaseStart,
+			false, //! Non-blocking: directly go into the next phase.
+			rps,
+			functions,
+			traces.InvocationsEachMinute[nextPhaseStart:],
+			traces.TotalInvocationsPerMinute[nextPhaseStart:])
+
+		//* Reset kn environment
+		if phaseIdx == 1 {
+			setKnConfigMap("config/kn_configmap_reset_patch.yaml")
+			livePatchKpas("scripts/warmup/livepatch_kpas.sh")
+		}
+	}
+	return nextPhaseStart
+}
+
+func setKnConfigMap(patchFilePath string) {
 	cmd := exec.Command(
 		"kubectl",
 		"patch",
@@ -60,7 +89,7 @@ func SetKnConfigMap(patchFilePath string) {
 	util.Check(err)
 }
 
-func LivePatchKpas(scriptPath string) {
+func livePatchKpas(scriptPath string) {
 	cmd := exec.Command("bash", scriptPath)
 	stdoutStderr, err := cmd.CombinedOutput()
 	log.Info("CMD response: ", string(stdoutStderr))
