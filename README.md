@@ -28,8 +28,6 @@ $ make build image
 
 :warning: The protocal and the python server in `\server\trace-func-py` are deprecated.
 
-- [ ] Update the python server code.
-
 ### Update gRPC protocol
 
 ```sh
