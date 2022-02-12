@@ -12,7 +12,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 
-	util "github.com/eth-easl/loader/internal"
+	util "github.com/eth-easl/loader/pkg"
 	rpc "github.com/eth-easl/loader/server"
 )
 

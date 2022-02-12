@@ -10,7 +10,7 @@ import (
 	"strings"
 	"sync"
 
-	util "github.com/eth-easl/loader/internal"
+	util "github.com/eth-easl/loader/pkg"
 	"github.com/gocarina/gocsv"
 	log "github.com/sirupsen/logrus"
 )

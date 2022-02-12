@@ -10,6 +10,14 @@ func init() {
 	rand.Seed(time.Now().UnixNano())
 }
 
+func RandIntBetween(min, max int) int {
+	return rand.Intn(max-min) + min
+}
+
+func RandBool() bool {
+	return rand.Int31()&0x01 == 0
+}
+
 func B2Kib(numB uint32) uint32 {
 	return numB / 1024
 }
@@ -20,10 +28,6 @@ func Mib2b(numMb uint32) uint32 {
 
 func Mib2Kib(numMb uint32) uint32 {
 	return numMb * 1024
-}
-
-func GetRandBool() bool {
-	return rand.Int31()&0x01 == 0
 }
 
 func MinOf(vars ...int) int {

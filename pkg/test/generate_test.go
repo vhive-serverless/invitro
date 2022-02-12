@@ -5,21 +5,21 @@ import (
 	"sort"
 	"testing"
 
-	fc "github.com/eth-easl/loader/internal/function"
+	gen "github.com/eth-easl/loader/pkg/generate"
 	"github.com/montanaflynn/stats"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestGenerateIat(t *testing.T) {
 	invocationsPerMinute := 20_000
-	iats := fc.GenerateInterarrivalTimesInMicro(invocationsPerMinute, true)
+	iats := gen.GenerateInterarrivalTimesInMicro(invocationsPerMinute, true)
 	duration, _ := stats.Sum(stats.LoadRawData(iats))
 
 	assert.Equal(t, iats[rand.Intn(len(iats))], iats[rand.Intn(len(iats))])
 	assert.Equal(t, invocationsPerMinute, len(iats))
 	assert.Greater(t, 60_000_000.0, duration)
 
-	iats = fc.GenerateInterarrivalTimesInMicro(invocationsPerMinute, false)
+	iats = gen.GenerateInterarrivalTimesInMicro(invocationsPerMinute, false)
 	duration, _ = stats.Sum(stats.LoadRawData(iats))
 
 	assert.Equal(t, invocationsPerMinute, len(iats))
@@ -31,7 +31,7 @@ func TestShuffling(t *testing.T) {
 	arr = append(arr, []int{1, 1, 2, 2, 3, 3})
 	arr = append(arr, []int{1, 1, 2, 2, 3, 3})
 
-	fc.ShuffleAllInvocationsInplace(&arr)
+	gen.ShuffleAllInvocationsInplace(&arr)
 
 	isShuffled := false
 	for idx := range arr {

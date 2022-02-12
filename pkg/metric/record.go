@@ -16,7 +16,6 @@ type MinuteInvocationRecord struct {
 }
 
 type LatencyRecord struct {
-	// Locking should not be necessary (https://stackoverflow.com/a/29497244) but just in case.
 	*sync.Mutex
 
 	Phase     int    `csv:"phase"`
