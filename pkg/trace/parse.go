@@ -166,16 +166,16 @@ func ParseDurationTrace(trace *FunctionTraces, traceFile string) {
 /** Get memory usages in MiB. */
 func parseMemoryStats(record []string) FunctionMemoryStats {
 	return FunctionMemoryStats{
-		Count:         parseToInt(record[3]),
-		Average:       parseToInt(record[4]),
-		Percentile1:   parseToInt(record[5]),
-		Percentile5:   parseToInt(record[6]),
-		Percentile25:  parseToInt(record[7]),
-		Percentile50:  parseToInt(record[8]),
-		Percentile75:  parseToInt(record[9]),
-		Percentile95:  parseToInt(record[10]),
-		Percentile99:  parseToInt(record[11]),
-		Percentile100: parseToInt(record[12]),
+		Count:         parseToInt(record[2]),
+		Average:       parseToInt(record[3]),
+		Percentile1:   parseToInt(record[4]),
+		Percentile5:   parseToInt(record[5]),
+		Percentile25:  parseToInt(record[6]),
+		Percentile50:  parseToInt(record[7]),
+		Percentile75:  parseToInt(record[8]),
+		Percentile95:  parseToInt(record[9]),
+		Percentile99:  parseToInt(record[10]),
+		Percentile100: parseToInt(record[11]),
 	}
 }
 
