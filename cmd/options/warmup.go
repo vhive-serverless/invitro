@@ -4,8 +4,8 @@ import (
 	"math"
 	"os/exec"
 
-	util "github.com/eth-easl/loader/internal"
-	tc "github.com/eth-easl/loader/internal/trace"
+	util "github.com/eth-easl/loader/pkg"
+	tc "github.com/eth-easl/loader/pkg/trace"
 	"github.com/montanaflynn/stats"
 	log "github.com/sirupsen/logrus"
 )

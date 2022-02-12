@@ -4,7 +4,7 @@ import (
 	"sync"
 	"testing"
 
-	mc "github.com/eth-easl/loader/internal/metric"
+	mc "github.com/eth-easl/loader/pkg/metric"
 	"github.com/stretchr/testify/assert"
 )
 

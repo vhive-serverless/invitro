@@ -11,8 +11,9 @@ import (
 
 	tracer "github.com/ease-lab/vhive/utils/tracing/go"
 	wu "github.com/eth-easl/loader/cmd/options"
-	fc "github.com/eth-easl/loader/internal/function"
-	tc "github.com/eth-easl/loader/internal/trace"
+	fc "github.com/eth-easl/loader/pkg/function"
+	gen "github.com/eth-easl/loader/pkg/generate"
+	tc "github.com/eth-easl/loader/pkg/trace"
 )
 
 const (
@@ -98,7 +99,7 @@ func main() {
 			}
 
 			log.Infof("Enter Phase %d as of Minute[%d]", phaseIdx, nextPhaseStart)
-			nextPhaseStart = fc.GenerateLoads(
+			nextPhaseStart = gen.GenerateLoads(
 				phaseIdx,
 				nextPhaseStart,
 				false, //! Non-blocking: directly go into the next phase.
@@ -117,7 +118,7 @@ func main() {
 
 	/** Measurement (Phase 3) */
 	log.Infof("Phase 3: Generate real workloads as of Minute[%d]", nextPhaseStart)
-	defer fc.GenerateLoads(
+	defer gen.GenerateLoads(
 		totalNumPhases,
 		nextPhaseStart,
 		true,

@@ -8,13 +8,13 @@ import (
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 
-	mc "github.com/eth-easl/loader/internal/metric"
-	tc "github.com/eth-easl/loader/internal/trace"
+	mc "github.com/eth-easl/loader/pkg/metric"
+	tc "github.com/eth-easl/loader/pkg/trace"
 	rpc "github.com/eth-easl/loader/server"
 )
 
-func invoke(ctx context.Context, function tc.Function) (bool, mc.LatencyRecord) {
-	runtimeRequested, memoryRequested := tc.GenerateExecutionSpecs(function)
+func Invoke(ctx context.Context, function tc.Function, gen tc.FunctionSpecsGen) (bool, mc.LatencyRecord) {
+	runtimeRequested, memoryRequested := gen(function)
 
 	log.Infof("(Invoke)\t %s: %d[µs], %d[MiB]", function.GetName(), runtimeRequested*int(math.Pow10(3)), memoryRequested)
 

@@ -6,7 +6,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 
-	tc "github.com/eth-easl/loader/internal/trace"
+	tc "github.com/eth-easl/loader/pkg/trace"
 )
 
 func Deploy(functions []tc.Function, serviceConfigPath string, minScales []int) []tc.Function {
