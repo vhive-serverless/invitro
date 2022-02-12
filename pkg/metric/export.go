@@ -65,7 +65,7 @@ func (ep *Exporter) IsLatencyStationary(pvalue float64) bool {
 		latenciesStr,
 	)
 	out, err := cmd.CombinedOutput()
-	log.Info(string(out[:]))
+	// log.Info(string(out[:]))
 	if err != nil {
 		log.Warn("Fail to run ADF test: ", err)
 		return false
