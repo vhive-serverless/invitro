@@ -11,7 +11,8 @@ func init() {
 }
 
 func RandIntBetween(min, max int) int {
-	return rand.Intn(max-min) + min
+	inverval := MaxOf(1, max-min)
+	return rand.Intn(inverval) + min
 }
 
 func RandBool() bool {
