@@ -16,7 +16,7 @@ import (
 	rpc "github.com/eth-easl/loader/server"
 )
 
-const containerMemoryLimitMib = 512 // Default limit of k8s.
+// const containerMemoryLimitMib = 512 // Default limit of k8s.
 
 type funcServer struct {
 	rpc.UnimplementedExecutorServer
@@ -26,9 +26,8 @@ func (s *funcServer) Execute(ctx context.Context, req *rpc.FaasRequest) (*rpc.Fa
 	runtimeRequested := req.RuntimeInMilliSec
 	//* To avoid unecessary overhead, memory allocation is at the granularity of os pages.
 	numPagesRequested := util.Mib2b(req.MemoryInMebiBytes) / uint32(unix.Getpagesize())
-	if numPagesRequested > util.Mib2b(containerMemoryLimitMib)/uint32(unix.Getpagesize()) ||
-		runtimeRequested < 1 {
-		return &rpc.FaasReply{}, errors.New("erroneous request")
+	if runtimeRequested < 1 {
+		return &rpc.FaasReply{}, errors.New("erroneous execution time")
 	}
 
 	start := time.Now()
