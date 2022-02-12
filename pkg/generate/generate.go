@@ -38,14 +38,22 @@ func GenerateInterarrivalTimesInMicro(invocationsPerMinute int, uniform bool) []
 		} else {
 			iat = rand.ExpFloat64() / rps * oneSecondInMicro
 		}
+		//* Only guarantee microsecond-level accuracy.
+		if iat < 1 {
+			iat = 1
+		}
 		interArrivalTimes = append(interArrivalTimes, iat)
 		totoalDuration += iat
 	}
 
 	if totoalDuration > oneMinuteInMicro {
-		//* Normalise if it's longer than 1 min.
+		//* Normalise if it's longer than 1min.
 		for i, iat := range interArrivalTimes {
-			interArrivalTimes[i] = iat / totoalDuration * oneMinuteInMicro
+			iat = iat / totoalDuration * oneMinuteInMicro
+			if iat < 1 {
+				iat = 1
+			}
+			interArrivalTimes[i] = iat
 		}
 	}
 

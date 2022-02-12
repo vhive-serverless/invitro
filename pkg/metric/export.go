@@ -54,7 +54,7 @@ func (ep *Exporter) IsLatencyStationary(pvalue float64) bool {
 
 	cmd := exec.Command(
 		"python3",
-		"internal/metric/run_adf.py",
+		"pkg/metric/run_adf.py",
 		// "run_adf.py", //* For testing (due to POSX constraint)
 		latenciesStr,
 	)
