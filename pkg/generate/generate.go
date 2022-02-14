@@ -3,6 +3,7 @@ package generate
 import (
 	"context"
 	"math/rand"
+	"os"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -15,7 +16,10 @@ import (
 	tc "github.com/eth-easl/loader/pkg/trace"
 )
 
-const pvalue = 0.05
+const (
+	STATIONARY_P_VALUE     = 0.05
+	FAILURE_RATE_THRESHOLD = 0.1
+)
 
 /** Seed the math/rand package for it to be different on each run. */
 func init() {
@@ -132,45 +136,58 @@ load_generation:
 
 					funcIndx := invocationsEachMinute[m][nxt]
 					function := functions[funcIndx]
-					//TODO: Make Dialling timeout customisable.
-					diallingBound := 10 * time.Duration(function.RuntimeStats.Average) * time.Millisecond //* 2xruntime timeout for circumventing hanging.
-					ctx, cancel := context.WithTimeout(context.Background(), diallingBound)
+
+					//* Use the maximum socket timeout from AWS (5min).
+					diallingTimeout := 5 * time.Minute
+					ctx, cancel := context.WithTimeout(context.Background(), diallingTimeout)
 					defer cancel()
 
-					hasInvoked, latencyRecord := fc.Invoke(ctx, function, GenerateExecutionSpecs)
+					hasInvoked, execRecord := fc.Invoke(ctx, function, GenerateExecutionSpecs)
 
 					if hasInvoked {
 						atomic.AddInt32(&invocationCount, 1)
-						latencyRecord.Phase = phase
-						latencyRecord.Rps = rps
-						exporter.ReportLantency(latencyRecord)
 					}
-				}(minute, tick, phaseIdx, rps)
+					execRecord.Phase = phase
+					execRecord.Rps = rps
+					exporter.ReportExecution(execRecord)
+				}(minute, tick, phaseIdx, rps) //* Push vars onto the stack to prevent race.
+
 			case <-done:
 				numFuncInvocaked += int(invocationCount)
 				log.Info("Iteration spent: ", time.Since(iterStart), "\tMinute Nbr. ", minute)
-				log.Info("Required #invocations=", totalNumInvocationsEachMinute[minute],
+				log.Info("Target #invocations=", totalNumInvocationsEachMinute[minute],
 					" Fired #functions=", numFuncInvocaked, "\tMinute Nbr. ", minute)
 
-				invocRecord := mc.MinuteInvocationRecord{
-					MinuteIdx:        minute + phaseOffset,
-					Phase:            phaseIdx,
-					Rps:              rps,
-					Duration:         time.Since(iterStart).Microseconds(),
-					IdleDuration:     idleDuration.Microseconds(),
-					NumFuncRequested: totalNumInvocationsEachMinute[minute],
-					NumFuncInvoked:   numFuncInvocaked,
-					NumFuncFailed:    numInvocatonsThisMinute - numFuncInvocaked,
-				}
-				exporter.ReportInvocation(invocRecord)
+				is_stationary := exporter.IsLatencyStationary(STATIONARY_P_VALUE)
 
-				//* Do not evaluate stationarity in the measurement phase (3).
-				if phaseIdx != 3 && exporter.IsLatencyStationary(pvalue) {
-					minute++
-					break load_generation
-				} else {
-					goto next_minute
+				switch phaseIdx {
+				case 3: /** Measurement phase */
+					if is_stationary {
+						invocRecord := mc.MinuteInvocationRecord{
+							MinuteIdx:       minute + phaseOffset,
+							Phase:           phaseIdx,
+							Rps:             rps,
+							Duration:        time.Since(iterStart).Microseconds(),
+							IdleDuration:    idleDuration.Microseconds(),
+							NumFuncTargeted: totalNumInvocationsEachMinute[minute],
+							NumFuncInvoked:  numFuncInvocaked,
+							NumFuncFailed:   numInvocatonsThisMinute - numFuncInvocaked,
+						}
+						//* Only export metrics of the stationary measurement phase.
+						exporter.ReportInvocation(invocRecord)
+					}
+					if exporter.CheckOverload(FAILURE_RATE_THRESHOLD) {
+						minute++
+						dumpOverloadFlag()
+						break load_generation
+					}
+				default: /** Warmup phase */
+					if is_stationary {
+						minute++
+						break load_generation
+					}
 				}
+				goto next_minute
 			}
 			//* Load the next inter-arrival time.
 			tick++
@@ -251,7 +268,7 @@ func GenerateExecutionSpecs(function tc.Function) (int, int) {
 	if memory = memStats.Average; util.RandBool() {
 		switch {
 		case memQtl <= 0.01:
-			memory = util.RandIntBetween(1, memStats.Percentile1)
+			memory = memStats.Percentile1
 		case memQtl <= 0.05:
 			memory = util.RandIntBetween(memStats.Percentile1, memStats.Percentile5)
 		case memQtl <= 0.25:
@@ -272,7 +289,7 @@ func GenerateExecutionSpecs(function tc.Function) (int, int) {
 	if runtime = runStats.Average; util.RandBool() {
 		switch {
 		case runQtl <= 0.01:
-			runtime = util.RandIntBetween(runStats.Minimum, runStats.Percentile0)
+			runtime = runStats.Percentile0
 		case runQtl <= 0.25:
 			runtime = util.RandIntBetween(runStats.Percentile1, runStats.Percentile25)
 		case runQtl <= 0.50:
@@ -289,4 +306,12 @@ func GenerateExecutionSpecs(function tc.Function) (int, int) {
 		}
 	}
 	return runtime, memory
+}
+
+func dumpOverloadFlag() {
+	// If the file doesn't exist, create it, or append to the file
+	_, err := os.OpenFile("overload.flag", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		log.Fatal(err)
+	}
 }
