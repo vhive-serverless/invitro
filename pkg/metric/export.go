@@ -130,13 +130,13 @@ func (ep *Exporter) sortLatencyRecords() {
 	)
 }
 
-func (ep *Exporter) FinishAndSave(phase int, duration int) {
-	invocFileName := "data/out/invoke_phase-" + strconv.Itoa(phase) + "_dur-" + strconv.Itoa(duration) + ".csv"
+func (ep *Exporter) FinishAndSave(sampleSize int, phase int, duration int) {
+	invocFileName := "data/out/inv_sample-" + strconv.Itoa(sampleSize) + "-phase-" + strconv.Itoa(phase) + "_dur-" + strconv.Itoa(duration) + ".csv"
 	invocF, err := os.Create(invocFileName)
 	util.Check(err)
 	gocsv.MarshalFile(&ep.invocationRecords, invocF)
 
-	latencyFileName := "data/out/latency_phase-" + strconv.Itoa(phase) + "_dur-" + strconv.Itoa(duration) + ".csv"
+	latencyFileName := "data/out/exc_sample-" + strconv.Itoa(sampleSize) + "-phase-" + strconv.Itoa(phase) + "_dur-" + strconv.Itoa(duration) + ".csv"
 	latencyF, err := os.Create(latencyFileName)
 	util.Check(err)
 	gocsv.MarshalFile(&ep.executionRecords, latencyF)

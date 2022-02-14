@@ -91,12 +91,13 @@ func main() {
 	/** Warmup (Phase 1 and 2) */
 	nextPhaseStart := 0
 	if *withWarmup {
-		nextPhaseStart = wu.Warmup(totalNumPhases, *rps, functions, traces)
+		nextPhaseStart = wu.Warmup(*sampleSize, totalNumPhases, *rps, functions, traces)
 	}
 
 	/** Measurement (Phase 3) */
 	log.Infof("Phase 3: Generate real workloads as of Minute[%d]", nextPhaseStart)
 	defer gen.GenerateLoads(
+		*sampleSize,
 		totalNumPhases,
 		nextPhaseStart,
 		true,

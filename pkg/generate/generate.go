@@ -66,6 +66,7 @@ func GenerateInterarrivalTimesInMicro(invocationsPerMinute int, uniform bool) []
 }
 
 func GenerateLoads(
+	sampleSize int,
 	phaseIdx int,
 	phaseOffset int,
 	withBlocking bool,
@@ -137,8 +138,8 @@ load_generation:
 					funcIndx := invocationsEachMinute[m][nxt]
 					function := functions[funcIndx]
 
-					//* Use the maximum socket timeout from AWS (5min).
-					diallingTimeout := 5 * time.Minute
+					//* Use the maximum socket timeout from AWS (1min).
+					diallingTimeout := 1 * time.Minute
 					ctx, cancel := context.WithTimeout(context.Background(), diallingTimeout)
 					defer cancel()
 
@@ -213,7 +214,7 @@ load_generation:
 		log.Info("[No time out] Total invocation + waiting duration: ", totalDuration, "\tIdle ", idleDuration, "\n")
 	}
 
-	defer exporter.FinishAndSave(phaseIdx, minute)
+	defer exporter.FinishAndSave(sampleSize, phaseIdx, minute)
 	return phaseOffset + minute
 }
 

@@ -44,7 +44,7 @@ func ComputeFunctionsWarmupScales(functions []tc.Function) []int {
 	return scales
 }
 
-func Warmup(totalNumPhases int, rps int,
+func Warmup(sampleSize int, totalNumPhases int, rps int,
 	functions []tc.Function, traces tc.FunctionTraces) int {
 	nextPhaseStart := 0
 	for phaseIdx := 1; phaseIdx < totalNumPhases; phaseIdx++ {
@@ -55,6 +55,7 @@ func Warmup(totalNumPhases int, rps int,
 
 		log.Infof("Enter Phase %d as of Minute[%d]", phaseIdx, nextPhaseStart)
 		nextPhaseStart = gen.GenerateLoads(
+			sampleSize,
 			phaseIdx,
 			nextPhaseStart,
 			false, //! Non-blocking: directly go into the next phase.
