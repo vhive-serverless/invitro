@@ -28,7 +28,7 @@ clean:
 build:
 	go build cmd/load.go
 
-# make ARGS="--rps X --duration X" run
+# make ARGS='--rps X --duration X' run
 run:
 	go run cmd/load.go $(ARGS)
 
