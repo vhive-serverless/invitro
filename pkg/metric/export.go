@@ -18,7 +18,7 @@ import (
 type Exporter struct {
 	mutex             sync.Mutex
 	invocationRecords []MinuteInvocationRecord
-	latencyRecords    []LatencyRecord
+	executionRecords  []ExecutionRecord
 }
 
 type AdfResult struct {
@@ -41,8 +41,25 @@ func NewExporter() Exporter {
 		//* Note that the zero value of a mutex is usable as-is, so no
 		//* initialization is required here (e.g., mutex: sync.Mutex{}).
 		invocationRecords: []MinuteInvocationRecord{},
-		latencyRecords:    []LatencyRecord{},
+		executionRecords:  []ExecutionRecord{},
 	}
+}
+
+const SLOWDOWN_THRESHOLD = 10
+
+func (ep *Exporter) CheckOverload(failureRatio float64) bool {
+	checkSlowdown := func(latency int64, runtime uint32) bool {
+		return latency/int64(runtime) >= SLOWDOWN_THRESHOLD
+	}
+	failureCount := 0
+	for _, record := range ep.executionRecords {
+		if record.Timeout || record.Failed ||
+			checkSlowdown(record.Latency, record.Runtime) {
+			failureCount += 1
+		}
+	}
+	log.Info(failureCount)
+	return float64(failureCount)/float64(len(ep.executionRecords)) >= failureRatio
 }
 
 const LATENCY_WINDOW = 10_000
@@ -97,8 +114,8 @@ func (ep *Exporter) IsLatencyStationary(pvalue float64) bool {
 func (ep *Exporter) GetLatenciesInOrder() []float64 {
 	ep.sortLatencyRecords()
 
-	lantencies := make([]float64, len(ep.latencyRecords))
-	for i, record := range ep.latencyRecords {
+	lantencies := make([]float64, len(ep.executionRecords))
+	for i, record := range ep.executionRecords {
 		lantencies[i] = float64(record.Latency)
 	}
 	return lantencies
@@ -106,9 +123,9 @@ func (ep *Exporter) GetLatenciesInOrder() []float64 {
 
 // Sort records in ascending order.
 func (ep *Exporter) sortLatencyRecords() {
-	sort.Slice(ep.latencyRecords,
+	sort.Slice(ep.executionRecords,
 		func(i, j int) bool {
-			return ep.latencyRecords[i].Timestamp < ep.latencyRecords[j].Timestamp
+			return ep.executionRecords[i].Timestamp < ep.executionRecords[j].Timestamp
 		},
 	)
 }
@@ -122,7 +139,7 @@ func (ep *Exporter) FinishAndSave(phase int, duration int) {
 	latencyFileName := "data/out/latency_phase-" + strconv.Itoa(phase) + "_dur-" + strconv.Itoa(duration) + ".csv"
 	latencyF, err := os.Create(latencyFileName)
 	util.Check(err)
-	gocsv.MarshalFile(&ep.latencyRecords, latencyF)
+	gocsv.MarshalFile(&ep.executionRecords, latencyF)
 }
 
 func (ep *Exporter) ReportInvocation(record MinuteInvocationRecord) {
@@ -131,10 +148,10 @@ func (ep *Exporter) ReportInvocation(record MinuteInvocationRecord) {
 	ep.invocationRecords = append(ep.invocationRecords, record)
 }
 
-func (ep *Exporter) ReportLantency(record LatencyRecord) {
+func (ep *Exporter) ReportExecution(record ExecutionRecord) {
 	ep.mutex.Lock()
 	defer ep.mutex.Unlock()
-	ep.latencyRecords = append(ep.latencyRecords, record)
+	ep.executionRecords = append(ep.executionRecords, record)
 }
 
 func (ep *Exporter) GetInvocationRecordLen() int {
@@ -142,5 +159,5 @@ func (ep *Exporter) GetInvocationRecordLen() int {
 }
 
 func (ep *Exporter) GetLantencyRecordLen() int {
-	return len(ep.latencyRecords)
+	return len(ep.executionRecords)
 }
