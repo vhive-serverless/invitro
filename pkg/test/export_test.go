@@ -8,6 +8,44 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestCheckOverload(t *testing.T) {
+	exporter := mc.NewExporter()
+	exporter.ReportExecution(
+		mc.ExecutionRecord{
+			Latency: 50,
+			Runtime: 5,
+		},
+	)
+	exporter.ReportExecution(
+		mc.ExecutionRecord{
+			Latency: 1,
+			Runtime: 1,
+			Timeout: true,
+		},
+	)
+	exporter.ReportExecution(
+		mc.ExecutionRecord{
+			Latency: 1,
+			Runtime: 1,
+			Failed:  true,
+		},
+	)
+	exporter.ReportExecution(
+		mc.ExecutionRecord{
+			Latency: 1,
+			Runtime: 1,
+		},
+	)
+	exporter.ReportExecution(
+		mc.ExecutionRecord{
+			Latency: 1,
+			Runtime: 1,
+		},
+	)
+	assert.True(t, exporter.CheckOverload(0.6))
+	assert.False(t, exporter.CheckOverload(0.7))
+}
+
 func TestConcurrentReporting(t *testing.T) {
 	exporter := mc.NewExporter()
 	var wg sync.WaitGroup
@@ -17,7 +55,7 @@ func TestConcurrentReporting(t *testing.T) {
 	doReport := func(t, n int) {
 		for i := 0; i < n; i++ {
 			if t == 0 {
-				exporter.ReportLantency(mc.LatencyRecord{})
+				exporter.ReportExecution(mc.ExecutionRecord{})
 			} else {
 				exporter.ReportInvocation(mc.MinuteInvocationRecord{})
 			}
@@ -38,20 +76,20 @@ func TestConcurrentReporting(t *testing.T) {
 func TestGetLatenciesInOrder(t *testing.T) {
 	exporter := mc.NewExporter()
 
-	exporter.ReportLantency(
-		mc.LatencyRecord{
+	exporter.ReportExecution(
+		mc.ExecutionRecord{
 			Timestamp: 1000_000,
 			Latency:   0,
 		},
 	)
-	exporter.ReportLantency(
-		mc.LatencyRecord{
+	exporter.ReportExecution(
+		mc.ExecutionRecord{
 			Timestamp: 1000_000_000,
 			Latency:   2,
 		},
 	)
-	exporter.ReportLantency(
-		mc.LatencyRecord{
+	exporter.ReportExecution(
+		mc.ExecutionRecord{
 			Timestamp: 1000,
 			Latency:   1,
 		},

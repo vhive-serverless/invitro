@@ -13,12 +13,12 @@ import (
 	rpc "github.com/eth-easl/loader/server"
 )
 
-func Invoke(ctx context.Context, function tc.Function, gen tc.FunctionSpecsGen) (bool, mc.LatencyRecord) {
+func Invoke(ctx context.Context, function tc.Function, gen tc.FunctionSpecsGen) (bool, mc.ExecutionRecord) {
 	runtimeRequested, memoryRequested := gen(function)
 
 	log.Infof("(Invoke)\t %s: %d[µs], %d[MiB]", function.GetName(), runtimeRequested*int(math.Pow10(3)), memoryRequested)
 
-	var record mc.LatencyRecord
+	var record mc.ExecutionRecord
 	record.FuncName = function.GetName()
 
 	// Start latency measurement.
@@ -28,7 +28,8 @@ func Invoke(ctx context.Context, function tc.Function, gen tc.FunctionSpecsGen) 
 	conn, err := grpc.DialContext(ctx, function.GetUrl(), grpc.WithInsecure(), grpc.WithBlock())
 	if err != nil {
 		log.Warnf("Failed to connect: %v", err)
-		return false, mc.LatencyRecord{}
+		record.Timeout = true
+		return false, record
 	}
 	defer conn.Close()
 
@@ -46,7 +47,8 @@ func Invoke(ctx context.Context, function tc.Function, gen tc.FunctionSpecsGen) 
 
 	if err != nil {
 		log.Warnf("%s: err=%v", function.GetName(), err)
-		return false, mc.LatencyRecord{}
+		record.Failed = true
+		return false, record
 	}
 	// log.Info("gRPC response: ", reply.Response)
 	memoryUsage := response.MemoryUsageInKb

@@ -16,6 +16,9 @@ import (
 	rpc "github.com/eth-easl/loader/server"
 )
 
+//! We don't enforce this limit anymore because
+//! no limits have set for the containers themselves
+//! (i.e., they can try to use more RAM than the default and won't get OOM-killed by the kernel).
 // const containerMemoryLimitMib = 512 // Default limit of k8s.
 
 type funcServer struct {
@@ -27,6 +30,7 @@ func (s *funcServer) Execute(ctx context.Context, req *rpc.FaasRequest) (*rpc.Fa
 	//* To avoid unecessary overhead, memory allocation is at the granularity of os pages.
 	numPagesRequested := util.Mib2b(req.MemoryInMebiBytes) / uint32(unix.Getpagesize())
 	if runtimeRequested < 1 {
+		//* Some of the durations were incorrectly recorded as 0 in the trace.
 		return &rpc.FaasReply{}, errors.New("erroneous execution time")
 	}
 
