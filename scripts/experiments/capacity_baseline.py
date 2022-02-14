@@ -14,11 +14,12 @@ if __name__ == "__main__":
     sizes.sort()
 
     flagf = 'overload.flag'
+    if glob(flagf):
+        os.system(f"rm {flagf}")
     for size in sizes:
         # print(f"make ARGS='--sample {size} --duration {duration} --withWarmup 2>&1 | tee cap_{size}.log")
         os.system(f"make ARGS='--sample {size} --duration {duration} --warmup' run 2>&1 | tee cap_{size}.log")
         if not glob(flagf):
             continue
         else:
-            os.system(f"rm {flagf}")
             break
