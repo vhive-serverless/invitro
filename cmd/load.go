@@ -59,11 +59,11 @@ func init() {
 
 	/** Trace parsing. */
 	traces = tc.ParseInvocationTrace(
-		"data/traces/"+strconv.Itoa(*sampleSize)+"/"+strconv.Itoa(*sampleSize)+"_inv.csv", *duration)
+		"data/traces/"+strconv.Itoa(*sampleSize)+"_inv.csv", *duration)
 	tc.ParseDurationTrace(
-		&traces, "data/traces/"+strconv.Itoa(*sampleSize)+"/"+strconv.Itoa(*sampleSize)+"_run.csv")
+		&traces, "data/traces/"+strconv.Itoa(*sampleSize)+"_run.csv")
 	tc.ParseMemoryTrace(
-		&traces, "data/traces/"+strconv.Itoa(*sampleSize)+"/"+strconv.Itoa(*sampleSize)+"_mem.csv")
+		&traces, "data/traces/"+strconv.Itoa(*sampleSize)+"_mem.csv")
 
 	log.Info("Traces contain the following: ", len(traces.Functions), " functions")
 	for _, function := range traces.Functions {

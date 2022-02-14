@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 SERVER=$1
 
-cd
-source ~/Projects/Research/loader/scripts/cluster_config
+source "$(pwd)/scripts/setup/setup.cfg"
 
 server_exec() { 
     ssh -oStrictHostKeyChecking=no -p 22 "$SERVER" $1; 
@@ -17,7 +16,6 @@ server_exec 'tmux new -d -s cluster'
 server_exec 'tmux send-keys -t containerd "sudo containerd" ENTER'
 sleep 3s
 server_exec 'cd vhive; ./scripts/cluster/create_one_node_cluster.sh stock-only'
-# sleep 4m
 server_exec 'tmux send-keys -t cluster "watch -n 0.5 kubectl get pods -A" ENTER'
 
 # Update golang.
@@ -28,7 +26,7 @@ server_exec 'echo "export PATH=$PATH:/usr/local/go/bin" >> ~/.profile'
 server_exec 'source ~/.profile'
 
 # Setup github authentication.
-ACCESS_TOKEH="$(cat ~/Projects/Research/access_token.github)"
+ACCESS_TOKEH="$(cat $GITHUB_TOKEN)"
 
 server_exec 'echo -en "\n\n" | ssh-keygen -t rsa'
 server_exec 'ssh-keyscan -t rsa github.com >> ~/.ssh/known_hosts'
