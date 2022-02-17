@@ -26,6 +26,7 @@ var (
 
 	debug       = flag.Bool("dbg", false, "Enable debug logging")
 	rps         = flag.Int("rps", -900_000, "Request per second")
+	cluster     = flag.Int("cluster", 1, "Size of the cluster measured by #workers")
 	duration    = flag.Int("duration", 3, "Duration of the experiment")
 	sampleSize  = flag.Int("sample", 6, "Sample size of the traces")
 	withTracing = flag.Bool("trace", false, "Enable tracing in the client")
@@ -82,7 +83,7 @@ func main() {
 			traces.Functions[funcIdx].ConcurrencySats =
 				tc.ProfileFunctionConcurrencies(function, profilingMinutes)
 		}
-		traces.WarmupScales = wu.ComputeFunctionsWarmupScales(traces.Functions)
+		traces.WarmupScales = wu.ComputeFunctionsWarmupScales(*cluster, traces.Functions)
 	}
 
 	/** Deployment */
