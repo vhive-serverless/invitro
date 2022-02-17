@@ -3,8 +3,6 @@ MASTER_NODE=$1
 
 source "$(pwd)/scripts/setup/setup.cfg"
 
-MODE='stock-only'
-
 server_exec() { 
 	ssh -oStrictHostKeyChecking=no -p 22 "$1" "$2";
 }
@@ -12,7 +10,7 @@ server_exec() {
 #* Run initialisation on a node.
 common_init() {
 	server_exec $1 "git clone --branch=$VHIVE_BRANCH https://github.com/ease-lab/vhive"
-	server_exec $1 "cd; ./vhive/scripts/cloudlab/setup_node.sh $MODE"
+	server_exec $1 "cd; ./vhive/scripts/cloudlab/setup_node.sh stock-only"
 	server_exec $1 'tmux new -s containerd -d'
 	server_exec $1 'tmux send -t containerd "sudo containerd 2>&1 | tee ~/containerd_log.txt" ENTER'
 }
@@ -39,10 +37,10 @@ do
 		server_exec 'wget -q https://dl.google.com/go/go1.17.linux-amd64.tar.gz >/dev/null'
 		server_exec 'sudo rm -rf /usr/local/go && sudo tar -C /usr/local/ -xzf go1.17.linux-amd64.tar.gz >/dev/null'
 		# server_exec 'sudo apt-get install libcairo2-dev libjpeg-dev libgif-dev'
-
 		server_exec 'echo "export PATH=$PATH:/usr/local/go/bin" >> .profile'
+		
 		server_exec 'tmux new -s master -d'
-		server_exec 'tmux send -t master "./vhive/scripts/cluster/create_multinode_cluster.sh $MODE" ENTER'
+		server_exec 'tmux send -t master "./vhive/scripts/cluster/create_multinode_cluster.sh stock-only" ENTER'
 		
 		# Get the join token from k8s.
 		while [ ! "$LOGIN_TOKEN" ]
@@ -60,7 +58,7 @@ do
 		
 	else
 		echo "Setting up worker node: $node"
-		server_exec "./vhive/scripts/cluster/setup_worker_kubelet.sh $MODE"
+		server_exec "./vhive/scripts/cluster/setup_worker_kubelet.sh stock-only"
 
 		#* We don't need vhive in container mode.
 		# server_exec 'cd vhive; source /etc/profile && go build'
@@ -81,10 +79,15 @@ do
 	else
 		ssh -oStrictHostKeyChecking=no -p 22 $node "sudo ${LOGIN_TOKEN}"
 		echo "Worker node $node joined the cluster."
+
 		#* Stretch the capacity of the worker node to 500 (k8s default: 110).
 		echo "Streching node capacity for $node."
 		server_exec 'echo "maxPods: 500" > >(sudo tee -a /var/lib/kubelet/config.yaml >/dev/null)'
 		server_exec 'sudo systemctl restart kubelet'
+		
+		#* Rejoin has to be performed although errors will be thrown. Otherwise, restarting the kubelet will cause the node unreachable for some reason.
+		ssh -oStrictHostKeyChecking=no -p 22 $node "sudo ${LOGIN_TOKEN} > /dev/null 2>&1"
+		echo "Worker node $node joined the cluster (again :P)."
 	fi
 done
 
