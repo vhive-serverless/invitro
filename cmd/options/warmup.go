@@ -12,12 +12,13 @@ import (
 )
 
 const (
-	CAPACITY         = 219 //! Sharp
+	NODE_CAPACITY    = 219 //* Empirical limit of a single-node cluster (NOT one-worker cluster).
 	MIN_WARMUP_SCALE = 2
 )
 
-func ComputeFunctionsWarmupScales(functions []tc.Function) []int {
+func ComputeFunctionsWarmupScales(clusterSize int, functions []tc.Function) []int {
 	var scales []int
+	totalCapacity := NODE_CAPACITY * clusterSize
 
 	for _, function := range functions {
 		expectedConcurrency := function.ConcurrencySats.Median
@@ -30,11 +31,11 @@ func ComputeFunctionsWarmupScales(functions []tc.Function) []int {
 	log.Info("Total #pods required:\t", totalScale)
 	log.Info("Warmup scales:\t\t", scales)
 
-	if totalScale > CAPACITY {
+	if totalScale > float64(totalCapacity) {
 		//* Rescale warmup scales.
 		for i := 0; i < len(scales); i++ {
 			ratio := float64(scales[i]) / totalScale
-			scales[i] = int(float64(CAPACITY) * ratio) //! Round down to prevent kn outage.
+			scales[i] = int(float64(totalCapacity) * ratio) //! Round down to prevent kn outage.
 		}
 	}
 	scalesData = stats.LoadRawData(scales)
