@@ -176,7 +176,7 @@ load_generation:
 				switch phaseIdx {
 				case 3: /** Measurement phase */
 					if exporter.CheckOverload(FAILURE_RATE_THRESHOLD) {
-						dumpOverloadFlag()
+						DumpOverloadFlag()
 						//! Dump the flag but continue experiments.
 						// minute++
 						// break load_generation
@@ -196,7 +196,7 @@ load_generation:
 		}
 	next_minute:
 	}
-	log.Info("\tFinished invoking all functions.\n\tStart waiting for all requests to return.")
+	log.Info("\tFinished invoking all functions.")
 
 	//* Hyperparameter for busy-wait
 	delta := time.Duration(1) //TODO: Make this force wait customisable (currently it's the same duration as that of the traces).
@@ -207,7 +207,7 @@ load_generation:
 	}
 
 	if wgWaitWithTimeout(&wg, forceTimeoutDuration) {
-		log.Warn("Time out waiting for ALL invocations to return.")
+		log.Warn("Time out waiting for all invocations to return.")
 	} else {
 		totalDuration := time.Since(start)
 		log.Info("[No time out] Total invocation + waiting duration: ", totalDuration, "\tIdle ", idleDuration, "\n")
@@ -222,6 +222,7 @@ load_generation:
  * Returns true if waiting timed out.
  */
 func wgWaitWithTimeout(wg *sync.WaitGroup, timeout time.Duration) bool {
+	log.Info("Start waiting for all requests to return.")
 	c := make(chan struct{})
 	go func() {
 		defer close(c)
@@ -229,7 +230,7 @@ func wgWaitWithTimeout(wg *sync.WaitGroup, timeout time.Duration) bool {
 	}()
 	select {
 	case <-c:
-		log.Info("Busy waiting finished at the end of all invocations.")
+		log.Info("Finished waiting for all invocations.")
 		return false
 	case <-time.After(timeout):
 		return true
@@ -308,7 +309,7 @@ func GenerateExecutionSpecs(function tc.Function) (int, int) {
 	return runtime, memory
 }
 
-func dumpOverloadFlag() {
+func DumpOverloadFlag() {
 	// If the file doesn't exist, create it, or append to the file
 	_, err := os.OpenFile("overload.flag", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
