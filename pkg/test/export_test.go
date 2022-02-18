@@ -12,34 +12,34 @@ func TestCheckOverload(t *testing.T) {
 	exporter := mc.NewExporter()
 	exporter.ReportExecution(
 		mc.ExecutionRecord{
-			Latency: 50,
-			Runtime: 5,
+			ResponseTime: 50,
+			Runtime:      5,
 		},
 	)
 	exporter.ReportExecution(
 		mc.ExecutionRecord{
-			Latency: 1,
-			Runtime: 1,
-			Timeout: true,
+			ResponseTime: 1,
+			Runtime:      1,
+			Timeout:      true,
 		},
 	)
 	exporter.ReportExecution(
 		mc.ExecutionRecord{
-			Latency: 1,
-			Runtime: 1,
-			Failed:  true,
+			ResponseTime: 1,
+			Runtime:      1,
+			Failed:       true,
 		},
 	)
 	exporter.ReportExecution(
 		mc.ExecutionRecord{
-			Latency: 1,
-			Runtime: 1,
+			ResponseTime: 1,
+			Runtime:      1,
 		},
 	)
 	exporter.ReportExecution(
 		mc.ExecutionRecord{
-			Latency: 1,
-			Runtime: 1,
+			ResponseTime: 1,
+			Runtime:      1,
 		},
 	)
 	assert.True(t, exporter.CheckOverload(0.6))
@@ -78,20 +78,20 @@ func TestGetLatenciesInOrder(t *testing.T) {
 
 	exporter.ReportExecution(
 		mc.ExecutionRecord{
-			Timestamp: 1000_000,
-			Latency:   0,
+			Timestamp:    1000_000,
+			ResponseTime: 0,
 		},
 	)
 	exporter.ReportExecution(
 		mc.ExecutionRecord{
-			Timestamp: 1000_000_000,
-			Latency:   2,
+			Timestamp:    1000_000_000,
+			ResponseTime: 2,
 		},
 	)
 	exporter.ReportExecution(
 		mc.ExecutionRecord{
-			Timestamp: 1000,
-			Latency:   1,
+			Timestamp:    1000,
+			ResponseTime: 1,
 		},
 	)
 

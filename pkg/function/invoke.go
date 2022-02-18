@@ -59,9 +59,9 @@ func Invoke(ctx context.Context, function tc.Function, gen tc.FunctionSpecsGen) 
 
 	log.Infof("(gRPC)\t %s: %d[µs], %d[KB]", function.GetName(), runtime, memoryUsage)
 
-	latency := time.Since(start).Microseconds()
-	record.Latency = latency
-	log.Infof("(Latency)\t %s: %d[µs]\n", function.GetName(), latency)
+	responseTime := time.Since(start).Microseconds()
+	record.ResponseTime = responseTime
+	log.Infof("(Latency)\t %s: %d[µs]\n", function.GetName(), responseTime)
 
 	return true, record
 }

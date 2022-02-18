@@ -48,17 +48,17 @@ func NewExporter() Exporter {
 const SLOWDOWN_THRESHOLD = 10
 
 func (ep *Exporter) CheckOverload(failureRatio float64) bool {
-	checkSlowdown := func(latency int64, runtime uint32) bool {
-		return latency/int64(runtime) >= SLOWDOWN_THRESHOLD
+	checkSlowdown := func(responseTime int64, runtime uint32) bool {
+		return responseTime/int64(runtime) >= SLOWDOWN_THRESHOLD
 	}
 	failureCount := 0
 	for _, record := range ep.executionRecords {
 		if record.Timeout || record.Failed ||
-			checkSlowdown(record.Latency, record.Runtime) {
+			checkSlowdown(record.ResponseTime, record.Runtime) {
 			failureCount += 1
 		}
 	}
-	log.Info(failureCount)
+	// log.Info(failureCount)
 	return float64(failureCount)/float64(len(ep.executionRecords)) >= failureRatio
 }
 
@@ -66,12 +66,12 @@ const LATENCY_WINDOW = 10_000
 
 func (ep *Exporter) IsLatencyStationary(pvalue float64) bool {
 	latencies := ep.GetLatenciesInOrder()
+
 	//* Prevent overflow.
 	if len(latencies) > LATENCY_WINDOW {
 		latencies = latencies[len(latencies)-LATENCY_WINDOW:]
 	}
-	//* Here `-` is used to form a single cmd argument to prevent
-	//* the violation of the calling convention.
+	//* Here `-` is used to form a single cmd argument to prevent the violation of the calling convention.
 	latenciesStr := strings.Trim(strings.Join(
 		strings.Fields(fmt.Sprint(latencies)), "-"), "[]")
 
@@ -112,17 +112,17 @@ func (ep *Exporter) IsLatencyStationary(pvalue float64) bool {
 }
 
 func (ep *Exporter) GetLatenciesInOrder() []float64 {
-	ep.sortLatencyRecords()
+	ep.sortExecutionRecordsByTime()
 
 	lantencies := make([]float64, len(ep.executionRecords))
 	for i, record := range ep.executionRecords {
-		lantencies[i] = float64(record.Latency)
+		lantencies[i] = float64(record.ResponseTime) - float64(record.Runtime)
 	}
 	return lantencies
 }
 
 // Sort records in ascending order.
-func (ep *Exporter) sortLatencyRecords() {
+func (ep *Exporter) sortExecutionRecordsByTime() {
 	sort.Slice(ep.executionRecords,
 		func(i, j int) bool {
 			return ep.executionRecords[i].Timestamp < ep.executionRecords[j].Timestamp
