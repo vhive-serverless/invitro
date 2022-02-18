@@ -96,6 +96,10 @@ func main() {
 	}
 
 	/** Measurement (Phase 3) */
+	if nextPhaseStart == *duration-1 {
+		gen.DumpOverloadFlag()
+		log.Infof("Warmup failed to finish in %d minutes", *duration)
+	}
 	log.Infof("Phase 3: Generate real workloads as of Minute[%d]", nextPhaseStart)
 	defer gen.GenerateLoads(
 		*sampleSize,
