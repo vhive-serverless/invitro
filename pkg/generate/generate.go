@@ -85,7 +85,6 @@ func GenerateLoads(
 	start := time.Now()
 	wg := sync.WaitGroup{}
 	exporter := mc.NewExporter()
-	idleDuration := time.Duration(0)
 	totalDurationMinutes := len(totalNumInvocationsEachMinute)
 
 	minute := 0
@@ -104,7 +103,6 @@ load_generation:
 		log.Infof("Minute[%d]\t RPS=%d", minute, rps)
 
 		numFuncInvocaked := 0
-		idleDuration = time.Duration(0)
 
 		/** Set up timer to bound the one-minute invocation. */
 		iterStart := time.Now()
@@ -112,7 +110,7 @@ load_generation:
 		timeout := time.After(time.Duration(60)*time.Second - epsilon)
 		interval := time.Duration(iats[tick]) * time.Microsecond
 		ticker := time.NewTicker(interval)
-		done := make(chan bool)
+		done := make(chan bool, 2) // Two semaphores, one for timer, one for early completion.
 
 		/** Launch a timer. */
 		go func() {
@@ -130,9 +128,8 @@ load_generation:
 			select {
 			case t := <-ticker.C:
 				if tick >= numInvocatonsThisMinute {
-					log.Info("Idle ticking at ", t.Format(time.StampMilli), "\tMinute Nbr. ", minute, " Itr. ", tick)
-					idleDuration += interval
-					continue
+					log.Info("Finish target invocation early at ", t.Format(time.StampMilli), "\tMinute Nbr. ", minute, " Itr. ", tick)
+					done <- true
 				}
 				go func(m int, nxt int, phase int, rps int) {
 					defer wg.Done()
@@ -167,7 +164,6 @@ load_generation:
 					Phase:           phaseIdx,
 					Rps:             rps,
 					Duration:        time.Since(iterStart).Microseconds(),
-					IdleDuration:    idleDuration.Microseconds(),
 					NumFuncTargeted: totalNumInvocationsEachMinute[minute],
 					NumFuncInvoked:  numFuncInvocaked,
 					NumFuncFailed:   numInvocatonsThisMinute - numFuncInvocaked,
@@ -213,7 +209,7 @@ load_generation:
 		log.Warn("Time out waiting for all invocations to return.")
 	} else {
 		totalDuration := time.Since(start)
-		log.Info("[No time out] Total invocation + waiting duration: ", totalDuration, "\tIdle ", idleDuration, "\n")
+		log.Info("[No time out] Total invocation + waiting duration: ", totalDuration, "\n")
 	}
 
 	defer exporter.FinishAndSave(sampleSize, phaseIdx, minute)

@@ -66,8 +66,11 @@ const LATENCY_WINDOW = 10_000
 
 func (ep *Exporter) IsLatencyStationary(pvalue float64) bool {
 	latencies := ep.GetLatenciesInOrder()
+	if len(latencies) <= 3 {
+		return true
+	}
 
-	//* Prevent overflow.
+	//* Window the measurements to prevent overflow.
 	if len(latencies) > LATENCY_WINDOW {
 		latencies = latencies[len(latencies)-LATENCY_WINDOW:]
 	}
@@ -94,7 +97,7 @@ func (ep *Exporter) IsLatencyStationary(pvalue float64) bool {
 		log.Warn("Fail to parse ADF test result: ", string(out[:]), err)
 		return false
 	}
-	log.Info(result)
+	// log.Info(result)
 
 	isStationary := pvalue >= result.Pvalue
 	switch {
