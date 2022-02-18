@@ -5,7 +5,7 @@ import os
 import os.path
 
 if __name__ == "__main__":
-    duration = sys.argv[1]
+    _, duration, cluster = sys.argv
 
     tracef = list(map(ntpath.basename, sorted(glob('data/traces/*.csv'))))
     sizes = []
@@ -14,10 +14,11 @@ if __name__ == "__main__":
     sizes.sort()
 
     flagf = 'overload.flag'
-    if glob(flagf):
-        os.system(f"rm {flagf}")
+    if glob(flagf): os.system(f"rm {flagf}")
+
     for size in sizes:
-        # print(f"make ARGS='--sample {size} --duration {duration} --withWarmup 2>&1 | tee cap_{size}.log")
-        os.system(f"make ARGS='--sample {size} --duration {duration} --warmup' run 2>&1 | tee cap_{size}.log")
+        command = f"make ARGS='--sample {size} --duration {duration} --cluster {cluster} --warmup' run 2>&1 | tee cap_{size}.log"
+        print(command)
+        os.system(command=command)
         if glob(flagf):
-            break
+            sys.exit()
