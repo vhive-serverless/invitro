@@ -2,12 +2,22 @@ package util
 
 import (
 	"math/rand"
-	"time"
+	"strconv"
+	"strings"
 )
 
 /** Seed the math/rand package for it to be different on each run. */
-func init() {
-	rand.Seed(time.Now().UnixNano())
+// func init() {
+// 	rand.Seed(time.Now().UnixNano())
+// }
+
+func Hex2Int(hexStr string) int64 {
+	// remove 0x suffix if found in the input string
+	cleaned := strings.Replace(hexStr, "0x", "", -1)
+
+	// base 16 for hexadecimal
+	result, _ := strconv.ParseUint(cleaned, 16, 64)
+	return int64(result)
 }
 
 func RandIntBetween(min, max int) int {

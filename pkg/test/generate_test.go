@@ -12,14 +12,14 @@ import (
 
 func TestGenerateIat(t *testing.T) {
 	invocationsPerMinute := 20_000
-	iats := gen.GenerateInterarrivalTimesInMicro(invocationsPerMinute, true)
+	iats := gen.GenerateInterarrivalTimesInMicro(0, invocationsPerMinute, true)
 	duration, _ := stats.Sum(stats.LoadRawData(iats))
 
 	assert.Equal(t, iats[rand.Intn(len(iats))], iats[rand.Intn(len(iats))])
 	assert.Equal(t, invocationsPerMinute, len(iats))
 	assert.Greater(t, 60_000_000.0, duration)
 
-	iats = gen.GenerateInterarrivalTimesInMicro(invocationsPerMinute, false)
+	iats = gen.GenerateInterarrivalTimesInMicro(0, invocationsPerMinute, false)
 	duration, _ = stats.Sum(stats.LoadRawData(iats))
 
 	assert.Equal(t, invocationsPerMinute, len(iats))
