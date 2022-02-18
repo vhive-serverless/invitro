@@ -159,28 +159,27 @@ load_generation:
 				log.Info("Target #invocations=", totalNumInvocationsEachMinute[minute],
 					" Fired #functions=", numFuncInvocaked, "\tMinute Nbr. ", minute)
 
-				is_stationary := exporter.IsLatencyStationary(STATIONARY_P_VALUE)
+				invocRecord := mc.MinuteInvocationRecord{
+					MinuteIdx:       minute + phaseOffset,
+					Phase:           phaseIdx,
+					Rps:             rps,
+					Duration:        time.Since(iterStart).Microseconds(),
+					IdleDuration:    idleDuration.Microseconds(),
+					NumFuncTargeted: totalNumInvocationsEachMinute[minute],
+					NumFuncInvoked:  numFuncInvocaked,
+					NumFuncFailed:   numInvocatonsThisMinute - numFuncInvocaked,
+				}
+				//* Export metrics for all phases.
+				exporter.ReportInvocation(invocRecord)
 
+				is_stationary := exporter.IsLatencyStationary(STATIONARY_P_VALUE)
 				switch phaseIdx {
 				case 3: /** Measurement phase */
-					if is_stationary {
-						invocRecord := mc.MinuteInvocationRecord{
-							MinuteIdx:       minute + phaseOffset,
-							Phase:           phaseIdx,
-							Rps:             rps,
-							Duration:        time.Since(iterStart).Microseconds(),
-							IdleDuration:    idleDuration.Microseconds(),
-							NumFuncTargeted: totalNumInvocationsEachMinute[minute],
-							NumFuncInvoked:  numFuncInvocaked,
-							NumFuncFailed:   numInvocatonsThisMinute - numFuncInvocaked,
-						}
-						//* Only export metrics of the stationary measurement phase.
-						exporter.ReportInvocation(invocRecord)
-					}
 					if exporter.CheckOverload(FAILURE_RATE_THRESHOLD) {
-						minute++
 						dumpOverloadFlag()
-						break load_generation
+						//! Dump the flag but continue experiments.
+						// minute++
+						// break load_generation
 					}
 				default: /** Warmup phase */
 					if is_stationary {
