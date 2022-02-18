@@ -22,7 +22,7 @@ clean:
 	kubectl delete --all pods --namespace=default
 	bash scripts/warmup/reset_kn_global.sh
 	rm -f load
-	rm -f *.log
+# 	rm -f *.log
 	go mod tidy
 
 build:
