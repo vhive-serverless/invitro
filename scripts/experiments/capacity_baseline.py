@@ -19,7 +19,5 @@ if __name__ == "__main__":
     for size in sizes:
         # print(f"make ARGS='--sample {size} --duration {duration} --withWarmup 2>&1 | tee cap_{size}.log")
         os.system(f"make ARGS='--sample {size} --duration {duration} --warmup' run 2>&1 | tee cap_{size}.log")
-        if not glob(flagf):
-            continue
-        else:
+        if glob(flagf):
             break
