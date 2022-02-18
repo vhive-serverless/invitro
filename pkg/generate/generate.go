@@ -18,16 +18,16 @@ import (
 
 const (
 	STATIONARY_P_VALUE     = 0.05
-	FAILURE_RATE_THRESHOLD = 0.1
+	FAILURE_RATE_THRESHOLD = 0.3
 )
 
 /** Seed the math/rand package for it to be different on each run. */
-func init() {
-	rand.Seed(time.Now().UnixNano())
-}
+// func init() {
+// 	rand.Seed(time.Now().UnixNano())
+// }
 
-func GenerateInterarrivalTimesInMicro(invocationsPerMinute int, uniform bool) []float64 {
-	rand.Seed(time.Now().UnixNano())
+func GenerateInterarrivalTimesInMicro(seed int, invocationsPerMinute int, uniform bool) []float64 {
+	rand.Seed(int64(seed)) //! Fix randomness.
 	oneSecondInMicro := 1000_000.0
 	oneMinuteInMicro := 60*oneSecondInMicro - 1000
 
@@ -97,7 +97,10 @@ load_generation:
 
 		rps = int(float64(totalNumInvocationsEachMinute[minute]) / 60)
 		iats = GenerateInterarrivalTimesInMicro(
-			totalNumInvocationsEachMinute[minute], isFixedRate)
+			minute, //! Fix randomness.
+			totalNumInvocationsEachMinute[minute],
+			isFixedRate,
+		)
 		log.Infof("Minute[%d]\t RPS=%d", minute, rps)
 
 		numFuncInvocaked := 0
@@ -244,6 +247,8 @@ func wgWaitWithTimeout(wg *sync.WaitGroup, timeout time.Duration) bool {
 func ShuffleAllInvocationsInplace(invocationsEachMinute *[][]int) {
 	suffleOneMinute := func(invocations *[]int) {
 		for i := range *invocations {
+			rand.Seed(int64(i)) //! Fix randomness.
+
 			j := rand.Intn(i + 1)
 			(*invocations)[i], (*invocations)[j] = (*invocations)[j], (*invocations)[i]
 		}
@@ -255,6 +260,9 @@ func ShuffleAllInvocationsInplace(invocationsEachMinute *[][]int) {
 }
 
 func GenerateExecutionSpecs(function tc.Function) (int, int) {
+	seed := util.Hex2Int(function.Hash)
+	rand.Seed(seed) //! Fix randomness.
+
 	var runtime, memory int
 	//* Generate a uniform quantiles in [0, 1).
 	memQtl := rand.Float64()

@@ -25,6 +25,9 @@ clean:
 # 	rm -f *.log
 	go mod tidy
 
+rm-data:
+	rm *log *flag data/out/*
+
 build:
 	go build cmd/load.go
 
