@@ -4,8 +4,8 @@ import sys
 import os
 import os.path
 
-if __name__ == "__main__":
-    _, duration, cluster = sys.argv
+def main(argv):
+    _, duration, cluster = argv
 
     tracef = list(map(ntpath.basename, sorted(glob('data/traces/*.csv'))))
     sizes = []
@@ -21,4 +21,14 @@ if __name__ == "__main__":
         print(command)
         os.system(command=command)
         if glob(flagf):
-            sys.exit()
+            break
+
+if __name__ == '__main__':
+    try:
+        main(sys.argv)
+    except KeyboardInterrupt:
+        print('Experiment interrupted')
+        try:
+            sys.exit(0)
+        except SystemExit:
+            os._exit(0)
