@@ -18,7 +18,7 @@ import (
 
 const (
 	STATIONARY_P_VALUE     = 0.05
-	FAILURE_RATE_THRESHOLD = 0.3
+	FAILURE_RATE_THRESHOLD = 0.5
 )
 
 /** Seed the math/rand package for it to be different on each run. */
