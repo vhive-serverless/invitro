@@ -46,7 +46,6 @@ func Deploy(functions []tc.Function, serviceConfigPath string, minScales []int) 
 }
 
 func deployFunction(function *tc.Function, workloadPath string, minScale int) bool {
-	//TODO: Make concurrency configurable.
 	cmd := exec.Command(
 		"kn",
 		"service",
@@ -58,6 +57,9 @@ func deployFunction(function *tc.Function, workloadPath string, minScale int) bo
 		strconv.Itoa(minScale),
 		"--concurrency-target",
 		"1",
+		//* Wait for infintely long for ensuring warmup.
+		"--wait-timeout",
+		"2147483640",
 	)
 	stdoutStderr, err := cmd.CombinedOutput()
 	log.Debug("CMD response: ", string(stdoutStderr))
