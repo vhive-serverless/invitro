@@ -62,7 +62,7 @@ func (ep *Exporter) CheckOverload(failureRatio float64) bool {
 	return float64(failureCount)/float64(len(ep.executionRecords)) >= failureRatio
 }
 
-const LATENCY_WINDOW = 10_000
+const LATENCY_WINDOW = 500
 
 func (ep *Exporter) IsLatencyStationary(pvalue float64) bool {
 	latencies := ep.GetLatenciesInOrder()
