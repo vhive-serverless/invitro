@@ -119,7 +119,7 @@ func (ep *Exporter) GetLatenciesInOrder() []float64 {
 
 	lantencies := make([]float64, len(ep.executionRecords))
 	for i, record := range ep.executionRecords {
-		lantencies[i] = float64(record.ResponseTime)
+		lantencies[i] = float64(record.ResponseTime) - float64(record.Runtime)
 	}
 	return lantencies
 }
