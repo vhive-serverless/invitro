@@ -96,7 +96,7 @@ func main() {
 	}
 
 	/** Measurement (Phase 3) */
-	if nextPhaseStart == *duration-1 {
+	if nextPhaseStart == *duration {
 		gen.DumpOverloadFlag()
 		log.Infof("Warmup failed to finish in %d minutes", *duration)
 	}
