@@ -65,15 +65,12 @@ func GenerateInterarrivalTimesInMicro(seed int, invocationsPerMinute int, unifor
 	return interArrivalTimes
 }
 
-func GenerateStressLoads(stressSlotInMinutes, rpsStep int) {
+func GenerateStressLoads(function tc.Function, stressSlotInMinutes int, rpsStep int) {
 	start := time.Now()
 	wg := sync.WaitGroup{}
 	exporter := mc.NewExporter()
 	clusterUsage := mc.ClusterUsage{}
-	function := tc.Function{
-		Name:     "stress-func",
-		Endpoint: tc.GetFuncEndpoint("stress-func"),
-	}
+
 	/** Launch a scraper that updates the cluster usage every 15s (max. interval). */
 	scrape := time.NewTicker(time.Second * 15)
 	go func() {

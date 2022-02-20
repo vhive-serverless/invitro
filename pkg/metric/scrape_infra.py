@@ -7,8 +7,6 @@ if __name__ == "__main__":
     abs_out = subprocess.check_output(cmd_get_abs_vals).decode("utf-8")[:-1]
     pcts_out = subprocess.check_output(cmd_get_pcts).decode("utf-8")
 
-    print(abs_out, pcts_out)
-
     result = {
         "cpu": [],
         "cpu_pct": 0,
@@ -27,4 +25,5 @@ if __name__ == "__main__":
         result['memory_pct'] += int(mem_pct)
     result['cpu_pct'] /= counter
     result['memory_pct'] /= counter
+    
     print(result)
