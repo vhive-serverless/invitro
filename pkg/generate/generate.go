@@ -65,7 +65,82 @@ func GenerateInterarrivalTimesInMicro(seed int, invocationsPerMinute int, unifor
 	return interArrivalTimes
 }
 
-func GenerateLoads(
+func GenerateStressLoads(stressSlotInMinutes, rpsStep int) {
+	start := time.Now()
+	wg := sync.WaitGroup{}
+	exporter := mc.NewExporter()
+	clusterUsage := mc.ClusterUsage{}
+	function := tc.Function{
+		Name:     "stress-func",
+		Endpoint: tc.GetFuncEndpoint("stress-func"),
+	}
+	/** Launch a scraper that updates the cluster usage every 15s (max. interval). */
+	scrape := time.NewTicker(time.Second * 15)
+	go func() {
+		for {
+			<-scrape.C
+			clusterUsage = mc.ScrapeClusterUsage()
+		}
+	}()
+
+	rps := 1
+stress_generation:
+	for {
+		timeout := time.After(time.Minute * time.Duration(stressSlotInMinutes))
+		interval := time.Duration(1000.0/rps) * time.Millisecond
+		ticker := time.NewTicker(interval)
+		done := make(chan bool, 1)
+
+		/** Launch a timer. */
+		go func() {
+			<-timeout
+			ticker.Stop()
+			done <- true
+		}()
+
+		for {
+			select {
+			case <-ticker.C:
+				go func(rps int) {
+					defer wg.Done()
+					wg.Add(1)
+
+					//* Use the maximum socket timeout from AWS (1min).
+					diallingTimeout := 1 * time.Minute
+					ctx, cancel := context.WithTimeout(context.Background(), diallingTimeout)
+					defer cancel()
+
+					_, execRecord := fc.Invoke(ctx, function, GenerateStressExecutionSpecs)
+					execRecord.Rps = rps
+					execRecord.ClusterCpuAvg, execRecord.ClusterMemAvg = clusterUsage.CpuPctAvg, clusterUsage.MemoryPctAvg
+					exporter.ReportExecution(execRecord)
+				}(rps) //* NB: `clusterUsage` needn't be pushed onto the stack as we want the latest.
+
+			case <-done:
+				if exporter.CheckOverload(FAILURE_RATE_THRESHOLD) {
+					break stress_generation
+				} else {
+					goto next_rps
+				}
+			}
+		}
+	next_rps:
+		rps += rpsStep
+	}
+	log.Info("Finished stress load generation with ending RPS=", rps)
+
+	forceTimeoutDuration := 30 * time.Minute
+	if wgWaitWithTimeout(&wg, forceTimeoutDuration) {
+		log.Warn("Time out waiting for all invocations to return.")
+	} else {
+		totalDuration := time.Since(start)
+		log.Info("[No time out] Total invocation + waiting duration: ", totalDuration, "\n")
+	}
+
+	defer exporter.FinishAndSave(0, 0, rps*stressSlotInMinutes)
+}
+
+func GenerateTraceLoads(
 	sampleSize int,
 	phaseIdx int,
 	phaseOffset int,
@@ -89,7 +164,7 @@ func GenerateLoads(
 
 	minute := 0
 
-load_generation:
+trace_generation:
 	for ; minute < int(totalDurationMinutes); minute++ {
 		tick := 0
 		var iats []float64
@@ -102,12 +177,11 @@ load_generation:
 		)
 		log.Infof("Minute[%d]\t RPS=%d", minute, rps)
 
-		numFuncInvocaked := 0
+		numFuncInvoked := 0
 
 		/** Set up timer to bound the one-minute invocation. */
 		iterStart := time.Now()
-		epsilon := time.Duration(0)
-		timeout := time.After(time.Duration(60)*time.Second - epsilon)
+		timeout := time.After(time.Duration(60) * time.Second)
 		interval := time.Duration(iats[tick]) * time.Microsecond
 		ticker := time.NewTicker(interval)
 		done := make(chan bool, 2) // Two semaphores, one for timer, one for early completion.
@@ -143,7 +217,7 @@ load_generation:
 					ctx, cancel := context.WithTimeout(context.Background(), diallingTimeout)
 					defer cancel()
 
-					hasInvoked, execRecord := fc.Invoke(ctx, function, GenerateExecutionSpecs)
+					hasInvoked, execRecord := fc.Invoke(ctx, function, GenerateTraceExecutionSpecs)
 
 					if hasInvoked {
 						atomic.AddInt32(&invocationCount, 1)
@@ -154,10 +228,10 @@ load_generation:
 				}(minute, tick, phaseIdx, rps) //* Push vars onto the stack to prevent race.
 
 			case <-done:
-				numFuncInvocaked += int(invocationCount)
+				numFuncInvoked += int(invocationCount)
 				log.Info("Iteration spent: ", time.Since(iterStart), "\tMinute Nbr. ", minute)
 				log.Info("Target #invocations=", totalNumInvocationsEachMinute[minute],
-					" Fired #functions=", numFuncInvocaked, "\tMinute Nbr. ", minute)
+					" Fired #functions=", numFuncInvoked, "\tMinute Nbr. ", minute)
 
 				invocRecord := mc.MinuteInvocationRecord{
 					MinuteIdx:       minute + phaseOffset,
@@ -165,8 +239,8 @@ load_generation:
 					Rps:             rps,
 					Duration:        time.Since(iterStart).Microseconds(),
 					NumFuncTargeted: totalNumInvocationsEachMinute[minute],
-					NumFuncInvoked:  numFuncInvocaked,
-					NumFuncFailed:   numInvocatonsThisMinute - numFuncInvocaked,
+					NumFuncInvoked:  numFuncInvoked,
+					NumFuncFailed:   numInvocatonsThisMinute - numFuncInvoked,
 				}
 				//* Export metrics for all phases.
 				exporter.ReportInvocation(invocRecord)
@@ -183,7 +257,7 @@ load_generation:
 				default: /** Warmup phase */
 					if is_stationary {
 						minute++
-						break load_generation
+						break trace_generation
 					}
 				}
 				goto next_minute
@@ -255,7 +329,12 @@ func ShuffleAllInvocationsInplace(invocationsEachMinute *[][]int) {
 	}
 }
 
-func GenerateExecutionSpecs(function tc.Function) (int, int) {
+func GenerateStressExecutionSpecs(function tc.Function) (int, int) {
+	//* Median values of corresponding avg. of the whole Azure trace.
+	return 4443, 1420
+}
+
+func GenerateTraceExecutionSpecs(function tc.Function) (int, int) {
 	seed := util.Hex2Int(function.Hash)
 	rand.Seed(seed) //! Fix randomness.
 

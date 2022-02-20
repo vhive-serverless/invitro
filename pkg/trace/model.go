@@ -55,8 +55,8 @@ type FunctionMemoryStats struct {
 }
 
 type Function struct {
-	Mame            string
-	Url             string
+	Name            string
+	Endpoint        string
 	AppHash         string
 	Hash            string
 	Deployed        bool
@@ -79,7 +79,7 @@ func (f *Function) SetHash(hash int) {
 }
 
 func (f *Function) SetName(name string) {
-	f.Mame = name
+	f.Name = name
 }
 
 func (f *Function) SetStatus(b bool) {
@@ -91,15 +91,15 @@ func (f *Function) GetStatus() bool {
 }
 
 func (f *Function) GetName() string {
-	return f.Mame
+	return f.Name
 }
 
 func (f *Function) GetUrl() string {
-	return f.Url
+	return f.Endpoint
 }
 
 func (f *Function) SetUrl(url string) {
-	f.Url = url
+	f.Endpoint = url
 }
 
 func (f *Function) GetExpectedConcurrency() int {

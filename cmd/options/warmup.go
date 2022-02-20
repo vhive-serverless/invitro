@@ -55,7 +55,7 @@ func Warmup(sampleSize int, totalNumPhases int, rps int,
 		}
 
 		log.Infof("Enter Phase %d as of Minute[%d]", phaseIdx, nextPhaseStart)
-		nextPhaseStart = gen.GenerateLoads(
+		nextPhaseStart = gen.GenerateTraceLoads(
 			sampleSize,
 			phaseIdx,
 			nextPhaseStart,
