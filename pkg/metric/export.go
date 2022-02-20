@@ -22,10 +22,10 @@ type Exporter struct {
 }
 
 type ClusterUsage struct {
-	Cpu          []string
-	CpuPctAvg    float64
-	Memory       []string
-	MemoryPctAvg float64
+	Cpu          []string `json:"cpu"`
+	CpuPctAvg    float64  `json:"cpu_pct"`
+	Memory       []string `json:"memory"`
+	MemoryPctAvg float64  `json:"memory_pct"`
 }
 
 type AdfResult struct {
