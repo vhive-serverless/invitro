@@ -60,19 +60,6 @@ func init() {
 		}
 		defer shutdown()
 	}
-
-	/** Trace parsing. */
-	traces = tc.ParseInvocationTrace(
-		"data/traces/"+strconv.Itoa(*sampleSize)+"_inv.csv", *duration)
-	tc.ParseDurationTrace(
-		&traces, "data/traces/"+strconv.Itoa(*sampleSize)+"_run.csv")
-	tc.ParseMemoryTrace(
-		&traces, "data/traces/"+strconv.Itoa(*sampleSize)+"_mem.csv")
-
-	log.Info("Traces contain the following: ", len(traces.Functions), " functions")
-	for _, function := range traces.Functions {
-		fmt.Println("\t" + function.GetName())
-	}
 }
 
 func main() {
@@ -87,6 +74,19 @@ func main() {
 }
 
 func runTraceMode() {
+	/** Trace parsing */
+	traces = tc.ParseInvocationTrace(
+		"data/traces/"+strconv.Itoa(*sampleSize)+"_inv.csv", *duration)
+	tc.ParseDurationTrace(
+		&traces, "data/traces/"+strconv.Itoa(*sampleSize)+"_run.csv")
+	tc.ParseMemoryTrace(
+		&traces, "data/traces/"+strconv.Itoa(*sampleSize)+"_mem.csv")
+
+	log.Info("Traces contain the following: ", len(traces.Functions), " functions")
+	for _, function := range traces.Functions {
+		fmt.Println("\t" + function.GetName())
+	}
+
 	totalNumPhases := 3
 	profilingMinutes := *duration/2 + 1 //TODO
 
@@ -101,7 +101,7 @@ func runTraceMode() {
 	}
 
 	/** Deployment */
-	functions := fc.Deploy(traces.Functions, serviceConfigPath, traces.WarmupScales)
+	functions := fc.DeployTrace(traces.Functions, serviceConfigPath, traces.WarmupScales)
 
 	/** Warmup (Phase 1 and 2) */
 	nextPhaseStart := 0
@@ -127,5 +127,11 @@ func runTraceMode() {
 }
 
 func runStressMode() {
-	defer gen.GenerateStressLoads(*slot, *step)
+	function := tc.Function{
+		Name:     "stress-func",
+		Endpoint: tc.GetFuncEndpoint("stress-func"),
+	}
+	fc.DeployFunction(&function, serviceConfigPath, 0)
+
+	defer gen.GenerateStressLoads(function, *slot, *step)
 }

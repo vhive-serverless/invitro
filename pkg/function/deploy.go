@@ -9,7 +9,7 @@ import (
 	tc "github.com/eth-easl/loader/pkg/trace"
 )
 
-func Deploy(functions []tc.Function, serviceConfigPath string, minScales []int) []tc.Function {
+func DeployTrace(functions []tc.Function, serviceConfigPath string, minScales []int) []tc.Function {
 	log.Info("Using service config file: ", serviceConfigPath)
 	var urls []string
 	// deploymentConcurrency := 1 //* Serialise deployment.
@@ -29,7 +29,7 @@ func Deploy(functions []tc.Function, serviceConfigPath string, minScales []int) 
 			}
 			// log.Info(function.GetName(), " -> minScale: ", minScale)
 
-			has_deployed := deployFunction(&function, serviceConfigPath, minScale)
+			has_deployed := DeployFunction(&function, serviceConfigPath, minScale)
 			function.SetStatus(has_deployed)
 
 			if has_deployed {
@@ -45,14 +45,14 @@ func Deploy(functions []tc.Function, serviceConfigPath string, minScales []int) 
 	return functions
 }
 
-func deployFunction(function *tc.Function, workloadPath string, minScale int) bool {
+func DeployFunction(function *tc.Function, serviceConfigPath string, minScale int) bool {
 	cmd := exec.Command(
 		"kn",
 		"service",
 		"apply",
-		function.GetName(),
+		function.Name,
 		"-f",
-		workloadPath,
+		serviceConfigPath,
 		"--scale-min",
 		strconv.Itoa(minScale),
 		"--concurrency-target",
@@ -69,6 +69,6 @@ func deployFunction(function *tc.Function, workloadPath string, minScale int) bo
 		return false
 	}
 
-	log.Info("Deployed function ", function.GetUrl())
+	log.Info("Deployed function ", function.Endpoint)
 	return true
 }
