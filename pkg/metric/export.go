@@ -49,7 +49,6 @@ func ScrapeClusterUsage() ClusterUsage {
 		"pkg/metric/scrape_infra.py",
 	)
 	out, err := cmd.CombinedOutput()
-	// log.Info(string(out[:]))
 	if err != nil {
 		log.Fatal("Fail to scrape cluster usage: ", err)
 	}

@@ -123,6 +123,7 @@ stress_generation:
 		}
 	next_rps:
 		rps += rpsStep
+		log.Info("Start next round with RPS=", rps, " after ", time.Since(start))
 	}
 	log.Info("Finished stress load generation with ending RPS=", rps)
 

@@ -1,4 +1,5 @@
 import subprocess
+import json
 
 if __name__ == "__main__":
     cmd_get_abs_vals = ['bash', 'scripts/metrics/get_node_stats_abs.sh']
@@ -25,5 +26,5 @@ if __name__ == "__main__":
         result['memory_pct'] += int(mem_pct)
     result['cpu_pct'] /= counter
     result['memory_pct'] /= counter
-    
-    print(result)
+
+    print(json.dumps(result))
