@@ -1,111 +1,116 @@
-#!/bin/bash
+#!/usr/bin/env bash
+MASTER_NODE=$1
 
-# get config
-source setup_config
+source "$(pwd)/scripts/setup/setup.cfg"
 
-MODE=''
-MASTER_INDEX=1
-LOGIN_TOKEN=""
+server_exec() { 
+	ssh -oStrictHostKeyChecking=no -p 22 "$1" "$2";
+}
 
-send() { ssh -oStrictHostKeyChecking=no -p 22 "$1" "$2"; }
-
-# function to initialize everything that needs to run on all servers
+#* Run initialisation on a node.
 common_init() {
-		send "$1" "git clone https://github.com/ease-lab/vhive"
-		send "$1" "cd vhive; git checkout bote"
-		send "$1" './vhive/scripts/cloudlab/setup_node.sh' $MODE
-		send "$1" 'tmux new -s containerd -d'
-		send "$1" 'tmux send -t containerd "sudo containerd 2>&1 | tee ~/containerd_log.txt" ENTER'
+	server_exec $1 "git clone --branch=$VHIVE_BRANCH https://github.com/ease-lab/vhive"
+	server_exec $1 "cd; ./vhive/scripts/cloudlab/setup_node.sh"
+	server_exec $1 'tmux new -s containerd -d'
+	server_exec $1 'tmux send -t containerd "sudo containerd 2>&1 | tee ~/containerd_log.txt" ENTER'
+}
+
+#* Set up all nodes including the master.
+for node in "$@"
+do
+	echo $node
+	common_init "$node" &
+done
+wait $!
+
+LOGIN_TOKEN=""
+IS_MASTER=1
+for node in "$@"
+do
+	server_exec() { 
+		ssh -oStrictHostKeyChecking=no -p 22 "$node" "$1"; 
 	}
+	if [ $IS_MASTER -eq 1 ]
+	then
+		echo "Setting up master node: $node"
+		IS_MASTER=0
+		server_exec 'wget -q https://dl.google.com/go/go1.17.linux-amd64.tar.gz >/dev/null'
+		server_exec 'sudo rm -rf /usr/local/go && sudo tar -C /usr/local/ -xzf go1.17.linux-amd64.tar.gz >/dev/null'
+		# server_exec 'sudo apt-get install libcairo2-dev libjpeg-dev libgif-dev'
+		server_exec 'echo "export PATH=$PATH:/usr/local/go/bin" >> .profile'
+		
+		server_exec 'tmux new -s master -d'
+		server_exec 'tmux send -t master "./vhive/scripts/cluster/create_multinode_cluster.sh" ENTER'
+		
+		# Get the join token from k8s.
+		while [ ! "$LOGIN_TOKEN" ]
+		do
+			sleep 1s
+			server_exec 'tmux capture-pane -t master -b token'
+			LOGIN_TOKEN="$(server_exec 'tmux show-buffer -b token | grep -B 3 "All nodes need to be joined"')"
+		done
+		# cut of last line
+		LOGIN_TOKEN=${LOGIN_TOKEN%[$'\t\r\n']*}
+		# remove the \
+		LOGIN_TOKEN=${LOGIN_TOKEN/\\/}
+		# remove all remaining tabs, line ends and returns
+		LOGIN_TOKEN=${LOGIN_TOKEN//[$'\t\r\n']}
+		
+	else
+		echo "Setting up worker node: $node"
+		server_exec "./vhive/scripts/cluster/setup_worker_kubelet.sh"
 
-# common init on all servers and wait until all of them are finished
-for server in "$@"
-do
-		common_init "$server" &
-done
-wait
-
-# iterate over inputs, first one is master rest will be registered as workers
-for server in "$@"
-do
-		# echo "$server"
-		send() { ssh -oStrictHostKeyChecking=no -p 22 "$server" "$1"; }
-		if [ $MASTER_INDEX -eq 1 ]
-		then
-				MASTER_INDEX=0
-				send 'sudo apt -y install moreutils'
-				send 'wget -q https://dl.google.com/go/go1.17.linux-amd64.tar.gz'
-				send 'sudo rm -rf /usr/local/go && sudo tar -C /usr/local/ -xzf go1.17.linux-amd64.tar.gz'
-				send 'echo "export PATH=$PATH:/usr/local/go/bin" >> .profile'
-				send 'tmux new -s vhive -d'
-				send 'tmux send -t vhive ./vhive/scripts/cluster/create_multinode_cluster.sh '"$MODE"' ENTER'
-				# wait for the registering token to appear
-				while [ ! "$LOGIN_TOKEN" ]
-				do
-						sleep 1s
-						send 'tmux capture-pane -t vhive -b token'
-						LOGIN_TOKEN="$(send 'tmux show-buffer -b token | grep -B 3 "All nodes need to be joined"')"
-				done
-				# cut of last line
-				LOGIN_TOKEN=${LOGIN_TOKEN%[$'\t\r\n']*}
-				# remove the \
-				LOGIN_TOKEN=${LOGIN_TOKEN/\\/}
-				# remove all remaining tabs, line ends and returns
-				LOGIN_TOKEN=${LOGIN_TOKEN//[$'\t\r\n']}
-		else
-				send './vhive/scripts/cluster/setup_worker_kubelet.sh' $MODE
-				send 'cd vhive; source /etc/profile && go build'
-				send 'tmux new -s firecracker -d'
-				send 'tmux send -t firecracker "sudo PATH=$PATH /usr/local/bin/firecracker-containerd --config /etc/firecracker-containerd/config.toml 2>&1 | tee ~/firecracker_log.txt" ENTER'
-				send 'tmux new -s vhive -d'
-				send 'tmux send -t vhive "cd vhive" ENTER'
-				send 'tmux send -t vhive "sudo ./vhive 2>&1 | tee ~/vhive_log.txt" ENTER'
-		fi
+		server_exec 'cd vhive; source /etc/profile && go build'
+		server_exec 'tmux new -s firecracker -d'
+		server_exec 'tmux send -t firecracker "sudo PATH=$PATH /usr/local/bin/firecracker-containerd --config /etc/firecracker-containerd/config.toml 2>&1 | tee ~/firecracker_log.txt" ENTER'
+		server_exec 'tmux new -s vhive -d'
+		server_exec 'tmux send -t vhive "cd vhive" ENTER'
+		server_exec 'tmux send -t vhive "sudo ./vhive 2>&1 | tee ~/vhive_log.txt" ENTER'
+	fi
 done
 
-MASTER_INDEX=1
-for server in "$@"
+IS_MASTER=1
+for node in "$@"
 do
-		if [ $MASTER_INDEX -eq 1 ]
-		then
-				MASTER_INDEX=0
-		else
-				send() { ssh -oStrictHostKeyChecking=no -p 22 "$server" "$1"; }
-				send "sudo ${LOGIN_TOKEN}"
-		fi
+	if [ $IS_MASTER -eq 1 ]
+	then
+		IS_MASTER=0
+	else
+		ssh -oStrictHostKeyChecking=no -p 22 $node "sudo ${LOGIN_TOKEN}"
+		echo "Worker node $node joined the cluster."
+
+		#* Stretch the capacity of the worker node to 500 (k8s default: 110).
+		echo "Streching node capacity for $node."
+		server_exec 'echo "maxPods: 500" > >(sudo tee -a /var/lib/kubelet/config.yaml >/dev/null)'
+		server_exec 'sudo systemctl restart kubelet'
+		
+		#* Rejoin has to be performed although errors will be thrown. Otherwise, restarting the kubelet will cause the node unreachable for some reason.
+		ssh -oStrictHostKeyChecking=no -p 22 $node "sudo ${LOGIN_TOKEN} > /dev/null 2>&1"
+		echo "Worker node $node joined the cluster (again :P)."
+	fi
 done
 
-masterServer="$1"
-masterSend() { ssh -oStrictHostKeyChecking=no -p 22 "$masterServer" "$1"; }
-# # notify the master that all nodes have been registered
-masterSend 'tmux send -t vhive "y" ENTER'
+server_exec() { 
+	ssh -oStrictHostKeyChecking=no -p 22 $MASTER_NODE $1;
+}
 
-# # set up monitoring on master
-# # set up name variable has no further meaning than an ID
-# releaseName="metrics"
-# # install helm
-# masterSend 'curl https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3 | bash'
-# # install and start prometheus stack using helm
-# masterSend 'helm repo add prometheus-community https://prometheus-community.github.io/helm-charts'
-# masterSend 'helm repo update'
-# masterSend 'kubectl create namespace monitoring'
-# masterSend "helm install -n monitoring --version 17.1.0 $releaseName prometheus-community/kube-prometheus-stack"
-# # wait a few seconds for it to finished
-# sleep 5s
-# # set up port forwarding
-# masterSend 'tmux new -s prometheus -d'
-# portForwardCommand="kubectl port-forward -n monitoring service/"$releaseName"-kube-prometheus-st-prometheus 9090"
-# portForwardCommand=\'$portForwardCommand\'
-# sleep 15s
-# masterSend "tmux send -t prometheus $portForwardCommand ENTER"
+#* Notify the master that all nodes have been registered
+server_exec 'tmux send -t master "y" ENTER'
+echo "Master node $MASTER_NODE finalised." 
 
-# # set the prometheus to find all service monitors
-# masterSend "sudo kubectl -n monitoring patch prometheus "$releaseName"-kube-prometheus-st-prometheus --type json -p '[{"op": "replace", "path": "/spec/serviceMonitorSelector", "value": {}}, {"op": "replace", "path": "/spec/serviceMonitorNamspaceSelector", "value": {}}]'"
-# # set the node exporter speed to 2s
-# masterSend "sudo kubectl -n monitoring patch ServiceMonitor "$releaseName"-kube-prometheus-st-node-exporter --type json -p '[{"op": "add", "path": "/spec/endpoints/0/interval", "value": "2s"}]'"
-# # set up the knative service monitors
-# scp monitors.yaml "$1":
-# masterSend 'kubectl apply -f monitors.yaml'
+#* Setup github authentication.
+ACCESS_TOKEH="$(cat $GITHUB_TOKEN)"
 
-# notes:
-# grafana id: admin pw: prom-operator
+server_exec 'echo -en "\n\n" | ssh-keygen -t rsa'
+server_exec 'ssh-keyscan -t rsa github.com >> ~/.ssh/known_hosts'
+
+server_exec 'curl -H "Authorization: token '"$ACCESS_TOKEH"'" --data "{\"title\":\"'"key:\$(hostname)"'\",\"key\":\"'"\$(cat ~/.ssh/id_rsa.pub)"'\"}" https://api.github.com/user/keys'
+
+#* Get loader and dependencies.
+server_exec "git clone --branch=$LOADER_BRANCH git@github.com:eth-easl/loader.git"
+server_exec 'echo -en "\n\n" | sudo apt-get install python3-pip python-dev'
+server_exec 'cd loader; pip install -r config/requirements.txt'
+
+monitor_infra_metrics.sh $MASTER_NODE
+
+ssh -p 22 $MASTER_NODE
