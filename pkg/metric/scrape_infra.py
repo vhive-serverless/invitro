@@ -15,7 +15,12 @@ if __name__ == "__main__":
         "memory_pct": 0,
     }
     counter = 0
+    is_master = True
     for abs_vals, pcts in zip(abs_out.split('\n'), pcts_out.split('\n')):
+        if is_master:
+            # Skip master node.
+            is_master = False
+            continue
         counter += 1
         cpu, mem = abs_vals.split(',')
         cpu_pct, mem_pct = pcts[:-1].split('%')
