@@ -16,16 +16,16 @@ import (
 func Invoke(ctx context.Context, function tc.Function, gen tc.FunctionSpecsGen) (bool, mc.ExecutionRecord) {
 	runtimeRequested, memoryRequested := gen(function)
 
-	log.Infof("(Invoke)\t %s: %d[µs], %d[MiB]", function.GetName(), runtimeRequested*int(math.Pow10(3)), memoryRequested)
+	log.Infof("(Invoke)\t %s: %d[µs], %d[MiB]", function.Name, runtimeRequested*int(math.Pow10(3)), memoryRequested)
 
 	var record mc.ExecutionRecord
-	record.FuncName = function.GetName()
+	record.FuncName = function.Name
 
 	// Start latency measurement.
 	start := time.Now()
 	record.Timestamp = start.UnixMicro()
 
-	conn, err := grpc.DialContext(ctx, function.GetUrl(), grpc.WithInsecure(), grpc.WithBlock())
+	conn, err := grpc.DialContext(ctx, function.Endpoint, grpc.WithInsecure(), grpc.WithBlock())
 	if err != nil {
 		log.Warnf("Failed to connect: %v", err)
 		record.Timeout = true
@@ -46,7 +46,7 @@ func Invoke(ctx context.Context, function tc.Function, gen tc.FunctionSpecsGen) 
 	})
 
 	if err != nil {
-		log.Warnf("%s: err=%v", function.GetName(), err)
+		log.Warnf("%s: err=%v", function.Name, err)
 		record.Failed = true
 		return false, record
 	}
@@ -57,11 +57,11 @@ func Invoke(ctx context.Context, function tc.Function, gen tc.FunctionSpecsGen) 
 	record.Memory = memoryUsage
 	record.Runtime = runtime
 
-	log.Infof("(gRPC)\t %s: %d[µs], %d[KB]", function.GetName(), runtime, memoryUsage)
+	log.Infof("(gRPC)\t %s: %d[µs], %d[KB]", function.Name, runtime, memoryUsage)
 
 	responseTime := time.Since(start).Microseconds()
 	record.ResponseTime = responseTime
-	log.Infof("(Latency)\t %s: %d[µs]\n", function.GetName(), responseTime)
+	log.Infof("(Latency)\t %s: %d[µs]\n", function.Name, responseTime)
 
 	return true, record
 }

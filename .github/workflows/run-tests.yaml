@@ -30,5 +30,7 @@ jobs:
       #       statsmodels
       #       numpy
 
+      - name: Build package
+        run: make build
       - name: Test package
         run: go test -v ./pkg/test/

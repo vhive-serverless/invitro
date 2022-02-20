@@ -17,6 +17,10 @@ const (
 	port       = "80"
 )
 
+var GetFuncEndpoint = func(name string) string {
+	return fmt.Sprintf("%s.%s.%s:%s", name, namespace, gatewayUrl, port)
+}
+
 func ParseInvocationTrace(traceFile string, traceDuration int) FunctionTraces {
 	// Clamp duration to (0, 1440].
 	traceDuration = util.MaxOf(util.MinOf(traceDuration, 1440), 1)
@@ -70,8 +74,8 @@ func ParseInvocationTrace(traceFile string, traceDuration int) FunctionTraces {
 			funcName := fmt.Sprintf("%s-%d", "trace-func", funcIdx)
 
 			function := Function{
-				Mame:            funcName,
-				Url:             fmt.Sprintf("%s.%s.%s:%s", funcName, namespace, gatewayUrl, port),
+				Name:            funcName,
+				Endpoint:        GetFuncEndpoint(funcName),
 				AppHash:         record[1],
 				Hash:            record[2],
 				InvocationStats: ProfileFunctionInvocations(invocations),
