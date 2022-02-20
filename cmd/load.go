@@ -24,12 +24,15 @@ var (
 	traces            tc.FunctionTraces
 	serviceConfigPath = "workloads/trace_func_go.yaml"
 
+	mode        = flag.String("mode", "trace", "Choose a mode from [trace, stress]")
 	debug       = flag.Bool("dbg", false, "Enable debug logging")
 	rps         = flag.Int("rps", -900_000, "Request per second")
 	cluster     = flag.Int("cluster", 1, "Size of the cluster measured by #workers")
 	duration    = flag.Int("duration", 3, "Duration of the experiment")
 	sampleSize  = flag.Int("sample", 6, "Sample size of the traces")
 	withTracing = flag.Bool("trace", false, "Enable tracing in the client")
+	slot        = flag.Int("slot", 1, "Time slot in minutes for each RPS in the `stress` mode")
+	step        = flag.Int("step", 1, "Step size for increasing RPS in the `stress` mode")
 
 	// withWarmup = flag.Int("withWarmup", -1000, "Duration of the withWarmup")
 	withWarmup = flag.Bool("warmup", false, "Enable warmup")
@@ -73,6 +76,17 @@ func init() {
 }
 
 func main() {
+	switch *mode {
+	case "trace":
+		runTraceMode()
+	case "stress":
+		runStressMode()
+	default:
+		log.Fatal("Invalid mode: ", *mode)
+	}
+}
+
+func runTraceMode() {
 	totalNumPhases := 3
 	profilingMinutes := *duration/2 + 1 //TODO
 
@@ -101,7 +115,7 @@ func main() {
 		log.Infof("Warmup failed to finish in %d minutes", *duration)
 	}
 	log.Infof("Phase 3: Generate real workloads as of Minute[%d]", nextPhaseStart)
-	defer gen.GenerateLoads(
+	defer gen.GenerateTraceLoads(
 		*sampleSize,
 		totalNumPhases,
 		nextPhaseStart,
@@ -110,4 +124,8 @@ func main() {
 		functions,
 		traces.InvocationsEachMinute[nextPhaseStart:],
 		traces.TotalInvocationsPerMinute[nextPhaseStart:])
+}
+
+func runStressMode() {
+	defer gen.GenerateStressLoads(*slot, *step)
 }

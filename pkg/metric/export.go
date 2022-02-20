@@ -21,6 +21,13 @@ type Exporter struct {
 	executionRecords  []ExecutionRecord
 }
 
+type ClusterUsage struct {
+	Cpu          []string
+	CpuPctAvg    float64
+	Memory       []string
+	MemoryPctAvg float64
+}
+
 type AdfResult struct {
 	TestStats    float64 `json:"statistic"`
 	Pvalue       float64 `json:"pvalue"`
@@ -36,13 +43,24 @@ type TValues struct {
 	Pct10 float64 `json:"10%"`
 }
 
-func NewExporter() Exporter {
-	return Exporter{
-		//* Note that the zero value of a mutex is usable as-is, so no
-		//* initialization is required here (e.g., mutex: sync.Mutex{}).
-		invocationRecords: []MinuteInvocationRecord{},
-		executionRecords:  []ExecutionRecord{},
+func ScrapeClusterUsage() ClusterUsage {
+	cmd := exec.Command(
+		"python3",
+		"pkg/metric/scrape_infra.py",
+	)
+	out, err := cmd.CombinedOutput()
+	// log.Info(string(out[:]))
+	if err != nil {
+		log.Fatal("Fail to scrape cluster usage: ", err)
 	}
+
+	var result ClusterUsage
+	err = json.Unmarshal(out, &result)
+	if err != nil {
+		log.Fatal("Fail to parse cluster usage: ", string(out[:]), err)
+	}
+
+	return result
 }
 
 const SLOWDOWN_THRESHOLD = 10
@@ -133,11 +151,22 @@ func (ep *Exporter) sortExecutionRecordsByTime() {
 	)
 }
 
+func NewExporter() Exporter {
+	return Exporter{
+		//* Note that the zero value of a mutex is usable as-is, so no
+		//* initialization is required here (e.g., mutex: sync.Mutex{}).
+		invocationRecords: []MinuteInvocationRecord{},
+		executionRecords:  []ExecutionRecord{},
+	}
+}
+
 func (ep *Exporter) FinishAndSave(sampleSize int, phase int, duration int) {
-	invocFileName := "data/out/inv_sample-" + strconv.Itoa(sampleSize) + "_phase-" + strconv.Itoa(phase) + "_dur-" + strconv.Itoa(duration) + ".csv"
-	invocF, err := os.Create(invocFileName)
-	util.Check(err)
-	gocsv.MarshalFile(&ep.invocationRecords, invocF)
+	if sampleSize > 0 {
+		invocFileName := "data/out/inv_sample-" + strconv.Itoa(sampleSize) + "_phase-" + strconv.Itoa(phase) + "_dur-" + strconv.Itoa(duration) + ".csv"
+		invocF, err := os.Create(invocFileName)
+		util.Check(err)
+		gocsv.MarshalFile(&ep.invocationRecords, invocF)
+	}
 
 	latencyFileName := "data/out/exc_sample-" + strconv.Itoa(sampleSize) + "_phase-" + strconv.Itoa(phase) + "_dur-" + strconv.Itoa(duration) + ".csv"
 	latencyF, err := os.Create(latencyFileName)
