@@ -53,7 +53,7 @@ func TestCheckOverload(t *testing.T) {
 
 	exporter.ReportExecution(
 		mc.ExecutionRecord{
-			ResponseTime: 100,
+			ResponseTime: 500,
 			Runtime:      5,
 		},
 	)
@@ -66,7 +66,7 @@ func TestCheckOverload(t *testing.T) {
 	)
 	exporter.ReportExecution(
 		mc.ExecutionRecord{
-			ResponseTime: 200,
+			ResponseTime: 2000,
 			Runtime:      5,
 		},
 	)
