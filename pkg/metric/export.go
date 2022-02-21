@@ -66,8 +66,8 @@ func ScrapeClusterUsage() ClusterUsage {
 
 const SLOWDOWN_THRESHOLD = 100
 
-func (ep *Exporter) CheckOverload() bool {
-	if len(ep.slowdowns) < 10 {
+func (ep *Exporter) CheckOverload(windowSize int) bool {
+	if len(ep.slowdowns) <= windowSize {
 		return false
 	}
 	slowdowns := stats.LoadRawData(ep.slowdowns)

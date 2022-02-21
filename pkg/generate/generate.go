@@ -114,7 +114,7 @@ stress_generation:
 				}(rps) //* NB: `clusterUsage` needn't be pushed onto the stack as we want the latest.
 
 			case <-done:
-				if exporter.CheckOverload() {
+				if exporter.CheckOverload(rps * 60 * stressSlotInMinutes) {
 					break stress_generation
 				} else {
 					goto next_rps
@@ -256,7 +256,7 @@ trace_generation:
 
 				switch phaseIdx {
 				case 3: /** Measurement phase */
-					if exporter.CheckOverload() {
+					if exporter.CheckOverload(rps * 60) {
 						DumpOverloadFlag()
 						minute++
 						break trace_generation
