@@ -66,7 +66,11 @@ const SLOWDOWN_THRESHOLD = 10
 
 func (ep *Exporter) CheckOverload(window int, failureRatio float64) bool {
 	ep.sortExecutionRecordsByTime()
+
 	checkSlowdown := func(responseTime int64, runtime uint32) bool {
+		if responseTime == 0 && runtime == 0 {
+			return true
+		}
 		return responseTime/int64(runtime) >= SLOWDOWN_THRESHOLD
 	}
 
