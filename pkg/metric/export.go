@@ -64,12 +64,16 @@ func ScrapeClusterUsage() ClusterUsage {
 
 const SLOWDOWN_THRESHOLD = 10
 
-func (ep *Exporter) CheckOverload(failureRatio float64) bool {
+func (ep *Exporter) CheckOverload(window int, failureRatio float64) bool {
 	checkSlowdown := func(responseTime int64, runtime uint32) bool {
 		return responseTime/int64(runtime) >= SLOWDOWN_THRESHOLD
 	}
+
+	if window < 0 {
+		window = len(ep.executionRecords)
+	}
 	failureCount := 0
-	for _, record := range ep.executionRecords {
+	for _, record := range ep.executionRecords[len(ep.executionRecords)-window:] {
 		if record.Timeout || record.Failed ||
 			checkSlowdown(record.ResponseTime, record.Runtime) {
 			failureCount += 1
@@ -167,7 +171,7 @@ func (ep *Exporter) FinishAndSave(sampleSize int, phase int, duration int) {
 		gocsv.MarshalFile(&ep.invocationRecords, invocF)
 	}
 
-	latencyFileName := "data/out/exc_sample-" + strconv.Itoa(sampleSize) + "_phase-" + strconv.Itoa(phase) + "_dur-" + strconv.Itoa(duration) + ".csv"
+	latencyFileName := "data/out/exec_sample-" + strconv.Itoa(sampleSize) + "_phase-" + strconv.Itoa(phase) + "_dur-" + strconv.Itoa(duration) + ".csv"
 	latencyF, err := os.Create(latencyFileName)
 	util.Check(err)
 	gocsv.MarshalFile(&ep.executionRecords, latencyF)
