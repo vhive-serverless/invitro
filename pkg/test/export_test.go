@@ -42,8 +42,8 @@ func TestCheckOverload(t *testing.T) {
 			Runtime:      1,
 		},
 	)
-	assert.True(t, exporter.CheckOverload(0.6))
-	assert.False(t, exporter.CheckOverload(0.7))
+	assert.True(t, exporter.CheckOverload(-1, 0.6))
+	assert.False(t, exporter.CheckOverload(-1, 0.7))
 }
 
 func TestConcurrentReporting(t *testing.T) {

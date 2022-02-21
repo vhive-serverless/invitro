@@ -114,7 +114,7 @@ stress_generation:
 				}(rps) //* NB: `clusterUsage` needn't be pushed onto the stack as we want the latest.
 
 			case <-done:
-				if exporter.CheckOverload(FAILURE_RATE_THRESHOLD) {
+				if exporter.CheckOverload(rps*60*stressSlotInMinutes, FAILURE_RATE_THRESHOLD) {
 					break stress_generation
 				} else {
 					goto next_rps
@@ -246,7 +246,7 @@ trace_generation:
 				is_stationary := exporter.IsLatencyStationary(STATIONARY_P_VALUE)
 				switch phaseIdx {
 				case 3: /** Measurement phase */
-					if exporter.CheckOverload(FAILURE_RATE_THRESHOLD) {
+					if exporter.CheckOverload(-1, FAILURE_RATE_THRESHOLD) {
 						DumpOverloadFlag()
 						//! Dump the flag but continue experiments.
 						// minute++
