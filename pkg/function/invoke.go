@@ -23,10 +23,6 @@ func Invoke(ctx context.Context, function tc.Function, gen tc.FunctionSpecsGen) 
 	var record mc.ExecutionRecord
 	record.FuncName = function.Name
 
-	// Start latency measurement.
-	start := time.Now()
-	record.Timestamp = start.UnixMicro()
-
 	conn, err := grpc.DialContext(ctx, function.Endpoint, grpc.WithInsecure(), grpc.WithBlock())
 	if err != nil {
 		log.Warnf("Failed to connect: %v", err)
@@ -41,17 +37,21 @@ func Invoke(ctx context.Context, function tc.Function, gen tc.FunctionSpecsGen) 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	// Start latency measurement.
+	start := time.Now()
+	record.Timestamp = start.UnixMicro()
+
 	response, err := grpcClient.Execute(ctx, &rpc.FaasRequest{
 		Message:           "nothing",
 		RuntimeInMilliSec: uint32(runtimeRequested),
 		MemoryInMebiBytes: uint32(memoryRequested),
 	})
-
 	if err != nil {
 		log.Warnf("%s: err=%v", function.Name, err)
 		record.Failed = true
 		return false, record
 	}
+
 	// log.Info("gRPC response: ", reply.Response)
 	memoryUsage := response.MemoryUsageInKb
 	runtime := response.DurationInMicroSec
@@ -59,11 +59,11 @@ func Invoke(ctx context.Context, function tc.Function, gen tc.FunctionSpecsGen) 
 	record.Memory = memoryUsage
 	record.Runtime = runtime
 
-	log.Infof("(gRPC)\t %s: %d[µs], %d[KB]", function.Name, runtime, memoryUsage)
+	log.Infof("(Replied)\t %s: %d[µs], %d[KB]", function.Name, runtime, memoryUsage)
 
 	responseTime := time.Since(start).Microseconds()
 	record.ResponseTime = responseTime
-	log.Infof("(Latency)\t %s: %d[µs]\n", function.Name, responseTime)
+	log.Infof("(Response time)\t %s: %d[µs]\n", function.Name, responseTime)
 
 	return true, record
 }
