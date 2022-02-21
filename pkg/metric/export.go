@@ -69,11 +69,11 @@ func (ep *Exporter) CheckOverload(window int, failureRatio float64) bool {
 		return responseTime/int64(runtime) >= SLOWDOWN_THRESHOLD
 	}
 
-	if window < 0 {
-		window = len(ep.executionRecords)
-	}
+	//* Lower-bound window in case of failures.
+	window = util.MaxOf(0, len(ep.executionRecords)-window)
+
 	failureCount := 0
-	for _, record := range ep.executionRecords[len(ep.executionRecords)-window:] {
+	for _, record := range ep.executionRecords[window:] {
 		if record.Timeout || record.Failed ||
 			checkSlowdown(record.ResponseTime, record.Runtime) {
 			failureCount += 1
