@@ -14,6 +14,8 @@ import (
 )
 
 func Invoke(ctx context.Context, function tc.Function, gen tc.FunctionSpecsGen) (bool, mc.ExecutionRecord) {
+	//! Failed execution will also be recorded w/ 0's.
+
 	runtimeRequested, memoryRequested := gen(function)
 
 	log.Infof("(Invoke)\t %s: %d[µs], %d[MiB]", function.Name, runtimeRequested*int(math.Pow10(3)), memoryRequested)
