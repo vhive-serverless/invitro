@@ -64,7 +64,7 @@ func ScrapeClusterUsage() ClusterUsage {
 	return result
 }
 
-const SLOWDOWN_THRESHOLD = 20
+const SLOWDOWN_THRESHOLD = 100
 
 func (ep *Exporter) CheckOverload() bool {
 	if len(ep.slowdowns) < 10 {
@@ -187,8 +187,8 @@ func (ep *Exporter) ReportExecution(record ExecutionRecord) {
 
 	var slowdown float64
 	if record.ResponseTime == 0 || record.Runtime == 0 {
-		//* Penalise timeout treating them as above the slowdown limit.
-		slowdown = SLOWDOWN_THRESHOLD + 1
+		//* Penalise timeout.
+		slowdown = SLOWDOWN_THRESHOLD / 2
 	} else {
 		slowdown = float64(record.ResponseTime) / float64(record.Runtime)
 	}
