@@ -64,7 +64,7 @@ func ScrapeClusterUsage() ClusterUsage {
 	return result
 }
 
-const SLOWDOWN_THRESHOLD = 10
+const SLOWDOWN_THRESHOLD = 20
 
 func (ep *Exporter) CheckOverload() bool {
 	if len(ep.slowdowns) < 10 {
@@ -82,17 +82,15 @@ func (ep *Exporter) CheckOverload() bool {
 	return p99 > SLOWDOWN_THRESHOLD
 }
 
-const LATENCY_WINDOW = 500
-
-func (ep *Exporter) IsLatencyStationary(pvalue float64) bool {
+func (ep *Exporter) IsLatencyStationary(windowSize int, pvalue float64) bool {
 	latencies := ep.GetLatenciesInOrder()
 	if len(latencies) <= 3 {
 		return true
 	}
 
 	//* Window the measurements to prevent overflow.
-	if len(latencies) > LATENCY_WINDOW {
-		latencies = latencies[len(latencies)-LATENCY_WINDOW:]
+	if len(latencies) > windowSize {
+		latencies = latencies[len(latencies)-windowSize:]
 	}
 	//* Here `-` is used to form a single cmd argument to prevent the violation of the calling convention.
 	latenciesStr := strings.Trim(strings.Join(
@@ -189,8 +187,8 @@ func (ep *Exporter) ReportExecution(record ExecutionRecord) {
 
 	var slowdown float64
 	if record.ResponseTime == 0 || record.Runtime == 0 {
-		//* Penalise timeout as 2x of the slowdown limit.
-		slowdown = SLOWDOWN_THRESHOLD * 2
+		//* Penalise timeout treating them as above the slowdown limit.
+		slowdown = SLOWDOWN_THRESHOLD + 1
 	} else {
 		slowdown = float64(record.ResponseTime) / float64(record.Runtime)
 	}
