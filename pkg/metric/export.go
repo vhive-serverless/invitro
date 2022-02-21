@@ -65,6 +65,7 @@ func ScrapeClusterUsage() ClusterUsage {
 const SLOWDOWN_THRESHOLD = 10
 
 func (ep *Exporter) CheckOverload(window int, failureRatio float64) bool {
+	ep.sortExecutionRecordsByTime()
 	checkSlowdown := func(responseTime int64, runtime uint32) bool {
 		return responseTime/int64(runtime) >= SLOWDOWN_THRESHOLD
 	}
@@ -84,7 +85,7 @@ func (ep *Exporter) CheckOverload(window int, failureRatio float64) bool {
 		}
 	}
 	// log.Info(failureCount)
-	return float64(failureCount)/float64(len(ep.executionRecords)) >= failureRatio
+	return float64(failureCount)/float64(len(ep.executionRecords[window:])) >= failureRatio
 }
 
 const LATENCY_WINDOW = 500
