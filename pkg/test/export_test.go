@@ -10,24 +10,9 @@ import (
 
 func TestCheckOverload(t *testing.T) {
 	exporter := mc.NewExporter()
+
 	exporter.ReportExecution(
 		mc.ExecutionRecord{
-			Timestamp:    0,
-			ResponseTime: 50,
-			Runtime:      5,
-		},
-	)
-	exporter.ReportExecution(
-		mc.ExecutionRecord{
-			Timestamp:    1,
-			ResponseTime: 1,
-			Runtime:      1,
-			Timeout:      true,
-		},
-	)
-	exporter.ReportExecution(
-		mc.ExecutionRecord{
-			Timestamp:    2,
 			ResponseTime: 1,
 			Runtime:      1,
 			Failed:       true,
@@ -35,21 +20,77 @@ func TestCheckOverload(t *testing.T) {
 	)
 	exporter.ReportExecution(
 		mc.ExecutionRecord{
-			Timestamp:    3,
 			ResponseTime: 1,
 			Runtime:      1,
 		},
 	)
 	exporter.ReportExecution(
 		mc.ExecutionRecord{
-			Timestamp:    4,
 			ResponseTime: 1,
 			Runtime:      1,
 		},
 	)
-	assert.True(t, exporter.CheckOverload(-1, 0.6))
-	assert.False(t, exporter.CheckOverload(-1, 0.7))
-	assert.False(t, exporter.CheckOverload(2, 0.00001))
+	exporter.ReportExecution(
+		mc.ExecutionRecord{
+			ResponseTime: 1,
+			Runtime:      1,
+			Failed:       true,
+		},
+	)
+	exporter.ReportExecution(
+		mc.ExecutionRecord{
+			ResponseTime: 1,
+			Runtime:      1,
+		},
+	)
+	exporter.ReportExecution(
+		mc.ExecutionRecord{
+			ResponseTime: 1,
+			Runtime:      1,
+		},
+	)
+	assert.False(t, exporter.CheckOverload())
+
+	exporter.ReportExecution(
+		mc.ExecutionRecord{
+			ResponseTime: 100,
+			Runtime:      5,
+		},
+	)
+	exporter.ReportExecution(
+		mc.ExecutionRecord{
+			ResponseTime: 1,
+			Runtime:      1,
+			Timeout:      true,
+		},
+	)
+	exporter.ReportExecution(
+		mc.ExecutionRecord{
+			ResponseTime: 200,
+			Runtime:      5,
+		},
+	)
+	exporter.ReportExecution(
+		mc.ExecutionRecord{
+			ResponseTime: 1,
+			Runtime:      1,
+			Timeout:      true,
+		},
+	)
+	exporter.ReportExecution(
+		mc.ExecutionRecord{
+			ResponseTime: 500,
+			Runtime:      5,
+		},
+	)
+	exporter.ReportExecution(
+		mc.ExecutionRecord{
+			ResponseTime: 1,
+			Runtime:      1,
+			Timeout:      true,
+		},
+	)
+	assert.True(t, exporter.CheckOverload())
 }
 
 func TestConcurrentReporting(t *testing.T) {

@@ -17,8 +17,8 @@ import (
 )
 
 const (
-	STATIONARY_P_VALUE     = 0.05
-	FAILURE_RATE_THRESHOLD = 0.5
+	STATIONARY_P_VALUE = 0.05
+	// FAILURE_RATE_THRESHOLD = 0.5
 )
 
 /** Seed the math/rand package for it to be different on each run. */
@@ -114,7 +114,7 @@ stress_generation:
 				}(rps) //* NB: `clusterUsage` needn't be pushed onto the stack as we want the latest.
 
 			case <-done:
-				if exporter.CheckOverload(rps*60*stressSlotInMinutes, FAILURE_RATE_THRESHOLD) {
+				if exporter.CheckOverload() {
 					break stress_generation
 				} else {
 					goto next_rps
@@ -149,6 +149,16 @@ func GenerateTraceLoads(
 	totalNumInvocationsEachMinute []int) int {
 
 	ShuffleAllInvocationsInplace(&invocationsEachMinute)
+	clusterUsage := mc.ClusterUsage{}
+
+	/** Launch a scraper that updates the cluster usage every 15s (max. interval). */
+	scrape := time.NewTicker(time.Second * 15)
+	go func() {
+		for {
+			<-scrape.C
+			clusterUsage = mc.ScrapeClusterUsage()
+		}
+	}()
 
 	isFixedRate := true
 	if rps < 1 {
@@ -222,6 +232,7 @@ trace_generation:
 					}
 					execRecord.Phase = phase
 					execRecord.Rps = rps
+					execRecord.ClusterCpuAvg, execRecord.ClusterMemAvg = clusterUsage.CpuPctAvg, clusterUsage.MemoryPctAvg
 					exporter.ReportExecution(execRecord)
 				}(minute, tick, phaseIdx, rps) //* Push vars onto the stack to prevent race.
 
@@ -243,17 +254,15 @@ trace_generation:
 				//* Export metrics for all phases.
 				exporter.ReportInvocation(invocRecord)
 
-				is_stationary := exporter.IsLatencyStationary(STATIONARY_P_VALUE)
 				switch phaseIdx {
 				case 3: /** Measurement phase */
-					if exporter.CheckOverload(-1, FAILURE_RATE_THRESHOLD) {
+					if exporter.CheckOverload() {
 						DumpOverloadFlag()
-						//! Dump the flag but continue experiments.
-						// minute++
-						// break load_generation
+						minute++
+						break trace_generation
 					}
 				default: /** Warmup phase */
-					if is_stationary {
+					if exporter.IsLatencyStationary(STATIONARY_P_VALUE) {
 						minute++
 						break trace_generation
 					}
