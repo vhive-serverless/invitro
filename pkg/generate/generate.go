@@ -262,7 +262,7 @@ trace_generation:
 						break trace_generation
 					}
 				default: /** Warmup phase */
-					if exporter.IsLatencyStationary(STATIONARY_P_VALUE) {
+					if exporter.IsLatencyStationary(rps*60, STATIONARY_P_VALUE) {
 						minute++
 						break trace_generation
 					}
