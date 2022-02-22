@@ -31,7 +31,6 @@ func Invoke(ctx context.Context, function tc.Function, gen tc.FunctionSpecsGen) 
 	}
 	defer conn.Close()
 
-	//TODO: Write a function stub based upon the Producer of vSwarm.
 	grpcClient := rpc.NewExecutorClient(conn)
 	// Contact the server and print out its response.
 	ctx, cancel := context.WithCancel(context.Background())

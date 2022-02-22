@@ -177,15 +177,21 @@ trace_generation:
 		tick := 0
 		var iats []float64
 
-		rps = int(float64(totalNumInvocationsEachMinute[minute]) / 60)
+		if totalNumInvocationsEachMinute[minute] < 60 {
+			rps = totalNumInvocationsEachMinute[minute]
+		} else {
+			rps = totalNumInvocationsEachMinute[minute] / 60
+		}
+		//* Bound the #invocations by RPS.
+		numInvocatonsThisMinute := util.MinOf(rps*60, totalNumInvocationsEachMinute[minute])
+		var invocationCount int32
+
 		iats = GenerateInterarrivalTimesInMicro(
 			minute, //! Fix randomness.
-			totalNumInvocationsEachMinute[minute],
+			numInvocatonsThisMinute,
 			isFixedRate,
 		)
 		log.Infof("Minute[%d]\t RPS=%d", minute, rps)
-
-		numFuncInvoked := 0
 
 		/** Set up timer to bound the one-minute invocation. */
 		iterStart := time.Now()
@@ -202,10 +208,7 @@ trace_generation:
 			done <- true
 		}()
 
-		//* Bound the #invocations by `rps`.
-		numInvocatonsThisMinute := util.MinOf(rps*60, totalNumInvocationsEachMinute[minute])
-		var invocationCount int32
-
+		numFuncInvoked := 0
 		for {
 			select {
 			case t := <-ticker.C:
@@ -256,13 +259,15 @@ trace_generation:
 
 				switch phaseIdx {
 				case 3: /** Measurement phase */
-					if exporter.CheckOverload(rps * 60) {
+					skippedMinutes := 2
+					if exporter.CheckOverload(rps * 60 * skippedMinutes) {
 						DumpOverloadFlag()
 						minute++
 						break trace_generation
 					}
 				default: /** Warmup phase */
-					if exporter.IsLatencyStationary(rps*60, STATIONARY_P_VALUE) {
+					stationaryWindow := 1
+					if exporter.IsLatencyStationary(rps*60*stationaryWindow, STATIONARY_P_VALUE) {
 						minute++
 						break trace_generation
 					}
