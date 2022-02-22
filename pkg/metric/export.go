@@ -72,14 +72,14 @@ func (ep *Exporter) CheckOverload(windowSize int) bool {
 	}
 	slowdowns := stats.LoadRawData(ep.slowdowns)
 
-	p99, err := stats.Percentile(slowdowns, 99)
+	percentile, err := stats.Percentile(slowdowns, 99)
 	if err != nil {
 		log.Fatal("Fail to compute the slowdown percentile: ", err)
 	}
 
-	log.Info("Slowdown p99=", p99)
+	log.Info("Slowdown percentile=", percentile)
 
-	return p99 > SLOWDOWN_THRESHOLD
+	return percentile > SLOWDOWN_THRESHOLD
 }
 
 func (ep *Exporter) IsLatencyStationary(windowSize int, pvalue float64) bool {
