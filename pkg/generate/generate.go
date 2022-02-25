@@ -42,7 +42,7 @@ func GenerateInterarrivalTimesInMicro(seed int, invocationsPerMinute int, unifor
 		} else {
 			iat = rand.ExpFloat64() / rps * oneSecondInMicro
 		}
-		//* Only guarantee microsecond-level accuracy.
+		//* Only guarantee microsecond-level ganularity.
 		if iat < 1 {
 			iat = 1
 		}
@@ -83,8 +83,13 @@ func GenerateStressLoads(function tc.Function, stressSlotInMinutes int, rpsStep 
 	rps := 1
 stress_generation:
 	for {
+		iats := GenerateInterarrivalTimesInMicro(
+			999, //! Fix randomness.
+			rps*60,
+			true,
+		)
 		timeout := time.After(time.Minute * time.Duration(stressSlotInMinutes))
-		interval := time.Duration(1000.0/rps) * time.Millisecond
+		interval := time.Duration(iats[0]) * time.Microsecond
 		ticker := time.NewTicker(interval)
 		done := make(chan bool, 1)
 
@@ -114,7 +119,8 @@ stress_generation:
 				}(rps) //* NB: `clusterUsage` needn't be pushed onto the stack as we want the latest.
 
 			case <-done:
-				if exporter.CheckOverload(rps * 60 * stressSlotInMinutes) {
+				skippedSlots := 2
+				if exporter.CheckOverload(rps * 60 * stressSlotInMinutes * skippedSlots) {
 					break stress_generation
 				} else {
 					goto next_rps
