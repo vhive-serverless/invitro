@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 MASTER_NODE=$1
 
-source "$(pwd)/scripts/setup/setup.cfg"
+DIR="$(pwd)/scripts/setup/"
+
+source "$DIR/setup.cfg"
 
 server_exec() { 
 	ssh -oStrictHostKeyChecking=no -p 22 "$1" "$2";
@@ -112,6 +114,6 @@ server_exec "git clone --branch=$LOADER_BRANCH git@github.com:eth-easl/loader.gi
 server_exec 'echo -en "\n\n" | sudo apt-get install python3-pip python-dev'
 server_exec 'cd; cd loader; pip install -r config/requirements.txt'
 
-monitor_infra_metrics.sh $MASTER_NODE
+$DIR/monitor_infra_metrics.sh $MASTER_NODE
 
 ssh -p 22 $MASTER_NODE
