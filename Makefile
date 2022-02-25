@@ -35,4 +35,7 @@ build:
 run:
 	go run cmd/load.go $(ARGS)
 
-coldstart: clean run
+test:
+	go test ./pkg/test/ -v 
+
+# coldstart: clean run

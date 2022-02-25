@@ -119,8 +119,8 @@ stress_generation:
 				}(rps) //* NB: `clusterUsage` needn't be pushed onto the stack as we want the latest.
 
 			case <-done:
-				skippedSlots := 2
-				if exporter.CheckOverload(rps * 60 * stressSlotInMinutes * skippedSlots) {
+				overfloadWindow := rps * 60 * stressSlotInMinutes
+				if exporter.CheckOverload(overfloadWindow) {
 					break stress_generation
 				} else {
 					goto next_rps

@@ -16,9 +16,7 @@ func TestCheckOverload(t *testing.T) {
 		},
 	)
 	exporter.ReportExecution(
-		mc.ExecutionRecord{
-			Timeout: true,
-		},
+		mc.ExecutionRecord{},
 	)
 	assert.False(t, exporter.CheckOverload(2))
 
@@ -31,10 +29,12 @@ func TestCheckOverload(t *testing.T) {
 		mc.ExecutionRecord{},
 	)
 	exporter.ReportExecution(
-		mc.ExecutionRecord{},
+		mc.ExecutionRecord{
+			Timeout: true,
+		},
 	)
-	assert.False(t, exporter.CheckOverload(5))
-	assert.True(t, exporter.CheckOverload(4))
+	assert.False(t, exporter.CheckOverload(3))
+	assert.True(t, exporter.CheckOverload(2))
 }
 
 func TestConcurrentReporting(t *testing.T) {
