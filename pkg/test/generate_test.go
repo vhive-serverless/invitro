@@ -19,11 +19,20 @@ func TestGenerateIat(t *testing.T) {
 	assert.Equal(t, invocationsPerMinute, len(iats))
 	assert.Greater(t, 60_000_000.0, duration)
 
+	for _, iat := range iats {
+		assert.GreaterOrEqual(t, iat, 1.0)
+	}
+
 	iats = gen.GenerateInterarrivalTimesInMicro(0, invocationsPerMinute, false)
 	duration, _ = stats.Sum(stats.LoadRawData(iats))
 
 	assert.Equal(t, invocationsPerMinute, len(iats))
 	assert.Greater(t, 60_000_000.0, duration)
+
+	for _, iat := range iats {
+		assert.GreaterOrEqual(t, iat, 1.0)
+	}
+	// t.Log(iats)
 }
 
 func TestShuffling(t *testing.T) {
