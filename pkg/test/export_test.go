@@ -12,42 +12,26 @@ func TestCheckOverload(t *testing.T) {
 	exporter := mc.NewExporter()
 	exporter.ReportExecution(
 		mc.ExecutionRecord{
-			Timestamp:    0,
-			ResponseTime: 50_000,
-			Runtime:      5,
+			Failed: true,
 		},
 	)
 	exporter.ReportExecution(
 		mc.ExecutionRecord{
-			Timestamp:    1,
-			ResponseTime: 1,
-			Runtime:      1,
-			Timeout:      true,
+			Timeout: true,
 		},
 	)
 	assert.False(t, exporter.CheckOverload(2))
 
 	exporter.ReportExecution(
 		mc.ExecutionRecord{
-			Timestamp:    2,
-			ResponseTime: 1,
-			Runtime:      1,
-			Failed:       true,
+			Failed: true,
 		},
 	)
 	exporter.ReportExecution(
-		mc.ExecutionRecord{
-			Timestamp:    3,
-			ResponseTime: 10_000,
-			Runtime:      1,
-		},
+		mc.ExecutionRecord{},
 	)
 	exporter.ReportExecution(
-		mc.ExecutionRecord{
-			Timestamp:    4,
-			ResponseTime: 1,
-			Runtime:      1,
-		},
+		mc.ExecutionRecord{},
 	)
 	assert.False(t, exporter.CheckOverload(5))
 	assert.True(t, exporter.CheckOverload(4))

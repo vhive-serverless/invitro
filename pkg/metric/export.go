@@ -12,7 +12,6 @@ import (
 
 	util "github.com/eth-easl/loader/pkg"
 	"github.com/gocarina/gocsv"
-	"github.com/montanaflynn/stats"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -20,7 +19,7 @@ type Exporter struct {
 	mutex             sync.Mutex
 	invocationRecords []MinuteInvocationRecord
 	executionRecords  []ExecutionRecord
-	slowdowns         []float64
+	// slowdowns         []float64
 }
 
 type ClusterUsage struct {
@@ -64,22 +63,20 @@ func ScrapeClusterUsage() ClusterUsage {
 	return result
 }
 
-const SLOWDOWN_THRESHOLD = 100
+const OVERFLOAD_THRESHOLD = 0.5
 
 func (ep *Exporter) CheckOverload(windowSize int) bool {
-	if len(ep.slowdowns) <= windowSize {
+	if len(ep.executionRecords) <= windowSize {
 		return false
 	}
-	slowdowns := stats.LoadRawData(ep.slowdowns)
 
-	percentile, err := stats.Percentile(slowdowns, 99)
-	if err != nil {
-		log.Fatal("Fail to compute the slowdown percentile: ", err)
+	failureCounter := 0
+	for _, record := range ep.executionRecords {
+		if record.Timeout || record.Failed {
+			failureCounter += 1
+		}
 	}
-
-	log.Info("Slowdown percentile=", percentile)
-
-	return percentile > SLOWDOWN_THRESHOLD
+	return float64(failureCounter)/float64(len(ep.executionRecords)) > OVERFLOAD_THRESHOLD
 }
 
 func (ep *Exporter) IsLatencyStationary(windowSize int, pvalue float64) bool {
@@ -185,14 +182,14 @@ func (ep *Exporter) ReportExecution(record ExecutionRecord) {
 	defer ep.mutex.Unlock()
 	ep.executionRecords = append(ep.executionRecords, record)
 
-	var slowdown float64
-	if record.ResponseTime == 0 || record.Runtime == 0 {
-		//* Penalise timeout.
-		slowdown = SLOWDOWN_THRESHOLD / 2
-	} else {
-		slowdown = float64(record.ResponseTime) / float64(record.Runtime)
-	}
-	ep.slowdowns = append(ep.slowdowns, slowdown)
+	// var slowdown float64
+	// if record.ResponseTime == 0 || record.Runtime == 0 {
+	// 	//* Penalise timeout.
+	// 	slowdown = SLOWDOWN_THRESHOLD / 2
+	// } else {
+	// 	slowdown = float64(record.ResponseTime) / float64(record.Runtime)
+	// }
+	// ep.slowdowns = append(ep.slowdowns, slowdown)
 }
 
 func (ep *Exporter) GetInvocationRecordLen() int {
