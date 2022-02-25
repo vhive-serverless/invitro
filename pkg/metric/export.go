@@ -79,7 +79,9 @@ func (ep *Exporter) CheckOverload(windowSize int) bool {
 		}
 	}
 	//* Failure rate w.r.t. the window period.
-	return float64(failureCounter)/float64(windowSize) >= OVERFLOAD_THRESHOLD
+	failureRate := float64(failureCounter) / float64(windowSize)
+	log.Info("Failure count=", failureCounter, " Failure rate=", failureRate)
+	return failureRate >= OVERFLOAD_THRESHOLD
 }
 
 func (ep *Exporter) IsLatencyStationary(windowSize int, pvalue float64) bool {
