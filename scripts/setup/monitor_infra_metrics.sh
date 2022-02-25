@@ -1,4 +1,4 @@
-
+#!/bin/bash
 MASTER_NODE=$1
 server_exec() { 
 	ssh -oStrictHostKeyChecking=no -p 22 $MASTER_NODE $1;

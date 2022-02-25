@@ -66,17 +66,20 @@ func ScrapeClusterUsage() ClusterUsage {
 const OVERFLOAD_THRESHOLD = 0.5
 
 func (ep *Exporter) CheckOverload(windowSize int) bool {
-	if len(ep.executionRecords) <= windowSize {
+	//* Skip the first time slot that is potentially unstable.
+	duration := len(ep.executionRecords)
+	if duration <= 2*windowSize {
 		return false
 	}
 
 	failureCounter := 0
-	for _, record := range ep.executionRecords {
+	for _, record := range ep.executionRecords[duration-windowSize:] {
 		if record.Timeout || record.Failed {
 			failureCounter += 1
 		}
 	}
-	return float64(failureCounter)/float64(len(ep.executionRecords)) > OVERFLOAD_THRESHOLD
+	//* Failure rate w.r.t. the window period.
+	return float64(failureCounter)/float64(windowSize) >= OVERFLOAD_THRESHOLD
 }
 
 func (ep *Exporter) IsLatencyStationary(windowSize int, pvalue float64) bool {
