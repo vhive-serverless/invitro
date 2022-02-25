@@ -26,13 +26,14 @@ var (
 
 	mode        = flag.String("mode", "trace", "Choose a mode from [trace, stress]")
 	debug       = flag.Bool("dbg", false, "Enable debug logging")
-	rps         = flag.Int("rps", -900_000, "Request per second")
 	cluster     = flag.Int("cluster", 1, "Size of the cluster measured by #workers")
 	duration    = flag.Int("duration", 3, "Duration of the experiment")
 	sampleSize  = flag.Int("sample", 6, "Sample size of the traces")
 	withTracing = flag.Bool("trace", false, "Enable tracing in the client")
-	slot        = flag.Int("slot", 1, "Time slot in minutes for each RPS in the `stress` mode")
-	step        = flag.Int("step", 1, "Step size for increasing RPS in the `stress` mode")
+	rps         = flag.Int("rps", -900_000, "Request per second")
+	rpsStart    = flag.Int("start", 0, "Starting RPS value")
+	rpsSlot     = flag.Int("slot", 1, "Time slot in minutes for each RPS in the `stress` mode")
+	rpsStep     = flag.Int("step", 1, "Step size for increasing RPS in the `stress` mode")
 
 	// withWarmup = flag.Int("withWarmup", -1000, "Duration of the withWarmup")
 	withWarmup = flag.Bool("warmup", false, "Enable warmup")
@@ -133,5 +134,5 @@ func runStressMode() {
 	}
 	fc.DeployFunction(&function, serviceConfigPath, 0)
 
-	defer gen.GenerateStressLoads(function, *slot, *step)
+	defer gen.GenerateStressLoads(*rpsStart, *rpsStep, *rpsSlot, function)
 }
