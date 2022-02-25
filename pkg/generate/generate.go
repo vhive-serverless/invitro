@@ -65,7 +65,7 @@ func GenerateInterarrivalTimesInMicro(seed int, invocationsPerMinute int, unifor
 	return interArrivalTimes
 }
 
-func GenerateStressLoads(function tc.Function, stressSlotInMinutes int, rpsStep int) {
+func GenerateStressLoads(rpsStart int, rpsStep int, stressSlotInMinutes int, function tc.Function) {
 	start := time.Now()
 	wg := sync.WaitGroup{}
 	exporter := mc.NewExporter()
@@ -80,7 +80,7 @@ func GenerateStressLoads(function tc.Function, stressSlotInMinutes int, rpsStep 
 		}
 	}()
 
-	rps := 1
+	rps := rpsStart
 stress_generation:
 	for {
 		iats := GenerateInterarrivalTimesInMicro(
