@@ -34,5 +34,8 @@ if __name__ == "__main__":
     if counter != 0:
         result['cpu_pct'] /= counter
         result['memory_pct'] /= counter
+    else:
+        result['cpu'] = ['']
+        result['memory'] = ['']
 
     print(json.dumps(result))
