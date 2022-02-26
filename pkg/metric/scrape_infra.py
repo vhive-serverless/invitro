@@ -29,7 +29,10 @@ if __name__ == "__main__":
         result['cpu_pct'] += int(cpu_pct)
         result['memory'].append(mem[1:-1])
         result['memory_pct'] += int(mem_pct)
-    result['cpu_pct'] /= counter
-    result['memory_pct'] /= counter
+    
+    # Prevent div-0 in the case of single-node.
+    if counter != 0:
+        result['cpu_pct'] /= counter
+        result['memory_pct'] /= counter
 
     print(json.dumps(result))
