@@ -111,6 +111,6 @@ server_exec "git clone --branch=$LOADER_BRANCH git@github.com:eth-easl/loader.gi
 server_exec 'echo -en "\n\n" | sudo apt-get install python3-pip python-dev'
 server_exec 'cd loader; pip install -r config/requirements.txt'
 
-monitor_infra_metrics.sh $MASTER_NODE
+expose_infra_metrics.sh $MASTER_NODE
 
 ssh -p 22 $MASTER_NODE
