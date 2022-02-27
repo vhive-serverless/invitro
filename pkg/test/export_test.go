@@ -8,37 +8,50 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestCheckOverload(t *testing.T) {
-	exporter := mc.NewExporter()
-	exporter.ReportExecution(
-		mc.ExecutionRecord{
-			Failed: true,
-		},
-	)
-	exporter.ReportExecution(
-		mc.ExecutionRecord{},
-	)
-	assert.False(t, exporter.CheckOverload(2))
+var clusterUsage = mc.ClusterUsage{}
+var knStats = mc.KnStats{}
 
-	exporter.ReportExecution(
+func TestCheckOverload(t *testing.T) {
+	collector := mc.NewCollector()
+	collector.ReportExecution(
 		mc.ExecutionRecord{
 			Failed: true,
 		},
+		clusterUsage,
+		knStats,
 	)
-	exporter.ReportExecution(
+	collector.ReportExecution(
 		mc.ExecutionRecord{},
+		clusterUsage,
+		knStats,
 	)
-	exporter.ReportExecution(
+	assert.False(t, collector.CheckOverload(2))
+
+	collector.ReportExecution(
+		mc.ExecutionRecord{
+			Failed: true,
+		},
+		clusterUsage,
+		knStats,
+	)
+	collector.ReportExecution(
+		mc.ExecutionRecord{},
+		clusterUsage,
+		knStats,
+	)
+	collector.ReportExecution(
 		mc.ExecutionRecord{
 			Timeout: true,
 		},
+		clusterUsage,
+		knStats,
 	)
-	assert.False(t, exporter.CheckOverload(3))
-	assert.True(t, exporter.CheckOverload(2))
+	assert.False(t, collector.CheckOverload(3))
+	assert.True(t, collector.CheckOverload(2))
 }
 
 func TestConcurrentReporting(t *testing.T) {
-	exporter := mc.NewExporter()
+	collector := mc.NewCollector()
 	var wg sync.WaitGroup
 
 	// This function increments a named counter
@@ -46,9 +59,9 @@ func TestConcurrentReporting(t *testing.T) {
 	doReport := func(t, n int) {
 		for i := 0; i < n; i++ {
 			if t == 0 {
-				exporter.ReportExecution(mc.ExecutionRecord{})
+				collector.ReportExecution(mc.ExecutionRecord{}, clusterUsage, knStats)
 			} else {
-				exporter.ReportInvocation(mc.MinuteInvocationRecord{})
+				collector.ReportInvocation(mc.MinuteInvocationRecord{})
 			}
 		}
 		wg.Done()
@@ -60,46 +73,52 @@ func TestConcurrentReporting(t *testing.T) {
 	go doReport(1, 10_000)
 	wg.Wait()
 
-	assert.Equal(t, 20_000, exporter.GetLantencyRecordLen())
-	assert.Equal(t, 10_000, exporter.GetInvocationRecordLen())
+	assert.Equal(t, 20_000, collector.GetLantencyRecordLen())
+	assert.Equal(t, 10_000, collector.GetInvocationRecordLen())
 }
 
 func TestGetLatenciesInOrder(t *testing.T) {
-	exporter := mc.NewExporter()
+	collector := mc.NewCollector()
 
-	exporter.ReportExecution(
+	collector.ReportExecution(
 		mc.ExecutionRecord{
 			Timestamp:    1000_000,
 			ResponseTime: 0,
 		},
+		clusterUsage,
+		knStats,
 	)
-	exporter.ReportExecution(
+	collector.ReportExecution(
 		mc.ExecutionRecord{
 			Timestamp:    1000_000_000,
 			ResponseTime: 2,
 		},
+		clusterUsage,
+		knStats,
 	)
-	exporter.ReportExecution(
+	collector.ReportExecution(
 		mc.ExecutionRecord{
 			Timestamp:    1000,
 			ResponseTime: 1,
 		},
+		clusterUsage,
+		knStats,
 	)
 
-	assert.EqualValues(t, []float64{1, 0, 2}, exporter.GetLatenciesInOrder())
+	assert.EqualValues(t, []float64{1, 0, 2}, collector.GetLatenciesInOrder())
 }
 
 // func TestIsLatencyStationary(t *testing.T) {
-// 	exporter := mc.NewExporter()
+// 	collector := mc.NewExporter()
 
 // 	for i := 0; i < 100; i++ {
-// 		exporter.ReportLantency(
+// 		collector.ReportLantency(
 // 			mc.LatencyRecord{
 // 				Timestamp: int64(i),
 // 				Latency:   int64(i + 5000),
 // 			},
 // 		)
 // 	}
-// 	assert.False(t, exporter.IsLatencyStationary(0.05))
-// 	assert.True(t, exporter.IsLatencyStationary(0.98))
+// 	assert.False(t, collector.IsLatencyStationary(0.05))
+// 	assert.True(t, collector.IsLatencyStationary(0.98))
 // }

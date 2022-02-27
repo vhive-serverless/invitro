@@ -15,33 +15,30 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-type Exporter struct {
+type Collector struct {
 	mutex             sync.Mutex
 	invocationRecords []MinuteInvocationRecord
 	executionRecords  []ExecutionRecord
 	// slowdowns         []float64
 }
 
-type ClusterUsage struct {
-	Cpu          []string `json:"cpu"`
-	CpuPctAvg    float64  `json:"cpu_pct"`
-	Memory       []string `json:"memory"`
-	MemoryPctAvg float64  `json:"memory_pct"`
-}
+func ScrapeKnStats() KnStats {
+	cmd := exec.Command(
+		"python3",
+		"pkg/metric/scrape_kn.py",
+	)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		log.Fatal("Fail to scrape Knative: ", err)
+	}
 
-type AdfResult struct {
-	TestStats    float64 `json:"statistic"`
-	Pvalue       float64 `json:"pvalue"`
-	Lag          int     `json:"usedlag"`
-	NumObs       int     `json:"nobs"`
-	CriticalVals TValues `json:"critical_vals"`
-	IcBest       float64 `json:"icbest"`
-}
+	var result KnStats
+	err = json.Unmarshal(out, &result)
+	if err != nil {
+		log.Fatal("Fail to parse Knative: ", string(out[:]), err)
+	}
 
-type TValues struct {
-	Pct1  float64 `json:"1%"`
-	Pct5  float64 `json:"5%"`
-	Pct10 float64 `json:"10%"`
+	return result
 }
 
 func ScrapeClusterUsage() ClusterUsage {
@@ -65,15 +62,15 @@ func ScrapeClusterUsage() ClusterUsage {
 
 const OVERFLOAD_THRESHOLD = 0.5
 
-func (ep *Exporter) CheckOverload(windowSize int) bool {
+func (collector *Collector) CheckOverload(windowSize int) bool {
 	//* Skip the first time slot that is potentially unstable.
-	duration := len(ep.executionRecords)
+	duration := len(collector.executionRecords)
 	if duration <= 2*windowSize {
 		return false
 	}
 
 	failureCounter := 0
-	for _, record := range ep.executionRecords[duration-windowSize:] {
+	for _, record := range collector.executionRecords[duration-windowSize:] {
 		if record.Timeout || record.Failed {
 			failureCounter += 1
 		}
@@ -84,8 +81,8 @@ func (ep *Exporter) CheckOverload(windowSize int) bool {
 	return failureRate >= OVERFLOAD_THRESHOLD
 }
 
-func (ep *Exporter) IsLatencyStationary(windowSize int, pvalue float64) bool {
-	latencies := ep.GetLatenciesInOrder()
+func (collector *Collector) IsLatencyStationary(windowSize int, pvalue float64) bool {
+	latencies := collector.GetLatenciesInOrder()
 	if len(latencies) <= 3 {
 		return true
 	}
@@ -134,27 +131,27 @@ func (ep *Exporter) IsLatencyStationary(windowSize int, pvalue float64) bool {
 	return isStationary
 }
 
-func (ep *Exporter) GetLatenciesInOrder() []float64 {
-	ep.sortExecutionRecordsByTime()
+func (collector *Collector) GetLatenciesInOrder() []float64 {
+	collector.sortExecutionRecordsByTime()
 
-	lantencies := make([]float64, len(ep.executionRecords))
-	for i, record := range ep.executionRecords {
+	lantencies := make([]float64, len(collector.executionRecords))
+	for i, record := range collector.executionRecords {
 		lantencies[i] = float64(record.ResponseTime) - float64(record.Runtime)
 	}
 	return lantencies
 }
 
 // Sort records in ascending order.
-func (ep *Exporter) sortExecutionRecordsByTime() {
-	sort.Slice(ep.executionRecords,
+func (collector *Collector) sortExecutionRecordsByTime() {
+	sort.Slice(collector.executionRecords,
 		func(i, j int) bool {
-			return ep.executionRecords[i].Timestamp < ep.executionRecords[j].Timestamp
+			return collector.executionRecords[i].Timestamp < collector.executionRecords[j].Timestamp
 		},
 	)
 }
 
-func NewExporter() Exporter {
-	return Exporter{
+func NewCollector() Collector {
+	return Collector{
 		//* Note that the zero value of a mutex is usable as-is, so no
 		//* initialization is required here (e.g., mutex: sync.Mutex{}).
 		invocationRecords: []MinuteInvocationRecord{},
@@ -162,36 +159,48 @@ func NewExporter() Exporter {
 	}
 }
 
-func (ep *Exporter) FinishAndSave(sampleSize int, phase int, duration int) {
+func (collector *Collector) FinishAndSave(sampleSize int, phase int, duration int) {
 	if sampleSize > 0 {
 		invocFileName := "data/out/inv_sample-" + strconv.Itoa(sampleSize) + "_phase-" + strconv.Itoa(phase) + "_dur-" + strconv.Itoa(duration) + ".csv"
 		invocF, err := os.Create(invocFileName)
 		util.Check(err)
-		gocsv.MarshalFile(&ep.invocationRecords, invocF)
+		gocsv.MarshalFile(&collector.invocationRecords, invocF)
 	}
 
 	latencyFileName := "data/out/exec_sample-" + strconv.Itoa(sampleSize) + "_phase-" + strconv.Itoa(phase) + "_dur-" + strconv.Itoa(duration) + ".csv"
 	latencyF, err := os.Create(latencyFileName)
 	util.Check(err)
-	gocsv.MarshalFile(&ep.executionRecords, latencyF)
+	gocsv.MarshalFile(&collector.executionRecords, latencyF)
 }
 
-func (ep *Exporter) ReportInvocation(record MinuteInvocationRecord) {
-	ep.mutex.Lock()
-	defer ep.mutex.Unlock()
-	ep.invocationRecords = append(ep.invocationRecords, record)
+func (collector *Collector) ReportInvocation(record MinuteInvocationRecord) {
+	collector.mutex.Lock()
+	defer collector.mutex.Unlock()
+	collector.invocationRecords = append(collector.invocationRecords, record)
 }
 
-func (ep *Exporter) ReportExecution(record ExecutionRecord) {
-	ep.mutex.Lock()
-	defer ep.mutex.Unlock()
-	ep.executionRecords = append(ep.executionRecords, record)
+func (collector *Collector) ReportExecution(record ExecutionRecord, clusterUsage ClusterUsage, knStats KnStats) {
+	collector.mutex.Lock()
+	defer collector.mutex.Unlock()
+
+	record.ClusterCpuAvg, record.ClusterMemAvg = clusterUsage.CpuPctAvg, clusterUsage.MemoryPctAvg
+	record.DesiredPods = knStats.DesiredPods
+	record.UnreadyPods = knStats.UnreadyPods
+	record.PendingPods = knStats.PendingPods
+	record.RequestedPods = knStats.RequestedPods
+	record.RunningPods = knStats.RunningPods
+	record.ColdStartCount = knStats.ColdStartCount
+	record.ActivatorQueue = knStats.ActivatorQueue
+	record.AutoscalerStableQueue = knStats.AutoscalerStableQueue
+	record.AutoscalerPanicQueue = knStats.AutoscalerPanicQueue
+
+	collector.executionRecords = append(collector.executionRecords, record)
 }
 
-func (ep *Exporter) GetInvocationRecordLen() int {
-	return len(ep.invocationRecords)
+func (collector *Collector) GetInvocationRecordLen() int {
+	return len(collector.invocationRecords)
 }
 
-func (ep *Exporter) GetLantencyRecordLen() int {
-	return len(ep.executionRecords)
+func (collector *Collector) GetLantencyRecordLen() int {
+	return len(collector.executionRecords)
 }
