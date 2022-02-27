@@ -22,7 +22,7 @@ func Invoke(ctx context.Context, function tc.Function, gen tc.FunctionSpecsGen) 
 	var record mc.ExecutionRecord
 	record.FuncName = function.Name
 
-	registry.Register(function.Name, memoryRequested)
+	registry.Register(memoryRequested)
 
 	// Start latency measurement.
 	start := time.Now()
@@ -33,7 +33,7 @@ func Invoke(ctx context.Context, function tc.Function, gen tc.FunctionSpecsGen) 
 		//! Failures will also be recorded with 0's.
 		log.Warnf("Failed to connect: %v", err)
 		record.Timeout = true
-		registry.Deregister(function.Name, memoryRequested)
+		registry.Deregister(memoryRequested)
 		return false, record
 	}
 	defer conn.Close()
@@ -51,7 +51,7 @@ func Invoke(ctx context.Context, function tc.Function, gen tc.FunctionSpecsGen) 
 	if err != nil {
 		log.Warnf("%s: err=%v", function.Name, err)
 		record.Failed = true
-		registry.Deregister(function.Name, memoryRequested)
+		registry.Deregister(memoryRequested)
 		return false, record
 	}
 
@@ -60,7 +60,7 @@ func Invoke(ctx context.Context, function tc.Function, gen tc.FunctionSpecsGen) 
 	log.Infof("(Response time)\t %s: %d[µs]\n", function.Name, responseTime)
 
 	record.ClusterLoad = registry.GetTotalMemoryLoad()
-	registry.Deregister(function.Name, memoryRequested)
+	registry.Deregister(memoryRequested)
 
 	// log.Info("gRPC response: ", reply.Response)
 	memoryUsage := response.MemoryUsageInKb

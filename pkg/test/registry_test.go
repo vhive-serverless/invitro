@@ -1,7 +1,6 @@
 package test
 
 import (
-	"strconv"
 	"sync"
 	"testing"
 
@@ -11,14 +10,13 @@ import (
 
 func TestConcurrentRegistration(t *testing.T) {
 	registry := fc.LoadRegistry{}
-	funcName := "func"
 	memoryRequested := 1
 	var wg sync.WaitGroup
 
 	wg.Add(1000)
 	for i := 0; i < 1000; i++ {
 		go func() {
-			registry.Register(funcName, memoryRequested)
+			registry.Register(memoryRequested)
 			wg.Done()
 		}()
 	}
@@ -29,44 +27,22 @@ func TestConcurrentRegistration(t *testing.T) {
 	wg.Add(50)
 	for i := 0; i < 50; i++ {
 		go func() {
-			registry.Deregister(funcName, memoryRequested)
+			registry.Deregister(memoryRequested)
 			wg.Done()
 		}()
 	}
 	wg.Wait()
 
 	assert.Equal(t, 950, int(registry.GetTotalMemoryLoad()))
-}
 
-func TestRegisterDiffFunc(t *testing.T) {
-	registry := fc.LoadRegistry{}
-	funcName := "func"
-	memoryRequested := 1
-
-	for i := 0; i < 100; i++ {
-		registry.Register(funcName+strconv.Itoa(i), memoryRequested)
+	wg.Add(50_000)
+	for i := 0; i < 50_000; i++ {
+		go func() {
+			registry.Deregister(memoryRequested)
+			wg.Done()
+		}()
 	}
-	assert.Equal(t, 100, int(registry.GetTotalMemoryLoad()))
+	wg.Wait()
 
-	for i := 0; i < 50; i++ {
-		registry.Deregister(funcName+strconv.Itoa(i), memoryRequested)
-	}
-	assert.Equal(t, 50, int(registry.GetTotalMemoryLoad()))
-
-}
-
-func TestRegisterSameFunc(t *testing.T) {
-	registry := fc.LoadRegistry{}
-	funcName := "func"
-	memoryRequested := 1
-
-	for i := 0; i < 100; i++ {
-		registry.Register(funcName, memoryRequested)
-	}
-	assert.Equal(t, 100, int(registry.GetTotalMemoryLoad()))
-
-	for i := 0; i < 50; i++ {
-		registry.Deregister(funcName, memoryRequested)
-	}
-	assert.Equal(t, 50, int(registry.GetTotalMemoryLoad()))
+	assert.Equal(t, 0, int(registry.GetTotalMemoryLoad()))
 }
