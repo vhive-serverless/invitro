@@ -186,15 +186,6 @@ func (ep *Exporter) ReportExecution(record ExecutionRecord) {
 	ep.mutex.Lock()
 	defer ep.mutex.Unlock()
 	ep.executionRecords = append(ep.executionRecords, record)
-
-	// var slowdown float64
-	// if record.ResponseTime == 0 || record.Runtime == 0 {
-	// 	//* Penalise timeout.
-	// 	slowdown = SLOWDOWN_THRESHOLD / 2
-	// } else {
-	// 	slowdown = float64(record.ResponseTime) / float64(record.Runtime)
-	// }
-	// ep.slowdowns = append(ep.slowdowns, slowdown)
 }
 
 func (ep *Exporter) GetInvocationRecordLen() int {

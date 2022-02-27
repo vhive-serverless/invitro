@@ -282,7 +282,7 @@ trace_generation:
 			}
 			//* Load the next inter-arrival time.
 			tick++
-			if tick < totalDurationMinutes {
+			if tick < len(iats) {
 				interval = time.Duration(iats[tick]) * time.Microsecond
 				ticker = time.NewTicker(interval)
 			} else {

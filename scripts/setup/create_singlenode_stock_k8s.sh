@@ -43,3 +43,5 @@ server_exec 'echo -en "\n\n" | sudo apt-get install python3-pip python-dev'
 server_exec 'cd; cd loader; pip install -r config/requirements.txt'
 
 $DIR/expose_infra_metrics.sh $SERVER
+
+echo "Logging in master node $SEVER"
