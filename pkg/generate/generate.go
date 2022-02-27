@@ -278,7 +278,6 @@ trace_generation:
 						break trace_generation
 					}
 				}
-				goto next_minute
 			}
 			//* Load the next inter-arrival time.
 			tick++
@@ -287,7 +286,7 @@ trace_generation:
 				ticker = time.NewTicker(interval)
 			} else {
 				//! This is where the RPS is retricted and thus might can't finish all invocations before running out of time (IATs).
-				break trace_generation
+				goto next_minute
 			}
 		}
 	next_minute:
