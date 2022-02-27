@@ -13,20 +13,27 @@ import (
 	rpc "github.com/eth-easl/loader/server"
 )
 
+var registry = LoadRegistry{}
+
 func Invoke(ctx context.Context, function tc.Function, gen tc.FunctionSpecsGen) (bool, mc.ExecutionRecord) {
-	//! Failed execution will also be recorded w/ 0's.
-
 	runtimeRequested, memoryRequested := gen(function)
-
 	log.Infof("(Invoke)\t %s: %d[µs], %d[MiB]", function.Name, runtimeRequested*int(math.Pow10(3)), memoryRequested)
 
 	var record mc.ExecutionRecord
 	record.FuncName = function.Name
 
+	registry.Register(function.Name, memoryRequested)
+
+	// Start latency measurement.
+	start := time.Now()
+	record.Timestamp = start.UnixMicro()
+
 	conn, err := grpc.DialContext(ctx, function.Endpoint, grpc.WithInsecure(), grpc.WithBlock())
 	if err != nil {
+		//! Failures will also be recorded with 0's.
 		log.Warnf("Failed to connect: %v", err)
 		record.Timeout = true
+		registry.Deregister(function.Name, memoryRequested)
 		return false, record
 	}
 	defer conn.Close()
@@ -36,10 +43,6 @@ func Invoke(ctx context.Context, function tc.Function, gen tc.FunctionSpecsGen) 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// Start latency measurement.
-	start := time.Now()
-	record.Timestamp = start.UnixMicro()
-
 	response, err := grpcClient.Execute(ctx, &rpc.FaasRequest{
 		Message:           "nothing",
 		RuntimeInMilliSec: uint32(runtimeRequested),
@@ -48,8 +51,16 @@ func Invoke(ctx context.Context, function tc.Function, gen tc.FunctionSpecsGen) 
 	if err != nil {
 		log.Warnf("%s: err=%v", function.Name, err)
 		record.Failed = true
+		registry.Deregister(function.Name, memoryRequested)
 		return false, record
 	}
+
+	responseTime := time.Since(start).Microseconds()
+	record.ResponseTime = responseTime
+	log.Infof("(Response time)\t %s: %d[µs]\n", function.Name, responseTime)
+
+	record.ClusterLoad = registry.GetTotalMemoryLoad()
+	registry.Deregister(function.Name, memoryRequested)
 
 	// log.Info("gRPC response: ", reply.Response)
 	memoryUsage := response.MemoryUsageInKb
@@ -59,10 +70,6 @@ func Invoke(ctx context.Context, function tc.Function, gen tc.FunctionSpecsGen) 
 	record.Runtime = runtime
 
 	log.Infof("(Replied)\t %s: %d[µs], %d[KB]", function.Name, runtime, memoryUsage)
-
-	responseTime := time.Since(start).Microseconds()
-	record.ResponseTime = responseTime
-	log.Infof("(Response time)\t %s: %d[µs]\n", function.Name, responseTime)
 
 	return true, record
 }
