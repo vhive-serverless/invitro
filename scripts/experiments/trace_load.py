@@ -7,7 +7,7 @@ import os.path
 def main(argv):
     _, duration, cluster = argv
 
-    sizes = [30, 170, 240, 310, 340, 300, 380, 420, 230, 390, 510]
+    sizes = [30, 170, 240, 310, 340, 300, 380, 420, 230, 390, 510, 990, 440, 280, 930, 730]
 
     flagf = 'overload.flag'
     if glob(flagf): os.system(f"rm {flagf}")
