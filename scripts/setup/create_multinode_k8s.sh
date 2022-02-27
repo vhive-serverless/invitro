@@ -116,4 +116,5 @@ server_exec 'cd; cd loader; pip install -r config/requirements.txt'
 
 $DIR/expose_infra_metrics.sh $MASTER_NODE
 
+echo "Logging in master node $MASTER_NODE"
 ssh -p 22 $MASTER_NODE

@@ -2,57 +2,29 @@ package function
 
 import (
 	"sync"
+	"sync/atomic"
 
-	log "github.com/sirupsen/logrus"
+	util "github.com/eth-easl/loader/pkg"
 )
 
 type LoadRegistry struct {
-	rwMutex  sync.RWMutex
-	registry sync.Map
+	mutex     sync.Mutex
+	loadGauge int64
 }
 
-/**
- * * We use function names for registration as they are created uniquely
- * *  and also more readable for debugging.
- */
-func (r *LoadRegistry) Register(name string, memoryRequested int) {
-	r.rwMutex.Lock()
-
-	registeredMem, exist := r.registry.LoadOrStore(name, memoryRequested)
-	if exist {
-		//* If an instance of this function exists, register the load under the same name.
-		r.registry.Store(name, registeredMem.(int)+memoryRequested)
-	}
-
-	r.rwMutex.Unlock()
+func (r *LoadRegistry) Register(memoryRequested int) {
+	atomic.AddInt64(&r.loadGauge, int64(memoryRequested))
 }
 
-func (r *LoadRegistry) Deregister(name string, memoryRequested int) {
-	r.rwMutex.Lock()
+func (r *LoadRegistry) Deregister(memoryRequested int) {
+	r.mutex.Lock()
 
-	registeredMem, exist := r.registry.LoadAndDelete(name)
-	if !exist {
-		log.Fatal("Error in deregistering : ", name, " (NOT exist)")
-	}
+	atomic.AddInt64(&r.loadGauge, -1*int64(memoryRequested))
+	atomic.StoreInt64(&r.loadGauge, int64(util.MaxOf(0, int(r.loadGauge))))
 
-	remainingLoad := registeredMem.(int) - memoryRequested
-	if remainingLoad > 0 {
-		//* If the registered load is of many instances, deregister the finished part and restore the rest back.
-		r.registry.Store(name, remainingLoad)
-	}
-
-	r.rwMutex.Unlock()
+	r.mutex.Unlock()
 }
 
-func (r *LoadRegistry) GetTotalMemoryLoad() uint32 {
-	r.rwMutex.RLock()
-
-	var totalLoad uint32
-	r.registry.Range(func(name, mem interface{}) bool {
-		totalLoad += uint32(mem.(int))
-		return true
-	})
-
-	r.rwMutex.RUnlock()
-	return totalLoad
+func (r *LoadRegistry) GetTotalMemoryLoad() int64 {
+	return atomic.LoadInt64(&r.loadGauge)
 }

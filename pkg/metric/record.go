@@ -26,7 +26,7 @@ type ExecutionRecord struct {
 	Memory        uint32  `csv:"memory"`
 	Timeout       bool    `csv:"timeout"`
 	Failed        bool    `csv:"failed"`
-	ClusterLoad   uint32  `csv:"cluster_load"`
+	ClusterLoad   int64   `csv:"cluster_load"`
 	ClusterCpuAvg float64 `csv:"cluster_cpu"`
 	ClusterMemAvg float64 `csv:"cluster_mem"`
 }
