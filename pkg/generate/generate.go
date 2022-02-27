@@ -68,15 +68,25 @@ func GenerateInterarrivalTimesInMicro(seed int, invocationsPerMinute int, unifor
 func GenerateStressLoads(rpsStart int, rpsStep int, stressSlotInMinutes int, function tc.Function) {
 	start := time.Now()
 	wg := sync.WaitGroup{}
-	exporter := mc.NewExporter()
+	collector := mc.NewCollector()
 	clusterUsage := mc.ClusterUsage{}
+	knStats := mc.KnStats{}
 
 	/** Launch a scraper that updates the cluster usage every 15s (max. interval). */
-	scrape := time.NewTicker(time.Second * 15)
+	scrape_infra := time.NewTicker(time.Second * 15)
 	go func() {
 		for {
-			<-scrape.C
+			<-scrape_infra.C
 			clusterUsage = mc.ScrapeClusterUsage()
+		}
+	}()
+
+	/** Launch a scraper that updates Knative states every 2s (max. interval). */
+	scrape_kn := time.NewTicker(time.Second * 2)
+	go func() {
+		for {
+			<-scrape_kn.C
+			knStats = mc.ScrapeKnStats()
 		}
 	}()
 
@@ -114,13 +124,12 @@ stress_generation:
 
 					_, execRecord := fc.Invoke(ctx, function, GenerateStressExecutionSpecs)
 					execRecord.Rps = rps
-					execRecord.ClusterCpuAvg, execRecord.ClusterMemAvg = clusterUsage.CpuPctAvg, clusterUsage.MemoryPctAvg
-					exporter.ReportExecution(execRecord)
+					collector.ReportExecution(execRecord, clusterUsage, knStats)
 				}(rps) //* NB: `clusterUsage` needn't be pushed onto the stack as we want the latest.
 
 			case <-done:
 				overfloadWindow := rps * 60 * stressSlotInMinutes
-				if exporter.CheckOverload(overfloadWindow) {
+				if collector.CheckOverload(overfloadWindow) {
 					break stress_generation
 				} else {
 					goto next_rps
@@ -141,7 +150,7 @@ stress_generation:
 		log.Info("[No time out] Total invocation + waiting duration: ", totalDuration, "\n")
 	}
 
-	defer exporter.FinishAndSave(0, 0, rps*stressSlotInMinutes)
+	defer collector.FinishAndSave(0, 0, rps*stressSlotInMinutes)
 }
 
 func GenerateTraceLoads(
@@ -156,6 +165,7 @@ func GenerateTraceLoads(
 
 	ShuffleAllInvocationsInplace(&invocationsEachMinute)
 	clusterUsage := mc.ClusterUsage{}
+	knStats := mc.KnStats{}
 
 	/** Launch a scraper that updates the cluster usage every 15s (max. interval). */
 	scrape := time.NewTicker(time.Second * 15)
@@ -166,6 +176,15 @@ func GenerateTraceLoads(
 		}
 	}()
 
+	/** Launch a scraper that updates Knative states every 2s (max. interval). */
+	scrape_kn := time.NewTicker(time.Second * 2)
+	go func() {
+		for {
+			<-scrape_kn.C
+			knStats = mc.ScrapeKnStats()
+		}
+	}()
+
 	isFixedRate := true
 	if rps < 1 {
 		isFixedRate = false
@@ -173,7 +192,7 @@ func GenerateTraceLoads(
 
 	start := time.Now()
 	wg := sync.WaitGroup{}
-	exporter := mc.NewExporter()
+	collector := mc.NewCollector()
 	totalDurationMinutes := len(totalNumInvocationsEachMinute)
 
 	minute := 0
@@ -242,7 +261,7 @@ trace_generation:
 					execRecord.Phase = phase
 					execRecord.Rps = rps
 					execRecord.ClusterCpuAvg, execRecord.ClusterMemAvg = clusterUsage.CpuPctAvg, clusterUsage.MemoryPctAvg
-					exporter.ReportExecution(execRecord)
+					collector.ReportExecution(execRecord, clusterUsage, knStats)
 				}(minute, tick, phaseIdx, rps) //* Push vars onto the stack to prevent race.
 
 			case <-done:
@@ -261,19 +280,19 @@ trace_generation:
 					NumFuncFailed:   numInvocatonsThisMinute - numFuncInvoked,
 				}
 				//* Export metrics for all phases.
-				exporter.ReportInvocation(invocRecord)
+				collector.ReportInvocation(invocRecord)
 
 				switch phaseIdx {
 				case 3: /** Measurement phase */
 					skippedMinutes := 2
-					if exporter.CheckOverload(rps * 60 * skippedMinutes) {
+					if collector.CheckOverload(rps * 60 * skippedMinutes) {
 						DumpOverloadFlag()
 						minute++
 						break trace_generation
 					}
 				default: /** Warmup phase */
 					stationaryWindow := 1
-					if exporter.IsLatencyStationary(rps*60*stationaryWindow, STATIONARY_P_VALUE) {
+					if collector.IsLatencyStationary(rps*60*stationaryWindow, STATIONARY_P_VALUE) {
 						minute++
 						break trace_generation
 					}
@@ -285,7 +304,6 @@ trace_generation:
 				interval = time.Duration(iats[tick]) * time.Microsecond
 				ticker = time.NewTicker(interval)
 			} else {
-				//! This is where the RPS is retricted and thus might can't finish all invocations before running out of time (IATs).
 				goto next_minute
 			}
 		}
@@ -307,7 +325,7 @@ trace_generation:
 		log.Info("[No time out] Total invocation + waiting duration: ", totalDuration, "\n")
 	}
 
-	defer exporter.FinishAndSave(sampleSize, phaseIdx, minute)
+	defer collector.FinishAndSave(sampleSize, phaseIdx, minute)
 	return phaseOffset + minute
 }
 
