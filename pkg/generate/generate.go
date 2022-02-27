@@ -282,16 +282,20 @@ trace_generation:
 			}
 			//* Load the next inter-arrival time.
 			tick++
-			interval = time.Duration(iats[tick]) * time.Microsecond
-			ticker = time.NewTicker(interval)
+			if tick < totalDurationMinutes {
+				interval = time.Duration(iats[tick]) * time.Microsecond
+				ticker = time.NewTicker(interval)
+			} else {
+				//! This is where the RPS is retricted and thus might can't finish all invocations before running out of time (IATs).
+				break trace_generation
+			}
 		}
 	next_minute:
 	}
 	log.Info("\tFinished invoking all functions.")
 
-	//* Hyperparameter for busy-wait
-	delta := time.Duration(1) //TODO: Make this force wait customisable (currently it's the same duration as that of the traces).
-	forceTimeoutDuration := time.Duration(totalDurationMinutes) * time.Minute / delta
+	//* 15 min maximum waiting time based upon max. function duration of popular clouds.
+	forceTimeoutDuration := time.Duration(15) * time.Minute
 
 	if !withBlocking {
 		forceTimeoutDuration = time.Second * 1

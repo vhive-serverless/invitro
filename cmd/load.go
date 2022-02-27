@@ -28,7 +28,7 @@ var (
 	debug       = flag.Bool("dbg", false, "Enable debug logging")
 	cluster     = flag.Int("cluster", 1, "Size of the cluster measured by #workers")
 	duration    = flag.Int("duration", 3, "Duration of the experiment")
-	sampleSize  = flag.Int("sample", 6, "Sample size of the traces")
+	sampleSize  = flag.Int("sample", 10, "Sample size of the traces")
 	withTracing = flag.Bool("trace", false, "Enable tracing in the client")
 	rps         = flag.Int("rps", -900_000, "Request per second")
 	rpsStart    = flag.Int("start", 0, "Starting RPS value")
