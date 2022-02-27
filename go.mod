@@ -27,6 +27,7 @@ require (
 	github.com/google/go-cmp v0.5.5 // indirect
 	github.com/montanaflynn/stats v0.6.6 // indirect
 	github.com/openzipkin/zipkin-go v0.2.5 // indirect
+	github.com/orcaman/concurrent-map v1.0.0 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	go.opentelemetry.io/contrib v0.20.0 // indirect
