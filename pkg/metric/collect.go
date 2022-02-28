@@ -60,7 +60,7 @@ func ScrapeClusterUsage() ClusterUsage {
 	return result
 }
 
-const OVERFLOAD_THRESHOLD = 0.5
+const OVERFLOAD_THRESHOLD = 0.2
 
 func (collector *Collector) CheckOverload(windowSize int) bool {
 	//* Skip the first time slot that is potentially unstable.
