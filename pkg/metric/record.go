@@ -40,7 +40,7 @@ type ExecutionRecord struct {
 
 	ActivatorQueue        float64 `csv:"activator_queue"`
 	AutoscalerStableQueue float64 `csv:"autoscaler_stable_queue"`
-	AutoscalerPanicQueue  float64 `csv:"autoscaler_pandic_queue"`
+	AutoscalerPanicQueue  float64 `csv:"autoscaler_panic_queue"`
 }
 
 type KnStats struct {
@@ -53,7 +53,7 @@ type KnStats struct {
 
 	ActivatorQueue        float64 `json:"activator_queue"`
 	AutoscalerStableQueue float64 `json:"autoscaler_stable_queue"`
-	AutoscalerPanicQueue  float64 `json:"autoscaler_pandic_queue"`
+	AutoscalerPanicQueue  float64 `json:"autoscaler_panic_queue"`
 }
 
 type ClusterUsage struct {
