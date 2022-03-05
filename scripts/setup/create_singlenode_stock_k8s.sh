@@ -44,4 +44,9 @@ server_exec 'cd; cd loader; pip install -r config/requirements.txt'
 
 $DIR/expose_infra_metrics.sh $SERVER
 
+#* Disable turbo boost.
+server_exec 'bash loader/scripts/setup/turbo_boost.sh disable'
+#* Disable hyperthreading.
+server_exec 'echo off | sudo tee /sys/devices/system/cpu/smt/control'
+
 echo "Logging in master node $SEVER"

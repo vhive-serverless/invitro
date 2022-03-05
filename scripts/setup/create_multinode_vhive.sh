@@ -111,7 +111,12 @@ server_exec "git clone --branch=$LOADER_BRANCH git@github.com:eth-easl/loader.gi
 server_exec 'echo -en "\n\n" | sudo apt-get install python3-pip python-dev'
 server_exec 'cd loader; pip install -r config/requirements.txt'
 
-expose_infra_metrics.sh $MASTER_NODE
+$DIR/expose_infra_metrics.sh $MASTER_NODE
+
+#* Disable turbo boost.
+server_exec 'bash loader/scripts/setup/turbo_boost.sh disable'
+#* Disable hyperthreading.
+server_exec 'echo off | sudo tee /sys/devices/system/cpu/smt/control'
 
 echo "Logging in master node $MASTER_NODE"
 ssh -p 22 $MASTER_NODE
