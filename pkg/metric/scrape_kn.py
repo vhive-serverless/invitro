@@ -20,7 +20,7 @@ if __name__ == "__main__":
         "coldstart_count": get_promql_query('sum(activator_request_count)'),
 
         "autoscaler_stable_queue": get_promql_query('avg(autoscaler_stable_request_concurrency)'),
-        "autoscaler_pandic_queue": get_promql_query('avg(autoscaler_panic_request_concurrency)'),
+        "autoscaler_panic_queue": get_promql_query('avg(autoscaler_panic_request_concurrency)'),
         "activator_queue": get_promql_query('avg(activator_request_concurrency)'),
     }
 
