@@ -14,6 +14,9 @@ if [[ ! -z $1 && $1 != "enable" && $1 != "disable" ]]; then
     exit 1
 fi
 
+#* Necessary!
+sudo modprobe msr
+
 cores=$(cat /proc/cpuinfo | grep processor | awk '{print $3}')
 for core in $cores; do
     if [[ $1 == "disable" ]]; then
