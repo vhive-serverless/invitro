@@ -25,17 +25,18 @@ server_exec 'cd loader; kubectl apply -f config/prometh_kn.yaml'
 server_exec 'sudo kubeadm upgrade apply --config config/kubeadm_init.yaml --ignore-preflight-errors all --force --v=5'
 
 
-#* Change scrape intervals to 2s for all used monitors.
-server_exec "sudo kubectl -n monitoring patch ServiceMonitor prometheus-kube-prometheus-apiserver --type json -p '[{"op": "add", "path": "/spec/endpoints/0/interval", "value": "2s"}]'"
-server_exec "sudo kubectl -n monitoring patch ServiceMonitor prometheus-kube-prometheus-coredns --type json -p '[{"op": "add", "path": "/spec/endpoints/0/interval", "value": "2s"}]'"
-server_exec "sudo kubectl -n monitoring patch ServiceMonitor prometheus-kube-prometheus-kube-controller-manager --type json -p '[{"op": "add", "path": "/spec/endpoints/0/interval", "value": "2s"}]'"
-server_exec "sudo kubectl -n monitoring patch ServiceMonitor prometheus-kube-prometheus-kube-etcd --type json -p '[{"op": "add", "path": "/spec/endpoints/0/interval", "value": "2s"}]'"
-server_exec "sudo kubectl -n monitoring patch ServiceMonitor prometheus-kube-prometheus-kube-proxy --type json -p '[{"op": "add", "path": "/spec/endpoints/0/interval", "value": "2s"}]'"
-server_exec "sudo kubectl -n monitoring patch ServiceMonitor prometheus-kube-prometheus-kube-scheduler --type json -p '[{"op": "add", "path": "/spec/endpoints/0/interval", "value": "2s"}]'"
-server_exec "sudo kubectl -n monitoring patch ServiceMonitor prometheus-kube-prometheus-operator --type json -p '[{"op": "add", "path": "/spec/endpoints/0/interval", "value": "2s"}]'"
-server_exec "sudo kubectl -n monitoring patch ServiceMonitor prometheus-kube-prometheus-prometheus --type json -p '[{"op": "add", "path": "/spec/endpoints/0/interval", "value": "2s"}]'"
-server_exec "sudo kubectl -n monitoring patch ServiceMonitor prometheus-kube-state-metrics --type json -p '[{"op": "add", "path": "/spec/endpoints/0/interval", "value": "2s"}]'"
-server_exec "sudo kubectl -n monitoring patch ServiceMonitor prometheus-prometheus-node-exporter --type json -p '[{"op": "add", "path": "/spec/endpoints/0/interval", "value": "2s"}]'"
+#* Change scrape intervals to 1s for all used monitors.
+server_exec "sudo kubectl -n monitoring patch ServiceMonitor prometheus-kube-prometheus-kube-scheduler --type json -p '[{"op": "add", "path": "/spec/endpoints/0/interval", "value": "1s"}]'"
+server_exec "sudo kubectl -n monitoring patch ServiceMonitor prometheus-kube-prometheus-apiserver --type json -p '[{"op": "add", "path": "/spec/endpoints/0/interval", "value": "1s"}]'"
+server_exec "sudo kubectl -n monitoring patch ServiceMonitor prometheus-kube-prometheus-coredns --type json -p '[{"op": "add", "path": "/spec/endpoints/0/interval", "value": "1s"}]'"
+server_exec "sudo kubectl -n monitoring patch ServiceMonitor prometheus-kube-prometheus-kube-controller-manager --type json -p '[{"op": "add", "path": "/spec/endpoints/0/interval", "value": "1s"}]'"
+server_exec "sudo kubectl -n monitoring patch ServiceMonitor prometheus-kube-prometheus-kube-etcd --type json -p '[{"op": "add", "path": "/spec/endpoints/0/interval", "value": "1s"}]'"
+server_exec "sudo kubectl -n monitoring patch ServiceMonitor prometheus-kube-prometheus-kube-proxy --type json -p '[{"op": "add", "path": "/spec/endpoints/0/interval", "value": "1s"}]'"
+server_exec "sudo kubectl -n monitoring patch ServiceMonitor prometheus-kube-prometheus-kube-scheduler --type json -p '[{"op": "add", "path": "/spec/endpoints/0/interval", "value": "1s"}]'"
+server_exec "sudo kubectl -n monitoring patch ServiceMonitor prometheus-kube-prometheus-operator --type json -p '[{"op": "add", "path": "/spec/endpoints/0/interval", "value": "1s"}]'"
+server_exec "sudo kubectl -n monitoring patch ServiceMonitor prometheus-kube-prometheus-prometheus --type json -p '[{"op": "add", "path": "/spec/endpoints/0/interval", "value": "1s"}]'"
+server_exec "sudo kubectl -n monitoring patch ServiceMonitor prometheus-kube-state-metrics --type json -p '[{"op": "add", "path": "/spec/endpoints/0/interval", "value": "1s"}]'"
+server_exec "sudo kubectl -n monitoring patch ServiceMonitor prometheus-prometheus-node-exporter --type json -p '[{"op": "add", "path": "/spec/endpoints/0/interval", "value": "1s"}]'"
 
 sleep 5s
 #* Set up port prometheus panel.
