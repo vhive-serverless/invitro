@@ -65,6 +65,13 @@ func GenerateInterarrivalTimesInMicro(seed int, invocationsPerMinute int, unifor
 	return interArrivalTimes
 }
 
+const OVERFLOAD_THRESHOLD = 0.2
+
+func checkOverload(start time.Time, targetRps int, invocationCount int32) bool {
+	duration := time.Since(start).Seconds()
+	return float64(invocationCount)/(duration*float64(targetRps)) < (1 - OVERFLOAD_THRESHOLD)
+}
+
 func GenerateStressLoads(rpsStart int, rpsStep int, stressSlotInMinutes int, function tc.Function) {
 	start := time.Now()
 	wg := sync.WaitGroup{}
@@ -98,10 +105,14 @@ stress_generation:
 			rps*60,
 			true,
 		)
+
+		iterStart := time.Now()
 		timeout := time.After(time.Minute * time.Duration(stressSlotInMinutes))
 		interval := time.Duration(iats[0]) * time.Microsecond
 		ticker := time.NewTicker(interval)
 		done := make(chan bool, 1)
+
+		var invocationCount int32 = 0
 
 		/** Launch a timer. */
 		go func() {
@@ -122,14 +133,17 @@ stress_generation:
 					ctx, cancel := context.WithTimeout(context.Background(), diallingTimeout)
 					defer cancel()
 
-					_, execRecord := fc.Invoke(ctx, function, GenerateStressExecutionSpecs)
-					execRecord.Rps = rps
+					success, execRecord := fc.Invoke(ctx, function, GenerateStressExecutionSpecs)
+
+					if success {
+						atomic.AddInt32(&invocationCount, 1)
+					}
+					execRecord.Rps = int(computeActualRps(iterStart, invocationCount))
 					collector.ReportExecution(execRecord, clusterUsage, knStats)
 				}(rps) //* NB: `clusterUsage` needn't be pushed onto the stack as we want the latest.
 
 			case <-done:
-				overfloadWindow := rps * 60 * stressSlotInMinutes
-				if collector.CheckOverload(overfloadWindow) {
+				if checkOverload(iterStart, rps, invocationCount) {
 					break stress_generation
 				} else {
 					goto next_rps
@@ -259,7 +273,7 @@ trace_generation:
 						atomic.AddInt32(&invocationCount, 1)
 					}
 					execRecord.Phase = phase
-					execRecord.Rps = rps
+					execRecord.Rps = int(computeActualRps(iterStart, invocationCount))
 					execRecord.ClusterCpuAvg, execRecord.ClusterMemAvg = clusterUsage.CpuPctAvg, clusterUsage.MemoryPctAvg
 					collector.ReportExecution(execRecord, clusterUsage, knStats)
 				}(minute, tick, phaseIdx, rps) //* Push vars onto the stack to prevent race.
@@ -284,8 +298,7 @@ trace_generation:
 
 				switch phaseIdx {
 				case 3: /** Measurement phase */
-					skippedMinutes := 2
-					if collector.CheckOverload(rps * 60 * skippedMinutes) {
+					if checkOverload(iterStart, rps, invocationCount) {
 						DumpOverloadFlag()
 						minute++
 						break trace_generation
@@ -429,6 +442,11 @@ func GenerateTraceExecutionSpecs(function tc.Function) (int, int) {
 		}
 	}
 	return runtime, memory
+}
+
+func computeActualRps(start time.Time, counter int32) float64 {
+	duration := time.Since(start).Seconds()
+	return float64(counter) / duration
 }
 
 func DumpOverloadFlag() {

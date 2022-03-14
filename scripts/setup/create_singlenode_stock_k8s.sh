@@ -13,6 +13,8 @@ server_exec() {
 server_exec 'sudo DEBIAN_FRONTEND=noninteractive apt-get autoremove' 
 server_exec "git clone --branch=$VHIVE_BRANCH https://github.com/ease-lab/vhive"
 server_exec 'cd vhive; ./scripts/cloudlab/setup_node.sh stock-only'
+server_exec 'tmux new -s runner -d'
+server_exec 'tmux new -s kwatch -d'
 server_exec 'tmux new -d -s containerd'
 server_exec 'tmux new -d -s cluster'
 server_exec 'tmux send-keys -t containerd "sudo containerd" ENTER'
