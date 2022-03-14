@@ -41,6 +41,8 @@ do
 		# server_exec 'sudo apt-get install libcairo2-dev libjpeg-dev libgif-dev'
 		server_exec 'echo "export PATH=$PATH:/usr/local/go/bin" >> .profile'
 		
+		server_exec 'tmux new -s runner -d'
+		server_exec 'tmux new -s kwatch -d'
 		server_exec 'tmux new -s master -d'
 		server_exec 'tmux send -t master "./vhive/scripts/cluster/create_multinode_cluster.sh stock-only" ENTER'
 		
