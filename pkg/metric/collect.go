@@ -60,27 +60,6 @@ func ScrapeClusterUsage() ClusterUsage {
 	return result
 }
 
-const OVERFLOAD_THRESHOLD = 0.2
-
-func (collector *Collector) CheckOverload(windowSize int) bool {
-	//* Skip the first time slot that is potentially unstable.
-	duration := len(collector.executionRecords)
-	if duration <= 2*windowSize {
-		return false
-	}
-
-	failureCounter := 0
-	for _, record := range collector.executionRecords[duration-windowSize:] {
-		if record.Timeout || record.Failed {
-			failureCounter += 1
-		}
-	}
-	//* Failure rate w.r.t. the window period.
-	failureRate := float64(failureCounter) / float64(windowSize)
-	log.Info("Failure count=", failureCounter, " Failure rate=", failureRate)
-	return failureRate >= OVERFLOAD_THRESHOLD
-}
-
 func (collector *Collector) IsLatencyStationary(windowSize int, pvalue float64) bool {
 	latencies := collector.GetLatenciesInOrder()
 	if len(latencies) <= 3 {
@@ -203,4 +182,25 @@ func (collector *Collector) GetInvocationRecordLen() int {
 
 func (collector *Collector) GetLantencyRecordLen() int {
 	return len(collector.executionRecords)
+}
+
+const OVERFLOAD_THRESHOLD = 0.2
+
+func (collector *Collector) CheckOverloadDeprecated(windowSize int) bool {
+	//* Skip the first time slot that is potentially unstable.
+	duration := len(collector.executionRecords)
+	if duration <= 2*windowSize {
+		return false
+	}
+
+	failureCounter := 0
+	for _, record := range collector.executionRecords[duration-windowSize:] {
+		if record.Timeout || record.Failed {
+			failureCounter += 1
+		}
+	}
+	//* Failure rate w.r.t. the window period.
+	failureRate := float64(failureCounter) / float64(windowSize)
+	log.Info("Failure count=", failureCounter, " Failure rate=", failureRate)
+	return failureRate >= OVERFLOAD_THRESHOLD
 }
