@@ -25,7 +25,7 @@ func TestCheckOverload(t *testing.T) {
 		clusterUsage,
 		knStats,
 	)
-	assert.False(t, collector.CheckOverload(2))
+	assert.False(t, collector.CheckOverloadDeprecated(2))
 
 	collector.ReportExecution(
 		mc.ExecutionRecord{
@@ -46,8 +46,8 @@ func TestCheckOverload(t *testing.T) {
 		clusterUsage,
 		knStats,
 	)
-	assert.False(t, collector.CheckOverload(3))
-	assert.True(t, collector.CheckOverload(2))
+	assert.False(t, collector.CheckOverloadDeprecated(3))
+	assert.True(t, collector.CheckOverloadDeprecated(2))
 }
 
 func TestConcurrentReporting(t *testing.T) {
