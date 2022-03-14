@@ -4,11 +4,25 @@ import (
 	"math/rand"
 	"sort"
 	"testing"
+	"time"
 
 	gen "github.com/eth-easl/loader/pkg/generate"
 	"github.com/montanaflynn/stats"
 	"github.com/stretchr/testify/assert"
 )
+
+func TestGenCheckOverload(t *testing.T) {
+	duration := 1 * time.Second
+	count := 85
+	targetRps := 100
+
+	start := time.Now()
+	time.Sleep(duration)
+
+	assert.False(t, gen.CheckOverload(start, targetRps, int32(count)))
+	count -= 6
+	assert.True(t, gen.CheckOverload(start, targetRps, int32(count)))
+}
 
 func TestGenerateIat(t *testing.T) {
 	invocationsPerMinute := 20_000

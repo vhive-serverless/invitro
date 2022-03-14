@@ -67,7 +67,8 @@ func GenerateInterarrivalTimesInMicro(seed int, invocationsPerMinute int, unifor
 
 const OVERFLOAD_THRESHOLD = 0.2
 
-func checkOverload(start time.Time, targetRps int, invocationCount int32) bool {
+//! Untested
+func CheckOverload(start time.Time, targetRps int, invocationCount int32) bool {
 	duration := time.Since(start).Seconds()
 	return float64(invocationCount)/(duration*float64(targetRps)) < (1 - OVERFLOAD_THRESHOLD)
 }
@@ -143,7 +144,7 @@ stress_generation:
 				}(rps) //* NB: `clusterUsage` needn't be pushed onto the stack as we want the latest.
 
 			case <-done:
-				if checkOverload(iterStart, rps, invocationCount) {
+				if CheckOverload(iterStart, rps, invocationCount) {
 					break stress_generation
 				} else {
 					goto next_rps
@@ -298,7 +299,7 @@ trace_generation:
 
 				switch phaseIdx {
 				case 3: /** Measurement phase */
-					if checkOverload(iterStart, rps, invocationCount) {
+					if CheckOverload(iterStart, rps, invocationCount) {
 						DumpOverloadFlag()
 						minute++
 						break trace_generation
