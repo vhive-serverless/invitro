@@ -39,12 +39,12 @@ server_exec "sudo kubectl -n monitoring patch ServiceMonitor prometheus-kube-sta
 server_exec "sudo kubectl -n monitoring patch ServiceMonitor prometheus-prometheus-node-exporter --type json -p '[{"op": "add", "path": "/spec/endpoints/0/interval", "value": "1s"}]'"
 
 sleep 5s
-#* Set up port prometheus panel.
+#* Set up port prometheus panel (infinite loops are important to circumvent kubectl timeout in the middle of experiments).
 server_exec 'tmux new -s prometheusd -d'
-server_exec 'tmux send -t prometheusd "kubectl port-forward -n monitoring svc/prometheus-operated 9090" ENTER'
+server_exec 'tmux send -t prometheusd "while true; do kubectl port-forward -n monitoring svc/prometheus-operated 9090; done" ENTER'
 
 #* Set up grafana dash board (id: admin, pwd: prom-operator).
 server_exec 'tmux new -s grafanad -d'
-server_exec 'tmux send -t grafanad "kubectl -n monitoring port-forward deployment/prometheus-grafana 3000" ENTER'
+server_exec 'tmux send -t grafanad "while true; do kubectl -n monitoring port-forward deployment/prometheus-grafana 3000; done" ENTER'
 
 echo 'Done setting up monitoring components'
