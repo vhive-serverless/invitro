@@ -70,7 +70,10 @@ const OVERFLOAD_THRESHOLD = 0.2
 //! Untested
 func CheckOverload(start time.Time, targetRps int, invocationCount int32) bool {
 	duration := time.Since(start).Seconds()
-	return float64(invocationCount)/(duration*float64(targetRps)) < (1 - OVERFLOAD_THRESHOLD)
+	failureRate := 1 - float64(invocationCount)/(duration*float64(targetRps))
+
+	log.Info("Failure rate=", failureRate)
+	return failureRate > OVERFLOAD_THRESHOLD
 }
 
 func GenerateStressLoads(rpsStart int, rpsStep int, stressSlotInMinutes int, function tc.Function) {
