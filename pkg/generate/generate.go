@@ -256,7 +256,7 @@ trace_generation:
 					log.Info("Finish target invocation early at ", t.Format(time.StampMilli), "\tMinute Nbr. ", minute, " Itr. ", tick)
 					done <- true
 				}
-				go func(m int, nxt int, phase int, rps int) {
+				go func(m int, nxt int, phase int, rps int, interval int64) {
 					defer wg.Done()
 					wg.Add(1)
 
@@ -273,12 +273,13 @@ trace_generation:
 					if hasInvoked {
 						atomic.AddInt32(&invocationCount, 1)
 					}
-					execRecord.Load /= (iats[tick] * 1e3) //! Weigh the memory load by the current invocation interval (in ms).
+					execRecord.Load /= float64(interval) //! Weigh the memory load by the current invocation interval (in ms).
 					execRecord.Phase = phase
 					execRecord.Rps = int(computeActualRps(iterStart, invocationCount))
 					execRecord.ClusterCpuAvg, execRecord.ClusterMemAvg = clusterUsage.CpuPctAvg, clusterUsage.MemoryPctAvg
 					collector.ReportExecution(execRecord, clusterUsage, knStats)
-				}(minute, tick, phaseIdx, rps) //* Push vars onto the stack to prevent race.
+
+				}(minute, tick, phaseIdx, rps, interval.Milliseconds()) //* Push vars onto the stack to prevent racing.
 
 			case <-done:
 				numFuncInvoked += int(invocationCount)
