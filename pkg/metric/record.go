@@ -18,7 +18,7 @@ type ExecutionRecord struct {
 	*sync.Mutex
 
 	Phase        int     `csv:"phase"`
-	Rps          int     `csv:"request_per_sec"`
+	Rps          int     `csv:"rps"`
 	Timestamp    int64   `csv:"timestamp"`
 	FuncName     string  `csv:"func_name"`
 	ResponseTime int64   `csv:"response_time"` //* End-to-end latency.
@@ -27,6 +27,7 @@ type ExecutionRecord struct {
 	Timeout      bool    `csv:"timeout"`
 	Failed       bool    `csv:"failed"`
 	Load         float64 `csv:"load"`
+	Interval     int64   `csv:"interval"`
 
 	ClusterCpuAvg float64 `csv:"cluster_cpu"`
 	ClusterMemAvg float64 `csv:"cluster_mem"`
