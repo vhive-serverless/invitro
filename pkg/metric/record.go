@@ -17,16 +17,16 @@ type MinuteInvocationRecord struct {
 type ExecutionRecord struct {
 	*sync.Mutex
 
-	Phase        int    `csv:"phase"`
-	Rps          int    `csv:"request_per_sec"`
-	Timestamp    int64  `csv:"timestamp"`
-	FuncName     string `csv:"func_name"`
-	ResponseTime int64  `csv:"response_time"` //* End-to-end latency.
-	Runtime      uint32 `csv:"runtime"`
-	Memory       uint32 `csv:"memory"`
-	Timeout      bool   `csv:"timeout"`
-	Failed       bool   `csv:"failed"`
-	Load         int64  `csv:"load"`
+	Phase        int     `csv:"phase"`
+	Rps          int     `csv:"request_per_sec"`
+	Timestamp    int64   `csv:"timestamp"`
+	FuncName     string  `csv:"func_name"`
+	ResponseTime int64   `csv:"response_time"` //* End-to-end latency.
+	Runtime      uint32  `csv:"runtime"`
+	Memory       uint32  `csv:"memory"`
+	Timeout      bool    `csv:"timeout"`
+	Failed       bool    `csv:"failed"`
+	Load         float64 `csv:"load"`
 
 	ClusterCpuAvg float64 `csv:"cluster_cpu"`
 	ClusterMemAvg float64 `csv:"cluster_mem"`

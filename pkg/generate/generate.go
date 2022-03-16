@@ -273,6 +273,7 @@ trace_generation:
 					if hasInvoked {
 						atomic.AddInt32(&invocationCount, 1)
 					}
+					execRecord.Load /= (iats[tick] * 1e3) //! Weigh the memory load by the current invocation interval (in ms).
 					execRecord.Phase = phase
 					execRecord.Rps = int(computeActualRps(iterStart, invocationCount))
 					execRecord.ClusterCpuAvg, execRecord.ClusterMemAvg = clusterUsage.CpuPctAvg, clusterUsage.MemoryPctAvg
