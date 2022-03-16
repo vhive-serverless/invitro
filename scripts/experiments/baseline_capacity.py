@@ -7,7 +7,7 @@ import os.path
 def main(argv):
     _, duration, cluster = argv
     
-    repeat = 3 # Repeat the experiements
+    repeat = 1 # Repeat the experiements
 
     tracef = list(map(ntpath.basename, sorted(glob('data/traces/*.csv'))))
     sizes = []
