@@ -59,7 +59,7 @@ func Invoke(ctx context.Context, function tc.Function, gen tc.FunctionSpecsGen) 
 	record.ResponseTime = responseTime
 	log.Infof("(Response time)\t %s: %d[µs]\n", function.Name, responseTime)
 
-	record.Load = registry.GetTotalMemoryLoad()
+	record.Load = float64(registry.GetTotalMemoryLoad())
 	registry.Deregister(memoryRequested)
 
 	// log.Info("gRPC response: ", reply.Response)
