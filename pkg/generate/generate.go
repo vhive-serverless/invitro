@@ -128,7 +128,7 @@ stress_generation:
 		for {
 			select {
 			case <-ticker.C:
-				go func(rps int) {
+				go func(rps int, interval int64) {
 					defer wg.Done()
 					wg.Add(1)
 
@@ -142,9 +142,10 @@ stress_generation:
 					if success {
 						atomic.AddInt32(&invocationCount, 1)
 					}
+					execRecord.Interval = interval
 					execRecord.Rps = int(computeActualRps(iterStart, invocationCount))
 					collector.ReportExecution(execRecord, clusterUsage, knStats)
-				}(rps) //* NB: `clusterUsage` needn't be pushed onto the stack as we want the latest.
+				}(rps, interval.Milliseconds()) //* NB: `clusterUsage` needn't be pushed onto the stack as we want the latest.
 
 			case <-done:
 				if CheckOverload(iterStart, rps, invocationCount) {
@@ -276,8 +277,8 @@ trace_generation:
 					if hasInvoked {
 						atomic.AddInt32(&invocationCount, 1)
 					}
-					execRecord.Load /= float64(interval) //! Weigh the memory load by the current invocation interval (in ms).
 					execRecord.Phase = phase
+					execRecord.Interval = interval
 					execRecord.Rps = int(computeActualRps(iterStart, invocationCount))
 					execRecord.ClusterCpuAvg, execRecord.ClusterMemAvg = clusterUsage.CpuPctAvg, clusterUsage.MemoryPctAvg
 					collector.ReportExecution(execRecord, clusterUsage, knStats)
