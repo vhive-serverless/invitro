@@ -59,7 +59,7 @@ func DeployFunction(function *tc.Function, serviceConfigPath string, minScale in
 		"1",
 		//* Wait for infintely long for ensuring warmup.
 		"--wait-timeout",
-		"2147483640",
+		"2000000",
 	)
 	stdoutStderr, err := cmd.CombinedOutput()
 	log.Debug("CMD response: ", string(stdoutStderr))
