@@ -9,6 +9,8 @@ if __name__ == "__main__":
     pcts_out = subprocess.check_output(cmd_get_pcts).decode("utf-8")
 
     result = {
+        "master_cpu_pct": 0,
+        "master_mem_pct": 0,
         "cpu": [],
         "cpu_pct": 0,
         "memory": [],
@@ -18,13 +20,15 @@ if __name__ == "__main__":
     is_master = True
     for abs_vals, pcts in zip(abs_out.split('\n'), pcts_out.split('\n')):
         if is_master:
-            # Skip master node.
+            # Record master node.
+            result['master_cpu_pct'], result['master_mem_pct'] = pcts[:-1].split('%')
             is_master = False
             continue
+
         counter += 1
         cpu, mem = abs_vals.split(',')
         cpu_pct, mem_pct = pcts[:-1].split('%')
-        result = result.copy()
+
         result['cpu'].append(cpu[1:-1])
         result['cpu_pct'] += int(cpu_pct)
         result['memory'].append(mem[1:-1])

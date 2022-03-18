@@ -162,12 +162,17 @@ func (collector *Collector) ReportExecution(record ExecutionRecord, clusterUsage
 	collector.mutex.Lock()
 	defer collector.mutex.Unlock()
 
-	record.ClusterCpuAvg, record.ClusterMemAvg = clusterUsage.CpuPctAvg, clusterUsage.MemoryPctAvg
+	record.MasterCpu = clusterUsage.MasterCpuPct
+	record.MasterMem = clusterUsage.MasterMemoryPct
+	record.WorkerCpuAvg = clusterUsage.CpuPctAvg
+	record.WorkerMemAvg = clusterUsage.MemoryPctAvg
+
 	record.DesiredPods = knStats.DesiredPods
 	record.UnreadyPods = knStats.UnreadyPods
 	record.PendingPods = knStats.PendingPods
 	record.RequestedPods = knStats.RequestedPods
 	record.RunningPods = knStats.RunningPods
+
 	record.ColdStartCount = knStats.ColdStartCount
 	record.ActivatorQueue = knStats.ActivatorQueue
 	record.AutoscalerStableQueue = knStats.AutoscalerStableQueue
