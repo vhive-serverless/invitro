@@ -20,7 +20,7 @@ func TestGenCheckOverload(t *testing.T) {
 	time.Sleep(duration)
 
 	assert.False(t, gen.CheckOverload(start, targetRps, int32(count)))
-	count -= 60
+	count -= 70
 	assert.True(t, gen.CheckOverload(start, targetRps, int32(count)))
 }
 
