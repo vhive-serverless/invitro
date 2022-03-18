@@ -280,7 +280,6 @@ trace_generation:
 					execRecord.Phase = phase
 					execRecord.Interval = interval
 					execRecord.Rps = int(computeActualRps(iterStart, invocationCount))
-					execRecord.ClusterCpuAvg, execRecord.ClusterMemAvg = clusterUsage.CpuPctAvg, clusterUsage.MemoryPctAvg
 					collector.ReportExecution(execRecord, clusterUsage, knStats)
 
 				}(minute, tick, phaseIdx, rps, interval.Milliseconds()) //* Push vars onto the stack to prevent racing.

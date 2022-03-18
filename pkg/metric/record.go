@@ -29,8 +29,11 @@ type ExecutionRecord struct {
 	Load         float64 `csv:"load"`
 	Interval     int64   `csv:"interval"`
 
-	ClusterCpuAvg float64 `csv:"cluster_cpu"`
-	ClusterMemAvg float64 `csv:"cluster_mem"`
+	//* Infra statistics are all in percentages.
+	MasterCpu    float64 `csv:"master_cpu"`
+	MasterMem    float64 `csv:"master_mem"`
+	WorkerCpuAvg float64 `csv:"worker_cpu"`
+	WorkerMemAvg float64 `csv:"worker_mem"`
 
 	DesiredPods    int `csv:"desired_pods"`
 	UnreadyPods    int `csv:"unready_pods"`
@@ -58,10 +61,12 @@ type KnStats struct {
 }
 
 type ClusterUsage struct {
-	Cpu          []string `json:"cpu"`
-	CpuPctAvg    float64  `json:"cpu_pct"`
-	Memory       []string `json:"memory"`
-	MemoryPctAvg float64  `json:"memory_pct"`
+	MasterCpuPct    float64  `json:"master_cpu_pct"`
+	MasterMemoryPct float64  `json:"master_memory_pct"`
+	Cpu             []string `json:"cpu"`
+	CpuPctAvg       float64  `json:"cpu_pct"`
+	Memory          []string `json:"memory"`
+	MemoryPctAvg    float64  `json:"memory_pct"`
 }
 
 type AdfResult struct {
