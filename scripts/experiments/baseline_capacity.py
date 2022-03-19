@@ -25,8 +25,8 @@ def main(argv):
         command = f"make ARGS='--sample {size} --duration {duration} --cluster {cluster} --warmup' run 2>&1 | tee cap_{size}.log"
         print(command)
         os.system(command=command)
-        if glob(flagf):
-            break
+        # if glob(flagf):
+        #     break
 
 if __name__ == '__main__':
     try:
