@@ -21,7 +21,7 @@ if __name__ == "__main__":
     for abs_vals, pcts in zip(abs_out.split('\n'), pcts_out.split('\n')):
         if is_master:
             # Record master node.
-            result['master_cpu_pct'], result['master_mem_pct'] = pcts[:-1].split('%')
+            result['master_cpu_pct'], result['master_mem_pct'] = list(map(float, pcts[:-1].split('%')))
             is_master = False
             continue
 
@@ -30,9 +30,9 @@ if __name__ == "__main__":
         cpu_pct, mem_pct = pcts[:-1].split('%')
 
         result['cpu'].append(cpu[1:-1])
-        result['cpu_pct'] += int(cpu_pct)
+        result['cpu_pct'] += float(cpu_pct)
         result['memory'].append(mem[1:-1])
-        result['memory_pct'] += int(mem_pct)
+        result['memory_pct'] += float(mem_pct)
     
     # Prevent div-0 in the case of single-node.
     if counter != 0:
