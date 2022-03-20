@@ -29,13 +29,13 @@ func ScrapeKnStats() KnStats {
 	)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		log.Fatal("Fail to scrape Knative: ", err)
+		log.Warn("Fail to scrape Knative: ", err)
 	}
 
 	var result KnStats
 	err = json.Unmarshal(out, &result)
 	if err != nil {
-		log.Fatal("Fail to parse Knative: ", string(out[:]), err)
+		log.Warn("Fail to parse Knative: ", string(out[:]), err)
 	}
 
 	return result
