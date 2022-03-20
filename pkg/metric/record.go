@@ -62,7 +62,7 @@ type KnStats struct {
 
 type ClusterUsage struct {
 	MasterCpuPct    float64  `json:"master_cpu_pct"`
-	MasterMemoryPct float64  `json:"master_memory_pct"`
+	MasterMemoryPct float64  `json:"master_mem_pct"`
 	Cpu             []string `json:"cpu"`
 	CpuPctAvg       float64  `json:"cpu_pct"`
 	Memory          []string `json:"memory"`
