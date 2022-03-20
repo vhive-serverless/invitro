@@ -11,9 +11,12 @@ const (
 
 func ProfileFunctionConcurrencies(function Function, duration int) FunctionConcurrencyStats {
 	var concurrencies []float64
-	for _, numInocations := range function.InvocationStats.data[:duration] {
-		expectedRps := numInocations / 60
+	for _, numInvocationsPerMinute := range function.InvocationStats.data[:duration] {
+		//* Compute arrival rate (unit: 1s).
+		expectedRps := numInvocationsPerMinute / 60
+		//* Compute processing rate (= runtime_in_milli / 1000) assuming it can be process right away upon arrival.
 		expectedDepartureRatePerSec := float64(function.RuntimeStats.Percentile100) / 1000
+		//* Expected concurrency == the inventory (total #jobs in the system) of Little's law.
 		expectedConcurrency := float64(expectedRps) * expectedDepartureRatePerSec
 		concurrencies = append(concurrencies, expectedConcurrency)
 	}
