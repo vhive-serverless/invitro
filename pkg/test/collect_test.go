@@ -69,8 +69,8 @@ func TestConcurrentReporting(t *testing.T) {
 
 	wg.Add(3)
 	go doReport(0, 10_000)
-	go doReport(0, 10_000)
 	go doReport(1, 10_000)
+	go doReport(0, 10_000)
 	wg.Wait()
 
 	assert.Equal(t, 20_000, collector.GetLantencyRecordLen())
