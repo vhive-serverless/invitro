@@ -65,9 +65,8 @@ func GenerateInterarrivalTimesInMicro(seed int, invocationsPerMinute int, unifor
 	return interArrivalTimes
 }
 
-const OVERFLOAD_THRESHOLD = 0.8
+const OVERFLOAD_THRESHOLD = 0.9
 
-//! Untested
 func CheckOverload(start time.Time, targetRps int, invocationCount int32) bool {
 	duration := time.Since(start).Seconds()
 	failureRate := 1 - float64(invocationCount)/(duration*float64(targetRps))
@@ -143,7 +142,7 @@ stress_generation:
 						atomic.AddInt32(&invocationCount, 1)
 					}
 					execRecord.Interval = interval
-					execRecord.Rps = int(computeActualRps(iterStart, invocationCount))
+					execRecord.Rps = rps
 					collector.ReportExecution(execRecord, clusterUsage, knStats)
 				}(rps, interval.Milliseconds()) //* NB: `clusterUsage` needn't be pushed onto the stack as we want the latest.
 
