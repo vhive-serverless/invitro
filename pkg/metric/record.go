@@ -6,7 +6,7 @@ import (
 
 type MinuteInvocationRecord struct {
 	Phase           int   `csv:"phase"`
-	Rps             int   `csv:"request_per_sec"`
+	Rps             int   `csv:"rps"`
 	MinuteIdx       int   `csv:"index"`
 	Duration        int64 `csv:"duration"`
 	NumFuncTargeted int   `csv:"num_func_target"`
