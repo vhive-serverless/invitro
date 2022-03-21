@@ -25,8 +25,10 @@ func TestGenCheckOverload(t *testing.T) {
 }
 
 func TestGenerateIat(t *testing.T) {
+	gen.InitSeed(42)
+
 	invocationsPerMinute := 20_000
-	iats := gen.GenerateInterarrivalTimesInMicro(0, invocationsPerMinute, true)
+	iats := gen.GenerateInterarrivalTimesInMicro(invocationsPerMinute, true)
 	duration, _ := stats.Sum(stats.LoadRawData(iats))
 
 	assert.Equal(t, iats[rand.Intn(len(iats))], iats[rand.Intn(len(iats))])
@@ -37,7 +39,7 @@ func TestGenerateIat(t *testing.T) {
 		assert.GreaterOrEqual(t, iat, 1.0)
 	}
 
-	iats = gen.GenerateInterarrivalTimesInMicro(0, invocationsPerMinute, false)
+	iats = gen.GenerateInterarrivalTimesInMicro(invocationsPerMinute, false)
 	duration, _ = stats.Sum(stats.LoadRawData(iats))
 
 	assert.Equal(t, invocationsPerMinute, len(iats))

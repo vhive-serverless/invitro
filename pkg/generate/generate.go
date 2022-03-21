@@ -26,8 +26,13 @@ const (
 // 	rand.Seed(time.Now().UnixNano())
 // }
 
-func GenerateInterarrivalTimesInMicro(seed int, invocationsPerMinute int, uniform bool) []float64 {
-	rand.Seed(int64(seed)) //! Fix randomness.
+var iatRand *rand.Rand
+
+func InitSeed(s int64) {
+	iatRand = rand.New(rand.NewSource(s))
+}
+
+func GenerateInterarrivalTimesInMicro(invocationsPerMinute int, uniform bool) []float64 {
 	oneSecondInMicro := 1000_000.0
 	oneMinuteInMicro := 60*oneSecondInMicro - 1000
 
@@ -40,7 +45,7 @@ func GenerateInterarrivalTimesInMicro(seed int, invocationsPerMinute int, unifor
 		if uniform {
 			iat = oneSecondInMicro / rps
 		} else {
-			iat = rand.ExpFloat64() / rps * oneSecondInMicro
+			iat = iatRand.ExpFloat64() / rps * oneSecondInMicro
 		}
 		//* Only guarantee microsecond-level ganularity.
 		if iat < 1 {
@@ -104,7 +109,6 @@ func GenerateStressLoads(rpsStart int, rpsStep int, stressSlotInMinutes int, fun
 stress_generation:
 	for {
 		iats := GenerateInterarrivalTimesInMicro(
-			999, //! Fix randomness.
 			rps*60,
 			true,
 		)
@@ -230,7 +234,6 @@ trace_generation:
 		var invocationCount int32
 
 		iats = GenerateInterarrivalTimesInMicro(
-			minute, //! Fix randomness.
 			numInvocatonsThisMinute,
 			isFixedRate,
 		)
