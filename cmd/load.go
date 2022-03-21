@@ -35,6 +35,8 @@ var (
 	rpsSlot     = flag.Int("slot", 1, "Time slot in minutes for each RPS in the `stress` mode")
 	rpsStep     = flag.Int("step", 1, "Step size for increasing RPS in the `stress` mode")
 
+	seed = flag.Int64("seed", 42, "Random seed for the generator")
+
 	// withWarmup = flag.Int("withWarmup", -1000, "Duration of the withWarmup")
 	withWarmup = flag.Bool("warmup", false, "Enable warmup")
 )
@@ -64,6 +66,8 @@ func init() {
 }
 
 func main() {
+	gen.InitSeed(*seed)
+
 	switch *mode {
 	case "trace":
 		runTraceMode()
