@@ -21,8 +21,9 @@ const (
 )
 
 var (
-	traces            tc.FunctionTraces
-	serviceConfigPath = "workloads/trace_func_go.yaml"
+	traces tc.FunctionTraces
+	// serviceConfigPath = "workloads/trace_func_go.yaml"
+	serviceConfigPath = "workloads/busy_wait.yaml"
 
 	mode        = flag.String("mode", "trace", "Choose a mode from [trace, stress]")
 	debug       = flag.Bool("dbg", false, "Enable debug logging")
