@@ -70,7 +70,7 @@ func GenerateInterarrivalTimesInMicro(invocationsPerMinute int, uniform bool) []
 	return interArrivalTimes
 }
 
-const OVERFLOAD_THRESHOLD = 0.8
+const OVERFLOAD_THRESHOLD = 0.7
 
 func CheckOverload(start time.Time, targetRps int, invocationCount int32) bool {
 	duration := time.Since(start).Seconds()
