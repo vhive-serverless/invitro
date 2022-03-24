@@ -1,8 +1,12 @@
-.PHONY : proto clean build run coldstart image
+.PHONY : proto clean build run coldstart trace-func busy-wait
 
-image:
-	docker build -t hyhe/trace-func-go .
+trace-func:
+	docker build -f Dockerfile.trace -t hyhe/trace-func-go .
 	docker push hyhe/trace-func-go:latest
+
+busy-wait:
+	docker build -f Dockerfile.busy -t hyhe/busy-wait .
+	docker push hyhe/busy-wait:latest
 
 proto:
 	protoc \
