@@ -34,7 +34,7 @@ var (
 	withTracing = flag.Bool("trace", false, "Enable tracing in the client")
 	rps         = flag.Int("rps", -900_000, "Request per second")
 	rpsStart    = flag.Int("start", 0, "Starting RPS value")
-	rpsSlot     = flag.Int("slot", 1, "Time slot in minutes for each RPS in the `stress` mode")
+	rpsSlot     = flag.Int("slot", 60, "Time slot in seconds for each RPS in the `stress` mode")
 	rpsStep     = flag.Int("step", 1, "Step size for increasing RPS in the `stress` mode")
 
 	seed = flag.Int64("seed", 42, "Random seed for the generator")
@@ -74,6 +74,7 @@ func init() {
 	case "trace":
 		serviceConfigPath = "workloads/trace_func_go.yaml"
 	}
+	log.Info("Using service config file: ", serviceConfigPath)
 }
 
 func main() {
