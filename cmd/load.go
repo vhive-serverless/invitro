@@ -22,9 +22,9 @@ const (
 
 var (
 	traces tc.FunctionTraces
-	// serviceConfigPath = "workloads/trace_func_go.yaml"
-	// serviceConfigPath = "workloads/busy_wait.yaml"
-	serviceConfigPath = "workloads/sleep.yaml"
+
+	serviceConfigPath = ""
+	server            = flag.String("server", "busy", "Choose a function server from [busy, sleep, trace]")
 
 	mode        = flag.String("mode", "trace", "Choose a mode from [trace, stress]")
 	debug       = flag.Bool("dbg", false, "Enable debug logging")
@@ -64,6 +64,15 @@ func init() {
 			log.Print(err)
 		}
 		defer shutdown()
+	}
+
+	switch *server {
+	case "sleep":
+		serviceConfigPath = "workloads/sleep.yaml"
+	case "busy":
+		serviceConfigPath = "workloads/busy_wait.yaml"
+	case "trace":
+		serviceConfigPath = "workloads/trace_func_go.yaml"
 	}
 }
 
