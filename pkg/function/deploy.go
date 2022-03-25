@@ -10,7 +10,6 @@ import (
 )
 
 func DeployTrace(functions []tc.Function, serviceConfigPath string, minScales []int) []tc.Function {
-	log.Info("Using service config file: ", serviceConfigPath)
 	var urls []string
 	// deploymentConcurrency := 1 //* Serialise deployment.
 	deploymentConcurrency := len(functions) //* Fully parallelise deployment.

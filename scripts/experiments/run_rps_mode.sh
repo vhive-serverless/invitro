@@ -1,1 +1,1 @@
-make ARGS='--mode stress --start 1 --step 2 --slot 1 ' run 2>&1 | tee stress.log
+make ARGS='-mode stress -start 1 -step 2 -slot 1 -server busy' run 2>&1 | tee stress.log
