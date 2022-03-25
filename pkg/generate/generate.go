@@ -80,7 +80,7 @@ func CheckOverload(start time.Time, targetRps int, invocationCount int32) bool {
 	return failureRate > OVERFLOAD_THRESHOLD
 }
 
-func GenerateStressLoads(rpsStart int, rpsStep int, stressSlotInMinutes int, function tc.Function) {
+func GenerateStressLoads(rpsStart int, rpsStep int, stressSlotInSecs int, function tc.Function) {
 	start := time.Now()
 	wg := sync.WaitGroup{}
 	collector := mc.NewCollector()
@@ -114,7 +114,7 @@ stress_generation:
 		)
 
 		iterStart := time.Now()
-		timeout := time.After(time.Minute * time.Duration(stressSlotInMinutes))
+		timeout := time.After(time.Second * time.Duration(stressSlotInSecs))
 		interval := time.Duration(iats[0]) * time.Microsecond
 		ticker := time.NewTicker(interval)
 		done := make(chan bool, 1)
@@ -151,7 +151,7 @@ stress_generation:
 				}(rps, interval.Milliseconds()) //* NB: `clusterUsage` needn't be pushed onto the stack as we want the latest.
 
 			case <-done:
-				if CheckOverload(iterStart, rps, invocationCount) {
+				if rpsStep == 0 || CheckOverload(iterStart, rps, invocationCount) {
 					break stress_generation
 				} else {
 					goto next_rps
@@ -172,7 +172,7 @@ stress_generation:
 		log.Info("[No time out] Total invocation + waiting duration: ", totalDuration, "\n")
 	}
 
-	defer collector.FinishAndSave(0, 0, rps*stressSlotInMinutes)
+	defer collector.FinishAndSave(0, 0, rps*stressSlotInSecs)
 }
 
 func GenerateTraceLoads(
