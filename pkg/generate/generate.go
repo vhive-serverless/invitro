@@ -19,7 +19,7 @@ import (
 
 const (
 	STATIONARY_P_VALUE  = 0.05
-	OVERFLOAD_THRESHOLD = 0.7
+	OVERFLOAD_THRESHOLD = 0.3
 )
 
 /** Seed the math/rand package for it to be different on each run. */
@@ -395,7 +395,7 @@ func ShuffleAllInvocationsInplace(invocationsEachMinute *[][]int) {
 
 func GenerateStressExecutionSpecs(function tc.Function) (int, int) {
 	//* Median values of corresponding avg. of the whole Azure trace.
-	return 500, 1000
+	return 1000, 170
 }
 
 func GenerateTraceExecutionSpecs(function tc.Function) (int, int) {

@@ -12,7 +12,7 @@ import (
 
 func TestGenCheckOverload(t *testing.T) {
 	successCount := 100
-	assert.False(t, gen.CheckOverload(int64(successCount), int64(successCount)))
+	assert.False(t, gen.CheckOverload(int64(successCount), int64(successCount/3)))
 	assert.True(t, gen.CheckOverload(int64(successCount), int64(3*successCount)))
 }
 
