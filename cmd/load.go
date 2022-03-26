@@ -131,6 +131,8 @@ func runTraceMode() {
 		gen.DumpOverloadFlag()
 		log.Infof("Warmup failed to finish in %d minutes", *duration)
 	}
+	//* Start from the beginning regardless of the warmup.
+	nextPhaseStart = 0
 	log.Infof("Phase 3: Generate real workloads as of Minute[%d]", nextPhaseStart)
 	defer gen.GenerateTraceLoads(
 		*sampleSize,

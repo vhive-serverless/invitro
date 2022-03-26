@@ -165,7 +165,7 @@ stress_generation:
 	}
 	log.Info("Finished stress load generation with ending RPS=", rps)
 
-	forceTimeoutDuration := 30 * time.Minute
+	forceTimeoutDuration := 15 * time.Minute
 	if wgWaitWithTimeout(&wg, forceTimeoutDuration) {
 		log.Warn("Time out waiting for all invocations to return.")
 	} else {
