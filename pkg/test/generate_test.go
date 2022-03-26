@@ -4,7 +4,6 @@ import (
 	"math/rand"
 	"sort"
 	"testing"
-	"time"
 
 	gen "github.com/eth-easl/loader/pkg/generate"
 	"github.com/montanaflynn/stats"
@@ -12,16 +11,9 @@ import (
 )
 
 func TestGenCheckOverload(t *testing.T) {
-	duration := 1 * time.Second
-	count := 85
-	targetRps := 100
-
-	start := time.Now()
-	time.Sleep(duration)
-
-	assert.False(t, gen.CheckOverload(start, targetRps, int32(count)))
-	count -= 80
-	assert.True(t, gen.CheckOverload(start, targetRps, int32(count)))
+	successCount := 100
+	assert.False(t, gen.CheckOverload(int64(successCount), int64(successCount)))
+	assert.True(t, gen.CheckOverload(int64(successCount), int64(3*successCount)))
 }
 
 func TestGenerateIat(t *testing.T) {
