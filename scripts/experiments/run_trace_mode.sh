@@ -1,2 +1,7 @@
 #!/usr/bin/env bash
-python3 ./baseline_capacity.py $1 $2
+
+DUR=$1
+NODES=$2
+
+cgexec -g cpuset,memory:loader-cg \
+    python3 scripts/experiments/baseline_capacity.py $DUR $NODES
