@@ -391,7 +391,7 @@ func ShuffleAllInvocationsInplace(invocationsEachMinute *[][]int) {
 
 func GenerateStressExecutionSpecs(function tc.Function) (int, int) {
 	//* Median values of corresponding avg. of the whole Azure trace.
-	return 4443, 1420
+	return 500, 1000
 }
 
 func GenerateTraceExecutionSpecs(function tc.Function) (int, int) {
