@@ -20,6 +20,7 @@ import (
 const (
 	STATIONARY_P_VALUE  = 0.05
 	OVERFLOAD_THRESHOLD = 0.3
+	OVERFLOAD_TOLERANCE = 2
 )
 
 /** Seed the math/rand package for it to be different on each run. */
@@ -118,6 +119,7 @@ stress_generation:
 
 		var successCount int64 = 0
 		var failureCount int64 = 0
+		tolerance := 0
 
 		/** Launch a timer. */
 		go func() {
@@ -152,7 +154,13 @@ stress_generation:
 
 			case <-done:
 				if rpsStep == 0 || CheckOverload(atomic.LoadInt64(&successCount), atomic.LoadInt64(&failureCount)) {
-					break stress_generation
+					tolerance += 1
+					if tolerance < OVERFLOAD_TOLERANCE {
+						rps -= rpsStep //* Stay in the current RPS for one more time.
+						goto next_rps
+					} else {
+						break stress_generation
+					}
 				} else {
 					goto next_rps
 				}
@@ -233,8 +241,9 @@ trace_generation:
 
 		//* Bound the #invocations/minute by RPS.
 		numInvocatonsThisMinute := util.MinOf(rps*60, totalNumInvocationsEachMinute[minute])
-		var successCount int64
-		var failureCount int64
+		var successCount int64 = 0
+		var failureCount int64 = 0
+		tolerance := 0
 
 		iats = GenerateInterarrivalTimesInMicro(
 			numInvocatonsThisMinute,
@@ -311,9 +320,17 @@ trace_generation:
 				switch phaseIdx {
 				case 3: /** Measurement phase */
 					if CheckOverload(atomic.LoadInt64(&successCount), atomic.LoadInt64(&failureCount)) {
-						DumpOverloadFlag()
-						minute++
-						break trace_generation
+						tolerance += 1
+						if tolerance < OVERFLOAD_TOLERANCE {
+							minute -= 1 //* Stay in the current RPS for one more time.
+							goto next_minute
+						} else {
+							DumpOverloadFlag()
+							minute++
+							break trace_generation
+						}
+					} else {
+						goto next_minute
 					}
 				default: /** Warmup phase */
 					stationaryWindow := 1
