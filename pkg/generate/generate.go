@@ -71,10 +71,9 @@ func GenerateInterarrivalTimesInMicro(invocationsPerMinute int, uniform bool) []
 	return interArrivalTimes
 }
 
-func CheckOverload(start time.Time, targetRps int, invocationCount int32) bool {
-	duration := time.Since(start).Seconds()
-	failureRate := 1 - float64(invocationCount)/(duration*float64(targetRps))
-
+func CheckOverload(successCount, failureCount int64) bool {
+	//* Amongst those returned, how many has failred?
+	failureRate := float64(failureCount) / float64(successCount+failureCount)
 	log.Info("Failure rate=", failureRate)
 	return failureRate > OVERFLOAD_THRESHOLD
 }
@@ -112,13 +111,13 @@ stress_generation:
 			true,
 		)
 
-		iterStart := time.Now()
 		timeout := time.After(time.Second * time.Duration(stressSlotInSecs))
 		interval := time.Duration(iats[0]) * time.Microsecond
 		ticker := time.NewTicker(interval)
 		done := make(chan bool, 1)
 
-		var invocationCount int32 = 0
+		var successCount int64 = 0
+		var failureCount int64 = 0
 
 		/** Launch a timer. */
 		go func() {
@@ -142,7 +141,9 @@ stress_generation:
 					success, execRecord := fc.Invoke(ctx, function, GenerateStressExecutionSpecs)
 
 					if success {
-						atomic.AddInt32(&invocationCount, 1)
+						atomic.AddInt64(&successCount, 1)
+					} else {
+						atomic.AddInt64(&failureCount, 1)
 					}
 					execRecord.Interval = interval
 					execRecord.Rps = rps
@@ -150,7 +151,7 @@ stress_generation:
 				}(rps, interval.Milliseconds()) //* NB: `clusterUsage` needn't be pushed onto the stack as we want the latest.
 
 			case <-done:
-				if rpsStep == 0 || CheckOverload(iterStart, rps, atomic.LoadInt32(&invocationCount)) {
+				if rpsStep == 0 || CheckOverload(atomic.LoadInt64(&successCount), atomic.LoadInt64(&failureCount)) {
 					break stress_generation
 				} else {
 					goto next_rps
@@ -232,7 +233,8 @@ trace_generation:
 
 		//* Bound the #invocations/minute by RPS.
 		numInvocatonsThisMinute := util.MinOf(rps*60, totalNumInvocationsEachMinute[minute])
-		var invocationCount int32
+		var successCount int64
+		var failureCount int64
 
 		iats = GenerateInterarrivalTimesInMicro(
 			numInvocatonsThisMinute,
@@ -278,17 +280,19 @@ trace_generation:
 					hasInvoked, execRecord := fc.Invoke(ctx, function, GenerateTraceExecutionSpecs)
 
 					if hasInvoked {
-						atomic.AddInt32(&invocationCount, 1)
+						atomic.AddInt64(&successCount, 1)
+					} else {
+						atomic.AddInt64(&failureCount, 1)
 					}
 					execRecord.Phase = phase
 					execRecord.Interval = interval
-					execRecord.Rps = int(computeActualRps(iterStart, invocationCount))
+					execRecord.Rps = int(computeActualRps(iterStart, successCount))
 					collector.ReportExecution(execRecord, clusterUsage, knStats)
 
 				}(minute, tick, phaseIdx, rps, interval.Milliseconds()) //* Push vars onto the stack to prevent racing.
 
 			case <-done:
-				numFuncInvoked += int(invocationCount)
+				numFuncInvoked += int(successCount)
 				log.Info("Iteration spent: ", time.Since(iterStart), "\tMinute Nbr. ", minute)
 				log.Info("Target #invocations=", totalNumInvocationsEachMinute[minute], " Fired #functions=", numFuncInvoked, "\tMinute Nbr. ", minute)
 
@@ -306,7 +310,7 @@ trace_generation:
 
 				switch phaseIdx {
 				case 3: /** Measurement phase */
-					if CheckOverload(iterStart, rps, atomic.LoadInt32(&invocationCount)) {
+					if CheckOverload(atomic.LoadInt64(&successCount), atomic.LoadInt64(&failureCount)) {
 						DumpOverloadFlag()
 						minute++
 						break trace_generation
@@ -452,7 +456,7 @@ func GenerateTraceExecutionSpecs(function tc.Function) (int, int) {
 	return runtime, memory
 }
 
-func computeActualRps(start time.Time, counter int32) float64 {
+func computeActualRps(start time.Time, counter int64) float64 {
 	duration := time.Since(start).Seconds()
 	return float64(counter) / duration
 }
