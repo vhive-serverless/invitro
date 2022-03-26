@@ -2,6 +2,7 @@ package generate
 
 import (
 	"context"
+	"math"
 	"math/rand"
 	"os"
 	"sync"
@@ -109,7 +110,7 @@ func GenerateStressLoads(rpsStart int, rpsStep int, stressSlotInSecs int, functi
 stress_generation:
 	for {
 		iats := GenerateInterarrivalTimesInMicro(
-			rps*60,
+			rps*stressSlotInSecs,
 			true,
 		)
 
@@ -224,12 +225,14 @@ trace_generation:
 		tick := 0
 		var iats []float64
 
-		if totalNumInvocationsEachMinute[minute] < 60 {
-			rps = totalNumInvocationsEachMinute[minute]
+		traceRps := int(math.Ceil(float64(totalNumInvocationsEachMinute[minute]) / 60))
+		if isFixedRate {
+			rps = util.MinOf(traceRps, rps)
 		} else {
-			rps = totalNumInvocationsEachMinute[minute] / 60
+			rps = traceRps
 		}
-		//* Bound the #invocations by RPS.
+
+		//* Bound the #invocations/minute by RPS.
 		numInvocatonsThisMinute := util.MinOf(rps*60, totalNumInvocationsEachMinute[minute])
 		var invocationCount int32
 
