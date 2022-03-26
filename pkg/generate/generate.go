@@ -18,8 +18,8 @@ import (
 )
 
 const (
-	STATIONARY_P_VALUE = 0.05
-	// FAILURE_RATE_THRESHOLD = 0.5
+	STATIONARY_P_VALUE  = 0.05
+	OVERFLOAD_THRESHOLD = 0.7
 )
 
 /** Seed the math/rand package for it to be different on each run. */
@@ -70,8 +70,6 @@ func GenerateInterarrivalTimesInMicro(invocationsPerMinute int, uniform bool) []
 	// log.Info(stats.Sum(stats.LoadRawData(interArrivalTimes)))
 	return interArrivalTimes
 }
-
-const OVERFLOAD_THRESHOLD = 0.7
 
 func CheckOverload(start time.Time, targetRps int, invocationCount int32) bool {
 	duration := time.Since(start).Seconds()
@@ -152,7 +150,7 @@ stress_generation:
 				}(rps, interval.Milliseconds()) //* NB: `clusterUsage` needn't be pushed onto the stack as we want the latest.
 
 			case <-done:
-				if rpsStep == 0 || CheckOverload(iterStart, rps, invocationCount) {
+				if rpsStep == 0 || CheckOverload(iterStart, rps, atomic.LoadInt32(&invocationCount)) {
 					break stress_generation
 				} else {
 					goto next_rps
@@ -292,8 +290,7 @@ trace_generation:
 			case <-done:
 				numFuncInvoked += int(invocationCount)
 				log.Info("Iteration spent: ", time.Since(iterStart), "\tMinute Nbr. ", minute)
-				log.Info("Target #invocations=", totalNumInvocationsEachMinute[minute],
-					" Fired #functions=", numFuncInvoked, "\tMinute Nbr. ", minute)
+				log.Info("Target #invocations=", totalNumInvocationsEachMinute[minute], " Fired #functions=", numFuncInvoked, "\tMinute Nbr. ", minute)
 
 				invocRecord := mc.MinuteInvocationRecord{
 					MinuteIdx:       minute + phaseOffset,
@@ -309,7 +306,7 @@ trace_generation:
 
 				switch phaseIdx {
 				case 3: /** Measurement phase */
-					if CheckOverload(iterStart, rps, invocationCount) {
+					if CheckOverload(iterStart, rps, atomic.LoadInt32(&invocationCount)) {
 						DumpOverloadFlag()
 						minute++
 						break trace_generation
