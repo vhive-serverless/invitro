@@ -332,6 +332,7 @@ trace_generation:
 				}
 			}
 			//* Load the next inter-arrival time.
+			tick++
 			if tick < len(iats) {
 				interval = time.Duration(iats[tick]) * time.Microsecond
 				ticker = time.NewTicker(interval)
@@ -405,7 +406,7 @@ func ShuffleAllInvocationsInplace(invocationsEachMinute *[][]int) {
 }
 
 func GenerateStressExecutionSpecs(function tc.Function) (int, int) {
-	//* Median values of corresponding avg. of the whole Azure trace.
+	//* p50 values of the original Azure paper (not the released trace!!!).
 	return 1000, 170
 }
 
