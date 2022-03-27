@@ -118,8 +118,9 @@ stress_generation:
 		ticker := time.NewTicker(interval)
 		done := make(chan bool, 1)
 
-		var successCount int64 = 0
-		var failureCount int64 = 0
+		//* The following counters are for each RPS step slot.
+		var successCountRpsStep int64 = 0
+		var failureCountRpsStep int64 = 0
 
 		/** Launch a timer. */
 		go func() {
@@ -143,9 +144,9 @@ stress_generation:
 					success, execRecord := fc.Invoke(ctx, function, GenerateStressExecutionSpecs)
 
 					if success {
-						atomic.AddInt64(&successCount, 1)
+						atomic.AddInt64(&successCountRpsStep, 1)
 					} else {
-						atomic.AddInt64(&failureCount, 1)
+						atomic.AddInt64(&failureCountRpsStep, 1)
 					}
 					execRecord.Interval = interval
 					execRecord.Rps = rps
@@ -153,8 +154,8 @@ stress_generation:
 				}(rps, interval.Milliseconds()) //* NB: `clusterUsage` needn't be pushed onto the stack as we want the latest.
 
 			case <-done:
-				if rpsStep == 0 || CheckOverload(atomic.LoadInt64(&successCount), atomic.LoadInt64(&failureCount)) {
-					tolerance += 1
+				if CheckOverload(atomic.LoadInt64(&successCountRpsStep), atomic.LoadInt64(&failureCountRpsStep)) {
+					tolerance++
 					if tolerance < OVERFLOAD_TOLERANCE {
 						rps -= rpsStep //* Stay in the current RPS for one more time.
 						goto next_rps
@@ -167,6 +168,9 @@ stress_generation:
 			}
 		}
 	next_rps:
+		if rpsStep == 0 { // For a single shot.
+			break stress_generation
+		}
 		rps += rpsStep
 		log.Info("Start next round with RPS=", rps, " after ", time.Since(start))
 	}
@@ -226,7 +230,10 @@ func GenerateTraceLoads(
 	totalDurationMinutes := len(totalNumInvocationsEachMinute)
 
 	minute := 0
-	tolerance := 0
+	oldSuccessCountTotal := 0
+	//* The following counters are for the whole measurement (we don't stop in the middle).
+	var successCountTotal int64 = 0
+	var failureCountTotal int64 = 0
 
 trace_generation:
 	for ; minute < int(totalDurationMinutes); minute++ {
@@ -242,8 +249,6 @@ trace_generation:
 
 		//* Bound the #invocations/minute by RPS.
 		numInvocatonsThisMinute := util.MinOf(rps*60, totalNumInvocationsEachMinute[minute])
-		var successCount int64 = 0
-		var failureCount int64 = 0
 
 		iats = GenerateInterarrivalTimesInMicro(
 			numInvocatonsThisMinute,
@@ -289,19 +294,20 @@ trace_generation:
 					hasInvoked, execRecord := fc.Invoke(ctx, function, GenerateTraceExecutionSpecs)
 
 					if hasInvoked {
-						atomic.AddInt64(&successCount, 1)
+						atomic.AddInt64(&successCountTotal, 1)
 					} else {
-						atomic.AddInt64(&failureCount, 1)
+						atomic.AddInt64(&failureCountTotal, 1)
 					}
 					execRecord.Phase = phase
 					execRecord.Interval = interval
-					execRecord.Rps = int(computeActualRps(iterStart, successCount))
+					execRecord.Rps = int(computeActualRps(iterStart, successCountTotal))
 					collector.ReportExecution(execRecord, clusterUsage, knStats)
 
 				}(minute, tick, phaseIdx, rps, interval.Milliseconds()) //* Push vars onto the stack to prevent racing.
 
 			case <-done:
-				numFuncInvoked += int(successCount)
+				numFuncInvoked += int(successCountTotal) - oldSuccessCountTotal
+				oldSuccessCountTotal = int(successCountTotal)
 				log.Info("Iteration spent: ", time.Since(iterStart), "\tMinute Nbr. ", minute)
 				log.Info("Target #invocations=", totalNumInvocationsEachMinute[minute], " Fired #functions=", numFuncInvoked, "\tMinute Nbr. ", minute)
 
@@ -317,31 +323,15 @@ trace_generation:
 				//* Export metrics for all phases.
 				collector.ReportInvocation(invocRecord)
 
-				switch phaseIdx {
-				case 3: /** Measurement phase */
-					if CheckOverload(atomic.LoadInt64(&successCount), atomic.LoadInt64(&failureCount)) {
-						tolerance += 1
-						if tolerance < OVERFLOAD_TOLERANCE {
-							minute -= 1 //* Stay in the current RPS for one more time.
-							goto next_minute
-						} else {
-							DumpOverloadFlag()
-							minute++
-							break trace_generation
-						}
-					} else {
-						goto next_minute
-					}
-				default: /** Warmup phase */
-					stationaryWindow := 1
-					if collector.IsLatencyStationary(rps*60*stationaryWindow, STATIONARY_P_VALUE) {
-						minute++
-						break trace_generation
-					}
+				/** Warmup phase */
+				stationaryWindow := 1
+				if phaseIdx != 3 &&
+					collector.IsLatencyStationary(rps*60*stationaryWindow, STATIONARY_P_VALUE) {
+					minute++
+					break trace_generation
 				}
 			}
 			//* Load the next inter-arrival time.
-			tick++
 			if tick < len(iats) {
 				interval = time.Duration(iats[tick]) * time.Microsecond
 				ticker = time.NewTicker(interval)
@@ -355,7 +345,6 @@ trace_generation:
 
 	//* 15 min maximum waiting time based upon max. function duration of popular clouds.
 	forceTimeoutDuration := time.Duration(15) * time.Minute
-
 	if !withBlocking {
 		forceTimeoutDuration = time.Second * 1
 	}
@@ -365,6 +354,11 @@ trace_generation:
 	} else {
 		totalDuration := time.Since(start)
 		log.Info("[No time out] Total invocation + waiting duration: ", totalDuration, "\n")
+	}
+
+	//* Only check overload after the entire Phase 3 to account for all late returns.
+	if phaseIdx == 3 && CheckOverload(atomic.LoadInt64(&successCountTotal), atomic.LoadInt64(&failureCountTotal)) {
+		DumpOverloadFlag()
 	}
 
 	defer collector.FinishAndSave(sampleSize, phaseIdx, minute)
