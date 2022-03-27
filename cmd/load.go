@@ -128,7 +128,7 @@ func runTraceMode() {
 
 	/** Measurement (Phase 3) */
 	if nextPhaseStart == *duration {
-		gen.DumpOverloadFlag()
+		// gen.DumpOverloadFlag()
 		log.Infof("Warmup failed to finish in %d minutes", *duration)
 	}
 	//* Start from the beginning regardless of the warmup.
