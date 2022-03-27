@@ -14,12 +14,10 @@ import (
 const (
 	gatewayUrl = "192.168.1.240.sslip.io" // Address of the load balancer.
 	namespace  = "default"
-	port       = "80"
 )
 
 var GetFuncEndpoint = func(name string) string {
-	id := name + "-" + strconv.Itoa(int(util.Hash(name)))
-	return fmt.Sprintf("%s.%s.%s:%s", id, namespace, gatewayUrl, port)
+	return fmt.Sprintf("%s.%s.%s", name, namespace, gatewayUrl)
 }
 
 func ParseInvocationTrace(traceFile string, traceDuration int) FunctionTraces {
@@ -72,7 +70,7 @@ func ParseInvocationTrace(traceFile string, traceDuration int) FunctionTraces {
 			}
 
 			// Create function profile.
-			funcName := fmt.Sprintf("%s-%d", "trace-func", funcIdx)
+			funcName := fmt.Sprintf("%s-%d-%d", "trace-func", funcIdx, util.Hash(record[2]))
 
 			function := Function{
 				Name:            funcName,
@@ -229,32 +227,3 @@ func ParseMemoryTrace(trace *FunctionTraces, traceFile string) {
 		log.Fatal("Could not find all memory footprints for all invocations in the supplied trace ", foundDurations, len(trace.Functions))
 	}
 }
-
-// // Functions is an object for unmarshalled JSON with functions to deploy.
-// type Functions struct {
-// 	Functions []FunctionType `json:"functions"`
-// }
-
-// type FunctionType struct {
-// 	Name string `json:"name"`
-// 	File string `json:"file"`
-
-// 	// Number of functions to deploy from the same file (with different names)
-// 	Count int `json:"count"`
-
-// 	Eventing    bool   `json:"eventing"`
-// 	ApplyScript string `json:"applyScript"`
-// }
-
-// func getFuncSlice(file string) []fc.FunctionType {
-// 	log.Info("Opening JSON file with functions: ", file)
-// 	byteValue, err := ioutil.ReadFile(file)
-// 	if err != nil {
-// 		log.Fatal(err)
-// 	}
-// 	var functions fc.Functions
-// 	if err := json.Unmarshal(byteValue, &functions); err != nil {
-// 		log.Fatal(err)
-// 	}
-// 	return functions.Functions
-// }
