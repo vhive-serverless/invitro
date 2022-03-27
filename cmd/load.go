@@ -24,7 +24,7 @@ var (
 	traces tc.FunctionTraces
 
 	serviceConfigPath = ""
-	server            = flag.String("server", "busy", "Choose a function server from [busy, sleep, trace]")
+	server            = flag.String("server", "trace", "Choose a function server from [busy, sleep, trace]")
 
 	mode        = flag.String("mode", "trace", "Choose a mode from [trace, stress]")
 	debug       = flag.Bool("dbg", false, "Enable debug logging")

@@ -24,7 +24,7 @@ def main(argv):
         # for _ in range(repeat):
         os.system('make -i clean')
         
-        command = f"make ARGS='--sample {size} --duration {duration} --cluster {cluster} --warmup' run 2>&1 | tee cap_{size}.log"
+        command = f"make ARGS='-sample {size} -duration {duration} -cluster {cluster} -server trace -warmup' run 2>&1 | tee cap_{size}.log"
         print(command)
         os.system(command=command)
         # if glob(flagf):
