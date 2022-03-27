@@ -105,13 +105,14 @@ func GenerateStressLoads(rpsStart int, rpsStep int, stressSlotInSecs int, functi
 	}()
 
 	rps := rpsStart
+	tolerance := 0
+
 stress_generation:
 	for {
 		iats := GenerateInterarrivalTimesInMicro(
-			rps*stressSlotInSecs,
+			rps*60,
 			true,
 		)
-
 		timeout := time.After(time.Second * time.Duration(stressSlotInSecs))
 		interval := time.Duration(iats[0]) * time.Microsecond
 		ticker := time.NewTicker(interval)
@@ -119,7 +120,6 @@ stress_generation:
 
 		var successCount int64 = 0
 		var failureCount int64 = 0
-		tolerance := 0
 
 		/** Launch a timer. */
 		go func() {
@@ -226,13 +226,14 @@ func GenerateTraceLoads(
 	totalDurationMinutes := len(totalNumInvocationsEachMinute)
 
 	minute := 0
+	tolerance := 0
 
 trace_generation:
 	for ; minute < int(totalDurationMinutes); minute++ {
 		tick := 0
 		var iats []float64
 
-		traceRps := int(math.Ceil(float64(totalNumInvocationsEachMinute[minute]) / 60))
+		traceRps := int(math.Ceil(float64(totalNumInvocationsEachMinute[minute]) / 60.0))
 		if isFixedRate {
 			rps = util.MinOf(traceRps, rps)
 		} else {
@@ -243,7 +244,6 @@ trace_generation:
 		numInvocatonsThisMinute := util.MinOf(rps*60, totalNumInvocationsEachMinute[minute])
 		var successCount int64 = 0
 		var failureCount int64 = 0
-		tolerance := 0
 
 		iats = GenerateInterarrivalTimesInMicro(
 			numInvocatonsThisMinute,

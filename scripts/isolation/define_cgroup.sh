@@ -12,8 +12,8 @@ fi
 # Create a group with the $CURRENT_USER who is able to write the task file.
 cgcreate -a $CURRENT_USER -t $CURRENT_USER -g cpuset,memory:loader-cg
 
-# Assign 4 cores.
-echo "12-15" > /sys/fs/cgroup/cpuset/loader-cg/cpuset.cpus
+# Assign 6 cores.
+echo "10-15" > /sys/fs/cgroup/cpuset/loader-cg/cpuset.cpus
 echo "0" > /sys/fs/cgroup/cpuset/loader-cg/cpuset.mems
 
 # Specify memory limit (20GiB).
