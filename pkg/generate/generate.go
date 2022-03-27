@@ -425,7 +425,7 @@ func GenerateTraceExecutionSpecs(function tc.Function) (int, int) {
 	 * With 50% prob., returns average values (since we sample the trace based upon the average)
 	 * With 50% prob., returns uniform volumns from the the upper and lower percentile interval.
 	 */
-	if memory = memStats.Average; util.RandBool() {
+	if memory = memStats.Percentile50; util.RandBool() {
 		switch {
 		case memQtl <= 0.01:
 			memory = memStats.Percentile1
@@ -446,7 +446,7 @@ func GenerateTraceExecutionSpecs(function tc.Function) (int, int) {
 		}
 	}
 
-	if runtime = runStats.Average; util.RandBool() {
+	if runtime = runStats.Percentile50; util.RandBool() {
 		switch {
 		case runQtl <= 0.01:
 			runtime = runStats.Percentile0

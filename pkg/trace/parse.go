@@ -18,7 +18,8 @@ const (
 )
 
 var GetFuncEndpoint = func(name string) string {
-	return fmt.Sprintf("%s.%s.%s:%s", name, namespace, gatewayUrl, port)
+	id := name + "-" + strconv.Itoa(int(util.Hash(name)))
+	return fmt.Sprintf("%s.%s.%s:%s", id, namespace, gatewayUrl, port)
 }
 
 func ParseInvocationTrace(traceFile string, traceDuration int) FunctionTraces {

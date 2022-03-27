@@ -28,7 +28,7 @@ proto:
 clean: 
 	kubectl rollout restart deployment activator -n knative-serving
 	kn service delete --all
-	kubectl delete --all pods --namespace=default
+	kubectl delete all --all -n default
 	bash scripts/warmup/reset_kn_global.sh
 	rm -f load
 # 	rm -f *.log
