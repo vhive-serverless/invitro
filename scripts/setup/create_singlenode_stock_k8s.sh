@@ -51,6 +51,6 @@ server_exec 'bash loader/scripts/setup/turbo_boost.sh disable'
 #* Disable hyperthreading.
 server_exec 'echo off | sudo tee /sys/devices/system/cpu/smt/control'
 #* Create CGroup.
-server_exec 'bash loader/scripts/isolation/define_cgroup.sh'
+server_exec 'sudo bash loader/scripts/isolation/define_cgroup.sh'
 
 echo "Logging in master node $SEVER"
