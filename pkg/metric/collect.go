@@ -60,7 +60,7 @@ func ScrapeClusterUsage() ClusterUsage {
 	return result
 }
 
-func (collector *Collector) IsLatencyStationary(windowSize int, pvalue float64) bool {
+func (collector *Collector) IsLatencyStationary(windowSize int, pvalueThreshold float64) bool {
 	latencies := collector.GetLatenciesInOrder()
 	if len(latencies) <= 3 {
 		return true
@@ -95,18 +95,20 @@ func (collector *Collector) IsLatencyStationary(windowSize int, pvalue float64) 
 	}
 	// log.Info(result)
 
-	isStationary := pvalue >= result.Pvalue
+	isStationary := result.Pvalue <= pvalueThreshold
 	switch {
-	case pvalue <= 0.01:
+	case pvalueThreshold <= 0.01:
 		isStationary = isStationary &&
 			(result.TestStats <= result.CriticalVals.Pct1)
-	case pvalue <= 0.05:
+	case pvalueThreshold <= 0.05:
 		isStationary = isStationary &&
 			(result.TestStats <= result.CriticalVals.Pct5)
-	case pvalue <= 0.10:
+	case pvalueThreshold <= 0.10:
 		isStationary = isStationary &&
 			(result.TestStats <= result.CriticalVals.Pct10)
 	}
+
+	log.Info("Stationary test: ", isStationary, " P-value=", result.Pvalue)
 	return isStationary
 }
 
