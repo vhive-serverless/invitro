@@ -49,7 +49,7 @@ func DeployFunction(function *tc.Function, serviceConfigPath string, minScale in
 		"kn",
 		"service",
 		"apply",
-		function.Endpoint,
+		function.Name,
 		"-f",
 		serviceConfigPath,
 		"--scale-min",

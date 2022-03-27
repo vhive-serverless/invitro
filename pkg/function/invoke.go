@@ -15,6 +15,8 @@ import (
 
 var registry = LoadRegistry{}
 
+var port = ":80"
+
 func Invoke(ctx context.Context, function tc.Function, gen tc.FunctionSpecsGen) (bool, mc.ExecutionRecord) {
 	runtimeRequested, memoryRequested := gen(function)
 	log.Infof("(Invoke)\t %s: %d[µs], %d[MiB]", function.Name, runtimeRequested*int(math.Pow10(3)), memoryRequested)
@@ -28,7 +30,7 @@ func Invoke(ctx context.Context, function tc.Function, gen tc.FunctionSpecsGen) 
 	start := time.Now()
 	record.Timestamp = start.UnixMicro()
 
-	conn, err := grpc.DialContext(ctx, function.Endpoint, grpc.WithInsecure(), grpc.WithBlock())
+	conn, err := grpc.DialContext(ctx, function.Endpoint+port, grpc.WithInsecure(), grpc.WithBlock())
 	if err != nil {
 		//! Failures will also be recorded with 0's.
 		log.Warnf("Failed to connect: %v", err)
