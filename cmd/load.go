@@ -105,17 +105,17 @@ func runTraceMode() {
 	}
 
 	totalNumPhases := 3
-	// profilingMinutes := *duration/2 + 1 //TODO
+	profilingMinutes := *duration/2 + 1 //TODO
 
-	// /* Profiling */
-	// if *withWarmup {
-	// 	for funcIdx := 0; funcIdx < len(traces.Functions); funcIdx++ {
-	// 		function := traces.Functions[funcIdx]
-	// 		traces.Functions[funcIdx].ConcurrencySats =
-	// 			tc.ProfileFunctionConcurrencies(function, profilingMinutes)
-	// 	}
-	// 	traces.WarmupScales = wu.ComputeFunctionsWarmupScales(*cluster, traces.Functions)
-	// }
+	/* Profiling */
+	if *withWarmup {
+		for funcIdx := 0; funcIdx < len(traces.Functions); funcIdx++ {
+			function := traces.Functions[funcIdx]
+			traces.Functions[funcIdx].ConcurrencySats =
+				tc.ProfileFunctionConcurrencies(function, profilingMinutes)
+		}
+		traces.WarmupScales = wu.ComputeFunctionsWarmupScales(*cluster, traces.Functions)
+	}
 
 	/** Deployment */
 	functions := fc.DeployTrace(traces.Functions, serviceConfigPath, traces.WarmupScales)
