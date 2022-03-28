@@ -40,7 +40,10 @@ func TestGenerateIat(t *testing.T) {
 	for _, iat := range iats {
 		assert.GreaterOrEqual(t, iat, 1.0)
 	}
-	// t.Log(iats)
+
+	iats = gen.GenerateInterarrivalTimesInMicro(0, false)
+	assert.Equal(t, 0, len(iats))
+	t.Log(iats)
 }
 
 func TestShuffling(t *testing.T) {
