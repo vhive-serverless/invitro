@@ -84,14 +84,19 @@ do
 		ssh -oStrictHostKeyChecking=no -p 22 $node "sudo ${LOGIN_TOKEN}"
 		echo "Worker node $node joined the cluster."
 
-		#* Stretch the capacity of the worker node to 500 (k8s default: 110).
-		echo "Streching node capacity for $node."
-		server_exec 'echo "maxPods: 500" > >(sudo tee -a /var/lib/kubelet/config.yaml >/dev/null)'
-		server_exec 'sudo systemctl restart kubelet'
+		# #* Disable master turbo boost.
+		# ssh -oStrictHostKeyChecking=no -p 22 $node 'bash loader/scripts/setup/turbo_boost.sh disable'
+		# #* Disable master hyperthreading.
+		# ssh -oStrictHostKeyChecking=no -p 22 $node 'echo off | sudo tee /sys/devices/system/cpu/smt/control'
+
+		# #* Stretch the capacity of the worker node to 500 (k8s default: 110).
+		# echo "Streching node capacity for $node."
+		# server_exec 'echo "maxPods: 500" > >(sudo tee -a /var/lib/kubelet/config.yaml >/dev/null)'
+		# server_exec 'sudo systemctl restart kubelet'
 		
-		#* Rejoin has to be performed although errors will be thrown. Otherwise, restarting the kubelet will cause the node unreachable for some reason.
-		ssh -oStrictHostKeyChecking=no -p 22 $node "sudo ${LOGIN_TOKEN} > /dev/null 2>&1"
-		echo "Worker node $node joined the cluster (again :P)."
+		# #* Rejoin has to be performed although errors will be thrown. Otherwise, restarting the kubelet will cause the node unreachable for some reason.
+		# ssh -oStrictHostKeyChecking=no -p 22 $node "sudo ${LOGIN_TOKEN} > /dev/null 2>&1"
+		# echo "Worker node $node joined the cluster (again :P)."
 	fi
 done
 
@@ -118,9 +123,9 @@ server_exec 'cd; cd loader; pip install -r config/requirements.txt'
 
 $DIR/expose_infra_metrics.sh $MASTER_NODE
 
-#* Disable turbo boost.
+#* Disable master turbo boost.
 server_exec 'bash loader/scripts/setup/turbo_boost.sh disable'
-#* Disable hyperthreading.
+#* Disable master hyperthreading.
 server_exec 'echo off | sudo tee /sys/devices/system/cpu/smt/control'
 #* Create CGroup.
 server_exec 'sudo bash loader/scripts/isolation/define_cgroup.sh'
