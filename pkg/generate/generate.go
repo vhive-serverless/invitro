@@ -249,6 +249,9 @@ trace_generation:
 
 		//* Bound the #invocations/minute by RPS.
 		numInvocatonsThisMinute := util.MinOf(rps*60, totalNumInvocationsEachMinute[minute])
+		if numInvocatonsThisMinute < 1 {
+			continue
+		}
 
 		iats = GenerateInterarrivalTimesInMicro(
 			numInvocatonsThisMinute,
@@ -300,7 +303,7 @@ trace_generation:
 					}
 					execRecord.Phase = phase
 					execRecord.Interval = interval
-					execRecord.Rps = int(computeActualRps(iterStart, successCountTotal))
+					execRecord.Rps = rps
 					collector.ReportExecution(execRecord, clusterUsage, knStats)
 
 				}(minute, tick, phaseIdx, rps, interval.Milliseconds()) //* Push vars onto the stack to prevent racing.
