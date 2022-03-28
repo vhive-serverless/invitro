@@ -4,8 +4,10 @@ import (
 	"encoding/csv"
 	"fmt"
 	"io"
+	"math/rand"
 	"os"
 	"strconv"
+	"time"
 
 	util "github.com/eth-easl/loader/pkg"
 	log "github.com/sirupsen/logrus"
@@ -15,6 +17,10 @@ const (
 	gatewayUrl = "192.168.1.240.sslip.io" // Address of the load balancer.
 	namespace  = "default"
 )
+
+func init() {
+	rand.Seed(time.Now().UnixNano())
+}
 
 var GetFuncEndpoint = func(name string) string {
 	return fmt.Sprintf("%s.%s.%s", name, namespace, gatewayUrl)
@@ -70,7 +76,7 @@ func ParseInvocationTrace(traceFile string, traceDuration int) FunctionTraces {
 			}
 
 			// Create function profile.
-			funcName := fmt.Sprintf("%s-%d-%d", "trace-func", funcIdx, util.Hash(record[2]))
+			funcName := fmt.Sprintf("%s-%d-%d", "trace-func", funcIdx, rand.Uint64())
 
 			function := Function{
 				Name:            funcName,
