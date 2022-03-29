@@ -89,14 +89,14 @@ do
 		# #* Disable master hyperthreading.
 		# ssh -oStrictHostKeyChecking=no -p 22 $node 'echo off | sudo tee /sys/devices/system/cpu/smt/control'
 
-		# #* Stretch the capacity of the worker node to 500 (k8s default: 110).
-		# echo "Streching node capacity for $node."
-		# server_exec 'echo "maxPods: 500" > >(sudo tee -a /var/lib/kubelet/config.yaml >/dev/null)'
-		# server_exec 'sudo systemctl restart kubelet'
+		#* Stretch the capacity of the worker node to 500 (k8s default: 110).
+		echo "Streching node capacity for $node."
+		server_exec 'echo "maxPods: 500" > >(sudo tee -a /var/lib/kubelet/config.yaml >/dev/null)'
+		server_exec 'sudo systemctl restart kubelet'
 		
-		# #* Rejoin has to be performed although errors will be thrown. Otherwise, restarting the kubelet will cause the node unreachable for some reason.
-		# ssh -oStrictHostKeyChecking=no -p 22 $node "sudo ${LOGIN_TOKEN} > /dev/null 2>&1"
-		# echo "Worker node $node joined the cluster (again :P)."
+		#* Rejoin has to be performed although errors will be thrown. Otherwise, restarting the kubelet will cause the node unreachable for some reason.
+		ssh -oStrictHostKeyChecking=no -p 22 $node "sudo ${LOGIN_TOKEN} > /dev/null 2>&1"
+		echo "Worker node $node joined the cluster (again :P)."
 	fi
 done
 
@@ -121,7 +121,7 @@ server_exec "git clone --branch=$LOADER_BRANCH git@github.com:eth-easl/loader.gi
 server_exec 'echo -en "\n\n" | sudo apt-get install python3-pip python-dev'
 server_exec 'cd; cd loader; pip install -r config/requirements.txt'
 
-$DIR/expose_infra_metrics.sh $MASTER_NODE
+# $DIR/expose_infra_metrics.sh $MASTER_NODE
 
 #* Disable master turbo boost.
 server_exec 'bash loader/scripts/setup/turbo_boost.sh disable'

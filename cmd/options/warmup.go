@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	NODE_CAPACITY    = 160 //* Empirical limit of a single-node cluster (NOT one-worker cluster).
+	NODE_CAPACITY    = 220 //* Empirical limit of a single-node cluster (NOT one-worker cluster).
 	MIN_WARMUP_SCALE = 2
 )
 
