@@ -15,14 +15,8 @@ if __name__ == "__main__":
         "memory_pct": 0,
     }
 
-    succeeded = False
-    while not succeeded:
-        try:
-            abs_out = subprocess.check_output(cmd_get_abs_vals).decode("utf-8")[:-1]
-            pcts_out = subprocess.check_output(cmd_get_pcts).decode("utf-8")
-            succeeded = True
-        except:
-            succeeded = False
+    abs_out = subprocess.check_output(cmd_get_abs_vals).decode("utf-8")[:-1]
+    pcts_out = subprocess.check_output(cmd_get_pcts).decode("utf-8")
 
     counter = 0
     is_master = True

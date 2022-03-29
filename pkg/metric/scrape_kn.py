@@ -25,7 +25,14 @@ if __name__ == "__main__":
     }
 
     for label, query in kn_statua.items():
-        measure = os.popen(query()).read().strip()
+
+        while True:
+            try:
+                measure = os.popen(query()).read().strip()
+                if 'error' not in measure:
+                    break
+            except:
+                pass
 
         if label.startswith('a'):
             measure = float(measure) if measure else 0.0

@@ -201,23 +201,23 @@ func GenerateTraceLoads(
 	clusterUsage := mc.ClusterUsage{}
 	knStats := mc.KnStats{}
 
-	/** Launch a scraper that updates the cluster usage every 15s (max. interval). */
-	scrape := time.NewTicker(time.Second * 15)
-	go func() {
-		for {
-			<-scrape.C
-			clusterUsage = mc.ScrapeClusterUsage()
-		}
-	}()
+	// /** Launch a scraper that updates the cluster usage every 15s (max. interval). */
+	// scrape := time.NewTicker(time.Second * 15)
+	// go func() {
+	// 	for {
+	// 		<-scrape.C
+	// 		clusterUsage = mc.ScrapeClusterUsage()
+	// 	}
+	// }()
 
-	/** Launch a scraper that updates Knative states every 2s (max. interval). */
-	scrape_kn := time.NewTicker(time.Second * 2)
-	go func() {
-		for {
-			<-scrape_kn.C
-			knStats = mc.ScrapeKnStats()
-		}
-	}()
+	// /** Launch a scraper that updates Knative states every 2s (max. interval). */
+	// scrape_kn := time.NewTicker(time.Second * 2)
+	// go func() {
+	// 	for {
+	// 		<-scrape_kn.C
+	// 		knStats = mc.ScrapeKnStats()
+	// 	}
+	// }()
 
 	isFixedRate := true
 	if rps < 1 {
