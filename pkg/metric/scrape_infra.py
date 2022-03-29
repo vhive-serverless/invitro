@@ -1,12 +1,10 @@
 import subprocess
 import json
+import sys
 
 if __name__ == "__main__":
     cmd_get_abs_vals = ['bash', 'scripts/metrics/get_node_stats_abs.sh']
     cmd_get_pcts = ['bash', 'scripts/metrics/get_node_stats_percent.sh']
-
-    abs_out = subprocess.check_output(cmd_get_abs_vals).decode("utf-8")[:-1]
-    pcts_out = subprocess.check_output(cmd_get_pcts).decode("utf-8")
 
     result = {
         "master_cpu_pct": 0,
@@ -16,6 +14,16 @@ if __name__ == "__main__":
         "memory": [],
         "memory_pct": 0,
     }
+
+    succeeded = False
+    while not succeeded:
+        try:
+            abs_out = subprocess.check_output(cmd_get_abs_vals).decode("utf-8")[:-1]
+            pcts_out = subprocess.check_output(cmd_get_pcts).decode("utf-8")
+            succeeded = True
+        except:
+            succeeded = False
+
     counter = 0
     is_master = True
     for abs_vals, pcts in zip(abs_out.split('\n'), pcts_out.split('\n')):
