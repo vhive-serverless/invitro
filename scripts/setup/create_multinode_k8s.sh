@@ -121,7 +121,7 @@ server_exec "git clone --branch=$LOADER_BRANCH git@github.com:eth-easl/loader.gi
 server_exec 'echo -en "\n\n" | sudo apt-get install python3-pip python-dev'
 server_exec 'cd; cd loader; pip install -r config/requirements.txt'
 
-# $DIR/expose_infra_metrics.sh $MASTER_NODE
+$DIR/expose_infra_metrics.sh $MASTER_NODE
 
 #* Disable master turbo boost.
 server_exec 'bash loader/scripts/setup/turbo_boost.sh disable'
