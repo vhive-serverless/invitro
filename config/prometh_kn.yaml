@@ -164,6 +164,6 @@ spec:
     any: true
   selector:
     matchLabels:
-     eventing.knative.dev/source: apiserver-source-controller
+      eventing.knative.dev/source: apiserver-source-controller
   podMetricsEndpoints:
   - port: metrics
