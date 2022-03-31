@@ -114,7 +114,7 @@ func runTraceMode() {
 			traces.Functions[funcIdx].ConcurrencySats =
 				tc.ProfileFunctionConcurrencies(function, profilingMinutes)
 		}
-		// traces.WarmupScales = wu.ComputeFunctionsWarmupScales(*cluster, traces.Functions)
+		traces.WarmupScales = wu.ComputeFunctionsWarmupScales(*cluster, traces.Functions)
 	}
 
 	/** Deployment */

@@ -7,7 +7,7 @@ server_exec() {
 echo 'Setting up monitoring components'
 
 #* Deploy Metrics Server to k8s in namespace kube-system.
-server_exec 'cd loader; kubectl apply -f config/metrics-server-components.yaml'
+server_exec 'cd loader; kubectl apply -f config/metrics_server_components.yaml'
 
 #* Install helm.
 server_exec 'curl https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3 | bash'

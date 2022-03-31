@@ -84,14 +84,14 @@ do
 		ssh -oStrictHostKeyChecking=no -p 22 $node "sudo ${LOGIN_TOKEN}"
 		echo "Worker node $node joined the cluster."
 
-		# #* Disable master turbo boost.
-		# ssh -oStrictHostKeyChecking=no -p 22 $node 'bash loader/scripts/setup/turbo_boost.sh disable'
-		# #* Disable master hyperthreading.
-		# ssh -oStrictHostKeyChecking=no -p 22 $node 'echo off | sudo tee /sys/devices/system/cpu/smt/control'
+		#* Disable worker turbo boost.
+		ssh -oStrictHostKeyChecking=no -p 22 $node 'bash loader/scripts/setup/turbo_boost.sh disable'
+		#* Disable worker hyperthreading.
+		ssh -oStrictHostKeyChecking=no -p 22 $node 'echo off | sudo tee /sys/devices/system/cpu/smt/control'
 
 		#* Stretch the capacity of the worker node to 500 (k8s default: 110).
 		echo "Streching node capacity for $node."
-		server_exec 'echo "maxPods: 500" > >(sudo tee -a /var/lib/kubelet/config.yaml >/dev/null)'
+		server_exec 'echo "maxPods: 1000" > >(sudo tee -a /var/lib/kubelet/config.yaml >/dev/null)'
 		server_exec 'sudo systemctl restart kubelet'
 		
 		#* Rejoin has to be performed although errors will be thrown. Otherwise, restarting the kubelet will cause the node unreachable for some reason.
