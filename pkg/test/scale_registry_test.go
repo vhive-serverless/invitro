@@ -31,6 +31,8 @@ func TestGetColdStartCount(t *testing.T) {
 		{Deployment: "func-1", Scale: 100},
 		//* Scale up from 0.
 		{Deployment: "func-2", Scale: 100},
+		//* Haven't scaled.
+		{Deployment: "func-2", Scale: 0},
 	}
 	assert.Equal(t, 1, registry.UpdateAndGetColdStartCount(records))
 
@@ -39,7 +41,7 @@ func TestGetColdStartCount(t *testing.T) {
 		{Deployment: "func-1", Scale: 0},
 		{Deployment: "func-2", Scale: 0},
 	}
-	registry.UpdateAndGetColdStartCount(records)
+	assert.Equal(t, 0, registry.UpdateAndGetColdStartCount(records))
 
 	/** All cold starts */
 	records = []mc.DeploymentScale{
