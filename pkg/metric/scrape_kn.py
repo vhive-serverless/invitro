@@ -34,7 +34,7 @@ if __name__ == "__main__":
             except:
                 pass
 
-        if label.startswith('a'):
+        if label.endswith('queue'):
             measure = float(measure) if measure else 0.0
         else:
             measure = int(measure) if measure else 0
