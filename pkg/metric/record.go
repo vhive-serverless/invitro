@@ -11,7 +11,7 @@ type MinuteInvocationRecord struct {
 	Duration        int64 `csv:"duration"`
 	NumFuncTargeted int   `csv:"num_func_target"`
 	NumFuncInvoked  int   `csv:"num_func_invoked"`
-	NumFuncFailed   int   `csv:"num_func_failed"`
+	NumColdStarts   int   `csv:"num_coldstarts"`
 }
 
 type ExecutionRecord struct {
@@ -46,6 +46,11 @@ type ExecutionRecord struct {
 	AutoscalerStableQueue float64 `csv:"autoscaler_stable_queue"`
 	AutoscalerPanicQueue  float64 `csv:"autoscaler_panic_queue"`
 
+	SchedulingP99   float64 `csv:"scheduling_p99"`
+	SchedulingP50   float64 `csv:"scheduling_p50"`
+	E2ePlacementP99 float64 `csv:"e2e_placement_p99"`
+	E2ePlacementP50 float64 `csv:"e2e_placement_p50"`
+
 	ColdStartCount int `csv:"coldstart_count"`
 }
 
@@ -65,6 +70,11 @@ type KnStats struct {
 	ActivatorRequestCount int     `json:"activator_request_count"`
 	AutoscalerStableQueue float64 `json:"autoscaler_stable_queue"`
 	AutoscalerPanicQueue  float64 `json:"autoscaler_panic_queue"`
+
+	SchedulingP99   float64 `json:"scheduling_p99"`
+	SchedulingP50   float64 `json:"scheduling_p50"`
+	E2ePlacementP99 float64 `json:"e2e_placement_p99"`
+	E2ePlacementP50 float64 `json:"e2e_placement_p50"`
 }
 
 type ClusterUsage struct {

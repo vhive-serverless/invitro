@@ -23,10 +23,10 @@ func (r *ScaleRegistry) UpdateAndGetColdStartCount(records []DeploymentScale) in
 		currScale := record.Scale
 
 		//* Check if it's scaling from 0.
-		if prevScale == 0 {
+		if prevScale == 0 && currScale > 0 {
 			coldStarts++
 		}
-		//* Update registry
+		//* Update registry.
 		r.scaleGauge[record.Deployment] = currScale
 	}
 	return coldStarts

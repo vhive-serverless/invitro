@@ -203,6 +203,7 @@ func GenerateTraceLoads(
 	clusterUsage := mc.ClusterUsage{}
 	knStats := mc.KnStats{}
 	coldStartGauge := 0
+	coldStartMinuteCount := 0
 
 	/** Launch a scraper that updates the cluster usage every 15s (max. interval). */
 	scrape_infra := time.NewTicker(time.Second * 15)
@@ -228,6 +229,7 @@ func GenerateTraceLoads(
 		for {
 			<-scrape_scales.C
 			coldStartGauge = collector.GetColdStartCount()
+			coldStartMinuteCount += coldStartGauge
 		}
 	}()
 
@@ -241,7 +243,6 @@ func GenerateTraceLoads(
 	totalDurationMinutes := len(totalNumInvocationsEachMinute)
 
 	minute := 0
-	oldSuccessCountTotal := 0
 	//* The following counters are for the whole measurement (we don't stop in the middle).
 	var successCountTotal int64 = 0
 	var failureCountTotal int64 = 0
@@ -250,6 +251,7 @@ trace_generation:
 	for ; minute < int(totalDurationMinutes); minute++ {
 		tick := 0
 		var iats []float64
+		var numFuncInvokedThisMinute int64 = 0
 
 		traceRps := int(math.Ceil(float64(totalNumInvocationsEachMinute[minute]) / 60.0))
 		if isFixedRate {
@@ -285,7 +287,6 @@ trace_generation:
 			done <- true
 		}()
 
-		numFuncInvoked := 0
 		for {
 			select {
 			case t := <-ticker.C:
@@ -305,9 +306,10 @@ trace_generation:
 					ctx, cancel := context.WithTimeout(context.Background(), diallingTimeout)
 					defer cancel()
 
-					hasInvoked, execRecord := fc.Invoke(ctx, function, GenerateTraceExecutionSpecs)
+					success, execRecord := fc.Invoke(ctx, function, GenerateTraceExecutionSpecs)
 
-					if hasInvoked {
+					atomic.AddInt64(&numFuncInvokedThisMinute, 1)
+					if success {
 						atomic.AddInt64(&successCountTotal, 1)
 					} else {
 						atomic.AddInt64(&failureCountTotal, 1)
@@ -321,10 +323,8 @@ trace_generation:
 				}(minute, tick, phaseIdx, rps, interval.Milliseconds()) //* Push vars onto the stack to prevent racing.
 
 			case <-done:
-				numFuncInvoked += int(successCountTotal) - oldSuccessCountTotal
-				oldSuccessCountTotal = int(successCountTotal)
 				log.Info("Iteration spent: ", time.Since(iterStart), "\tMinute Nbr. ", minute)
-				log.Info("Target #invocations=", totalNumInvocationsEachMinute[minute], " Fired #functions=", numFuncInvoked, "\tMinute Nbr. ", minute)
+				log.Info("Target #invocations=", totalNumInvocationsEachMinute[minute], " Fired #functions=", numFuncInvokedThisMinute, "\tMinute Nbr. ", minute)
 
 				invocRecord := mc.MinuteInvocationRecord{
 					MinuteIdx:       minute + phaseOffset,
@@ -332,11 +332,12 @@ trace_generation:
 					Rps:             rps,
 					Duration:        time.Since(iterStart).Microseconds(),
 					NumFuncTargeted: totalNumInvocationsEachMinute[minute],
-					NumFuncInvoked:  numFuncInvoked,
-					NumFuncFailed:   numInvocatonsThisMinute - numFuncInvoked,
+					NumFuncInvoked:  int(numFuncInvokedThisMinute),
+					NumColdStarts:   coldStartMinuteCount,
 				}
 				//* Export metrics for all phases.
 				collector.ReportInvocation(invocRecord)
+				coldStartMinuteCount = 0
 
 				/** Warmup phase */
 				stationaryWindow := 1
