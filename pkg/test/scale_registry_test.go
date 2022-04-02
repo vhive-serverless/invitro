@@ -23,14 +23,14 @@ func TestGetColdStartCount(t *testing.T) {
 	records = []mc.DeploymentScale{
 		{Deployment: "func-1", Scale: 10},
 	}
-	assert.Equal(t, 10, registry.UpdateAndGetColdStartCount(records))
+	assert.Equal(t, 1, registry.UpdateAndGetColdStartCount(records))
 
 	/** Mixing cold start and normal scaling up. */
 	records = []mc.DeploymentScale{
 		//* Scale up NOT from 0.
 		{Deployment: "func-1", Scale: 100},
 		//* Scale up from 0.
-		{Deployment: "func-2", Scale: 1},
+		{Deployment: "func-2", Scale: 100},
 	}
 	assert.Equal(t, 1, registry.UpdateAndGetColdStartCount(records))
 
@@ -47,6 +47,6 @@ func TestGetColdStartCount(t *testing.T) {
 		{Deployment: "func-2", Scale: 200},
 		{Deployment: "func-3", Scale: 200},
 	}
-	assert.Equal(t, 600, registry.UpdateAndGetColdStartCount(records))
+	assert.Equal(t, 3, registry.UpdateAndGetColdStartCount(records))
 
 }
