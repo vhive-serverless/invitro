@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	mc "github.com/eth-easl/loader/pkg/metric"
+	tc "github.com/eth-easl/loader/pkg/trace"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -12,7 +13,7 @@ var clusterUsage = mc.ClusterUsage{}
 var knStats = mc.KnStats{}
 
 func TestCheckOverload(t *testing.T) {
-	collector := mc.NewCollector()
+	collector := mc.NewCollector([]tc.Function{})
 	collector.ReportExecution(
 		mc.ExecutionRecord{
 			Failed: true,
@@ -51,7 +52,7 @@ func TestCheckOverload(t *testing.T) {
 }
 
 func TestConcurrentReporting(t *testing.T) {
-	collector := mc.NewCollector()
+	collector := mc.NewCollector([]tc.Function{})
 	var wg sync.WaitGroup
 
 	// This function increments a named counter
@@ -78,7 +79,7 @@ func TestConcurrentReporting(t *testing.T) {
 }
 
 func TestGetLatenciesInOrder(t *testing.T) {
-	collector := mc.NewCollector()
+	collector := mc.NewCollector([]tc.Function{})
 
 	collector.ReportExecution(
 		mc.ExecutionRecord{
