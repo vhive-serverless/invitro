@@ -1,18 +1,17 @@
 package metric
 
 import (
-	util "github.com/eth-easl/loader/pkg"
 	tc "github.com/eth-easl/loader/pkg/trace"
 )
 
 type ScaleRegistry struct {
-	scaleCounter map[string]int
+	scaleGauge map[string]int
 }
 
 func (r *ScaleRegistry) Init(functions []tc.Function) {
-	r.scaleCounter = map[string]int{}
+	r.scaleGauge = map[string]int{}
 	for _, f := range functions {
-		r.scaleCounter[f.Name] = 0
+		r.scaleGauge[f.Name] = 0
 	}
 }
 
@@ -20,15 +19,15 @@ func (r *ScaleRegistry) Init(functions []tc.Function) {
 func (r *ScaleRegistry) UpdateAndGetColdStartCount(records []DeploymentScale) int {
 	coldStarts := 0
 	for _, record := range records {
-		prevScale := r.scaleCounter[record.Deployment]
+		prevScale := r.scaleGauge[record.Deployment]
 		currScale := record.Scale
 
 		//* Check if it's scaling from 0.
 		if prevScale == 0 {
-			coldStarts += util.MaxOf(currScale, 0)
+			coldStarts++
 		}
 		//* Update registry
-		r.scaleCounter[record.Deployment] = currScale
+		r.scaleGauge[record.Deployment] = currScale
 	}
 	return coldStarts
 }
