@@ -11,6 +11,7 @@ import (
 	"sync"
 
 	util "github.com/eth-easl/loader/pkg"
+	tc "github.com/eth-easl/loader/pkg/trace"
 	"github.com/gocarina/gocsv"
 	log "github.com/sirupsen/logrus"
 )
@@ -19,7 +20,31 @@ type Collector struct {
 	mutex             sync.Mutex
 	invocationRecords []MinuteInvocationRecord
 	executionRecords  []ExecutionRecord
-	// slowdowns         []float64
+	scaleRegistry     ScaleRegistry
+}
+
+func (collector *Collector) GetColdStartCount() int {
+	scales := ScrapeDeploymentScales()
+	return collector.scaleRegistry.UpdateAndGetColdStartCount(scales)
+}
+
+func ScrapeDeploymentScales() []DeploymentScale {
+	cmd := exec.Command(
+		"python3",
+		"pkg/metric/scrape_scales.py",
+	)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		log.Warn("Fail to scrape deployment scales: ", err)
+	}
+
+	var results []DeploymentScale
+	err = json.Unmarshal(out, &results)
+	if err != nil {
+		log.Warn("Fail to parse deployment scales: ", string(out[:]), err)
+	}
+
+	return results
 }
 
 func ScrapeKnStats() KnStats {
@@ -131,12 +156,15 @@ func (collector *Collector) sortExecutionRecordsByTime() {
 	)
 }
 
-func NewCollector() Collector {
+func NewCollector(functions []tc.Function) Collector {
+	registry := ScaleRegistry{}
+	registry.Init(functions)
 	return Collector{
 		//* Note that the zero value of a mutex is usable as-is, so no
 		//* initialization is required here (e.g., mutex: sync.Mutex{}).
 		invocationRecords: []MinuteInvocationRecord{},
 		executionRecords:  []ExecutionRecord{},
+		scaleRegistry:     registry,
 	}
 }
 
@@ -175,8 +203,8 @@ func (collector *Collector) ReportExecution(record ExecutionRecord, clusterUsage
 	record.RequestedPods = knStats.RequestedPods
 	record.RunningPods = knStats.RunningPods
 
-	record.ColdStartCount = knStats.ColdStartCount
 	record.ActivatorQueue = knStats.ActivatorQueue
+	record.ActivatorRequestCount = knStats.ActivatorRequestCount
 	record.AutoscalerStableQueue = knStats.AutoscalerStableQueue
 	record.AutoscalerPanicQueue = knStats.AutoscalerPanicQueue
 

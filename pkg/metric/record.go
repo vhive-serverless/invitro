@@ -35,27 +35,34 @@ type ExecutionRecord struct {
 	WorkerCpuAvg float64 `csv:"worker_cpu"`
 	WorkerMemAvg float64 `csv:"worker_mem"`
 
-	DesiredPods    int `csv:"desired_pods"`
-	UnreadyPods    int `csv:"unready_pods"`
-	PendingPods    int `csv:"pending_pods"`
-	RequestedPods  int `csv:"requested_pods"`
-	RunningPods    int `csv:"running_pods"`
-	ColdStartCount int `csv:"coldstart_count"`
+	DesiredPods   int `csv:"desired_pods"`
+	UnreadyPods   int `csv:"unready_pods"`
+	PendingPods   int `csv:"pending_pods"`
+	RequestedPods int `csv:"requested_pods"`
+	RunningPods   int `csv:"running_pods"`
 
 	ActivatorQueue        float64 `csv:"activator_queue"`
+	ActivatorRequestCount int     `csv:"activator_request_count"`
 	AutoscalerStableQueue float64 `csv:"autoscaler_stable_queue"`
 	AutoscalerPanicQueue  float64 `csv:"autoscaler_panic_queue"`
+
+	ColdStartCount int `csv:"coldstart_count"`
+}
+
+type DeploymentScale struct {
+	Deployment string `json:"deployment"`
+	Scale      int    `json:"scale"`
 }
 
 type KnStats struct {
-	DesiredPods    int `json:"desired_pods"`
-	UnreadyPods    int `json:"unready_pods"`
-	PendingPods    int `json:"pending_pods"`
-	RequestedPods  int `json:"requested_pods"`
-	RunningPods    int `json:"running_pods"`
-	ColdStartCount int `json:"coldstart_count"`
+	DesiredPods   int `json:"desired_pods"`
+	UnreadyPods   int `json:"unready_pods"`
+	PendingPods   int `json:"pending_pods"`
+	RequestedPods int `json:"requested_pods"`
+	RunningPods   int `json:"running_pods"`
 
 	ActivatorQueue        float64 `json:"activator_queue"`
+	ActivatorRequestCount int     `json:"activator_request_count"`
 	AutoscalerStableQueue float64 `json:"autoscaler_stable_queue"`
 	AutoscalerPanicQueue  float64 `json:"autoscaler_panic_queue"`
 }
