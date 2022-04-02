@@ -17,7 +17,7 @@ if __name__ == "__main__":
         # Number of pods autoscalers requested from Kubernetes.
         "requested_pods": get_promql_query('sum(autoscaler_requested_pods)'),
         "running_pods": get_promql_query('sum(autoscaler_actual_pods)'),
-        "coldstart_count": get_promql_query('sum(activator_request_count)'),
+        "activator_request_count": get_promql_query('sum(activator_request_count)'),
 
         "autoscaler_stable_queue": get_promql_query('avg(autoscaler_stable_request_concurrency)'),
         "autoscaler_panic_queue": get_promql_query('avg(autoscaler_panic_request_concurrency)'),

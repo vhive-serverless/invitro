@@ -82,7 +82,7 @@ func CheckOverload(successCount, failureCount int64) bool {
 func GenerateStressLoads(rpsStart int, rpsStep int, stressSlotInSecs int, function tc.Function) {
 	start := time.Now()
 	wg := sync.WaitGroup{}
-	collector := mc.NewCollector()
+	collector := mc.NewCollector([]tc.Function{function})
 	clusterUsage := mc.ClusterUsage{}
 	knStats := mc.KnStats{}
 
@@ -198,14 +198,17 @@ func GenerateTraceLoads(
 	totalNumInvocationsEachMinute []int) int {
 
 	ShuffleAllInvocationsInplace(&invocationsEachMinute)
+
+	collector := mc.NewCollector(functions)
 	clusterUsage := mc.ClusterUsage{}
 	knStats := mc.KnStats{}
+	coldStartGauge := 0
 
 	/** Launch a scraper that updates the cluster usage every 15s (max. interval). */
-	scrape := time.NewTicker(time.Second * 15)
+	scrape_infra := time.NewTicker(time.Second * 15)
 	go func() {
 		for {
-			<-scrape.C
+			<-scrape_infra.C
 			clusterUsage = mc.ScrapeClusterUsage()
 		}
 	}()
@@ -219,6 +222,15 @@ func GenerateTraceLoads(
 		}
 	}()
 
+	/** Launch a scraper for getting cold-start count. */
+	scrape_scales := time.NewTicker(time.Second * 1)
+	go func() {
+		for {
+			<-scrape_scales.C
+			coldStartGauge = collector.GetColdStartCount()
+		}
+	}()
+
 	isFixedRate := true
 	if rps < 1 {
 		isFixedRate = false
@@ -226,7 +238,6 @@ func GenerateTraceLoads(
 
 	start := time.Now()
 	wg := sync.WaitGroup{}
-	collector := mc.NewCollector()
 	totalDurationMinutes := len(totalNumInvocationsEachMinute)
 
 	minute := 0
@@ -304,6 +315,7 @@ trace_generation:
 					execRecord.Phase = phase
 					execRecord.Interval = interval
 					execRecord.Rps = rps
+					execRecord.ColdStartCount = coldStartGauge
 					collector.ReportExecution(execRecord, clusterUsage, knStats)
 
 				}(minute, tick, phaseIdx, rps, interval.Milliseconds()) //* Push vars onto the stack to prevent racing.
