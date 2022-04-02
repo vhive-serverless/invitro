@@ -188,6 +188,11 @@ func (collector *Collector) ReportInvocation(record MinuteInvocationRecord) {
 	collector.invocationRecords = append(collector.invocationRecords, record)
 }
 
+var prevSchedulingP50 = 0.0
+var prevSchedulingP99 = 0.0
+var prevE2ePlacementP50 = 0.0
+var prevE2ePlacementP99 = 0.0
+
 func (collector *Collector) ReportExecution(record ExecutionRecord, clusterUsage ClusterUsage, knStats KnStats) {
 	collector.mutex.Lock()
 	defer collector.mutex.Unlock()
@@ -207,6 +212,27 @@ func (collector *Collector) ReportExecution(record ExecutionRecord, clusterUsage
 	record.ActivatorRequestCount = knStats.ActivatorRequestCount
 	record.AutoscalerStableQueue = knStats.AutoscalerStableQueue
 	record.AutoscalerPanicQueue = knStats.AutoscalerPanicQueue
+
+	if record.SchedulingP50 = knStats.SchedulingP50; record.SchedulingP50 < 0 {
+		record.SchedulingP50 = prevSchedulingP50
+	} else {
+		prevE2ePlacementP50 = record.SchedulingP50
+	}
+	if record.SchedulingP99 = knStats.SchedulingP99; record.SchedulingP99 < 0 {
+		record.SchedulingP99 = prevSchedulingP99
+	} else {
+		prevE2ePlacementP99 = record.SchedulingP99
+	}
+	if record.E2ePlacementP50 = knStats.E2ePlacementP50; record.E2ePlacementP50 < 0 {
+		record.E2ePlacementP50 = prevE2ePlacementP50
+	} else {
+		prevE2ePlacementP50 = record.E2ePlacementP50
+	}
+	if record.E2ePlacementP99 = knStats.E2ePlacementP99; record.E2ePlacementP99 < 0 {
+		record.E2ePlacementP99 = prevE2ePlacementP99
+	} else {
+		prevE2ePlacementP99 = record.E2ePlacementP99
+	}
 
 	collector.executionRecords = append(collector.executionRecords, record)
 }
