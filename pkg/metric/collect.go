@@ -11,6 +11,7 @@ import (
 	"sync"
 
 	util "github.com/eth-easl/loader/pkg"
+	tc "github.com/eth-easl/loader/pkg/trace"
 	"github.com/gocarina/gocsv"
 	log "github.com/sirupsen/logrus"
 )
@@ -32,6 +33,14 @@ type Collector struct {
 	invocationRecords []MinuteInvocationRecord
 	executionRecords  []ExecutionRecord
 	scaleRegistry     ScaleRegistry
+}
+
+func (collector *Collector) GetOneColdStartFunction() tc.Function {
+	funcName := collector.scaleRegistry.GetOneColdFunctionName()
+	return tc.Function{
+		Name:     funcName,
+		Endpoint: tc.GetFuncEndpoint(funcName),
+	}
 }
 
 func (collector *Collector) GetColdStartCount() int {
