@@ -298,6 +298,7 @@ trace_generation:
 					defer wg.Done()
 					wg.Add(1)
 
+					atomic.AddInt64(&numFuncInvokedThisMinute, 1)
 					funcIndx := invocationsEachMinute[m][nxt]
 					function := functions[funcIndx]
 
@@ -308,7 +309,6 @@ trace_generation:
 
 					success, execRecord := fc.Invoke(ctx, function, GenerateTraceExecutionSpecs)
 
-					atomic.AddInt64(&numFuncInvokedThisMinute, 1)
 					if success {
 						atomic.AddInt64(&successCountTotal, 1)
 					} else {
@@ -325,7 +325,7 @@ trace_generation:
 			case <-done:
 				log.Info("Iteration spent: ", time.Since(iterStart), "\tMinute Nbr. ", minute)
 				log.Info("Target #invocations=", totalNumInvocationsEachMinute[minute], " Fired #functions=", numFuncInvokedThisMinute, "\tMinute Nbr. ", minute)
-
+				//! No reason to note down the failure rate here since many requests would still be on their way.
 				invocRecord := mc.MinuteInvocationRecord{
 					MinuteIdx:       minute + phaseOffset,
 					Phase:           phaseIdx,
