@@ -13,12 +13,18 @@ import (
 	tc "github.com/eth-easl/loader/pkg/trace"
 )
 
-func GenerateStressLoads(rpsStart int, rpsStep int, stressSlotInSecs int, function tc.Function) {
+func GenerateStressLoads(
+	rpsStart int,
+	rpsStep int,
+	stressSlotInSecs int,
+	functions []tc.Function,
+) {
 	start := time.Now()
 	wg := sync.WaitGroup{}
 	collector := mc.NewCollector()
 	clusterUsage := mc.ClusterUsage{}
 	knStats := mc.KnStats{}
+	coldStartSlotCount := 0
 
 	/** Launch a scraper that updates the cluster usage every 15s (max. interval). */
 	scrape_infra := time.NewTicker(time.Second * 15)
@@ -38,6 +44,15 @@ func GenerateStressLoads(rpsStart int, rpsStep int, stressSlotInSecs int, functi
 		}
 	}()
 
+	/** Launch a scraper for getting cold-start count. */
+	scrape_scales := time.NewTicker(time.Second * 1)
+	go func() {
+		for {
+			<-scrape_scales.C
+			coldStartSlotCount += collector.GetColdStartCount()
+		}
+	}()
+
 	rps := rpsStart
 	tolerance := 0
 
@@ -47,6 +62,7 @@ stress_generation:
 			rps*60,
 			true,
 		)
+		tick := -1
 		timeout := time.After(time.Second * time.Duration(stressSlotInSecs))
 		interval := time.Duration(iats[0]) * time.Microsecond
 		ticker := time.NewTicker(interval)
@@ -64,8 +80,12 @@ stress_generation:
 		}()
 
 		for {
+			tick++
 			select {
 			case <-ticker.C:
+				//* Invoke functions using round robin.
+				function := functions[tick%len(functions)]
+
 				go func(rps int, interval int64) {
 					defer wg.Done()
 					wg.Add(1)
@@ -88,6 +108,13 @@ stress_generation:
 				}(rps, interval.Milliseconds()) //* NB: `clusterUsage` needn't be pushed onto the stack as we want the latest.
 
 			case <-done:
+				invRecord := mc.MinuteInvocationRecord{
+					Rps:           rps,
+					NumColdStarts: coldStartSlotCount,
+				}
+				collector.ReportInvocation(invRecord)
+				coldStartSlotCount = 0
+
 				if CheckOverload(atomic.LoadInt64(&successCountRpsStep), atomic.LoadInt64(&failureCountRpsStep)) {
 					tolerance++
 					if tolerance < OVERFLOAD_TOLERANCE {
@@ -118,5 +145,5 @@ stress_generation:
 		log.Info("[No time out] Total invocation + waiting duration: ", totalDuration, "\n")
 	}
 
-	defer collector.FinishAndSave(0, 0, rps*stressSlotInSecs)
+	defer collector.FinishAndSave(9999, 0, rps*stressSlotInSecs)
 }

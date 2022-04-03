@@ -125,6 +125,7 @@ coldstart_generation:
 					NumColdStarts: coldStartMinuteCount,
 				}
 				collector.ReportInvocation(invRecord)
+				coldStartMinuteCount = 0
 
 				if CheckOverload(atomic.LoadInt64(&successCountRpsStep), atomic.LoadInt64(&failureCountRpsStep)) {
 					tolerance++
