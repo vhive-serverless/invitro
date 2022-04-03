@@ -1,17 +1,13 @@
 package metric
 
-import (
-	tc "github.com/eth-easl/loader/pkg/trace"
-)
-
 type ScaleRegistry struct {
 	scaleGauge map[string]int
 }
 
-func (r *ScaleRegistry) Init(functions []tc.Function) {
+func (r *ScaleRegistry) Init(records []DeploymentScale) {
 	r.scaleGauge = map[string]int{}
-	for _, f := range functions {
-		r.scaleGauge[f.Name] = 0
+	for _, record := range records {
+		r.scaleGauge[record.Deployment] = record.Scale
 	}
 }
 

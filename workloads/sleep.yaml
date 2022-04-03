@@ -6,6 +6,7 @@ spec:
   template:
     metadata:
       annotations:
+        autoscaling.knative.dev/initial-scale: "0"  # Should start from 0, otherwise we can't deploy more functions than the node physically permits.
         autoscaling.knative.dev/target-utilization-percentage: "100"  # Enforce container concurrency at any time.
     spec:
       containerConcurrency: 1
