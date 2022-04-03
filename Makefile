@@ -1,16 +1,4 @@
-.PHONY : proto clean build run coldstart trace-func busy-wait sleep
-
-trace-func:
-	docker build -f Dockerfile.trace -t hyhe/trace-func-go .
-	docker push hyhe/trace-func-go:latest
-
-busy-wait:
-	docker build -f Dockerfile.busy -t hyhe/busy-wait .
-	docker push hyhe/busy-wait:latest
-
-sleep:
-	docker build -f Dockerfile.sleep -t hyhe/sleep .
-	docker push hyhe/sleep:latest
+.PHONY : proto clean build run trace-func busy-wait sleep
 
 proto:
 	protoc \
@@ -38,7 +26,11 @@ clean:
 # 	rm -f *.log
 	go mod tidy
 
-rm-data:
+logs:
+	mkdir logs
+	mv *.log *.flag logs
+
+rm-results:
 	rm *.log *.flag data/out/*
 
 build:
@@ -51,4 +43,14 @@ run:
 test:
 	go test ./pkg/test/ -v 
 
-# coldstart: clean run
+trace-func:
+	docker build -f Dockerfile.trace -t hyhe/trace-func-go .
+	docker push hyhe/trace-func-go:latest
+
+busy-wait:
+	docker build -f Dockerfile.busy -t hyhe/busy-wait .
+	docker push hyhe/busy-wait:latest
+
+sleep:
+	docker build -f Dockerfile.sleep -t hyhe/sleep .
+	docker push hyhe/sleep:latest

@@ -11,10 +11,21 @@ import (
 	"sync"
 
 	util "github.com/eth-easl/loader/pkg"
-	tc "github.com/eth-easl/loader/pkg/trace"
 	"github.com/gocarina/gocsv"
 	log "github.com/sirupsen/logrus"
 )
+
+func NewCollector() Collector {
+	registry := ScaleRegistry{}
+	registry.Init(ScrapeDeploymentScales())
+	return Collector{
+		//* Note that the zero value of a mutex is usable as-is, so no
+		//* initialization is required here (e.g., mutex: sync.Mutex{}).
+		invocationRecords: []MinuteInvocationRecord{},
+		executionRecords:  []ExecutionRecord{},
+		scaleRegistry:     registry,
+	}
+}
 
 type Collector struct {
 	mutex             sync.Mutex
@@ -154,18 +165,6 @@ func (collector *Collector) sortExecutionRecordsByTime() {
 			return collector.executionRecords[i].Timestamp < collector.executionRecords[j].Timestamp
 		},
 	)
-}
-
-func NewCollector(functions []tc.Function) Collector {
-	registry := ScaleRegistry{}
-	registry.Init(functions)
-	return Collector{
-		//* Note that the zero value of a mutex is usable as-is, so no
-		//* initialization is required here (e.g., mutex: sync.Mutex{}).
-		invocationRecords: []MinuteInvocationRecord{},
-		executionRecords:  []ExecutionRecord{},
-		scaleRegistry:     registry,
-	}
 }
 
 func (collector *Collector) FinishAndSave(sampleSize int, phase int, duration int) {

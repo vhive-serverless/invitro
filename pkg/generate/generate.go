@@ -82,7 +82,7 @@ func CheckOverload(successCount, failureCount int64) bool {
 func GenerateStressLoads(rpsStart int, rpsStep int, stressSlotInSecs int, function tc.Function) {
 	start := time.Now()
 	wg := sync.WaitGroup{}
-	collector := mc.NewCollector([]tc.Function{function})
+	collector := mc.NewCollector()
 	clusterUsage := mc.ClusterUsage{}
 	knStats := mc.KnStats{}
 
@@ -199,7 +199,7 @@ func GenerateTraceLoads(
 
 	ShuffleAllInvocationsInplace(&invocationsEachMinute)
 
-	collector := mc.NewCollector(functions)
+	collector := mc.NewCollector()
 	clusterUsage := mc.ClusterUsage{}
 	knStats := mc.KnStats{}
 	coldStartGauge := 0
