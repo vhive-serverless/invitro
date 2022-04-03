@@ -27,16 +27,17 @@ var (
 	serviceConfigPath = ""
 	server            = flag.String("server", "trace", "Choose a function server from [busy, sleep, trace]")
 
-	mode        = flag.String("mode", "trace", "Choose a mode from [trace, stress, coldstart]")
-	debug       = flag.Bool("dbg", false, "Enable debug logging")
-	cluster     = flag.Int("cluster", 1, "Size of the cluster measured by #workers")
-	duration    = flag.Int("duration", 3, "Duration of the experiment")
-	sampleSize  = flag.Int("sample", 10, "Sample size of the traces")
-	withTracing = flag.Bool("trace", false, "Enable tracing in the client")
-	rps         = flag.Int("rps", -900_000, "Request per second")
-	rpsStart    = flag.Int("start", 0, "Starting RPS value")
-	rpsSlot     = flag.Int("slot", 60, "Time slot in seconds for each RPS in the `stress` mode")
-	rpsStep     = flag.Int("step", 1, "Step size for increasing RPS in the `stress` mode")
+	mode           = flag.String("mode", "trace", "Choose a mode from [trace, stress, coldstart]")
+	debug          = flag.Bool("dbg", false, "Enable debug logging")
+	cluster        = flag.Int("cluster", 1, "Size of the cluster measured by #workers")
+	duration       = flag.Int("duration", 3, "Duration of the experiment")
+	sampleSize     = flag.Int("sample", 10, "Sample size of the traces")
+	withTracing    = flag.Bool("trace", false, "Enable tracing in the client")
+	rps            = flag.Int("rps", -900_000, "Request per second")
+	rpsStart       = flag.Int("start", 0, "Starting RPS value")
+	rpsSlot        = flag.Int("slot", 60, "Time slot in seconds for each RPS in the `stress` mode")
+	rpsStep        = flag.Int("step", 1, "Step size for increasing RPS in the `stress` mode")
+	totalFunctions = flag.Int("totalFunctions", 1, "Total number of functions used in the `stress` mode")
 
 	seed = flag.Int64("seed", 42, "Random seed for the generator")
 
@@ -149,13 +150,19 @@ func runTraceMode() {
 }
 
 func runStressMode() {
-	function := tc.Function{
-		Name:     "stress-func",
-		Endpoint: tc.GetFuncEndpoint("stress-func"),
-	}
-	fc.DeployFunction(&function, serviceConfigPath, 0)
+	functions := []tc.Function{}
 
-	defer gen.GenerateStressLoads(*rpsStart, *rpsStep, *rpsSlot, function)
+	for i := 0; i < *totalFunctions; i++ {
+		stressFunc := "stress-func-" + strconv.Itoa(i)
+		functions = append(functions, tc.Function{
+			Name:     stressFunc,
+			Endpoint: tc.GetFuncEndpoint(stressFunc),
+		})
+	}
+
+	fc.DeployTrace(functions, serviceConfigPath, []int{})
+
+	defer gen.GenerateStressLoads(*rpsStart, *rpsStep, *rpsSlot, functions)
 }
 
 func runColdStartMode() {
@@ -172,7 +179,7 @@ func runColdStartMode() {
 	functions = append(functions, hotFunction)
 	// Set the rest functions as cold.
 	for i := 0; i < totalFunctions; i++ {
-		coldFunc := "cold-func" + strconv.Itoa(i)
+		coldFunc := "cold-func-" + strconv.Itoa(i)
 		functions = append(functions, tc.Function{
 			Name:     coldFunc,
 			Endpoint: tc.GetFuncEndpoint(coldFunc),
