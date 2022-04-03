@@ -27,3 +27,12 @@ func (r *ScaleRegistry) UpdateAndGetColdStartCount(records []DeploymentScale) in
 	}
 	return coldStarts
 }
+
+func (r *ScaleRegistry) GetOneColdFunctionName() string {
+	for f, scale := range r.scaleGauge {
+		if scale == 0 {
+			return f
+		}
+	}
+	return "None"
+}

@@ -11,6 +11,7 @@ import (
 
 	tracer "github.com/ease-lab/vhive/utils/tracing/go"
 	wu "github.com/eth-easl/loader/cmd/options"
+	util "github.com/eth-easl/loader/pkg"
 	fc "github.com/eth-easl/loader/pkg/function"
 	gen "github.com/eth-easl/loader/pkg/generate"
 	tc "github.com/eth-easl/loader/pkg/trace"
@@ -26,7 +27,7 @@ var (
 	serviceConfigPath = ""
 	server            = flag.String("server", "trace", "Choose a function server from [busy, sleep, trace]")
 
-	mode        = flag.String("mode", "trace", "Choose a mode from [trace, stress]")
+	mode        = flag.String("mode", "trace", "Choose a mode from [trace, stress, coldstart]")
 	debug       = flag.Bool("dbg", false, "Enable debug logging")
 	cluster     = flag.Int("cluster", 1, "Size of the cluster measured by #workers")
 	duration    = flag.Int("duration", 3, "Duration of the experiment")
@@ -85,6 +86,8 @@ func main() {
 		runTraceMode()
 	case "stress":
 		runStressMode()
+	case "coldstart":
+		runColdStartMode()
 	default:
 		log.Fatal("Invalid mode: ", *mode)
 	}
@@ -153,4 +156,30 @@ func runStressMode() {
 	fc.DeployFunction(&function, serviceConfigPath, 0)
 
 	defer gen.GenerateStressLoads(*rpsStart, *rpsStep, *rpsSlot, function)
+}
+
+func runColdStartMode() {
+	coldStartCountFile := "data/coldstarts/200f_30min.csv"
+	coldstartCounts := util.ReadIntArray(coldStartCountFile, ",")
+	totalFunctions := 200 - 1
+	functions := []tc.Function{}
+
+	// Create a single hot function.
+	hotFunction := tc.Function{
+		Name:     "hot-func",
+		Endpoint: tc.GetFuncEndpoint("hot-func"),
+	}
+	functions = append(functions, hotFunction)
+	// Set the rest functions as cold.
+	for i := 0; i < totalFunctions; i++ {
+		coldFunc := "cold-func" + strconv.Itoa(i)
+		functions = append(functions, tc.Function{
+			Name:     coldFunc,
+			Endpoint: tc.GetFuncEndpoint(coldFunc),
+		})
+	}
+
+	fc.DeployTrace(functions, serviceConfigPath, []int{})
+
+	defer gen.GenerateColdStartLoads(*rpsStart, *rpsStep, hotFunction, coldstartCounts)
 }

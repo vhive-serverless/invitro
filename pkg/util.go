@@ -2,6 +2,7 @@ package util
 
 import (
 	"hash/fnv"
+	"io/ioutil"
 	"math/rand"
 	"strconv"
 	"strings"
@@ -11,6 +12,23 @@ import (
 // func init() {
 // 	rand.Seed(time.Now().UnixNano())
 // }
+
+func ReadIntArray(filePath, delimiter string) []int {
+	content, err := ioutil.ReadFile(filePath)
+	Check(err)
+	lines := strings.Split(string(content), delimiter)
+	return SliceAtoi(lines)
+}
+
+func SliceAtoi(sa []string) []int {
+	si := make([]int, 0, len(sa))
+	for _, a := range sa {
+		i, err := strconv.Atoi(a)
+		Check(err)
+		si = append(si, i)
+	}
+	return si
+}
 
 func Hex2Int(hexStr string) int64 {
 	// remove 0x suffix if found in the input string
