@@ -49,5 +49,7 @@ server_exec() {
 	server_exec 'tmux send -t grafanad "while true; do kubectl -n monitoring port-forward deployment/prometheus-grafana 3000; done" ENTER'
 
 	echo 'Done setting up monitoring components'
+
+	server_exec 'cd loader; bash scripts/setup/patch_init_scale.sh'
 	exit
 }

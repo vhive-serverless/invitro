@@ -6,36 +6,32 @@ A load generator for serverless computing based upon [faas-load-generator](https
 
 For more details, please see `Makefile`.
 ### Execution
-For hotstart, run the following
-```sh
-$ make build
-$ ./load --rps <request-per-sec> --duration <1-to-60-min> 
+
+For Trace mode, run the following command
+
+```bash
+cgexec -g cpuset,memory:loader-cg \
+    make ARGS='-sample <trace size> -duration <1-1440 in minutes> -cluster <worker nodes> -server <function server> -warmup' run
 ```
 
-OR 
+When using RPS mode, run the following command
 
-```sh
-$ make ARGS="./load --rps <request-per-sec> --duration <1-to-60-min>" run
+```bash
+cgexec -g cpuset,memory:loader-cg \
+    make ARGS="-mode stress -start <initial RPS> -step <step size> -slot <step duration in seconds> -server <function server> " run 2>&1 | tee stress.log
 ```
-
-As for explicit cold start, replace `run` above with `coldstart`. 
 
 ### Build the image for server function
 
 ```sh
-$ make build image
+$ make build <trace-func|busy-wait|sleep>
 ```
-
-:warning: The protocal and the python server in `\server\trace-func-py` are deprecated.
-
 ### Update gRPC protocol
 
 ```sh
 $ make proto
 ```
 
-### Run experiments limiting RPS
+### Run experiments 
 
-```sh
-$ bash scripts/run_rsp_range.sh <start-rps> <end-rps> <step-size> <duration> <cmd>
-```
+Scripts under the `\scripts\experiments\` directory have more configurations.
