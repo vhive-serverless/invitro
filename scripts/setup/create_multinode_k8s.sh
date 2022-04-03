@@ -85,10 +85,10 @@ common_init() {
 			ssh -oStrictHostKeyChecking=no -p 22 $node "sudo ${LOGIN_TOKEN}"
 			echo "Worker node $node joined the cluster."
 
-			#* Disable worker turbo boost.
-			ssh -oStrictHostKeyChecking=no -p 22 $node 'bash loader/scripts/setup/turbo_boost.sh disable'
-			#* Disable worker hyperthreading.
-			ssh -oStrictHostKeyChecking=no -p 22 $node 'echo off | sudo tee /sys/devices/system/cpu/smt/control'
+			# #* Disable worker turbo boost. (man, we don't have loader there)
+			# ssh -oStrictHostKeyChecking=no -p 22 $node 'bash loader/scripts/setup/turbo_boost.sh disable'
+			# #* Disable worker hyperthreading.
+			# ssh -oStrictHostKeyChecking=no -p 22 $node 'echo off | sudo tee /sys/devices/system/cpu/smt/control'
 
 			#* Stretch the capacity of the worker node to 500 (k8s default: 110).
 			echo "Streching node capacity for $node."
