@@ -289,11 +289,8 @@ trace_generation:
 
 		for {
 			select {
-			case t := <-ticker.C:
-				if tick >= numInvocatonsThisMinute {
-					log.Info("Finish target invocation early at ", t.Format(time.StampMilli), "\tMinute Nbr. ", minute, " Itr. ", tick)
-					done <- true
-				}
+			case <-ticker.C:
+
 				go func(m int, nxt int, phase int, rps int, interval int64) {
 					defer wg.Done()
 					wg.Add(1)
@@ -326,7 +323,7 @@ trace_generation:
 				log.Info("Iteration spent: ", time.Since(iterStart), "\tMinute Nbr. ", minute)
 				log.Info("Target #invocations=", totalNumInvocationsEachMinute[minute], " Fired #functions=", numFuncInvokedThisMinute, "\tMinute Nbr. ", minute)
 				//! No reason to note down the failure rate here since many requests would still be on their way.
-				invocRecord := mc.MinuteInvocationRecord{
+				invRecord := mc.MinuteInvocationRecord{
 					MinuteIdx:       minute + phaseOffset,
 					Phase:           phaseIdx,
 					Rps:             rps,
@@ -336,7 +333,7 @@ trace_generation:
 					NumColdStarts:   coldStartMinuteCount,
 				}
 				//* Export metrics for all phases.
-				collector.ReportInvocation(invocRecord)
+				collector.ReportInvocation(invRecord)
 				coldStartMinuteCount = 0
 
 				/** Warmup phase */
@@ -346,14 +343,18 @@ trace_generation:
 					minute++
 					break trace_generation
 				}
+
+				goto next_minute
 			}
-			//* Load the next inter-arrival time.
-			tick++
-			if tick < len(iats) {
+
+			if tick++; tick < numInvocatonsThisMinute {
+				//* Load the next inter-arrival time.
 				interval = time.Duration(iats[tick]) * time.Microsecond
 				ticker = time.NewTicker(interval)
 			} else {
-				goto next_minute
+				//* Finished before timeout.
+				log.Info("Finish target invocation early at Minute slot ", minute, " Itr. ", tick)
+				done <- true
 			}
 		}
 	next_minute:
