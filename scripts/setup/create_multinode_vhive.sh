@@ -1,21 +1,23 @@
 #!/usr/bin/env bash
 MASTER_NODE=$1
 
-source "$(pwd)/scripts/setup/setup.cfg"
+DIR="$(pwd)/scripts/setup/"
+
+source "$DIR/setup.cfg"
 
 server_exec() { 
 	ssh -oStrictHostKeyChecking=no -p 22 "$1" "$2";
 }
 
-{
-	#* Run initialisation on a node.
-	common_init() {
-		server_exec $1 "git clone --branch=$VHIVE_BRANCH https://github.com/ease-lab/vhive"
-		server_exec $1 "cd; ./vhive/scripts/cloudlab/setup_node.sh"
-		server_exec $1 'tmux new -s containerd -d'
-		server_exec $1 'tmux send -t containerd "sudo containerd 2>&1 | tee ~/containerd_log.txt" ENTER'
-	}
+#* Run initialisation on a node.
+common_init() {
+	server_exec $1 "git clone --branch=$VHIVE_BRANCH https://github.com/ease-lab/vhive"
+	server_exec $1 "cd; ./vhive/scripts/cloudlab/setup_node.sh"
+	server_exec $1 'tmux new -s containerd -d'
+	server_exec $1 'tmux send -t containerd "sudo containerd 2>&1 | tee ~/containerd_log.txt" ENTER'
+}
 
+{
 	#* Set up all nodes including the master.
 	for node in "$@"
 	do
@@ -82,9 +84,14 @@ server_exec() {
 			ssh -oStrictHostKeyChecking=no -p 22 $node "sudo ${LOGIN_TOKEN}"
 			echo "Worker node $node joined the cluster."
 
+			# #* Disable worker turbo boost. (man, we don't have loader there)
+			# ssh -oStrictHostKeyChecking=no -p 22 $node 'bash loader/scripts/setup/turbo_boost.sh disable'
+			# #* Disable worker hyperthreading.
+			# ssh -oStrictHostKeyChecking=no -p 22 $node 'echo off | sudo tee /sys/devices/system/cpu/smt/control'
+
 			#* Stretch the capacity of the worker node to 500 (k8s default: 110).
 			echo "Streching node capacity for $node."
-			server_exec 'echo "maxPods: 500" > >(sudo tee -a /var/lib/kubelet/config.yaml >/dev/null)'
+			server_exec 'echo "maxPods: 1000" > >(sudo tee -a /var/lib/kubelet/config.yaml >/dev/null)'
 			server_exec 'sudo systemctl restart kubelet'
 			
 			#* Rejoin has to be performed although errors will be thrown. Otherwise, restarting the kubelet will cause the node unreachable for some reason.
@@ -112,16 +119,17 @@ server_exec() {
 	#* Get loader and dependencies.
 	server_exec "git clone --branch=$LOADER_BRANCH git@github.com:eth-easl/loader.git"
 	server_exec 'echo -en "\n\n" | sudo apt-get install python3-pip python-dev'
-	server_exec 'cd loader; pip install -r config/requirements.txt'
+	server_exec 'cd; cd loader; pip install -r config/requirements.txt'
 
 	$DIR/expose_infra_metrics.sh $MASTER_NODE
 
-	#* Disable turbo boost.
+	#* Disable master turbo boost.
 	server_exec 'bash loader/scripts/setup/turbo_boost.sh disable'
-	#* Disable hyperthreading.
+	#* Disable master hyperthreading.
 	server_exec 'echo off | sudo tee /sys/devices/system/cpu/smt/control'
 	#* Create CGroup.
 	server_exec 'sudo bash loader/scripts/isolation/define_cgroup.sh'
+
 
 	echo "Logging in master node $MASTER_NODE"
 	ssh -p 22 $MASTER_NODE
