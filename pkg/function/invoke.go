@@ -33,7 +33,7 @@ func Invoke(ctx context.Context, function tc.Function, gen tc.FunctionSpecsGen) 
 	conn, err := grpc.DialContext(ctx, function.Endpoint+port, grpc.WithInsecure(), grpc.WithBlock())
 	if err != nil {
 		//! Failures will also be recorded with 0's.
-		log.Warnf("Failed to connect: %v", err)
+		log.Warnf("gRPC connection failed: %v", err)
 		record.Timeout = true
 		registry.Deregister(memoryRequested)
 		return false, record
@@ -51,7 +51,7 @@ func Invoke(ctx context.Context, function tc.Function, gen tc.FunctionSpecsGen) 
 		MemoryInMebiBytes: uint32(memoryRequested),
 	})
 	if err != nil {
-		log.Warnf("%s: err=%v", function.Name, err)
+		log.Warnf("Error in gRPC execution (%s): %v", function.Name, err)
 		record.Failed = true
 		registry.Deregister(memoryRequested)
 		return false, record
