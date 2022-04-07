@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"flag"
-	"math"
 	"time"
 
 	rpc "github.com/eth-easl/loader/server"
@@ -24,7 +23,7 @@ func main() {
 		log.Fatal("Please specify the function name to invoke.")
 	}
 
-	log.Infof("(Invoke)\t %s: %d[µs], %d[MiB]", *name, (*runtime)*int(math.Pow10(3)), *memory)
+	log.Infof("(Invoke)\t %s: %d[µs], %d[MiB]", *name, (*runtime)*1000, *memory)
 
 	// Start latency measurement.
 	start := time.Now()
@@ -50,11 +49,10 @@ func main() {
 	}
 
 	responseTime := time.Since(start).Microseconds()
-	log.Infof("(Response time)\t %s: %d[µs]\n", *name, responseTime)
-
 	memoryUsage := response.MemoryUsageInKb
 	runtime := response.DurationInMicroSec
 
 	log.Infof("(Replied)\t %s: %d[µs], %d[KB]", *name, runtime, memoryUsage)
+	log.Infof("(E2E Latency) %s: %d[µs]\n", *name, responseTime)
 
 }
