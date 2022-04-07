@@ -1,0 +1,22 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  namespace: default
+spec:
+  template:
+    metadata:
+      annotations:
+        autoscaling.knative.dev/initial-scale: "0"  # Should start from 0, otherwise we can't deploy more functions than the node physically permits.
+        autoscaling.knative.dev/target-utilization-percentage: "100"  # Enforce container concurrency at any time.
+    spec:
+      containerConcurrency: 1
+      containers:
+        - image: crccheck/hello-world:latest # Stub image (https://github.com/ease-lab/vhive/issues/68).
+          ports:
+            - name: h2c # For GRPC support.
+              containerPort: 50051
+          env:
+            - name: GUEST_PORT # Port on which the firecracker-containerd container is accepting requests.
+              value: "50051"
+            - name: GUEST_IMAGE # Container image to use for firecracker-containerd container.
+              value: "hyhe/trace-func-firecracker:latest"

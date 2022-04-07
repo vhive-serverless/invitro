@@ -70,11 +70,12 @@ func init() {
 
 	switch *server {
 	case "sleep":
-		serviceConfigPath = "workloads/sleep.yaml"
+		serviceConfigPath = "workloads/container/sleep.yaml"
 	case "busy":
-		serviceConfigPath = "workloads/busy_wait.yaml"
+		serviceConfigPath = "workloads/container/busy_wait.yaml"
 	case "trace":
-		serviceConfigPath = "workloads/trace_func_go.yaml"
+		serviceConfigPath = "workloads/container/trace_func_go.yaml"
+		// serviceConfigPath = "workloads/firecracker/trace_func_go.yaml"
 	}
 	log.Info("Using service config file: ", serviceConfigPath)
 }
