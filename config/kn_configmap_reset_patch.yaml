@@ -1,4 +1,0 @@
-data:
-  enable-scale-to-zero: "true"
-  max-scale-up-rate: "1000.0"
-  max-scale-down-rate: "2.0"
