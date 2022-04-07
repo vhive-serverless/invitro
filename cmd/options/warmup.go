@@ -12,8 +12,8 @@ import (
 )
 
 const (
-	NODE_CAPACITY    = 220 //* Empirical limit of a single-node cluster (NOT one-worker cluster).
-	MIN_WARMUP_SCALE = 2
+	NODE_CAPACITY    = 100 //* Empirical limit of a single-node cluster (NOT one-worker cluster).
+	MIN_WARMUP_SCALE = 1
 )
 
 func ComputeFunctionsWarmupScales(clusterSize int, functions []tc.Function) []int {
@@ -35,7 +35,7 @@ func ComputeFunctionsWarmupScales(clusterSize int, functions []tc.Function) []in
 		//* Rescale warmup scales.
 		for i := 0; i < len(scales); i++ {
 			ratio := float64(scales[i]) / totalScale
-			scales[i] = int(float64(totalCapacity) * ratio) //! Round down to prevent kn outage.
+			scales[i] = int(float64(totalCapacity) * ratio) //! Round down to prevent resource outage.
 		}
 	}
 	scalesData = stats.LoadRawData(scales)
