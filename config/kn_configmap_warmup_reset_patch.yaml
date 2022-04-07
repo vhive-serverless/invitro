@@ -1,0 +1,8 @@
+# Reset Knative policies to the corresponding defualt values. 
+data:
+  enable-scale-to-zero: "true"
+  max-scale-up-rate: "1000.0"
+  max-scale-down-rate: "2.0"
+  scale-down-delay: "0s"  
+  initial-scale: "0"
+  # scale-to-zero-grace-period: "30s"

@@ -51,7 +51,7 @@ func Warmup(sampleSize int, totalNumPhases int, rps int,
 	for phaseIdx := 1; phaseIdx < totalNumPhases; phaseIdx++ {
 		//* Set up kn environment
 		if phaseIdx == 1 {
-			setKnConfigMap("config/kn_configmap_init_patch.yaml")
+			setKnConfigMap("config/kn_configmap_warmup_init_patch.yaml")
 		}
 
 		log.Infof("Enter Phase %d as of Minute[%d]", phaseIdx, nextPhaseStart)
@@ -67,8 +67,8 @@ func Warmup(sampleSize int, totalNumPhases int, rps int,
 
 		//* Reset kn environment
 		if phaseIdx == 1 {
-			setKnConfigMap("config/kn_configmap_reset_patch.yaml")
-			livePatchKpas("scripts/warmup/livepatch_kpas.sh")
+			setKnConfigMap("config/kn_configmap_warmup_reset_patch.yaml")
+			livePatchKpas("scripts/warmup/livepatch_kpa.sh")
 		}
 	}
 	return nextPhaseStart

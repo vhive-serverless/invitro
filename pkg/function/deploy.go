@@ -9,7 +9,7 @@ import (
 	tc "github.com/eth-easl/loader/pkg/trace"
 )
 
-func DeployTrace(functions []tc.Function, serviceConfigPath string, minScales []int) []tc.Function {
+func DeployTrace(functions []tc.Function, serviceConfigPath string, initScales []int) []tc.Function {
 	var urls []string
 	// deploymentConcurrency := 1 //* Serialise deployment.
 	deploymentConcurrency := len(functions) //* Fully parallelise deployment.
@@ -20,18 +20,18 @@ func DeployTrace(functions []tc.Function, serviceConfigPath string, minScales []
 		go func(function tc.Function, funcIdx int) {
 			defer func() { <-sem }()
 
-			var minScale int
-			if len(minScales) == len(functions) {
-				minScale = minScales[funcIdx]
+			var initScale int
+			if len(initScales) == len(functions) {
+				initScale = initScales[funcIdx]
 			} else {
-				minScale = 0 //* No-warmup (`minScales` is not populated).
+				initScale = 0 //* No-warmup (`initScales` is not populated).
 			}
-			// log.Info(function.GetName(), " -> minScale: ", minScale)
+			// log.Info(function.GetName(), " -> initScale: ", initScale)
 
-			has_deployed := DeployFunction(&function, serviceConfigPath, minScale)
-			function.SetStatus(has_deployed)
+			hasDeployed := DeployFunction(&function, serviceConfigPath, initScale)
+			function.SetStatus(hasDeployed)
 
-			if has_deployed {
+			if hasDeployed {
 				urls = append(urls, function.GetUrl())
 			}
 			functions[funcIdx] = function // Update function data.
@@ -44,7 +44,7 @@ func DeployTrace(functions []tc.Function, serviceConfigPath string, minScales []
 	return functions
 }
 
-func DeployFunction(function *tc.Function, serviceConfigPath string, minScale int) bool {
+func DeployFunction(function *tc.Function, serviceConfigPath string, initScale int) bool {
 	cmd := exec.Command(
 		"kn",
 		"service",
@@ -52,8 +52,10 @@ func DeployFunction(function *tc.Function, serviceConfigPath string, minScale in
 		function.Name,
 		"-f",
 		serviceConfigPath,
-		"--scale-min",
-		strconv.Itoa(minScale),
+		//! `--scale-min` should NOT be used here since it only has a per-revision key,
+		//! i.e., it will change the min scale for all the (future) pods of this kn service.
+		"--scale-init",
+		strconv.Itoa(initScale),
 		"--concurrency-target",
 		"1",
 		//* Wait for infintely long for ensuring warmup.

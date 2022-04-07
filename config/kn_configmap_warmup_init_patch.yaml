@@ -1,0 +1,5 @@
+data:
+  enable-scale-to-zero: "false"
+  max-scale-up-rate: "1000000.0"
+  max-scale-down-rate: "1.1"  # Try not to scale down.
+  scale-down-delay: "15m"  # Prevents scaling down the initial scales when deploying a large number of functions.
