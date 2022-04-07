@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"os"
+	"strconv"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -61,7 +63,11 @@ func (s *funcServer) Execute(ctx context.Context, req *rpc.FaasRequest) (*rpc.Fa
 }
 
 func main() {
-	serverPort := 80
+	serverPort := 80 // For containers.
+	// 50051 for firecracker.
+	if len(os.Args) > 1 {
+		serverPort, _ = strconv.Atoi(os.Args[1])
+	}
 
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", serverPort))
 	if err != nil {

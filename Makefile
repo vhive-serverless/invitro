@@ -1,4 +1,4 @@
-.PHONY : proto clean build run trace-func busy-wait sleep
+.PHONY : proto clean build run trace-firecracker trace-container busy-wait sleep
 
 proto:
 	protoc \
@@ -16,11 +16,13 @@ proto:
 clean: 
 	kubectl rollout restart deployment activator -n knative-serving
 	kn service delete --all
-	# Deployments should be deleted first! 
-	kubectl delete --all deployments,pods,podautoscalers -n default
-	# kubectl delete --all pods -n default
-	# kubectl delete --all deployments -n default
-	# kubectl delete --all podautoscalers -n default
+	# Deployments should be deleted first!
+	# kubectl delete --all deployments,pods,podautoscalers -n default
+	kubectl delete --all deployments -n default
+	kubectl delete --all pods -n default
+	kubectl delete --all podautoscalers -n default
+	# Just to make sure everything has been deleted.
+	kubectl delete --all all -n default 
 	bash scripts/warmup/reset_kn_global.sh
 	rm -f load
 # 	rm -f *.log
@@ -43,9 +45,13 @@ run:
 test:
 	go test ./pkg/test/ -v 
 
-trace-func:
-	docker build -f Dockerfile.trace -t hyhe/trace-func-go .
-	docker push hyhe/trace-func-go:latest
+trace-firecracker:
+	docker build -f Dockerfile.trace.firecracker -t hyhe/trace-func-firecracker .
+	docker push hyhe/trace-func-firecracker:latest
+
+trace-container:
+	docker build -f Dockerfile.trace.container -t hyhe/trace-func-container .
+	docker push hyhe/trace-func-container:latest
 
 busy-wait:
 	docker build -f Dockerfile.busy -t hyhe/busy-wait .

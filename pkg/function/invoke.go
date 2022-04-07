@@ -2,7 +2,6 @@ package function
 
 import (
 	"context"
-	"math"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -19,7 +18,7 @@ var port = ":80"
 
 func Invoke(ctx context.Context, function tc.Function, gen tc.FunctionSpecsGen) (bool, mc.ExecutionRecord) {
 	runtimeRequested, memoryRequested := gen(function)
-	log.Infof("(Invoke)\t %s: %d[µs], %d[MiB]", function.Name, runtimeRequested*int(math.Pow10(3)), memoryRequested)
+	log.Infof("(Invoke)\t %s: %d[µs], %d[MiB]", function.Name, runtimeRequested*1000, memoryRequested)
 
 	var record mc.ExecutionRecord
 	record.FuncName = function.Name
@@ -59,8 +58,6 @@ func Invoke(ctx context.Context, function tc.Function, gen tc.FunctionSpecsGen) 
 
 	responseTime := time.Since(start).Microseconds()
 	record.ResponseTime = responseTime
-	log.Infof("(Response time)\t %s: %d[µs]\n", function.Name, responseTime)
-
 	record.Load = float64(registry.GetTotalMemoryLoad())
 	registry.Deregister(memoryRequested)
 
@@ -72,6 +69,7 @@ func Invoke(ctx context.Context, function tc.Function, gen tc.FunctionSpecsGen) 
 	record.Runtime = runtime
 
 	log.Infof("(Replied)\t %s: %d[µs], %d[KB]", function.Name, runtime, memoryUsage)
+	log.Infof("(E2E Latency) %s: %d[µs]\n", function.Name, responseTime)
 
 	return true, record
 }
