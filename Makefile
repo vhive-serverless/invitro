@@ -16,13 +16,14 @@ proto:
 clean: 
 	kubectl rollout restart deployment activator -n knative-serving
 	kn service delete --all
+	kubectl delete --all all -n default --grace-period=0 
+
 	# Deployments should be deleted first!
 	# kubectl delete --all deployments,pods,podautoscalers -n default
-	kubectl delete --all deployments -n default
-	kubectl delete --all pods -n default
-	kubectl delete --all podautoscalers -n default
-	# Just to make sure everything has been deleted.
-	kubectl delete --all all -n default 
+	# kubectl delete --all deployments -n default
+	# kubectl delete --all pods -n default
+	# kubectl delete --all podautoscalers -n default
+
 	bash scripts/warmup/reset_kn_global.sh
 	rm -f load
 # 	rm -f *.log
