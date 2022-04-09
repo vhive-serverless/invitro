@@ -27,7 +27,6 @@ server_exec() {
 
 
 	#* Change scrape intervals to 2s for all used monitors.
-	server_exec "sudo kubectl -n monitoring patch ServiceMonitor prometheus-kube-prometheus-kube-scheduler --type json -p '[{"op": "add", "path": "/spec/endpoints/0/interval", "value": "2s"}]'"
 	server_exec "sudo kubectl -n monitoring patch ServiceMonitor prometheus-kube-prometheus-apiserver --type json -p '[{"op": "add", "path": "/spec/endpoints/0/interval", "value": "2s"}]'"
 	server_exec "sudo kubectl -n monitoring patch ServiceMonitor prometheus-kube-prometheus-coredns --type json -p '[{"op": "add", "path": "/spec/endpoints/0/interval", "value": "2s"}]'"
 	server_exec "sudo kubectl -n monitoring patch ServiceMonitor prometheus-kube-prometheus-kube-controller-manager --type json -p '[{"op": "add", "path": "/spec/endpoints/0/interval", "value": "2s"}]'"
