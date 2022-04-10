@@ -27,14 +27,15 @@ var (
 	serviceConfigPath = ""
 	server            = flag.String("server", "trace", "Choose a function server from [busy, sleep, trace]")
 
-	mode           = flag.String("mode", "trace", "Choose a mode from [trace, stress, coldstart]")
-	debug          = flag.Bool("dbg", false, "Enable debug logging")
-	cluster        = flag.Int("cluster", 1, "Size of the cluster measured by #workers")
-	duration       = flag.Int("duration", 3, "Duration of the experiment")
-	sampleSize     = flag.Int("sample", 10, "Sample size of the traces")
-	withTracing    = flag.Bool("trace", false, "Enable tracing in the client")
+	mode       = flag.String("mode", "trace", "Choose a mode from [trace, stress, coldstart]")
+	debug      = flag.Bool("dbg", false, "Enable debug logging")
+	cluster    = flag.Int("cluster", 1, "Size of the cluster measured by #workers")
+	duration   = flag.Int("duration", 3, "Duration of the experiment")
+	sampleSize = flag.Int("sample", 10, "Sample size of the traces")
+
 	rps            = flag.Int("rps", -900_000, "Request per second")
 	rpsStart       = flag.Int("start", 0, "Starting RPS value")
+	rpsEnd         = flag.Int("end", -900_000, "Ending RPS value")
 	rpsSlot        = flag.Int("slot", 60, "Time slot in seconds for each RPS in the `stress` mode")
 	rpsStep        = flag.Int("step", 1, "Step size for increasing RPS in the `stress` mode")
 	totalFunctions = flag.Int("totalFunctions", 1, "Total number of functions used in the `stress` mode")
@@ -42,7 +43,8 @@ var (
 	seed = flag.Int64("seed", 42, "Random seed for the generator")
 
 	// withWarmup = flag.Int("withWarmup", -1000, "Duration of the withWarmup")
-	withWarmup = flag.Bool("warmup", false, "Enable warmup")
+	withWarmup  = flag.Bool("warmup", false, "Enable warmup")
+	withTracing = flag.Bool("trace", false, "Enable tracing in the client")
 )
 
 func init() {
@@ -163,7 +165,7 @@ func runStressMode() {
 
 	fc.DeployTrace(functions, serviceConfigPath, []int{})
 
-	defer gen.GenerateStressLoads(*rpsStart, *rpsStep, *rpsSlot, functions)
+	defer gen.GenerateStressLoads(*rpsStart, *rpsEnd, *rpsStep, *rpsSlot, functions)
 }
 
 func runColdStartMode() {
