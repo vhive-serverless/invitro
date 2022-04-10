@@ -54,9 +54,17 @@ type ExecutionRecord struct {
 	ColdStartCount int `csv:"coldstart_count"`
 }
 
+type ScaleRecord struct {
+	Timestamp    int64  `csv:"timestamp"`
+	Deployment   string `csv:"deployment"`
+	DesiredScale int    `csv:"desired_scale"`
+	ActualScale  int    `csv:"actual_scale"`
+}
+
 type DeploymentScale struct {
-	Deployment string `json:"deployment"`
-	Scale      int    `json:"scale"`
+	Deployment   string `json:"deployment"`
+	DesiredScale int    `json:"desired_scale"`
+	ActualScale  int    `json:"actual_scale"`
 }
 
 type KnStats struct {
