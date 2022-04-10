@@ -72,10 +72,10 @@ func ScrapeDeploymentScales() []ScaleRecord {
 	for _, result := range results {
 		records = append(records, ScaleRecord{
 			Timestamp:    timestamp,
+			Deployment:   result.Deployment,
 			DesiredScale: result.DesiredScale,
 			ActualScale:  result.ActualScale,
-		},
-		)
+		})
 	}
 	return records
 }
