@@ -109,23 +109,24 @@ stress_generation:
 				}
 				collector.ReportInvocation(invRecord)
 				coldStartSlotCount = 0
-
 				goto next_rps
 			}
 		}
 
 	next_rps:
-		if rps >= rpsEnd || rpsStep == 0 {
+		if rpsEnd < 0 {
+			if CheckOverload(atomic.LoadInt64(&successCountRpsStep), atomic.LoadInt64(&failureCountRpsStep)) {
+				/** Ending RPS NOT specified -> run until it breaks. */
+				tolerance++
+				if tolerance < OVERFLOAD_TOLERANCE {
+					rps -= rpsStep //* Second chance: try the current RPS one more time.
+				} else {
+					break stress_generation
+				}
+			}
+		} else if rps >= rpsEnd || rpsStep == 0 {
 			/** Ending RPS specified. */
 			break stress_generation
-		} else if rpsEnd < 0 && CheckOverload(atomic.LoadInt64(&successCountRpsStep), atomic.LoadInt64(&failureCountRpsStep)) {
-			/** Ending RPS NOT specified -> run until it breaks. */
-			tolerance++
-			if tolerance < OVERFLOAD_TOLERANCE {
-				rps -= rpsStep //* Second chance: try the current RPS one more time.
-			} else {
-				break stress_generation
-			}
 		}
 
 		rps += rpsStep
