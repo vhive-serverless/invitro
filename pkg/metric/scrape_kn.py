@@ -22,21 +22,22 @@ if __name__ == "__main__":
         "autoscaler_stable_queue": get_promql_query('avg(autoscaler_stable_request_concurrency)'),
         "autoscaler_panic_queue": get_promql_query('avg(autoscaler_panic_request_concurrency)'),
         "activator_queue": get_promql_query('avg(activator_request_concurrency)'),
-
-        # The p99 of scheduling latency over a time window of 30s.
+        
+        # The p99 latency of single scheduling round (algorithm+binding) over a time window of 30s.
         "scheduling_p99": get_promql_query(
-            'histogram_quantile(0.99, sum by (le) (rate(scheduler_pod_scheduling_duration_seconds_bucket{job="kube-scheduler"}[30s])))'
-        ),
-        "scheduling_p50": get_promql_query(
-            'histogram_quantile(0.50, sum by (le) (rate(scheduler_pod_scheduling_duration_seconds_bucket{job="kube-scheduler"}[30s])))'
-        ),
-        # The p99 of e2e placement (scheduling+binding) latency over a time window of 30s.
-        "e2e_placement_p99": get_promql_query(
             'histogram_quantile(0.99, sum by (le) (rate(scheduler_e2e_scheduling_duration_seconds_bucket{job="kube-scheduler"}[30s])))'
         ), 
-        "e2e_placement_p50": get_promql_query(
+        "scheduling_p50": get_promql_query(
             'histogram_quantile(0.50, sum by (le) (rate(scheduler_e2e_scheduling_duration_seconds_bucket{job="kube-scheduler"}[30s])))'
-        ),   
+        ),  
+
+        # The p99 latency of E2E pod placement (potentially multiple scheduling rounds) over a time window of 30s.
+        "e2e_placement_p99": get_promql_query(
+            'histogram_quantile(0.99, sum by (le) (rate(scheduler_pod_scheduling_duration_seconds_bucket{job="kube-scheduler"}[30s])))'
+        ),
+        "e2e_placement_p50": get_promql_query(
+            'histogram_quantile(0.50, sum by (le) (rate(scheduler_pod_scheduling_duration_seconds_bucket{job="kube-scheduler"}[30s])))'
+        ), 
     }
 
     for label, query in kn_statua.items():
