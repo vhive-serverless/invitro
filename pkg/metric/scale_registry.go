@@ -4,19 +4,19 @@ type ScaleRegistry struct {
 	scaleGauge map[string]int
 }
 
-func (r *ScaleRegistry) Init(records []DeploymentScale) {
+func (r *ScaleRegistry) Init(records []ScaleRecord) {
 	r.scaleGauge = map[string]int{}
 	for _, record := range records {
-		r.scaleGauge[record.Deployment] = record.Scale
+		r.scaleGauge[record.Deployment] = record.ActualScale
 	}
 }
 
 //! Since all functions are deployed once, we assume no duplications.
-func (r *ScaleRegistry) UpdateAndGetColdStartCount(records []DeploymentScale) int {
+func (r *ScaleRegistry) UpdateAndGetColdStartCount(records []ScaleRecord) int {
 	coldStarts := 0
 	for _, record := range records {
 		prevScale := r.scaleGauge[record.Deployment]
-		currScale := record.Scale
+		currScale := record.ActualScale
 
 		//* Check if it's scaling from 0.
 		if prevScale == 0 && currScale > 0 {

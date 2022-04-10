@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	util "github.com/eth-easl/loader/pkg"
 	tc "github.com/eth-easl/loader/pkg/trace"
@@ -16,23 +17,24 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func NewCollector() Collector {
-	registry := ScaleRegistry{}
-	registry.Init(ScrapeDeploymentScales())
-	return Collector{
-		//* Note that the zero value of a mutex is usable as-is, so no
-		//* initialization is required here (e.g., mutex: sync.Mutex{}).
-		invocationRecords: []MinuteInvocationRecord{},
-		executionRecords:  []ExecutionRecord{},
-		scaleRegistry:     registry,
-	}
-}
-
 type Collector struct {
 	mutex             sync.Mutex
 	invocationRecords []MinuteInvocationRecord
 	executionRecords  []ExecutionRecord
+	scaleRecords      []ScaleRecord
 	scaleRegistry     ScaleRegistry
+}
+
+func NewCollector() Collector {
+	registry := ScaleRegistry{}
+	registry.Init(ScrapeDeploymentScales())
+	return Collector{
+		//* Note that the zero value of a mutex is usable as-is, so no initialization is required here (e.g., mutex: sync.Mutex{}).
+		invocationRecords: []MinuteInvocationRecord{},
+		executionRecords:  []ExecutionRecord{},
+		scaleRecords:      []ScaleRecord{},
+		scaleRegistry:     registry,
+	}
 }
 
 func (collector *Collector) GetOneColdStartFunction() tc.Function {
@@ -43,12 +45,13 @@ func (collector *Collector) GetOneColdStartFunction() tc.Function {
 	}
 }
 
-func (collector *Collector) GetColdStartCount() int {
+func (collector *Collector) RecordScalesAndGetColdStartCount() int {
 	scales := ScrapeDeploymentScales()
+	collector.scaleRecords = append(collector.scaleRecords, scales...)
 	return collector.scaleRegistry.UpdateAndGetColdStartCount(scales)
 }
 
-func ScrapeDeploymentScales() []DeploymentScale {
+func ScrapeDeploymentScales() []ScaleRecord {
 	cmd := exec.Command(
 		"python3",
 		"pkg/metric/scrape_scales.py",
@@ -64,7 +67,17 @@ func ScrapeDeploymentScales() []DeploymentScale {
 		log.Warn("Fail to parse deployment scales: ", string(out[:]), err)
 	}
 
-	return results
+	timestamp := time.Now().UnixMicro()
+	records := []ScaleRecord{}
+	for _, result := range results {
+		records = append(records, ScaleRecord{
+			Timestamp:    timestamp,
+			DesiredScale: result.DesiredScale,
+			ActualScale:  result.ActualScale,
+		},
+		)
+	}
+	return records
 }
 
 func ScrapeKnStats() KnStats {
@@ -177,17 +190,20 @@ func (collector *Collector) sortExecutionRecordsByTime() {
 }
 
 func (collector *Collector) FinishAndSave(sampleSize int, phase int, duration int) {
-	if sampleSize > 0 {
-		invocFileName := "data/out/inv_sample-" + strconv.Itoa(sampleSize) + "_phase-" + strconv.Itoa(phase) + "_dur-" + strconv.Itoa(duration) + ".csv"
-		invocF, err := os.Create(invocFileName)
-		util.Check(err)
-		gocsv.MarshalFile(&collector.invocationRecords, invocF)
-	}
+	invocFileName := "data/out/inv_sample-" + strconv.Itoa(sampleSize) + "_phase-" + strconv.Itoa(phase) + "_dur-" + strconv.Itoa(duration) + ".csv"
+	invocF, err := os.Create(invocFileName)
+	util.Check(err)
+	gocsv.MarshalFile(&collector.invocationRecords, invocF)
 
 	latencyFileName := "data/out/exec_sample-" + strconv.Itoa(sampleSize) + "_phase-" + strconv.Itoa(phase) + "_dur-" + strconv.Itoa(duration) + ".csv"
 	latencyF, err := os.Create(latencyFileName)
 	util.Check(err)
 	gocsv.MarshalFile(&collector.executionRecords, latencyF)
+
+	scaleFileName := "data/out/scale_sample-" + strconv.Itoa(sampleSize) + "_phase-" + strconv.Itoa(phase) + "_dur-" + strconv.Itoa(duration) + ".csv"
+	scaleF, err := os.Create(scaleFileName)
+	util.Check(err)
+	gocsv.MarshalFile(&collector.scaleRecords, scaleF)
 }
 
 func (collector *Collector) ReportInvocation(record MinuteInvocationRecord) {

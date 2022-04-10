@@ -56,7 +56,7 @@ func GenerateTraceLoads(
 	go func() {
 		for {
 			<-scrape_scales.C
-			coldStartGauge = collector.GetColdStartCount()
+			coldStartGauge = collector.RecordScalesAndGetColdStartCount()
 			coldStartMinuteCount += coldStartGauge
 		}
 	}()

@@ -49,7 +49,7 @@ func GenerateStressLoads(
 	go func() {
 		for {
 			<-scrape_scales.C
-			coldStartSlotCount += collector.GetColdStartCount()
+			coldStartSlotCount += collector.RecordScalesAndGetColdStartCount()
 		}
 	}()
 
@@ -141,5 +141,5 @@ stress_generation:
 		log.Info("[No timeout] Total invocation + waiting duration: ", totalDuration, "\n")
 	}
 
-	defer collector.FinishAndSave(9999, 0, rps*stressSlotInSecs)
+	defer collector.FinishAndSave(0, 0, rps*stressSlotInSecs)
 }
