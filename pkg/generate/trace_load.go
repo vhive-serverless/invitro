@@ -1,7 +1,6 @@
 package generate
 
 import (
-	"context"
 	"math"
 	"sync"
 	"sync/atomic"
@@ -128,12 +127,7 @@ trace_generation:
 					funcIndx := invocationsEachMinute[m][nxt]
 					function := functions[funcIndx]
 
-					//* Use the maximum socket timeout from AWS (1min).
-					diallingTimeout := 1 * time.Minute
-					ctx, cancel := context.WithTimeout(context.Background(), diallingTimeout)
-					defer cancel()
-
-					success, execRecord := fc.Invoke(ctx, function, GenerateTraceExecutionSpecs)
+					success, execRecord := fc.Invoke(function, GenerateTraceExecutionSpecs)
 
 					if success {
 						atomic.AddInt64(&successCountTotal, 1)
@@ -200,7 +194,7 @@ trace_generation:
 		log.Warn("Time out waiting for all invocations to return.")
 	} else {
 		totalDuration := time.Since(start)
-		log.Info("[No time out] Total invocation + waiting duration: ", totalDuration, "\n")
+		log.Info("[No timeout] Total invocation + waiting duration: ", totalDuration, "\n")
 	}
 
 	//* Only check overload after the entire Phase 3 to account for all late returns.

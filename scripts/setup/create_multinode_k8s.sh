@@ -90,9 +90,10 @@ common_init() {
 			# #* Disable worker hyperthreading.
 			# ssh -oStrictHostKeyChecking=no -p 22 $node 'echo off | sudo tee /sys/devices/system/cpu/smt/control'
 
-			#* Stretch the capacity of the worker node to 500 (k8s default: 110).
+			#* Stretch the capacity of the worker node to 240 (k8s default: 110).
+			#* Empirically, this gives us a max. #pods being 240-40=200.
 			echo "Streching node capacity for $node."
-			server_exec 'echo "maxPods: 200" > >(sudo tee -a /var/lib/kubelet/config.yaml >/dev/null)'
+			server_exec 'echo "maxPods: 240" > >(sudo tee -a /var/lib/kubelet/config.yaml >/dev/null)'
 			server_exec 'sudo systemctl restart kubelet'
 			
 			#* Rejoin has to be performed although errors will be thrown. Otherwise, restarting the kubelet will cause the node unreachable for some reason.

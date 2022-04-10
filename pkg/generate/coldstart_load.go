@@ -1,7 +1,6 @@
 package generate
 
 import (
-	"context"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -101,12 +100,7 @@ coldstart_generation:
 					defer wg.Done()
 					wg.Add(1)
 
-					//* Use the maximum socket timeout from AWS (1min).
-					diallingTimeout := 1 * time.Minute
-					ctx, cancel := context.WithTimeout(context.Background(), diallingTimeout)
-					defer cancel()
-
-					success, execRecord := fc.Invoke(ctx, function, GenerateSingleExecutionSpecs)
+					success, execRecord := fc.Invoke(function, GenerateSingleExecutionSpecs)
 
 					if success {
 						atomic.AddInt64(&successCountRpsStep, 1)
@@ -155,7 +149,7 @@ coldstart_generation:
 		log.Warn("Time out waiting for all invocations to return.")
 	} else {
 		totalDuration := time.Since(start)
-		log.Info("[No time out] Total invocation + waiting duration: ", totalDuration, "\n")
+		log.Info("[No timeout] Total invocation + waiting duration: ", totalDuration, "\n")
 	}
 
 	defer collector.FinishAndSave(0, 0, rps)

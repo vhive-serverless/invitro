@@ -1,7 +1,6 @@
 package generate
 
 import (
-	"context"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -15,6 +14,7 @@ import (
 
 func GenerateStressLoads(
 	rpsStart int,
+	rpsEnd int,
 	rpsStep int,
 	stressSlotInSecs int,
 	functions []tc.Function,
@@ -90,12 +90,7 @@ stress_generation:
 					defer wg.Done()
 					wg.Add(1)
 
-					//* Use the maximum socket timeout from AWS (1min).
-					diallingTimeout := 1 * time.Minute
-					ctx, cancel := context.WithTimeout(context.Background(), diallingTimeout)
-					defer cancel()
-
-					success, execRecord := fc.Invoke(ctx, function, GenerateSingleExecutionSpecs)
+					success, execRecord := fc.Invoke(function, GenerateSingleExecutionSpecs)
 
 					if success {
 						atomic.AddInt64(&successCountRpsStep, 1)
@@ -115,23 +110,24 @@ stress_generation:
 				collector.ReportInvocation(invRecord)
 				coldStartSlotCount = 0
 
-				if CheckOverload(atomic.LoadInt64(&successCountRpsStep), atomic.LoadInt64(&failureCountRpsStep)) {
-					tolerance++
-					if tolerance < OVERFLOAD_TOLERANCE {
-						rps -= rpsStep //* Stay in the current RPS for one more time.
-						goto next_rps
-					} else {
-						break stress_generation
-					}
-				} else {
-					goto next_rps
-				}
+				goto next_rps
 			}
 		}
+
 	next_rps:
-		if rpsStep == 0 { // For a single shot.
+		if rps >= rpsEnd || rpsStep == 0 {
+			/** Ending RPS specified. */
 			break stress_generation
+		} else if rpsEnd < 0 && CheckOverload(atomic.LoadInt64(&successCountRpsStep), atomic.LoadInt64(&failureCountRpsStep)) {
+			/** Ending RPS NOT specified -> run until it breaks. */
+			tolerance++
+			if tolerance < OVERFLOAD_TOLERANCE {
+				rps -= rpsStep //* Second chance: try the current RPS one more time.
+			} else {
+				break stress_generation
+			}
 		}
+
 		rps += rpsStep
 		log.Info("Start next round with RPS=", rps, " after ", time.Since(start))
 	}
@@ -142,7 +138,7 @@ stress_generation:
 		log.Warn("Time out waiting for all invocations to return.")
 	} else {
 		totalDuration := time.Since(start)
-		log.Info("[No time out] Total invocation + waiting duration: ", totalDuration, "\n")
+		log.Info("[No timeout] Total invocation + waiting duration: ", totalDuration, "\n")
 	}
 
 	defer collector.FinishAndSave(9999, 0, rps*stressSlotInSecs)

@@ -2,6 +2,7 @@ package function
 
 import (
 	"context"
+	"io"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -12,11 +13,16 @@ import (
 	rpc "github.com/eth-easl/loader/server"
 )
 
+const (
+	port = ":80"
+	// See: https://aws.amazon.com/premiumsupport/knowledge-center/lambda-function-retry-timeout-sdk/
+	connectionTimeout = 1 * time.Minute
+	executionTimeout  = 15 * time.Minute
+)
+
 var registry = LoadRegistry{}
 
-var port = ":80"
-
-func Invoke(ctx context.Context, function tc.Function, gen tc.FunctionSpecsGen) (bool, mc.ExecutionRecord) {
+func Invoke(function tc.Function, gen tc.FunctionSpecsGen) (bool, mc.ExecutionRecord) {
 	runtimeRequested, memoryRequested := gen(function)
 	log.Infof("(Invoke)\t %s: %d[µs], %d[MiB]", function.Name, runtimeRequested*1000, memoryRequested)
 
@@ -29,7 +35,12 @@ func Invoke(ctx context.Context, function tc.Function, gen tc.FunctionSpecsGen) 
 	start := time.Now()
 	record.Timestamp = start.UnixMicro()
 
-	conn, err := grpc.DialContext(ctx, function.Endpoint+port, grpc.WithInsecure(), grpc.WithBlock())
+	//* Use the maximum socket timeout from AWS (1min).
+	dailCxt, cancelDailing := context.WithTimeout(context.Background(), connectionTimeout)
+	defer cancelDailing()
+
+	conn, err := grpc.DialContext(dailCxt, function.Endpoint+port, grpc.WithInsecure(), grpc.WithBlock())
+	defer dclose(conn)
 	if err != nil {
 		//! Failures will also be recorded with 0's.
 		log.Warnf("gRPC connection failed: %v", err)
@@ -37,14 +48,13 @@ func Invoke(ctx context.Context, function tc.Function, gen tc.FunctionSpecsGen) 
 		registry.Deregister(memoryRequested)
 		return false, record
 	}
-	defer conn.Close()
 
 	grpcClient := rpc.NewExecutorClient(conn)
 	// Contact the server and print out its response.
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	executionCxt, cancelExecution := context.WithTimeout(context.Background(), executionTimeout)
+	defer cancelExecution()
 
-	response, err := grpcClient.Execute(ctx, &rpc.FaasRequest{
+	response, err := grpcClient.Execute(executionCxt, &rpc.FaasRequest{
 		Message:           "nothing",
 		RuntimeInMilliSec: uint32(runtimeRequested),
 		MemoryInMebiBytes: uint32(memoryRequested),
@@ -61,7 +71,6 @@ func Invoke(ctx context.Context, function tc.Function, gen tc.FunctionSpecsGen) 
 	record.Load = float64(registry.GetTotalMemoryLoad())
 	registry.Deregister(memoryRequested)
 
-	// log.Info("gRPC response: ", reply.Response)
 	memoryUsage := response.MemoryUsageInKb
 	runtime := response.DurationInMicroSec
 
@@ -72,4 +81,10 @@ func Invoke(ctx context.Context, function tc.Function, gen tc.FunctionSpecsGen) 
 	log.Infof("(E2E Latency) %s: %d[µs]\n", function.Name, responseTime)
 
 	return true, record
+}
+
+func dclose(c io.Closer) {
+	if err := c.Close(); err != nil {
+		log.Warn("Connection closing error: ", err)
+	}
 }
