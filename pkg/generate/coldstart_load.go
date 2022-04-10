@@ -48,7 +48,7 @@ func GenerateColdStartLoads(
 	go func() {
 		for {
 			<-scrape_scales.C
-			coldStartMinuteCount += collector.GetColdStartCount()
+			coldStartMinuteCount += collector.RecordScalesAndGetColdStartCount()
 		}
 	}()
 
