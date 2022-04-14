@@ -93,7 +93,7 @@ common_init() {
 			#* Stretch the capacity of the worker node to 240 (k8s default: 110).
 			#* Empirically, this gives us a max. #pods being 240-40=200.
 			echo "Streching node capacity for $node."
-			server_exec 'echo "maxPods: 240" > >(sudo tee -a /var/lib/kubelet/config.yaml >/dev/null)'
+			server_exec 'echo "maxPods: 540" > >(sudo tee -a /var/lib/kubelet/config.yaml >/dev/null)'
 			server_exec 'sudo systemctl restart kubelet'
 			
 			#* Rejoin has to be performed although errors will be thrown. Otherwise, restarting the kubelet will cause the node unreachable for some reason.
