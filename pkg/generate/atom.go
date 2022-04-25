@@ -23,10 +23,14 @@ const (
 // 	rand.Seed(time.Now().UnixNano())
 // }
 
-var genRand *rand.Rand
+var iatRand *rand.Rand
+var invRand *rand.Rand
+var specRand *rand.Rand
 
 func InitSeed(s int64) {
-	genRand = rand.New(rand.NewSource(s))
+	iatRand = rand.New(rand.NewSource(s))
+	invRand = rand.New(rand.NewSource(s))
+	specRand = rand.New(rand.NewSource(s))
 }
 
 func GenerateInterarrivalTimesInMicro(invocationsPerMinute int, uniform bool) []float64 {
@@ -42,7 +46,7 @@ func GenerateInterarrivalTimesInMicro(invocationsPerMinute int, uniform bool) []
 		if uniform {
 			iat = oneSecondInMicro / rps
 		} else {
-			iat = genRand.ExpFloat64() / rps * oneSecondInMicro
+			iat = iatRand.ExpFloat64() / rps * oneSecondInMicro
 		}
 		//* Only guarantee microsecond-level ganularity.
 		if iat < 1 {
@@ -100,12 +104,9 @@ func wgWaitWithTimeout(wg *sync.WaitGroup, timeout time.Duration) bool {
  */
 func ShuffleAllInvocationsInplace(invocationsEachMinute *[][]int) {
 	suffleOneMinute := func(invocations *[]int) {
-		for i := range *invocations {
-			rand.Seed(int64(i)) //! Fix randomness.
-
-			j := rand.Intn(i + 1)
+		invRand.Shuffle(len(*invocations), func(i, j int) {
 			(*invocations)[i], (*invocations)[j] = (*invocations)[j], (*invocations)[i]
-		}
+		})
 	}
 
 	for minute := range *invocationsEachMinute {
@@ -119,13 +120,11 @@ func GenerateSingleExecutionSpecs(function tc.Function) (int, int) {
 }
 
 func GenerateTraceExecutionSpecs(function tc.Function) (int, int) {
-	seed := util.Hex2Int(function.Hash)
-	rand.Seed(seed) //! Fix randomness.
 
 	var runtime, memory int
 	//* Generate a uniform quantiles in [0, 1).
-	memQtl := rand.Float64()
-	runQtl := rand.Float64()
+	memQtl := specRand.Float64()
+	runQtl := specRand.Float64()
 	runStats := function.RuntimeStats
 	memStats := function.MemoryStats
 
