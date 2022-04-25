@@ -7,8 +7,13 @@ import (
 
 	gen "github.com/eth-easl/loader/pkg/generate"
 	"github.com/montanaflynn/stats"
+	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 )
+
+func init() {
+	gen.InitSeed(42)
+}
 
 func TestGenCheckOverload(t *testing.T) {
 	successCount := 100
@@ -17,7 +22,6 @@ func TestGenCheckOverload(t *testing.T) {
 }
 
 func TestGenerateIat(t *testing.T) {
-	gen.InitSeed(42)
 
 	invocationsPerMinute := 20_000
 	iats := gen.GenerateInterarrivalTimesInMicro(invocationsPerMinute, true)
@@ -59,6 +63,7 @@ func TestShuffling(t *testing.T) {
 		isShuffled = !sort.SliceIsSorted(a, func(i, j int) bool {
 			return a[i] < a[j]
 		})
+		log.Info(arr)
 	}
 	assert.True(t, isShuffled)
 }
