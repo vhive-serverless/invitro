@@ -24,7 +24,7 @@ server_exec() {
     server_exec 'tmux send-keys -t cluster "watch -n 0.5 kubectl get pods -A" ENTER'
 
     # Update golang.
-    server_exec 'wget https://dl.google.com/go/go1.17.linux-amd64.tar.gz'
+    server_exec 'wget -q https://dl.google.com/go/go1.17.linux-amd64.tar.gz'
     server_exec 'sudo rm -rf /usr/local/go && sudo tar -C /usr/local/ -xzf go1.17.linux-amd64.tar.gz'
     server_exec 'rm go1.17*'
     server_exec 'echo "export PATH=$PATH:/usr/local/go/bin" >> ~/.profile'
