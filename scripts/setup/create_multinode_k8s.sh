@@ -93,12 +93,41 @@ common_init() {
 			#* Stretch the capacity of the worker node to 240 (k8s default: 110).
 			#* Empirically, this gives us a max. #pods being 240-40=200.
 			echo "Streching node capacity for $node."
-			server_exec 'echo "maxPods: 240" > >(sudo tee -a /var/lib/kubelet/config.yaml >/dev/null)'
+			server_exec 'echo "maxPods: 540" > >(sudo tee -a /var/lib/kubelet/config.yaml >/dev/null)'
 			server_exec 'sudo systemctl restart kubelet'
 			
 			#* Rejoin has to be performed although errors will be thrown. Otherwise, restarting the kubelet will cause the node unreachable for some reason.
 			ssh -oStrictHostKeyChecking=no -p 22 $node "sudo ${LOGIN_TOKEN} > /dev/null 2>&1"
 			echo "Worker node $node joined the cluster (again :P)."
+		fi
+	done
+
+	#* Get node name list.
+	readarray -t NODE_NAMES < <(ssh -oStrictHostKeyChecking=no -p 22 $MASTER_NODE 'kubectl get no' | tail -n +2 | awk '{print $1}')
+
+	for i in "${!NODE_NAMES[@]}"; do
+		NODE_NAME=${NODE_NAMES[i]}
+		#* Compute subnet: 11000000.10101000.000000 00.00000000 -> about 1022 IPs per worder. 
+		#* To be safe, we change both master and workers with an offset of 4. (NB: zsh indices start from 1.)
+		#* Assume less than 63 nodes in total.
+		let SUBNET=i*4+4
+		#* Extend pod ip range, delete and create again.
+		ssh -oStrictHostKeyChecking=no -p 22 $MASTER_NODE "kubectl get node $NODE_NAME -o json | jq '.spec.podCIDR |= \"192.168.$SUBNET.0/22\"' |(kubectl delete node $NODE_NAME && kubectl create -f -)"
+		
+		echo "Changed pod CIDR for worker $NODE_NAME to 192.168.$SUBNET.0/22"
+		sleep 5
+	done
+
+	#* Join the cluster for the 3rd time.
+	IS_MASTER=1
+	for node in "$@"
+	do
+		if [ $IS_MASTER -eq 1 ]
+		then
+			IS_MASTER=0
+		else
+			ssh -oStrictHostKeyChecking=no -p 22 $node "sudo ${LOGIN_TOKEN} > /dev/null 2>&1"
+			echo "Worker node $node joined the cluster (again^2 :D)."
 		fi
 	done
 
