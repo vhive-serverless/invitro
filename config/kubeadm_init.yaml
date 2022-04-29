@@ -1,8 +1,9 @@
+apiVersion: kubeadm.k8s.io/v1beta2
+kind: ClusterConfiguration
 apiServer:
   extraArgs:
     authorization-mode: Node,RBAC
   timeoutForControlPlane: 4m0s  # The timeout that we wait for the API server to appear
-apiVersion: kubeadm.k8s.io/v1beta2
 certificatesDir: /etc/kubernetes/pki
 clusterName: kubernetes
 dns:
@@ -11,7 +12,6 @@ etcd:
   local:
     dataDir: /var/lib/etcd
 imageRepository: k8s.gcr.io
-kind: ClusterConfiguration
 # kubernetesVersion: v1.20.6
 # kubernetesVersion: v1.20.15
 kubernetesVersion: v1.23.0
@@ -21,7 +21,15 @@ networking:
   serviceSubnet: 10.96.0.0/12
 controllerManager:
   extraArgs:
-    bind-address: "0.0.0.0"
+    bind-address: "0.0.0.0"  # This allows scheduler and controllers to be scraped on other ports and nodes.
 scheduler:
   extraArgs:
     bind-address: "0.0.0.0"
+
+---
+# Configure kubelet for large pod limits.
+apiVersion: kubelet.config.k8s.io/v1beta1
+kind: KubeletConfiguration
+kubeAPIQPS: 50  # Default: 5
+kubeAPIBurst: 100  # Default: 10
+configMapAndSecretChangeDetectionStrategy: "Watch"
