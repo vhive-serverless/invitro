@@ -112,7 +112,7 @@ common_init() {
 		#* Assume less than 63 nodes in total.
 		let SUBNET=i*4+4
 		#* Extend pod ip range, delete and create again.
-		ssh -oStrictHostKeyChecking=no -p 22 $MASTER_NODE "kubectl get node $NODE_NAME -o json | jq '.spec.podCIDR |= \"192.168.$SUBNET.0/22\"' |(kubectl delete node $NODE_NAME && kubectl create -f -)"
+		ssh -oStrictHostKeyChecking=no -p 22 $MASTER_NODE "kubectl get node $NODE_NAME -o json | jq '.spec.podCIDR |= \"192.168.$SUBNET.0/22\"' |(kubectl delete node $NODE_NAME && sleep 3 && kubectl create -f -)"
 		
 		echo "Changed pod CIDR for worker $NODE_NAME to 192.168.$SUBNET.0/22"
 		sleep 5
