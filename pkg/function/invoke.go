@@ -2,7 +2,6 @@ package function
 
 import (
 	"context"
-	"io"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -40,7 +39,7 @@ func Invoke(function tc.Function, gen tc.FunctionSpecsGen) (bool, mc.ExecutionRe
 	defer cancelDailing()
 
 	conn, err := grpc.DialContext(dailCxt, function.Endpoint+port, grpc.WithInsecure(), grpc.WithBlock())
-	defer dclose(conn)
+	// defer dclose(conn)
 	if err != nil {
 		//! Failures will also be recorded with 0's.
 		log.Warnf("gRPC connection failed: %v", err)
@@ -83,8 +82,8 @@ func Invoke(function tc.Function, gen tc.FunctionSpecsGen) (bool, mc.ExecutionRe
 	return true, record
 }
 
-func dclose(c io.Closer) {
-	if err := c.Close(); err != nil {
-		log.Warn("Connection closing error: ", err)
-	}
-}
+// func dclose(c io.Closer) {
+// 	if err := c.Close(); err != nil {
+// 		log.Warn("Connection closing error: ", err)
+// 	}
+// }
