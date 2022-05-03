@@ -27,11 +27,12 @@ var (
 	serviceConfigPath = ""
 	server            = flag.String("server", "trace", "Choose a function server from [busy, sleep, trace]")
 
-	mode       = flag.String("mode", "trace", "Choose a mode from [trace, stress, coldstart]")
-	debug      = flag.Bool("dbg", false, "Enable debug logging")
-	cluster    = flag.Int("cluster", 1, "Size of the cluster measured by #workers")
-	duration   = flag.Int("duration", 3, "Duration of the experiment")
-	sampleSize = flag.Int("sample", 10, "Sample size of the traces")
+	mode        = flag.String("mode", "trace", "Choose a mode from [trace, stress, coldstart, customTrace]")
+	customTrace = flag.String("customTrace", "", "Path to the folder containing the custom trace")
+	debug       = flag.Bool("dbg", false, "Enable debug logging")
+	cluster     = flag.Int("cluster", 1, "Size of the cluster measured by #workers")
+	duration    = flag.Int("duration", 3, "Duration of the experiment")
+	sampleSize  = flag.Int("sample", 10, "Sample size of the traces")
 
 	rps            = flag.Int("rps", -900_000, "Request per second")
 	rpsStart       = flag.Int("start", 0, "Starting RPS value")
@@ -87,7 +88,17 @@ func main() {
 
 	switch *mode {
 	case "trace":
-		runTraceMode()
+		invPath := "data/traces/" + strconv.Itoa(*sampleSize) + "_inv.csv"
+		runPath := "data/traces/" + strconv.Itoa(*sampleSize) + "_run.csv"
+		memPath := "data/traces/" + strconv.Itoa(*sampleSize) + "_mem.csv"
+
+		runTraceMode(invPath, runPath, memPath)
+	case "customTrace":
+		invPath := *customTrace + "/invocations.csv"
+		runPath := *customTrace + "/durations.csv"
+		memPath := *customTrace + "/memory.csv"
+
+		runTraceMode(invPath, runPath, memPath)
 	case "stress":
 		runStressMode()
 	case "coldstart":
@@ -97,14 +108,11 @@ func main() {
 	}
 }
 
-func runTraceMode() {
+func runTraceMode(invPath, runPath, memPath string) {
 	/** Trace parsing */
-	traces = tc.ParseInvocationTrace(
-		"data/traces/"+strconv.Itoa(*sampleSize)+"_inv.csv", *duration)
-	tc.ParseDurationTrace(
-		&traces, "data/traces/"+strconv.Itoa(*sampleSize)+"_run.csv")
-	tc.ParseMemoryTrace(
-		&traces, "data/traces/"+strconv.Itoa(*sampleSize)+"_mem.csv")
+	traces = tc.ParseInvocationTrace(invPath, *duration)
+	tc.ParseDurationTrace(&traces, runPath)
+	tc.ParseMemoryTrace(&traces, memPath)
 
 	log.Info("Traces contain the following: ", len(traces.Functions), " functions")
 	for _, function := range traces.Functions {
