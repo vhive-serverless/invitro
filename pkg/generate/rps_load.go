@@ -18,6 +18,7 @@ func GenerateStressLoads(
 	rpsStep int,
 	stressSlotInSecs int,
 	functions []tc.Function,
+	printInfo bool,
 ) {
 	start := time.Now()
 	wg := sync.WaitGroup{}
@@ -90,7 +91,7 @@ stress_generation:
 					defer wg.Done()
 					wg.Add(1)
 
-					success, execRecord := fc.Invoke(function, GenerateSingleExecutionSpecs)
+					success, execRecord := fc.Invoke(function, GenerateSingleExecutionSpecs, printInfo)
 
 					if success {
 						atomic.AddInt64(&successCountRpsStep, 1)

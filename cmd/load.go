@@ -29,6 +29,7 @@ var (
 
 	mode        = flag.String("mode", "trace", "Choose a mode from [trace, stress, coldstart, customTrace]")
 	customTrace = flag.String("customTrace", "", "Path to the folder containing the custom trace")
+	printInvoke = flag.Bool("printInvoke", false, "Print info when an invocation starts and ends")
 	debug       = flag.Bool("dbg", false, "Enable debug logging")
 	cluster     = flag.Int("cluster", 1, "Size of the cluster measured by #workers")
 	duration    = flag.Int("duration", 3, "Duration of the experiment")
@@ -157,7 +158,8 @@ func runTraceMode(invPath, runPath, memPath string) {
 		*rps,
 		functions,
 		traces.InvocationsEachMinute[nextPhaseStart:],
-		traces.TotalInvocationsPerMinute[nextPhaseStart:])
+		traces.TotalInvocationsPerMinute[nextPhaseStart:],
+		*printInvoke)
 }
 
 func runStressMode() {
@@ -173,7 +175,7 @@ func runStressMode() {
 
 	fc.DeployTrace(functions, serviceConfigPath, []int{})
 
-	defer gen.GenerateStressLoads(*rpsStart, *rpsEnd, *rpsStep, *rpsSlot, functions)
+	defer gen.GenerateStressLoads(*rpsStart, *rpsEnd, *rpsStep, *rpsSlot, functions, *printInvoke)
 }
 
 func runColdStartMode() {
@@ -199,5 +201,5 @@ func runColdStartMode() {
 
 	fc.DeployTrace(functions, serviceConfigPath, []int{})
 
-	defer gen.GenerateColdStartLoads(*rpsStart, *rpsStep, hotFunction, coldstartCounts)
+	defer gen.GenerateColdStartLoads(*rpsStart, *rpsStep, hotFunction, coldstartCounts, *printInvoke)
 }

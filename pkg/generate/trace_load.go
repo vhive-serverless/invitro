@@ -23,6 +23,7 @@ func GenerateTraceLoads(
 	functions []tc.Function,
 	invocationsEachMinute [][]int,
 	totalNumInvocationsEachMinute []int,
+	printInfo bool,
 ) int {
 
 	ShuffleAllInvocationsInplace(&invocationsEachMinute)
@@ -127,7 +128,7 @@ trace_generation:
 					funcIndx := invocationsEachMinute[m][nxt]
 					function := functions[funcIndx]
 
-					success, execRecord := fc.Invoke(function, GenerateTraceExecutionSpecs)
+					success, execRecord := fc.Invoke(function, GenerateTraceExecutionSpecs, printInfo)
 
 					if success {
 						atomic.AddInt64(&successCountTotal, 1)

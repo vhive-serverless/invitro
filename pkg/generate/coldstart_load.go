@@ -17,7 +17,8 @@ func GenerateColdStartLoads(
 	rpsStep int,
 	hotFunction tc.Function,
 	coldstartCounts []int,
-) {
+	printInfo bool) {
+
 	start := time.Now()
 	wg := sync.WaitGroup{}
 	collector := mc.NewCollector()
@@ -100,7 +101,7 @@ coldstart_generation:
 					defer wg.Done()
 					wg.Add(1)
 
-					success, execRecord := fc.Invoke(function, GenerateSingleExecutionSpecs)
+					success, execRecord := fc.Invoke(function, GenerateSingleExecutionSpecs, printInfo)
 
 					if success {
 						atomic.AddInt64(&successCountRpsStep, 1)
