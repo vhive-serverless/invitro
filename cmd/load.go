@@ -139,7 +139,7 @@ func runTraceMode(invPath, runPath, memPath string) {
 	/** Warmup (Phase 1 and 2) */
 	nextPhaseStart := 0
 	if *withWarmup {
-		nextPhaseStart = wu.Warmup(*sampleSize, totalNumPhases, *rps, functions, traces)
+		nextPhaseStart = wu.Warmup(*sampleSize, totalNumPhases, *rps, functions, traces, *printInvoke)
 	}
 
 	/** Measurement (Phase 3) */

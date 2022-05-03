@@ -46,7 +46,7 @@ func ComputeFunctionsWarmupScales(clusterSize int, functions []tc.Function) []in
 }
 
 func Warmup(sampleSize int, totalNumPhases int, rps int,
-	functions []tc.Function, traces tc.FunctionTraces) int {
+	functions []tc.Function, traces tc.FunctionTraces, printInvoke bool) int {
 	nextPhaseStart := 0
 	for phaseIdx := 1; phaseIdx < totalNumPhases; phaseIdx++ {
 		//* Set up kn environment
@@ -63,7 +63,9 @@ func Warmup(sampleSize int, totalNumPhases int, rps int,
 			rps,
 			functions,
 			traces.InvocationsEachMinute[nextPhaseStart:],
-			traces.TotalInvocationsPerMinute[nextPhaseStart:])
+			traces.TotalInvocationsPerMinute[nextPhaseStart:],
+			printInvoke,
+		)
 
 		//* Reset kn environment
 		if phaseIdx == 1 {
