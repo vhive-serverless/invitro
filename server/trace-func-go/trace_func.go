@@ -54,7 +54,7 @@ func (s *funcServer) Execute(ctx context.Context, req *rpc.FaasRequest) (*rpc.Fa
 		err = nil
 	}
 
-	<-timeoutSem //* Fulfil requested runtime.
+	<-timeoutSem //* Fulfill requested runtime.
 	return &rpc.FaasReply{
 		Message:            "", // Unused
 		DurationInMicroSec: uint32(time.Since(start).Microseconds()),
