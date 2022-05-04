@@ -1,6 +1,5 @@
 load
-out
-out/*
+analysis
 
 ### CMake ###
 CMakeLists.txt.user
