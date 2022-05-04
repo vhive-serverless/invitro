@@ -106,13 +106,13 @@ func ScrapeClusterUsage() ClusterUsage {
 	)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		log.Fatal("Fail to scrape cluster usage: ", err)
+		log.Warn("Fail to scrape cluster usage: ", err)
 	}
 
 	var result ClusterUsage
 	err = json.Unmarshal(out, &result)
 	if err != nil {
-		log.Fatal("Fail to parse cluster usage: ", string(out[:]), err)
+		log.Warn("Fail to parse cluster usage: ", string(out[:]), err)
 	}
 
 	return result
