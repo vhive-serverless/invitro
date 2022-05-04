@@ -15,8 +15,8 @@ import (
 const (
 	port = ":80"
 	// See: https://aws.amazon.com/premiumsupport/knowledge-center/lambda-function-retry-timeout-sdk/
-	connectionTimeout = 1 * time.Minute
-	executionTimeout  = 15 * time.Minute
+	connectionTimeout = 10 * time.Hour
+	executionTimeout  = 15 * time.Hour
 )
 
 var registry = LoadRegistry{}
