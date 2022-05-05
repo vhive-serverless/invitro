@@ -154,6 +154,7 @@ func runTraceMode() {
 
 func runStressMode() {
 	functions := []tc.Function{}
+	initialScales := []int{}
 
 	for i := 0; i < *totalFunctions; i++ {
 		stressFunc := "stress-func-" + strconv.Itoa(i)
@@ -161,9 +162,10 @@ func runStressMode() {
 			Name:     stressFunc,
 			Endpoint: tc.GetFuncEndpoint(stressFunc),
 		})
+		initialScales = append(initialScales, 1)
 	}
 
-	fc.DeployTrace(functions, serviceConfigPath, []int{})
+	fc.DeployTrace(functions, serviceConfigPath, initialScales)
 
 	defer gen.GenerateStressLoads(*rpsStart, *rpsEnd, *rpsStep, *rpsSlot, functions)
 }
