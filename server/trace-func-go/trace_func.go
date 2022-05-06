@@ -18,13 +18,24 @@ import (
 	rpc "github.com/eth-easl/loader/server"
 )
 
-//! We don't enforce this limit anymore because
-//! no limits have set for the containers themselves
-//! (i.e., they can try to use more RAM than the default and won't get OOM-killed by the kernel).
+//! We don't enforce this limit anymore because no limits have set for the containers themselves
+//! (i.e., they are busrtable workloads controlled by K8s and won't get OOM-killed by the kernel).
 // const containerMemoryLimitMib = 512 // Default limit of k8s.
 
 type funcServer struct {
 	rpc.UnimplementedExecutorServer
+}
+
+func busySpin(timeoutSem <-chan time.Time) {
+	/** `for { }` generates the assembly `jmp self`, which is a spin lock. */
+	for {
+		select {
+		case <-timeoutSem: //* Fulfill requested runtime.
+			return
+		default: //* Non-blocking.
+			continue
+		}
+	}
 }
 
 func (s *funcServer) Execute(ctx context.Context, req *rpc.FaasRequest) (*rpc.FaasReply, error) {
@@ -54,7 +65,8 @@ func (s *funcServer) Execute(ctx context.Context, req *rpc.FaasRequest) (*rpc.Fa
 		err = nil
 	}
 
-	<-timeoutSem //* Fulfill requested runtime.
+	busySpin(timeoutSem)
+
 	return &rpc.FaasReply{
 		Message:            "", // Unused
 		DurationInMicroSec: uint32(time.Since(start).Microseconds()),
