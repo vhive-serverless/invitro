@@ -71,10 +71,8 @@ func init() {
 	}
 
 	switch *server {
-	case "sleep":
-		serviceConfigPath = "workloads/container/sleep.yaml"
-	case "busy":
-		serviceConfigPath = "workloads/container/busy_wait.yaml"
+	case "idle":
+		serviceConfigPath = "workloads/container/idle.yaml"
 	case "trace":
 		serviceConfigPath = "workloads/container/trace_func_go.yaml"
 		// serviceConfigPath = "workloads/firecracker/trace_func_go.yaml"
