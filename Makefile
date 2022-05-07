@@ -1,4 +1,4 @@
-.PHONY : proto clean build run trace-firecracker trace-container idle vmem
+.PHONY : proto clean build run trace-firecracker trace-container wimpy
 
 proto:
 	protoc \
@@ -15,6 +15,7 @@ proto:
 # make -i clean
 clean: 
 	kubectl rollout restart deployment activator -n knative-serving
+	kubectl rollout restart statefulset prometheus-prometheus-kube-prometheus-prometheus -n monitoring
 	kn service delete --all
 	kubectl delete --all all -n default --grace-period=0 
 
@@ -54,10 +55,7 @@ trace-container:
 	docker build -f Dockerfile.trace.container -t hyhe/trace-func-container .
 	docker push hyhe/trace-func-container:latest
 
-idle:
-	docker build -f Dockerfile.idle -t hyhe/idle .
-	docker push hyhe/idle:latest
+wimpy:
+	docker build -f Dockerfile.wimpy -t hyhe/wimpy .
+	docker push hyhe/wimpy:latest
 
-vmem:
-	docker build -f Dockerfile.vmem -t hyhe/vmem .
-	docker push hyhe/vmem:latest
