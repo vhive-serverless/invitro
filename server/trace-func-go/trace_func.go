@@ -42,9 +42,9 @@ func (s *funcServer) Execute(ctx context.Context, req *rpc.FaasRequest) (*rpc.Fa
 	start := time.Now()
 	runtimeRequested := req.RuntimeInMilliSec
 	timeoutSem := time.After(time.Duration(runtimeRequested) * time.Millisecond)
-	if runtimeRequested < 1 {
+	if runtimeRequested <= 0 {
 		//* Some of the durations were incorrectly recorded as 0 in the trace.
-		return &rpc.FaasReply{}, errors.New("erroneous execution time")
+		return &rpc.FaasReply{}, errors.New("non-positive execution time")
 	}
 
 	//* To avoid unecessary overheads, memory allocation is at the granularity of os pages.
@@ -52,22 +52,30 @@ func (s *funcServer) Execute(ctx context.Context, req *rpc.FaasRequest) (*rpc.Fa
 	pageSize := unix.Getpagesize()
 	numPagesRequested := util.Mib2b(req.MemoryInMebiBytes) / uint32(pageSize) / uint32(delta)
 	bytes := make([]byte, numPagesRequested*uint32(pageSize))
+	timeout := false
 	for i := 0; i < int(numPagesRequested); i += pageSize {
-		bytes[i] = byte(1) //* Materialise allocated memory.
-	}
-
-	var err error = nil
-	if uint32(time.Since(start).Milliseconds()) > runtimeRequested {
-		err = errors.New("timeout in function excecution")
+		select {
+		case <-timeoutSem:
+			timeout = true
+			goto finish
+		default:
+			bytes[i] = byte(1) //* Materialise allocated memory.
+		}
 	}
 
 	busySpin(timeoutSem)
 
+finish:
+	var msg string
+	if msg = "OK"; timeout {
+		msg = "Timeout when materialising allocated memory."
+	}
+
 	return &rpc.FaasReply{
-		Message:            "", // Unused
+		Message:            msg,
 		DurationInMicroSec: uint32(time.Since(start).Microseconds()),
 		MemoryUsageInKb:    util.B2Kib(numPagesRequested * uint32(unix.Getpagesize())),
-	}, err
+	}, nil
 }
 
 func main() {
