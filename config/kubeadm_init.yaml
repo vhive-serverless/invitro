@@ -26,10 +26,10 @@ scheduler:
   extraArgs:
     bind-address: "0.0.0.0"
 
----
-# Configure kubelet for large pod limits.
-apiVersion: kubelet.config.k8s.io/v1beta1
-kind: KubeletConfiguration
-kubeAPIQPS: 50  # Default: 5
-kubeAPIBurst: 100  # Default: 10
-configMapAndSecretChangeDetectionStrategy: "Watch"
+# ---
+# # Configure kubelet for large pod limits.
+# apiVersion: kubelet.config.k8s.io/v1beta1
+# kind: KubeletConfiguration
+# kubeAPIQPS: 50  # Default: 5
+# kubeAPIBurst: 100  # Default: 10
+# configMapAndSecretChangeDetectionStrategy: "Watch"
