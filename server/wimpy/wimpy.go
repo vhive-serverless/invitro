@@ -8,9 +8,11 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/sys/unix"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 
+	util "github.com/eth-easl/loader/pkg"
 	rpc "github.com/eth-easl/loader/server"
 )
 
@@ -19,20 +21,25 @@ type funcServer struct {
 }
 
 func (s *funcServer) Execute(ctx context.Context, req *rpc.FaasRequest) (*rpc.FaasReply, error) {
+	start := time.Now()
 	runtimeRequested := req.RuntimeInMilliSec
-	if runtimeRequested < 1 {
+	timeoutSem := time.After(time.Duration(runtimeRequested) * time.Millisecond)
+	if runtimeRequested <= 0 {
 		//* Some of the durations were incorrectly recorded as 0 in the trace.
-		return &rpc.FaasReply{}, errors.New("erroneous execution time")
+		return &rpc.FaasReply{}, errors.New("non-positive execution time")
 	}
 
-	start := time.Now()
-	timeoutSem := time.After(time.Duration(runtimeRequested) * time.Millisecond)
+	delta := 2
+	pageSize := unix.Getpagesize()
+	numPagesRequested := util.Mib2b(req.MemoryInMebiBytes) / uint32(pageSize) / uint32(delta)
+	bytes := make([]byte, numPagesRequested*uint32(pageSize))
+	bytes[0] = byte(1) //* Only touch the first page.
 
-	<-timeoutSem //* Fulfill requested runtime.
+	<-timeoutSem //* Blocking wait.
 	return &rpc.FaasReply{
 		Message:            "", // Unused
 		DurationInMicroSec: uint32(time.Since(start).Microseconds()),
-		MemoryUsageInKb:    0,
+		MemoryUsageInKb:    uint32(pageSize) / 1024,
 	}, nil
 }
 
