@@ -1,4 +1,4 @@
-.PHONY : proto clean build run trace-firecracker trace-container busy-wait sleep
+.PHONY : proto clean build run trace-firecracker trace-container idle
 
 proto:
 	protoc \
@@ -54,10 +54,6 @@ trace-container:
 	docker build -f Dockerfile.trace.container -t hyhe/trace-func-container .
 	docker push hyhe/trace-func-container:latest
 
-busy-wait:
-	docker build -f Dockerfile.busy -t hyhe/busy-wait .
-	docker push hyhe/busy-wait:latest
-
-sleep:
-	docker build -f Dockerfile.sleep -t hyhe/sleep .
-	docker push hyhe/sleep:latest
+idle:
+	docker build -f Dockerfile.idle -t hyhe/idle .
+	docker push hyhe/idle:latest
