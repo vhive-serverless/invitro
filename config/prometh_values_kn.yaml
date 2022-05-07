@@ -9,10 +9,10 @@ prometheus:
     podMonitorSelectorNilUsesHelmValues: false
     resources:
       limits:
-        cpu: 1
-        memory: 3Gi
+        cpu: 3
+        memory: 5Gi
       requests:
-        memory: 1500Mi 
+        memory: 150Mi 
 
 kubeControllerManager:
   service:
