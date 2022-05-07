@@ -1,4 +1,4 @@
-.PHONY : proto clean build run trace-firecracker trace-container idle
+.PHONY : proto clean build run trace-firecracker trace-container idle vmem
 
 proto:
 	protoc \
@@ -57,3 +57,7 @@ trace-container:
 idle:
 	docker build -f Dockerfile.idle -t hyhe/idle .
 	docker push hyhe/idle:latest
+
+vmem:
+	docker build -f Dockerfile.vmem -t hyhe/vmem .
+	docker push hyhe/vmem:latest

@@ -48,13 +48,12 @@ func (s *funcServer) Execute(ctx context.Context, req *rpc.FaasRequest) (*rpc.Fa
 	}
 
 	//* To avoid unecessary overheads, memory allocation is at the granularity of os pages.
-	delta := 2 //* Emperical skewness.
+	numPagesRequested := util.Mib2b(req.MemoryInMebiBytes) / uint32(unix.Getpagesize())
 	pageSize := unix.Getpagesize()
-	numPagesRequested := util.Mib2b(req.MemoryInMebiBytes) / uint32(pageSize) / uint32(delta)
-	bytes := make([]byte, numPagesRequested*uint32(pageSize))
-	for i := 0; i < int(numPagesRequested); i += pageSize {
-		bytes[i] = byte(1) //* Materialise allocated memory.
-	}
+	pages := make([]byte, numPagesRequested*uint32(pageSize))
+
+	//* Only touch the first page.
+	pages[0] = byte(1)
 
 	var err error = nil
 	if uint32(time.Since(start).Milliseconds()) > runtimeRequested {
