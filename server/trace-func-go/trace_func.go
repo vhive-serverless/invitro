@@ -57,7 +57,7 @@ func (s *funcServer) Execute(ctx context.Context, req *rpc.FaasRequest) (*rpc.Fa
 		select {
 		case <-timeoutSem:
 			timeout = true
-			goto finish
+			goto finish //* Skip spin-lock.
 		default:
 			bytes[i] = byte(1) //* Materialise allocated memory.
 		}
@@ -67,7 +67,7 @@ func (s *funcServer) Execute(ctx context.Context, req *rpc.FaasRequest) (*rpc.Fa
 
 finish:
 	var msg string
-	if msg = "OK"; timeout {
+	if msg = "Trace func -- OK"; timeout {
 		msg = "Timeout when materialising allocated memory."
 	}
 

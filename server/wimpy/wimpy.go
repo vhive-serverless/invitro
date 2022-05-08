@@ -29,17 +29,22 @@ func (s *funcServer) Execute(ctx context.Context, req *rpc.FaasRequest) (*rpc.Fa
 		return &rpc.FaasReply{}, errors.New("non-positive execution time")
 	}
 
-	delta := 2
 	pageSize := unix.Getpagesize()
-	numPagesRequested := util.Mib2b(req.MemoryInMebiBytes) / uint32(pageSize) / uint32(delta)
-	bytes := make([]byte, numPagesRequested*uint32(pageSize))
-	bytes[0] = byte(1) //* Only touch the first page.
+	numPagesRequested := util.Mib2b(req.MemoryInMebiBytes) / uint32(pageSize)
+	pages, err := unix.Mmap(-1, 0, int(numPagesRequested)*int(numPagesRequested),
+		unix.PROT_WRITE, unix.MAP_ANON|unix.MAP_PRIVATE)
+	if err != nil {
+		log.Errorf("Failed to allocate requested memory: %v", err)
+		return &rpc.FaasReply{}, err
+	}
+	err = unix.Munmap(pages) //* Don't even touch the allocated pages -> let them stay virtaul memory.
+	util.Check(err)
 
 	<-timeoutSem //* Blocking wait.
 	return &rpc.FaasReply{
-		Message:            "", // Unused
+		Message:            "Wimpy func -- DONE", // Unused
 		DurationInMicroSec: uint32(time.Since(start).Microseconds()),
-		MemoryUsageInKb:    uint32(pageSize) / 1024,
+		MemoryUsageInKb:    util.B2Kib(numPagesRequested * uint32(pageSize)),
 	}, nil
 }
 
