@@ -17,7 +17,7 @@ func init() {
 
 func TestGenCheckOverload(t *testing.T) {
 	successCount := 100
-	assert.False(t, gen.CheckOverload(int64(successCount), int64(successCount/3)))
+	assert.False(t, gen.CheckOverload(int64(successCount), int64(successCount/10)))
 	assert.True(t, gen.CheckOverload(int64(successCount), int64(3*successCount)))
 }
 
