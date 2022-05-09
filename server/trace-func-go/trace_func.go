@@ -18,48 +18,64 @@ import (
 	rpc "github.com/eth-easl/loader/server"
 )
 
-//! We don't enforce this limit anymore because
-//! no limits have set for the containers themselves
-//! (i.e., they can try to use more RAM than the default and won't get OOM-killed by the kernel).
+//! We don't enforce this limit anymore because no limits have set for the containers themselves
+//! (i.e., they are busrtable workloads controlled by K8s and won't get OOM-killed by the kernel).
 // const containerMemoryLimitMib = 512 // Default limit of k8s.
 
 type funcServer struct {
 	rpc.UnimplementedExecutorServer
 }
 
+func busySpin(timeoutSem <-chan time.Time) {
+	/** `for { }` generates the assembly `jmp self`, which is a spin lock. */
+	for {
+		select {
+		case <-timeoutSem: //* Fulfill requested runtime.
+			return
+		default: //* Non-blocking.
+			continue
+		}
+	}
+}
+
 func (s *funcServer) Execute(ctx context.Context, req *rpc.FaasRequest) (*rpc.FaasReply, error) {
-	runtimeRequested := req.RuntimeInMilliSec
-	//* To avoid unecessary overhead, memory allocation is at the granularity of os pages.
-	numPagesRequested := util.Mib2b(req.MemoryInMebiBytes) / uint32(unix.Getpagesize())
-	if runtimeRequested < 1 {
-		//* Some of the durations were incorrectly recorded as 0 in the trace.
-		return &rpc.FaasReply{}, errors.New("erroneous execution time")
-	}
-
 	start := time.Now()
+	runtimeRequested := req.RuntimeInMilliSec
 	timeoutSem := time.After(time.Duration(runtimeRequested) * time.Millisecond)
-	pages, err := unix.Mmap(-1, 0, int(numPagesRequested)*unix.Getpagesize(),
-		unix.PROT_WRITE, unix.MAP_ANON|unix.MAP_PRIVATE)
-	if err != nil {
-		log.Errorf("Failed to allocate requested memory: %v", err)
-		return &rpc.FaasReply{}, err
-	}
-	pages[0] = byte(1) //* Materialise allocated memory.
-	err = unix.Munmap(pages)
-	util.Check(err)
-
-	if uint32(time.Since(start).Milliseconds()) > runtimeRequested {
-		err = errors.New("timeout in function excecution")
-	} else {
-		err = nil
+	if runtimeRequested <= 0 {
+		//* Some of the durations were incorrectly recorded as 0 in the trace.
+		return &rpc.FaasReply{}, errors.New("non-positive execution time")
 	}
 
-	<-timeoutSem //* Fulfil requested runtime.
+	//* To avoid unecessary overheads, memory allocation is at the granularity of os pages.
+	delta := 2 //* Emperical skewness.
+	pageSize := unix.Getpagesize()
+	numPagesRequested := util.Mib2b(req.MemoryInMebiBytes) / uint32(pageSize) / uint32(delta)
+	bytes := make([]byte, numPagesRequested*uint32(pageSize))
+	timeout := false
+	for i := 0; i < int(numPagesRequested); i += pageSize {
+		select {
+		case <-timeoutSem:
+			timeout = true
+			goto finish //* Skip spin-lock.
+		default:
+			bytes[i] = byte(1) //* Materialise allocated memory.
+		}
+	}
+
+	busySpin(timeoutSem)
+
+finish:
+	var msg string
+	if msg = "Trace func -- OK"; timeout {
+		msg = "Timeout when materialising allocated memory."
+	}
+
 	return &rpc.FaasReply{
-		Message:            "", // Unused
+		Message:            msg,
 		DurationInMicroSec: uint32(time.Since(start).Microseconds()),
 		MemoryUsageInKb:    util.B2Kib(numPagesRequested * uint32(unix.Getpagesize())),
-	}, err
+	}, nil
 }
 
 func main() {

@@ -2,6 +2,7 @@ package function
 
 import (
 	"context"
+	"io"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -15,8 +16,11 @@ import (
 const (
 	port = ":80"
 	// See: https://aws.amazon.com/premiumsupport/knowledge-center/lambda-function-retry-timeout-sdk/
-	connectionTimeout = 1 * time.Minute
-	executionTimeout  = 15 * time.Minute
+	// connectionTimeout = 1 * time.Minute
+	// executionTimeout  = 15 * time.Minute
+	//! Disable timeout for benchmarking all queuing effects.
+	connectionTimeout = 10 * time.Hour
+	executionTimeout  = 15 * time.Hour
 )
 
 var registry = LoadRegistry{}
@@ -41,7 +45,7 @@ func Invoke(function tc.Function, gen tc.FunctionSpecsGen, printInfos bool) (boo
 	defer cancelDailing()
 
 	conn, err := grpc.DialContext(dailCxt, function.Endpoint+port, grpc.WithInsecure(), grpc.WithBlock())
-	// defer dclose(conn)
+	defer dclose(conn)
 	if err != nil {
 		//! Failures will also be recorded with 0's.
 		log.Warnf("gRPC connection failed: %v", err)
@@ -79,15 +83,15 @@ func Invoke(function tc.Function, gen tc.FunctionSpecsGen, printInfos bool) (boo
 	record.Runtime = runtime
 
 	if printInfos {
-		log.Infof("(Replied)\t %s: %d[µs], %d[KB]", function.Name, runtime, memoryUsage)
-		log.Infof("(E2E Latency) %s: %d[µs]\n", function.Name, responseTime)
+	  log.Infof("(Replied)\t %s: %s, %d[µs], %d[KB]", function.Name, response.Message, runtime, memoryUsage)
+	  log.Infof("(E2E Latency) %s: %d[µs]\n", function.Name, responseTime)
 	}
 
 	return true, record
 }
 
-// func dclose(c io.Closer) {
-// 	if err := c.Close(); err != nil {
-// 		log.Warn("Connection closing error: ", err)
-// 	}
-// }
+func dclose(c io.Closer) {
+	if err := c.Close(); err != nil {
+		log.Warn("Connection closing error: ", err)
+	}
+}

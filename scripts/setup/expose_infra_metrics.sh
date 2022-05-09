@@ -1,11 +1,14 @@
 #!/usr/bin/env bash
 MASTER_NODE=$1
+USE_LARGE=$2
+
 server_exec() { 
 	ssh -oStrictHostKeyChecking=no -p 22 $MASTER_NODE $1;
 }
 
 {
 	echo 'Setting up monitoring components'
+	server_exec 'sudo apt install htop'
 
 	#* Deploy Metrics Server to k8s in namespace kube-system.
 	server_exec 'cd loader; kubectl apply -f config/metrics_server_components.yaml'
@@ -18,12 +21,18 @@ server_exec() {
 
 	server_exec 'kubectl create namespace monitoring'
 	release_label="prometheus"
-	server_exec "cd loader; helm install -n monitoring $release_label prometheus-community/kube-prometheus-stack -f config/prometh_values_kn.yaml"
+	server_exec "cd loader; helm install -n monitoring $release_label prometheus-community/kube-prometheus-stack -f config/prometh_stack_values.yaml"
 	#* Apply the ServiceMonitors/PodMonitors to collect metrics from Knative.
 	#* The ports of the control manager and scheduler are mapped in a way that prometheus default installation can find them. 
 	server_exec 'cd loader; kubectl apply -f config/prometh_kn.yaml'
+
 	#* Bind addresses of the control manager and scheduler to "0.0.0.0" so that prometheus can scrape them from any domains.
-	server_exec 'cd loader; sudo kubeadm upgrade apply --config config/kubeadm_init.yaml --ignore-preflight-errors all --force --v=5'
+	if [[ ! -z $USE_LARGE && $USE_LARGE == 'large' ]]; 
+	then
+		server_exec 'cd loader; sudo kubeadm upgrade apply --config config/kubeadm_init_large.yaml --ignore-preflight-errors all --force --v=5'	
+	else
+		server_exec 'cd loader; sudo kubeadm upgrade apply --config config/kubeadm_init.yaml --ignore-preflight-errors all --force --v=5'
+	fi
 
 
 	#* Change scrape intervals to 2s for all used monitors.

@@ -8,9 +8,11 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/sys/unix"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 
+	util "github.com/eth-easl/loader/pkg"
 	rpc "github.com/eth-easl/loader/server"
 )
 
@@ -19,20 +21,30 @@ type funcServer struct {
 }
 
 func (s *funcServer) Execute(ctx context.Context, req *rpc.FaasRequest) (*rpc.FaasReply, error) {
+	start := time.Now()
 	runtimeRequested := req.RuntimeInMilliSec
-	if runtimeRequested < 1 {
+	timeoutSem := time.After(time.Duration(runtimeRequested) * time.Millisecond)
+	if runtimeRequested <= 0 {
 		//* Some of the durations were incorrectly recorded as 0 in the trace.
-		return &rpc.FaasReply{}, errors.New("erroneous execution time")
+		return &rpc.FaasReply{}, errors.New("non-positive execution time")
 	}
 
-	start := time.Now()
-	timeoutSem := time.After(time.Duration(runtimeRequested) * time.Millisecond)
+	pageSize := unix.Getpagesize()
+	numPagesRequested := util.Mib2b(req.MemoryInMebiBytes) / uint32(pageSize)
+	pages, err := unix.Mmap(-1, 0, int(numPagesRequested)*int(numPagesRequested),
+		unix.PROT_WRITE, unix.MAP_ANON|unix.MAP_PRIVATE)
+	if err != nil {
+		log.Errorf("Failed to allocate requested memory: %v", err)
+		return &rpc.FaasReply{}, err
+	}
+	err = unix.Munmap(pages) //* Don't even touch the allocated pages -> let them stay virtaul memory.
+	util.Check(err)
 
-	<-timeoutSem //* Fulfil requested runtime.
+	<-timeoutSem //* Blocking wait.
 	return &rpc.FaasReply{
-		Message:            "", // Unused
+		Message:            "Wimpy func -- DONE", // Unused
 		DurationInMicroSec: uint32(time.Since(start).Microseconds()),
-		MemoryUsageInKb:    0,
+		MemoryUsageInKb:    util.B2Kib(numPagesRequested * uint32(pageSize)),
 	}, nil
 }
 

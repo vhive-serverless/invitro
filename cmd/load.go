@@ -73,10 +73,8 @@ func init() {
 	}
 
 	switch *server {
-	case "sleep":
-		serviceConfigPath = "workloads/container/sleep.yaml"
-	case "busy":
-		serviceConfigPath = "workloads/container/busy_wait.yaml"
+	case "wimpy":
+		serviceConfigPath = "workloads/container/wimpy.yaml"
 	case "trace":
 		serviceConfigPath = "workloads/container/trace_func_go.yaml"
 		// serviceConfigPath = "workloads/firecracker/trace_func_go.yaml"
@@ -164,6 +162,7 @@ func runTraceMode(invPath, runPath, memPath string) {
 
 func runStressMode() {
 	functions := []tc.Function{}
+	initialScales := []int{}
 
 	for i := 0; i < *totalFunctions; i++ {
 		stressFunc := "stress-func-" + strconv.Itoa(i)
@@ -171,9 +170,10 @@ func runStressMode() {
 			Name:     stressFunc,
 			Endpoint: tc.GetFuncEndpoint(stressFunc),
 		})
+		initialScales = append(initialScales, 1)
 	}
 
-	fc.DeployTrace(functions, serviceConfigPath, []int{})
+	fc.DeployTrace(functions, serviceConfigPath, initialScales)
 
 	defer gen.GenerateStressLoads(*rpsStart, *rpsEnd, *rpsStep, *rpsSlot, functions, *printInvoke)
 }

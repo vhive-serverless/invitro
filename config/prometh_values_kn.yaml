@@ -7,6 +7,12 @@ prometheus:
   prometheusSpec:
     serviceMonitorSelectorNilUsesHelmValues: false
     podMonitorSelectorNilUsesHelmValues: false
+    resources:
+      limits:
+        cpu: 3
+        memory: 5Gi
+      requests:
+        memory: 150Mi 
 
 kubeControllerManager:
   service:
@@ -21,4 +27,3 @@ kubeScheduler:
   serviceMonitor:
     https: true
     insecureSkipVerify: true
-    
