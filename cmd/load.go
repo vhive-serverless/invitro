@@ -25,9 +25,9 @@ var (
 	traces tc.FunctionTraces
 
 	serviceConfigPath = ""
-	server            = flag.String("server", "trace", "Choose a function server from [wimpy, trace]")
 
 	mode      = flag.String("mode", "trace", "Choose a mode from [trace, stress, coldstart]")
+	server    = flag.String("server", "trace", "Choose a function server from [wimpy, trace]")
 	tracePath = flag.String("tracePath", "data/traces/", "Path to trace")
 
 	print      = flag.String("print", "all", "Choose a mode from [all, debug, info]")
@@ -41,6 +41,9 @@ var (
 	rpsSlot        = flag.Int("slot", 60, "Time slot in seconds for each RPS in the `stress` mode")
 	rpsStep        = flag.Int("step", 1, "Step size for increasing RPS in the `stress` mode")
 	totalFunctions = flag.Int("totalFunctions", 1, "Total number of functions used in the `stress` mode")
+
+	funcDuration = flag.Int("funcDuration", 1000, "Function execution duration in ms (under `stress` mode)")
+	funcMemory   = flag.Int("funcMemory", 170, "Function memeory in MiB(under `stress` mode)")
 
 	seed = flag.Int64("seed", 42, "Random seed for the generator")
 
@@ -169,6 +172,16 @@ func runStressMode() {
 		functions = append(functions, tc.Function{
 			Name:     stressFunc,
 			Endpoint: tc.GetFuncEndpoint(stressFunc),
+			RuntimeStats: tc.FunctionRuntimeStats{
+				Minimum: *funcDuration,
+				Average: *funcDuration,
+				Maximum: *funcDuration,
+			},
+			MemoryStats: tc.FunctionMemoryStats{
+				Average:       *funcMemory,
+				Percentile1:   *funcMemory,
+				Percentile100: *funcMemory,
+			},
 		})
 		initialScales = append(initialScales, 1)
 	}

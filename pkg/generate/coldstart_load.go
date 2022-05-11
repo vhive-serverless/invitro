@@ -101,7 +101,8 @@ coldstart_generation:
 					defer wg.Done()
 					wg.Add(1)
 
-					success, execRecord := fc.Invoke(function, GenerateSingleExecutionSpecs)
+					runtimeRequested, memoryRequested := GenerateExecutionSpecs(function)
+					success, execRecord := fc.Invoke(function, runtimeRequested, memoryRequested)
 
 					if success {
 						atomic.AddInt64(&successCountRpsStep, 1)
