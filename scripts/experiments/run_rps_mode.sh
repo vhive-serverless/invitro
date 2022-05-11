@@ -5,7 +5,9 @@ STEP=$3
 SLOT=$4
 FUNC=$5
 SERVER=$6
+RUNTIME=$7
+MEMORY=$8
 
 # ./scripts/experiments/run_rps_mode.sh 1 209 1 30 1 trace
 cgexec -g cpuset,memory:loader-cg \
-    make ARGS="-mode stress -start $START -end $END -step $STEP -slot $SLOT -totalFunctions $FUNC -server $SERVER" run 2>&1 | tee stress.log
+    make ARGS="-mode stress -start $START -end $END -step $STEP -slot $SLOT -totalFunctions $FUNC -server $SERVER -funcDuration $RUNTIME -funcMemory $MEMORY" run 2>&1 | tee stress.log
