@@ -18,6 +18,7 @@ func GenerateColdStartLoads(
 	hotFunction tc.Function,
 	coldstartCounts []int,
 ) {
+
 	start := time.Now()
 	wg := sync.WaitGroup{}
 	collector := mc.NewCollector()
