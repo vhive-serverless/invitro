@@ -63,7 +63,8 @@ func Warmup(sampleSize int, totalNumPhases int, rps int,
 			rps,
 			functions,
 			traces.InvocationsEachMinute[nextPhaseStart:],
-			traces.TotalInvocationsPerMinute[nextPhaseStart:])
+			traces.TotalInvocationsPerMinute[nextPhaseStart:],
+		)
 
 		//* Reset kn environment
 		if phaseIdx == 1 {
