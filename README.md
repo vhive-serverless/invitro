@@ -33,14 +33,14 @@ For Trace mode, run the following command
 
 ```bash
 cgexec -g cpuset,memory:loader-cg \
-    make ARGS='-sample <size of the sample trace> -duration <1-1440 in minutes> -cluster <# of worker nodes> -server <trace|busy|sleep> -warmup' run
+    make ARGS='-sample <sample_trace_size> -duration <minutes[1,1440]> -cluster <num_workers> -server <trace|busy|sleep> -tracePath <path_to_trace> -warmup' run
 ```
 
 When using RPS mode, run the following command
 
 ```bash
 cgexec -g cpuset,memory:loader-cg \
-    make ARGS="-mode stress -start <initial RPS> -end <stop RPS> -step <RPS step size> -slot <step duration in seconds> -server <trace|busy|sleep> -totalFunctions <# of functions>" run 2>&1 | tee stress.log
+    make ARGS="-mode stress -start <initial_rps> -end <stop_rps> -step <rps_step> -slot <rps_step_in_seconds> -server <trace|busy|sleep> -totalFunctions <num_functions>" run 2>&1 | tee stress.log
 ```
 
 ## Experiment
@@ -49,10 +49,10 @@ For running experiments, use the wrapper scripts in the `scripts/experiments` di
 
 ```bash
 #* Trace mode
-bash scripts/experiments/run_trace_mode.sh <duration_in_minutes> <num_workers>
+bash scripts/experiments/run_trace_mode.sh <duration_in_minutes> <num_workers> <trace_path>
 
 #* RPS mode
-bash scripts/experiments/run_rps_mode.sh <start> <stop> <step> <duration_in_sec> <num_func>
+bash scripts/experiments/run_rps_mode.sh <start> <stop> <step> <duration_in_sec> <num_func> <wimpy|trace> <func_runtime> <func_mem> 
 ```
 
 ### Build the image for server function
