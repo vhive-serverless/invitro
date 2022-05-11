@@ -127,7 +127,8 @@ trace_generation:
 					funcIndx := invocationsEachMinute[m][nxt]
 					function := functions[funcIndx]
 
-					success, execRecord := fc.Invoke(function, GenerateTraceExecutionSpecs)
+					runtimeRequested, memoryRequested := GenerateExecutionSpecs(function)
+					success, execRecord := fc.Invoke(function, runtimeRequested, memoryRequested)
 
 					if success {
 						atomic.AddInt64(&successCountTotal, 1)

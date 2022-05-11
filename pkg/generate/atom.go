@@ -114,12 +114,12 @@ func ShuffleAllInvocationsInplace(invocationsEachMinute *[][]int) {
 	}
 }
 
-func GenerateSingleExecutionSpecs(function tc.Function) (int, int) {
-	//* p50 values of the original Azure paper (not the released trace!!!).
-	return 1000, 170
-}
+func GenerateExecutionSpecs(function tc.Function) (int, int) {
 
-func GenerateTraceExecutionSpecs(function tc.Function) (int, int) {
+	if function.RuntimeStats.Minimum == function.RuntimeStats.Maximum {
+		//* Custom runtime specs.
+		return function.RuntimeStats.Average, function.MemoryStats.Average
+	}
 
 	var runtime, memory int
 	//* Generate a uniform quantiles in [0, 1).
