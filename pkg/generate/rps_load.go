@@ -25,6 +25,7 @@ func GenerateStressLoads(
 	clusterUsage := mc.ClusterUsage{}
 	knStats := mc.KnStats{}
 	coldStartSlotCount := 0
+	runtimeRequested, memoryRequested := GenerateExecutionSpecs(functions[0])
 
 	/** Launch a scraper that updates the cluster usage every 15s (max. interval). */
 	scrape_infra := time.NewTicker(time.Second * 15)
@@ -90,7 +91,7 @@ stress_generation:
 					defer wg.Done()
 					wg.Add(1)
 
-					success, execRecord := fc.Invoke(function, GenerateSingleExecutionSpecs)
+					success, execRecord := fc.Invoke(function, runtimeRequested, memoryRequested)
 
 					if success {
 						atomic.AddInt64(&successCountRpsStep, 1)

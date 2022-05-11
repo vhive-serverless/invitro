@@ -25,8 +25,7 @@ const (
 
 var registry = LoadRegistry{}
 
-func Invoke(function tc.Function, gen tc.FunctionSpecsGen) (bool, mc.ExecutionRecord) {
-	runtimeRequested, memoryRequested := gen(function)
+func Invoke(function tc.Function, runtimeRequested int, memoryRequested int) (bool, mc.ExecutionRecord) {
 	log.Tracef("(Invoke)\t %s: %d[µs], %d[MiB]", function.Name, runtimeRequested*1000, memoryRequested)
 
 	var record mc.ExecutionRecord
