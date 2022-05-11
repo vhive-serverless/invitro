@@ -27,7 +27,7 @@ var registry = LoadRegistry{}
 
 func Invoke(function tc.Function, gen tc.FunctionSpecsGen) (bool, mc.ExecutionRecord) {
 	runtimeRequested, memoryRequested := gen(function)
-	log.Infof("(Invoke)\t %s: %d[µs], %d[MiB]", function.Name, runtimeRequested*1000, memoryRequested)
+	log.Tracef("(Invoke)\t %s: %d[µs], %d[MiB]", function.Name, runtimeRequested*1000, memoryRequested)
 
 	var record mc.ExecutionRecord
 	record.FuncName = function.Name
@@ -80,8 +80,8 @@ func Invoke(function tc.Function, gen tc.FunctionSpecsGen) (bool, mc.ExecutionRe
 	record.Memory = memoryUsage
 	record.Runtime = runtime
 
-	log.Infof("(Replied)\t %s: %s, %d[µs], %d[KB]", function.Name, response.Message, runtime, memoryUsage)
-	log.Infof("(E2E Latency) %s: %d[µs]\n", function.Name, responseTime)
+	log.Tracef("(Replied)\t %s: %s, %d[µs], %d[KB]", function.Name, response.Message, runtime, memoryUsage)
+	log.Tracef("(E2E Latency) %s: %d[µs]\n", function.Name, responseTime)
 
 	return true, record
 }
