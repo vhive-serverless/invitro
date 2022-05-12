@@ -24,7 +24,7 @@ import (
 // }
 import "C"
 
-const EXEC_UNIT int = 1e3
+const EXEC_UNIT int = 1e2
 
 func takeSqrts() {
 	for i := 0; i < EXEC_UNIT; i++ {
@@ -37,7 +37,7 @@ type funcServer struct {
 }
 
 func busySpin(runtimeMilli uint32) {
-	delta := 2 // Emperical skewness.
+	delta := 16 // Emperical skewness.
 	unitIterations, _ := strconv.Atoi(os.Getenv("AVG_ITER_PER_1MS"))
 	totalIterations := (unitIterations - delta) * int(runtimeMilli)
 

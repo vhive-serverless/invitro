@@ -4,7 +4,7 @@ import (
 	"testing"
 )
 
-const WARMUP_ITER int = 1e4
+const WARMUP_ITER int = 1e5
 
 func BenchmarkTiming(b *testing.B) {
 	for i := 0; i < WARMUP_ITER; i++ {
