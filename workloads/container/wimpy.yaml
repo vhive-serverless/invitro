@@ -8,6 +8,7 @@ spec:
       annotations:
         autoscaling.knative.dev/initial-scale: "0"  # Should start from 0, otherwise we can't deploy more functions than the node physically permits.
         autoscaling.knative.dev/target-utilization-percentage: "100"  # Enforce container concurrency at any time.
+        autoscaling.knative.dev/target-burst-capacity: "-1"  # Put activator always in the path explicitly.
     spec:
       containerConcurrency: 1
       containers:
