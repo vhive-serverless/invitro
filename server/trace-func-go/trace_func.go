@@ -10,7 +10,6 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
-	"golang.org/x/sys/unix"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 
@@ -18,69 +17,58 @@ import (
 	rpc "github.com/eth-easl/loader/server"
 )
 
-//! We don't enforce this limit anymore because no limits have set for the containers themselves
-//! (i.e., they are busrtable workloads controlled by K8s and won't get OOM-killed by the kernel).
-// const containerMemoryLimitMib = 512 // Default limit of k8s.
+// static double SQRTSD (double x) {
+//     double r;
+//     __asm__ ("sqrtsd %1, %0" : "=x" (r) : "x" (x));
+//     return r;
+// }
+import "C"
+
+const EXEC_UNIT int = 1e3
+
+func takeSqrts() {
+	for i := 0; i < EXEC_UNIT; i++ {
+		_ = C.SQRTSD(C.double(10))
+	}
+}
 
 type funcServer struct {
 	rpc.UnimplementedExecutorServer
 }
 
-func busySpin(timeoutSem <-chan time.Time) {
-	/** `for { }` generates the assembly `jmp self`, which is a spin lock. */
-	for {
-		select {
-		case <-timeoutSem: //* Fulfill requested runtime.
-			return
-		default: //* Non-blocking.
-			continue
-		}
+func busySpin(runtimeMilli uint32) {
+	unitIterations, _ := strconv.Atoi(os.Getenv("AVG_ITER_PER_1MS"))
+	totalIterations := unitIterations * int(runtimeMilli)
+
+	for i := 0; i < totalIterations; i++ {
+		takeSqrts()
 	}
 }
 
 func (s *funcServer) Execute(ctx context.Context, req *rpc.FaasRequest) (*rpc.FaasReply, error) {
 	start := time.Now()
-	runtimeRequested := req.RuntimeInMilliSec
-	timeoutSem := time.After(time.Duration(runtimeRequested) * time.Millisecond)
-	if runtimeRequested <= 0 {
+	runtimeRequestedMilli := req.RuntimeInMilliSec
+	if runtimeRequestedMilli <= 0 {
 		//* Some of the durations were incorrectly recorded as 0 in the trace.
 		return &rpc.FaasReply{}, errors.New("non-positive execution time")
 	}
 
-	//* To avoid unecessary overheads, memory allocation is at the granularity of os pages.
-	delta := 2 //* Emperical skewness.
-	pageSize := unix.Getpagesize()
-	numPagesRequested := util.Mib2b(req.MemoryInMebiBytes) / uint32(pageSize) / uint32(delta)
-	bytes := make([]byte, numPagesRequested*uint32(pageSize))
-	timeout := false
-	for i := 0; i < int(numPagesRequested); i += pageSize {
-		select {
-		case <-timeoutSem:
-			timeout = true
-			goto finish //* Skip spin-lock.
-		default:
-			bytes[i] = byte(1) //* Materialise allocated memory.
-		}
-	}
+	memoryRequestedBytes := util.Mib2b(req.MemoryInMebiBytes)
+	//* `make()` gets a piece of initialised memory. No need to touch it.
+	_ = make([]byte, memoryRequestedBytes)
 
-	busySpin(timeoutSem)
-
-finish:
-	var msg string
-	if msg = "Trace func -- OK"; timeout {
-		msg = "Timeout when materialising allocated memory."
-	}
+	busySpin(runtimeRequestedMilli)
 
 	return &rpc.FaasReply{
-		Message:            msg,
+		Message:            "Trace func -- OK",
 		DurationInMicroSec: uint32(time.Since(start).Microseconds()),
-		MemoryUsageInKb:    util.B2Kib(numPagesRequested * uint32(unix.Getpagesize())),
+		MemoryUsageInKb:    util.B2Kib(memoryRequestedBytes),
 	}, nil
 }
 
 func main() {
 	serverPort := 80 // For containers.
-	// 50051 for firecracker.
+	// serverPort := 50051 for firecracker.
 	if len(os.Args) > 1 {
 		serverPort, _ = strconv.Atoi(os.Args[1])
 	}
