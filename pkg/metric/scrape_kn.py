@@ -7,7 +7,7 @@ def get_promql_query(query):
     return promql_query
 
 if __name__ == "__main__":
-    kn_statua = {
+    kn_status = {
         # Desired counts set by autoscalers.
         "desired_pods": get_promql_query('sum(autoscaler_desired_pods)'), 
         # Creating containers.
@@ -40,7 +40,7 @@ if __name__ == "__main__":
         ), 
     }
 
-    for label, query in kn_statua.items():
+    for label, query in kn_status.items():
 
         while True:
             try:
@@ -61,8 +61,8 @@ if __name__ == "__main__":
         else:
             measure = int(measure) if measure else 0
             
-        kn_statua[label] = measure
+        kn_status[label] = measure
     
-    print(json.dumps(kn_statua))
+    print(json.dumps(kn_status))
 
     
