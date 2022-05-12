@@ -20,16 +20,12 @@ COPY . ./
 WORKDIR /app/server/trace-func-go
 
 # -mod=readonly: ensures immutable go.mod and go.sum in container builds.
-# CGO_ENABLED=1: use common libraries are found on most major OS distributions.
-# GOGCCFLAGS=-m64: use 64-bit GCC.
-RUN CGO_ENABLED=1 GOGCCFLAGS=-m64 GOOS=linux go build -mod=readonly -v -o server
+# CGO_ENABLED=1: uses common libraries found on most major OS distributions.
+# GOARCH=amd64 GOGCCFLAGS=-m64: specifies x86, 64-bit GCC.
+RUN CGO_ENABLED=1 GOARCH=amd64 GOGCCFLAGS=-m64 GOOS=linux go build -mod=readonly -v -o server
 
 # Stage 1: Run #
-# Use the official Alpine image for a lean production container.
-# https://hub.docker.com/_/alpine
-# https://docs.docker.com/develop/develop-images/multistage-build/#use-multi-stage-builds
-FROM alpine:3
-RUN apk add --no-cache ca-certificates
+FROM debian:stable-slim
 
 # Copy the binary to the production image from the builder stage.
 COPY --from=builder /app/server/trace-func-go/server /server
