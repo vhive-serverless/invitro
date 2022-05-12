@@ -7,7 +7,7 @@ package timing
 // }
 import "C"
 
-const EXEC_UNIT int = 1e3
+const EXEC_UNIT int = 1e2
 
 func TakeSqrts() {
 	for i := 0; i < EXEC_UNIT; i++ {
