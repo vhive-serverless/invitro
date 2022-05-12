@@ -31,6 +31,7 @@ func (s *funcServer) Execute(ctx context.Context, req *rpc.FaasRequest) (*rpc.Fa
 
 	pageSize := unix.Getpagesize()
 	numPagesRequested := util.Mib2b(req.MemoryInMebiBytes) / uint32(pageSize)
+	//* Golang internally uses `mmap()`, talking to OS directly.
 	pages, err := unix.Mmap(-1, 0, int(numPagesRequested)*int(numPagesRequested),
 		unix.PROT_WRITE, unix.MAP_ANON|unix.MAP_PRIVATE)
 	if err != nil {
