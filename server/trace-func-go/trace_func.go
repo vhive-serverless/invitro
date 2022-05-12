@@ -37,7 +37,7 @@ type funcServer struct {
 }
 
 func busySpin(runtimeMilli uint32) {
-	delta := 16 // Emperical skewness.
+	delta := 11 // Emperical skewness.
 	unitIterations, _ := strconv.Atoi(os.Getenv("AVG_ITER_PER_1MS"))
 	totalIterations := (unitIterations - delta) * int(runtimeMilli)
 
@@ -58,6 +58,8 @@ func (s *funcServer) Execute(ctx context.Context, req *rpc.FaasRequest) (*rpc.Fa
 	//* `make()` gets a piece of initialised memory. No need to touch it.
 	_ = make([]byte, memoryRequestedBytes)
 
+	//* Offset the time spent on allocating memory.
+	runtimeRequestedMilli -= uint32(time.Since(start).Milliseconds())
 	busySpin(runtimeRequestedMilli)
 
 	return &rpc.FaasReply{
@@ -69,7 +71,7 @@ func (s *funcServer) Execute(ctx context.Context, req *rpc.FaasRequest) (*rpc.Fa
 
 func main() {
 	serverPort := 80 // For containers.
-	// serverPort := 50051 for firecracker.
+	// serverPort := 50051 // For firecracker.
 	if len(os.Args) > 1 {
 		serverPort, _ = strconv.Atoi(os.Args[1])
 	}
