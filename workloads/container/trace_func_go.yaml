@@ -20,4 +20,4 @@ spec:
               containerPort: 80
           env:
             - name: AVG_ITER_PER_1MS
-              value: "121"
+              value: "105"
