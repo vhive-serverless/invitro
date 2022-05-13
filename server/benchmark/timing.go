@@ -9,8 +9,10 @@ import "C"
 
 const EXEC_UNIT int = 1e2
 
-func TakeSqrts() {
+func TakeSqrts() C.double {
+	var tmp C.double
 	for i := 0; i < EXEC_UNIT; i++ {
-		_ = C.SQRTSD(C.double(10))
+		tmp = C.SQRTSD(C.double(10))
 	}
+	return tmp
 }
