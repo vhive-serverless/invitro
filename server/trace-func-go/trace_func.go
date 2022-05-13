@@ -26,10 +26,12 @@ import "C"
 
 const EXEC_UNIT int = 1e2
 
-func takeSqrts() {
+func takeSqrts() C.double {
+	var tmp C.double //* Circumvent compiler optimisations.
 	for i := 0; i < EXEC_UNIT; i++ {
-		_ = C.SQRTSD(C.double(10))
+		tmp = C.SQRTSD(C.double(10))
 	}
+	return tmp
 }
 
 type funcServer struct {
@@ -37,7 +39,7 @@ type funcServer struct {
 }
 
 func busySpin(runtimeMilli uint32) {
-	delta := 11 // Emperical skewness.
+	delta := 0 // Emperical skewness.
 	unitIterations, _ := strconv.Atoi(os.Getenv("AVG_ITER_PER_1MS"))
 	totalIterations := (unitIterations - delta) * int(runtimeMilli)
 

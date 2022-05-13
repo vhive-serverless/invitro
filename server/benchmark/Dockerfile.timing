@@ -1,0 +1,15 @@
+FROM debian:stable-slim
+RUN apt-get update -y
+RUN apt-get install -y python3
+
+COPY --from=golang:1.17-alpine /usr/local/go/ /usr/local/go/
+ENV PATH="/usr/local/go/bin:${PATH}"
+
+WORKDIR /app
+
+COPY go.* ./
+RUN go mod download
+
+COPY * ./
+
+CMD ["python3", "drive_benchmark.py"]
