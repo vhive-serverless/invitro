@@ -12,11 +12,14 @@ if __name__ == "__main__":
     cmd = "go test -bench=BenchmarkTiming -benchtime 1000ms -cpu=1 -count=20 | tail -n +5 | head -n -2 | awk '{print $2}'"
     results = list(map(int, os.popen(cmd).read().strip().split()))
     avg_duration = int(sum(results) / len(results))
-
     print(f"Expected #iterations: 1000. Actaul #iterations: {avg_duration} (avg)")
     
-    cmd = "go test -bench=BenchmarkTiming -benchtime 200ms -cpu=1 -count=20 | tail -n +5 | head -n -2 | awk '{print $2}'"
+    cmd = "go test -bench=BenchmarkTiming -benchtime 100ms -cpu=1 -count=50 | tail -n +5 | head -n -2 | awk '{print $2}'"
     results = list(map(int, os.popen(cmd).read().strip().split()))
     avg_duration = int(sum(results) / len(results))
+    print(f"Expected #iterations: 100. Actaul #iterations: {avg_duration} (avg)")
 
-    print(f"Expected #iterations: 200. Actaul #iterations: {avg_duration} (avg)")
+    cmd = "go test -bench=BenchmarkTiming -benchtime 10ms -cpu=1 -count=100 | tail -n +5 | head -n -2 | awk '{print $2}'"
+    results = list(map(int, os.popen(cmd).read().strip().split()))
+    avg_duration = int(sum(results) / len(results))
+    print(f"Expected #iterations: 10. Actaul #iterations: {avg_duration} (avg)\n")

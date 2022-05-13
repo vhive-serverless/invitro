@@ -1,6 +1,6 @@
 # Use the official Golang image to create a build artifact.
 # This is based on Debian and sets the GOPATH to /go.
-FROM golang:1.17 as builder
+FROM golang:1.17 as BUILDER
 
 # Create and change to the app directory.
 WORKDIR /app
@@ -23,8 +23,8 @@ RUN CGO_ENABLED=0 GOOS=linux go build -mod=readonly -v -o server
 FROM alpine:3
 RUN apk add --no-cache ca-certificates
 
-# Copy the binary to the production image from the builder stage.
-COPY --from=builder /app/server /server
+# Copy the binary to the production image from the BUILDER stage.
+COPY --from=BUILDER /app/server /server
 
 # Run the web service on container startup.
 CMD ["/server"]
