@@ -1,9 +1,9 @@
 # syntax=docker/dockerfile:1.2.x
 
-# Stage 0: builder #
+# Stage 0: Build #
 # Use the official Golang image to create a build artifact.
 # This is based on Debian and sets the GOPATH to /go.
-FROM golang:1.17 as builder
+FROM golang:1.17 as BUILDER
 
 # Create and change to the app directory.
 WORKDIR /app
@@ -24,14 +24,10 @@ WORKDIR /app/server/wimpy
 RUN CGO_ENABLED=0 GOOS=linux go build -mod=readonly -v -o server
 
 # Stage 1: Run #
-# Use the official Alpine image for a lean production container.
-# https://hub.docker.com/_/alpine
-# https://docs.docker.com/develop/develop-images/multistage-build/#use-multi-stage-builds
-FROM alpine:latest
-RUN apk add --no-cache ca-certificates
+FROM debian:stable-slim
 
-# Copy the binary to the production image from the builder stage.
-COPY --from=builder /app/server/wimpy/server /server
+# Copy the binary to the production image from the BUILDER stage.
+COPY --from=BUILDER /app/server/wimpy/server /server
 
 # Run the web service on container startup.
 CMD ["/server"]

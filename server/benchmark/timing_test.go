@@ -5,7 +5,7 @@ import (
 )
 
 const WARMUP_ITER int = 1e5
-const AVG_ITER_PER_1MS int = 120
+const AVG_ITER_PER_1MS int = 117
 
 func BenchmarkIterations(b *testing.B) {
 	for i := 0; i < WARMUP_ITER; i++ {
