@@ -1,10 +1,7 @@
 #!/usr/bin/env bash
 
-sudo apt-get install msr-tools
-
 if [[ -z $(which rdmsr) ]]; then
-    echo "msr-tools is not installed. Run 'sudo apt-get install msr-tools' to install it." >&2
-    exit 1
+    sudo apt-get install msr-tools
 fi
 
 if [[ ! -z $1 && $1 != "enable" && $1 != "disable" ]]; then
