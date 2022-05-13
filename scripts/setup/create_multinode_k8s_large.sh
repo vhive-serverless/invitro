@@ -85,10 +85,8 @@ common_init() {
 			ssh -oStrictHostKeyChecking=no -p 22 $node "sudo ${LOGIN_TOKEN}"
 			echo "Worker node $node joined the cluster."
 
-			# #* Disable worker turbo boost. (man, we don't have loader there)
-			# ssh -oStrictHostKeyChecking=no -p 22 $node 'bash loader/scripts/setup/turbo_boost.sh disable'
-			# #* Disable worker hyperthreading.
-			# ssh -oStrictHostKeyChecking=no -p 22 $node 'echo off | sudo tee /sys/devices/system/cpu/smt/control'
+			#* Disable worker turbo boost for better timing.
+			server_exec './vhive/scripts/turbo_boost.sh disable'
 
 			#* Stretch the capacity of the worker node to 540 (k8s default: 110).
 			#* Empirically, this gives us a max. #pods being 540-40=200.
@@ -159,7 +157,7 @@ common_init() {
 	server_exec 'bash loader/scripts/setup/turbo_boost.sh disable'
 	#* Disable master hyperthreading.
 	server_exec 'echo off | sudo tee /sys/devices/system/cpu/smt/control'
-	#* Create CGroup.
+	#* Create Cgroup.
 	server_exec 'sudo bash loader/scripts/isolation/define_cgroup.sh'
 
 

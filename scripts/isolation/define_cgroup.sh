@@ -19,4 +19,4 @@ echo "0" > /sys/fs/cgroup/cpuset/loader-cg/cpuset.mems
 # Specify memory limit (20GiB).
 echo "21470000000" > /sys/fs/cgroup/memory/loader-cg/memory.limit_in_bytes
 
-echo 'CGroup loader-cg created'
+echo 'Cgroup loader-cg created'
