@@ -5,13 +5,19 @@ import (
 )
 
 const WARMUP_ITER int = 1e3
-const AVG_ITER_PER_1MS int = 105
+const AVG_ITER_PER_1MS int = 110
 
-func BenchmarkIterations(b *testing.B) {
+func BenchmarkWarmIterations(b *testing.B) {
 	for i := 0; i < WARMUP_ITER; i++ {
 		TakeSqrts()
 	}
 	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		TakeSqrts()
+	}
+}
+
+func BenchmarkColdIterations(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		TakeSqrts()
 	}

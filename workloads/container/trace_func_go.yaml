@@ -19,5 +19,7 @@ spec:
             - name: h2c  # For gRPC support
               containerPort: 80
           env:
-            - name: AVG_ITER_PER_1MS
+            - name: COLD_ITER_PER_1MS
               value: "105"
+            - name: WARM_ITER_PER_1MS
+              value: "115"

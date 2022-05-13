@@ -39,9 +39,13 @@ type funcServer struct {
 }
 
 func busySpin(runtimeMilli uint32) {
-	delta := 0 // Emperical skewness.
-	unitIterations, _ := strconv.Atoi(os.Getenv("AVG_ITER_PER_1MS"))
-	totalIterations := (unitIterations - delta) * int(runtimeMilli)
+	var unitIterations int
+	if runtimeMilli > 1e3 {
+		unitIterations, _ = strconv.Atoi(os.Getenv("WARM_ITER_PER_1MS"))
+	} else {
+		unitIterations, _ = strconv.Atoi(os.Getenv("COLD_ITER_PER_1MS"))
+	}
+	totalIterations := unitIterations * int(runtimeMilli)
 
 	for i := 0; i < totalIterations; i++ {
 		takeSqrts()
