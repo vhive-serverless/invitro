@@ -20,6 +20,6 @@ spec:
               containerPort: 80
           env:
             - name: COLD_ITER_PER_1MS
-              value: "105"
+              value: "90"
             - name: WARM_ITER_PER_1MS
               value: "115"
