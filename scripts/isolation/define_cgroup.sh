@@ -2,7 +2,7 @@
 
 CURRENT_USER=$SUDO_USER
 
-sudo apt-get install cgroup-tools cgroupfs-mount libcgroup1
+sudo apt-get install cgroup-tools cgroupfs-mount libcgroup1 -y
 
 # If it's not already mounted, mount the cpuset 
 if [[ ! $(mount | grep cpuset) ]] ; then

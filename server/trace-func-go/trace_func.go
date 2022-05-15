@@ -65,11 +65,16 @@ func (s *funcServer) Execute(ctx context.Context, req *rpc.FaasRequest) (*rpc.Fa
 	_ = make([]byte, memoryRequestedBytes)
 
 	//* Offset the time spent on allocating memory.
-	runtimeRequestedMilli -= uint32(time.Since(start).Milliseconds())
-	busySpin(runtimeRequestedMilli)
+	msg := "Trace func -- OK"
+	if uint32(time.Since(start).Milliseconds()) >= runtimeRequestedMilli {
+		msg = "Trace func -- timeout in memory allocation"
+	} else {
+		runtimeRequestedMilli -= uint32(time.Since(start).Milliseconds())
+		busySpin(runtimeRequestedMilli)
+	}
 
 	return &rpc.FaasReply{
-		Message:            "Trace func -- OK",
+		Message:            msg,
 		DurationInMicroSec: uint32(time.Since(start).Microseconds()),
 		MemoryUsageInKb:    util.B2Kib(memoryRequestedBytes),
 	}, nil
