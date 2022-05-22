@@ -13,9 +13,11 @@ import (
 )
 
 const (
-	STATIONARY_P_VALUE  = 0.05
-	OVERFLOAD_THRESHOLD = 0.3
-	OVERFLOAD_TOLERANCE = 2
+	STATIONARY_P_VALUE   = 0.05
+	OVERFLOAD_THRESHOLD  = 0.3
+	OVERFLOAD_TOLERANCE  = 2
+	RPS_WARMUP_FRACTION  = 0.9
+	FORCE_TIMEOUT_MINUTE = 15
 )
 
 /** Seed the math/rand package for it to be different on each run. */

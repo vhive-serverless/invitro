@@ -157,7 +157,7 @@ common_init() {
 	server_exec 'bash loader/scripts/setup/turbo_boost.sh disable'
 	#* Disable master hyperthreading.
 	server_exec 'echo off | sudo tee /sys/devices/system/cpu/smt/control'
-	#* Create Cgroup.
+	#* Create CGroup.
 	server_exec 'sudo bash loader/scripts/isolation/define_cgroup.sh'
 
 
