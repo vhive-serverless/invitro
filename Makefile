@@ -14,7 +14,7 @@ proto:
 
 # make -i clean
 clean: 
-	kubectl rollout restart deployment activator -n knative-serving
+# 	kubectl rollout restart deployment activator -n knative-serving
 	kubectl rollout restart statefulset prometheus-prometheus-kube-prometheus-prometheus -n monitoring
 	kn service delete --all
 	kubectl delete --all all -n default --grace-period=0 
