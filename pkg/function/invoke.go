@@ -26,7 +26,7 @@ const (
 var registry = LoadRegistry{}
 
 func Invoke(function tc.Function, runtimeRequested int, memoryRequested int) (bool, mc.ExecutionRecord) {
-	log.Tracef("(Invoke)\t %s: %d[µs], %d[MiB]", function.Name, runtimeRequested*1000, memoryRequested)
+	log.Tracef("(Invoke)\t %s: %d[ms], %d[MiB]", function.Name, runtimeRequested, memoryRequested)
 
 	var record mc.ExecutionRecord
 	record.FuncName = function.Name
@@ -68,7 +68,7 @@ func Invoke(function tc.Function, runtimeRequested int, memoryRequested int) (bo
 		return false, record
 	}
 
-	responseTime := time.Since(start).Microseconds()
+	responseTime := time.Since(start).Milliseconds()
 	record.ResponseTime = responseTime
 	record.Load = float64(registry.GetTotalMemoryLoad())
 	registry.Deregister(memoryRequested)
@@ -79,8 +79,8 @@ func Invoke(function tc.Function, runtimeRequested int, memoryRequested int) (bo
 	record.Memory = memoryUsage
 	record.Runtime = runtime
 
-	log.Tracef("(Replied)\t %s: %s, %d[µs], %d[KB]", function.Name, response.Message, runtime, memoryUsage)
-	log.Tracef("(E2E Latency) %s: %d[µs]\n", function.Name, responseTime)
+	log.Tracef("(Replied)\t %s: %s, %.3f[ms], %d[KB]", function.Name, response.Message, float64(runtime)/1e3, memoryUsage)
+	log.Tracef("(E2E Latency) %s: %d[ms]\n", function.Name, responseTime)
 
 	return true, record
 }
