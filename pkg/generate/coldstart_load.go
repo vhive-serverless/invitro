@@ -146,7 +146,7 @@ coldstart_generation:
 	}
 	log.Info("Finished coldstart generation with ending RPS=", rps)
 
-	forceTimeoutDuration := 15 * time.Minute
+	forceTimeoutDuration := FORCE_TIMEOUT_MINUTE * time.Minute
 	if wgWaitWithTimeout(&wg, forceTimeoutDuration) {
 		log.Warn("Time out waiting for all invocations to return.")
 	} else {

@@ -81,13 +81,13 @@ stress_generation:
 		}()
 
 		for {
-			tick++
 			select {
 			case <-ticker.C:
+				tick++
 				//* Invoke functions using round robin.
 				function := functions[tick%len(functions)]
 
-				go func(rps int, interval int64) {
+				go func(_tick int, _rps int, _interval int64) {
 					defer wg.Done()
 					wg.Add(1)
 
@@ -98,10 +98,14 @@ stress_generation:
 					} else {
 						atomic.AddInt64(&failureCountRpsStep, 1)
 					}
-					execRecord.Interval = interval
-					execRecord.Rps = rps
-					collector.ReportExecution(execRecord, clusterUsage, knStats)
-				}(rps, interval.Milliseconds()) //* NB: `clusterUsage` needn't be pushed onto the stack as we want the latest.
+
+					totalInvocationsThisMinute := _rps * 60
+					if float64(_tick)/float64(totalInvocationsThisMinute) > RPS_WARMUP_FRACTION {
+						execRecord.Interval = _interval
+						execRecord.Rps = _rps
+						collector.ReportExecution(execRecord, clusterUsage, knStats)
+					}
+				}(tick, rps, interval.Milliseconds()) //* NB: `clusterUsage` needn't be pushed onto the stack as we want the latest.
 
 			case <-done:
 				invRecord := mc.MinuteInvocationRecord{
@@ -135,7 +139,7 @@ stress_generation:
 	}
 	log.Info("Finished stress load generation with ending RPS=", rps)
 
-	forceTimeoutDuration := 15 * time.Minute
+	forceTimeoutDuration := FORCE_TIMEOUT_MINUTE * time.Minute
 	if wgWaitWithTimeout(&wg, forceTimeoutDuration) {
 		log.Warn("Time out waiting for all invocations to return.")
 	} else {
