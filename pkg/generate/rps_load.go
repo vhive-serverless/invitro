@@ -7,6 +7,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 
+	util "github.com/eth-easl/loader/pkg"
 	fc "github.com/eth-easl/loader/pkg/function"
 	mc "github.com/eth-easl/loader/pkg/metric"
 	tc "github.com/eth-easl/loader/pkg/trace"
@@ -100,7 +101,9 @@ stress_generation:
 					}
 
 					totalInvocationsThisMinute := _rps * 60
-					if float64(_tick)/float64(totalInvocationsThisMinute) > RPS_WARMUP_FRACTION {
+					if float64(_tick)/float64(totalInvocationsThisMinute) > RPS_WARMUP_FRACTION &&
+						totalInvocationsThisMinute-_tick <= MAX_NUM_RPS_MEASURES {
+
 						execRecord.Interval = _interval
 						execRecord.Rps = _rps
 						collector.ReportExecution(execRecord, clusterUsage, knStats)
@@ -133,8 +136,11 @@ stress_generation:
 			/** Ending RPS specified. */
 			break stress_generation
 		}
-
-		rps += rpsStep
+		if rps < 100 {
+			rps += util.MinOf(MAX_RPS_STARTUP_STEP, rpsStep)
+		} else {
+			rps += rpsStep
+		}
 		log.Info("Start next round with RPS=", rps, " after ", time.Since(start))
 	}
 	log.Info("Finished stress load generation with ending RPS=", rps)

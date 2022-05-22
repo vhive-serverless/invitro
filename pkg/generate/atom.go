@@ -18,6 +18,8 @@ const (
 	OVERFLOAD_TOLERANCE  = 2
 	RPS_WARMUP_FRACTION  = 0.99
 	FORCE_TIMEOUT_MINUTE = 15
+	MAX_RPS_STARTUP_STEP = 5
+	MAX_NUM_RPS_MEASURES = 50
 )
 
 /** Seed the math/rand package for it to be different on each run. */
@@ -125,6 +127,7 @@ func GenerateExecutionSpecs(function tc.Function) (int, int) {
 
 	var runtime, memory int
 	//* Generate a uniform quantiles in [0, 1).
+	//TODO: Normal distribution.
 	memQtl := specRand.Float64()
 	runQtl := specRand.Float64()
 	runStats := function.RuntimeStats
