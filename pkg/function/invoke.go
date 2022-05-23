@@ -68,7 +68,7 @@ func Invoke(function tc.Function, runtimeRequested int, memoryRequested int) (bo
 		return false, record
 	}
 
-	responseTime := time.Since(start).Milliseconds()
+	responseTime := time.Since(start).Microseconds()
 	record.ResponseTime = responseTime
 	record.Load = float64(registry.GetTotalMemoryLoad())
 	registry.Deregister(memoryRequested)
@@ -80,7 +80,7 @@ func Invoke(function tc.Function, runtimeRequested int, memoryRequested int) (bo
 	record.Runtime = runtime
 
 	log.Tracef("(Replied)\t %s: %s, %.3f[ms], %d[KB]", function.Name, response.Message, float64(runtime)/1e3, memoryUsage)
-	log.Tracef("(E2E Latency) %s: %d[ms]\n", function.Name, responseTime)
+	log.Tracef("(E2E Latency) %s: %d[ms]\n", function.Name, float64(responseTime)/1e3)
 
 	return true, record
 }
