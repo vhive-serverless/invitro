@@ -73,6 +73,7 @@ stress_generation:
 		//* The following counters are for each RPS step slot.
 		var successCountRpsStep int64 = 0
 		var failureCountRpsStep int64 = 0
+		var numFuncInvokedThisSlot int64 = 0
 
 		/** Launch a timer. */
 		go func() {
@@ -92,6 +93,7 @@ stress_generation:
 					defer wg.Done()
 					wg.Add(1)
 
+					atomic.AddInt64(&numFuncInvokedThisSlot, 1)
 					success, execRecord := fc.Invoke(function, runtimeRequested, memoryRequested)
 
 					if success {
@@ -100,9 +102,8 @@ stress_generation:
 						atomic.AddInt64(&failureCountRpsStep, 1)
 					}
 
-					totalInvocationsThisMinute := _rps * 60
-					if float64(_tick)/float64(totalInvocationsThisMinute) > RPS_WARMUP_FRACTION &&
-						totalInvocationsThisMinute-_tick <= MAX_NUM_RPS_MEASURES {
+					totalInvocationsThisSlot := _rps * stressSlotInSecs
+					if float64(_tick)/float64(totalInvocationsThisSlot) > RPS_WARMUP_FRACTION {
 
 						execRecord.Interval = _interval
 						execRecord.Rps = _rps
@@ -112,11 +113,13 @@ stress_generation:
 
 			case <-done:
 				invRecord := mc.MinuteInvocationRecord{
-					Rps:           rps,
-					NumColdStarts: coldStartSlotCount,
+					Rps:             rps,
+					Duration:        int64(stressSlotInSecs),
+					NumFuncTargeted: rps * stressSlotInSecs,
+					NumFuncInvoked:  int(numFuncInvokedThisSlot),
 				}
+				//* Export metrics for all phases.
 				collector.ReportInvocation(invRecord)
-				coldStartSlotCount = 0
 				goto next_rps
 			}
 		}
