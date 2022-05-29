@@ -52,6 +52,10 @@ func B2Kib(numB uint32) uint32 {
 	return numB / 1024
 }
 
+func Kib2Mib(numB uint32) uint32 {
+	return numB / 1024
+}
+
 func Mib2b(numMb uint32) uint32 {
 	return numMb * 1024 * 1024
 }

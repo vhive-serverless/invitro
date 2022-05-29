@@ -8,6 +8,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 
+	util "github.com/eth-easl/loader/pkg"
 	mc "github.com/eth-easl/loader/pkg/metric"
 	tc "github.com/eth-easl/loader/pkg/trace"
 	rpc "github.com/eth-easl/loader/server"
@@ -79,8 +80,9 @@ func Invoke(function tc.Function, runtimeRequested int, memoryRequested int) (bo
 	record.Memory = memoryUsage
 	record.Runtime = runtime
 
-	log.Tracef("(Replied)\t %s: %s, %.3f[ms], %d[KB]", function.Name, response.Message, float64(runtime)/1e3, memoryUsage)
-	log.Tracef("(E2E Latency) %s: %d[ms]\n", function.Name, float64(responseTime)/1e3)
+	log.Tracef("(Replied)\t %s: %s, %.2f[ms], %d[MiB]", function.Name, response.Message,
+		float64(runtime)/1e3, util.Kib2Mib(memoryUsage))
+	log.Tracef("(E2E Latency) %s: %.2f[ms]\n", function.Name, float64(responseTime)/1e3)
 
 	return true, record
 }
