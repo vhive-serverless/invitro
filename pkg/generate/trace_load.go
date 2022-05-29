@@ -186,7 +186,7 @@ trace_generation:
 	log.Info("\tFinished invoking all functions.")
 
 	//* 15 min maximum waiting time based upon max. function duration of popular clouds.
-	forceTimeoutDuration := time.Duration(15) * time.Minute
+	forceTimeoutDuration := time.Duration(FORCE_TIMEOUT_MINUTE) * time.Minute
 	if !withBlocking {
 		forceTimeoutDuration = time.Second * 1
 	}
