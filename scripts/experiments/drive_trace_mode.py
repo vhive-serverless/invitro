@@ -32,7 +32,7 @@ def main(argv):
             cmd = f"make ARGS='-sample {size} -duration {duration} -cluster {cluster} -server {server} -warmup' run 2>&1 | tee cap_{size}.log"
             print(cmd)
             os.system(command=cmd)
-            # if glob(flagf): break
+            if glob(flagf): break
         except KeyboardInterrupt:
             print('Experiment interrupted')
             try: sys.exit(0)
