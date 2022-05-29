@@ -131,7 +131,7 @@ var notMedian = func() bool {
 
 func GenerateExecutionSpecs(function tc.Function) (int, int) {
 
-	if function.RuntimeStats.Minimum == function.RuntimeStats.Maximum {
+	if function.MemoryStats.Percentile100 == function.RuntimeStats.Maximum {
 		//* Custom runtime specs.
 		return function.RuntimeStats.Average, function.MemoryStats.Average
 	}
