@@ -127,55 +127,52 @@ func GenerateExecutionSpecs(function tc.Function) (int, int) {
 
 	var runtime, memory int
 	//* Generate a uniform quantiles in [0, 1).
-	//TODO: Normal distribution.
-	memQtl := specRand.Float64()
-	runQtl := specRand.Float64()
+	//!: use a Guassian N(0.5, 0.1) to control the spec ranges (otherwise, it's often too large).
+	sigma := .25
+	mu := .5
+	memQtl := specRand.NormFloat64()*sigma + mu
+	runQtl := specRand.NormFloat64()*sigma + mu
 	runStats := function.RuntimeStats
 	memStats := function.MemoryStats
 
 	/**
-	 * With 50% prob., returns average values (since we sample the trace based upon the average)
-	 * With 50% prob., returns uniform volumns from the the upper and lower percentile interval.
+	 * Given the quantile, returns uniform volumns from the the upper and lower percentile interval.
 	 */
-	if memory = memStats.Percentile50; util.RandBool() {
-		switch {
-		case memQtl <= 0.01:
-			memory = memStats.Percentile1
-		case memQtl <= 0.05:
-			memory = util.RandIntBetween(memStats.Percentile1, memStats.Percentile5)
-		case memQtl <= 0.25:
-			memory = util.RandIntBetween(memStats.Percentile5, memStats.Percentile25)
-		case memQtl <= 0.50:
-			memory = util.RandIntBetween(memStats.Percentile25, memStats.Percentile50)
-		case memQtl <= 0.75:
-			memory = util.RandIntBetween(memStats.Percentile50, memStats.Percentile75)
-		case memQtl <= 0.95:
-			memory = util.RandIntBetween(memStats.Percentile75, memStats.Percentile95)
-		case memQtl <= 0.99:
-			memory = util.RandIntBetween(memStats.Percentile95, memStats.Percentile99)
-		case memQtl < 1:
-			memory = util.RandIntBetween(memStats.Percentile99, memStats.Percentile100)
-		}
+	switch {
+	case memQtl <= 0.01:
+		memory = memStats.Percentile1
+	case memQtl <= 0.05:
+		memory = util.RandIntBetween(memStats.Percentile1, memStats.Percentile5)
+	case memQtl <= 0.25:
+		memory = util.RandIntBetween(memStats.Percentile5, memStats.Percentile25)
+	case memQtl <= 0.50:
+		memory = util.RandIntBetween(memStats.Percentile25, memStats.Percentile50)
+	case memQtl <= 0.75:
+		memory = util.RandIntBetween(memStats.Percentile50, memStats.Percentile75)
+	case memQtl <= 0.95:
+		memory = util.RandIntBetween(memStats.Percentile75, memStats.Percentile95)
+	case memQtl <= 0.99:
+		memory = util.RandIntBetween(memStats.Percentile95, memStats.Percentile99)
+	case memQtl < 1:
+		memory = util.RandIntBetween(memStats.Percentile99, memStats.Percentile100)
 	}
 
-	if runtime = runStats.Percentile50; util.RandBool() {
-		switch {
-		case runQtl <= 0.01:
-			runtime = runStats.Percentile0
-		case runQtl <= 0.25:
-			runtime = util.RandIntBetween(runStats.Percentile1, runStats.Percentile25)
-		case runQtl <= 0.50:
-			runtime = util.RandIntBetween(runStats.Percentile25, runStats.Percentile50)
-		case runQtl <= 0.75:
-			runtime = util.RandIntBetween(runStats.Percentile50, runStats.Percentile75)
-		case runQtl <= 0.95:
-			runtime = util.RandIntBetween(runStats.Percentile75, runStats.Percentile99)
-		case runQtl <= 0.99:
-			runtime = util.RandIntBetween(runStats.Percentile99, runStats.Percentile100)
-		case runQtl < 1:
-			// 100%ile is smaller from the max. somehow.
-			runtime = util.RandIntBetween(runStats.Percentile100, runStats.Maximum)
-		}
+	switch {
+	case runQtl <= 0.01:
+		runtime = runStats.Percentile0
+	case runQtl <= 0.25:
+		runtime = util.RandIntBetween(runStats.Percentile1, runStats.Percentile25)
+	case runQtl <= 0.50:
+		runtime = util.RandIntBetween(runStats.Percentile25, runStats.Percentile50)
+	case runQtl <= 0.75:
+		runtime = util.RandIntBetween(runStats.Percentile50, runStats.Percentile75)
+	case runQtl <= 0.95:
+		runtime = util.RandIntBetween(runStats.Percentile75, runStats.Percentile99)
+	case runQtl <= 0.99:
+		runtime = util.RandIntBetween(runStats.Percentile99, runStats.Percentile100)
+	case runQtl < 1:
+		// 100%ile is smaller from the max. somehow.
+		runtime = util.RandIntBetween(runStats.Percentile100, runStats.Maximum)
 	}
 	return runtime, memory
 }
