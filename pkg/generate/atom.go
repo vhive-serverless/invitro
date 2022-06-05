@@ -13,12 +13,13 @@ import (
 )
 
 const (
-	STATIONARY_P_VALUE = 0.05
+	STATIONARY_P_VALUE    = 0.05
+	TRACE_WARMUP_DURATION = 6 // Six-minute warmup for unifying the starting time.
 
 	OVERFLOAD_THRESHOLD = 0.3
 	OVERFLOAD_TOLERANCE = 2
 
-	FORCE_TIMEOUT_MINUTE = 15
+	FORCE_TIMEOUT_MINUTE = 15 //* 15 min maximum waiting time based upon max. function duration of popular clouds.
 
 	RPS_WARMUP_FRACTION  = 0.9
 	MAX_RPS_STARTUP_STEP = 5

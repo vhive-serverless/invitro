@@ -10,12 +10,12 @@ if __name__ == "__main__":
     cmd_get_pcts = ['bash', 'scripts/metrics/get_node_stats_percent.sh']
 
     result = {
-        "master_cpu_pct": 0,
-        "master_mem_pct": 0,
+        "master_cpu_pct": -99,
+        "master_mem_pct": -99,
         "cpu": [],
-        "cpu_pct": 0,
+        "cpu_pct": -99,
         "memory": [],
-        "memory_pct": 0,
+        "memory_pct": -99,
     }
 
     loader_cpu_pct, loader_mem_pct = list(
