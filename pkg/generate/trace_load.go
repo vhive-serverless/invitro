@@ -8,7 +8,6 @@ import (
 
 	log "github.com/sirupsen/logrus"
 
-	util "github.com/eth-easl/loader/pkg"
 	fc "github.com/eth-easl/loader/pkg/function"
 	mc "github.com/eth-easl/loader/pkg/metric"
 	tc "github.com/eth-easl/loader/pkg/trace"
@@ -19,7 +18,6 @@ func GenerateTraceLoads(
 	phaseIdx int,
 	phaseOffset int,
 	withBlocking bool,
-	rps int,
 	functions []tc.Function,
 	invocationsEachMinute [][]int,
 	totalNumInvocationsEachMinute []int,
@@ -61,10 +59,7 @@ func GenerateTraceLoads(
 		}
 	}()
 
-	isFixedRate := true
-	if rps < 1 {
-		isFixedRate = false
-	}
+	isFixedRate := true //! Always use Poisson distribution for now.
 
 	start := time.Now()
 	wg := sync.WaitGroup{}
@@ -81,15 +76,10 @@ trace_generation:
 		var iats []float64
 		var numFuncInvokedThisMinute int64 = 0
 
-		traceRps := int(math.Ceil(float64(totalNumInvocationsEachMinute[minute]) / 60.0))
-		if isFixedRate {
-			rps = util.MinOf(traceRps, rps)
-		} else {
-			rps = traceRps
-		}
+		rps := int(math.Ceil(float64(totalNumInvocationsEachMinute[minute]) / 60.0))
 
 		//* Bound the #invocations/minute by RPS.
-		numInvocatonsThisMinute := util.MinOf(rps*60, totalNumInvocationsEachMinute[minute])
+		numInvocatonsThisMinute := totalNumInvocationsEachMinute[minute]
 		if numInvocatonsThisMinute < 1 {
 			continue
 		}
@@ -162,10 +152,23 @@ trace_generation:
 
 				/** Warmup phase */
 				stationaryWindow := 1
-				if phaseIdx != 3 &&
-					collector.IsLatencyStationary(rps*60*stationaryWindow, STATIONARY_P_VALUE) {
-					minute++
-					break trace_generation
+
+				switch phaseIdx {
+				case 1:
+					if collector.IsLatencyStationary(rps*60*stationaryWindow, STATIONARY_P_VALUE) {
+						minute++
+						break trace_generation
+					}
+				case 2:
+					if collector.IsLatencyStationary(rps*60*stationaryWindow, STATIONARY_P_VALUE) {
+						if minute+phaseOffset+1 >= TRACE_WARMUP_DURATION {
+							if minute+phaseOffset+1 > TRACE_WARMUP_DURATION {
+								log.Warn("Warmup took longer than the required duration: ", TRACE_WARMUP_DURATION)
+							}
+							minute++
+							break trace_generation
+						}
+					}
 				}
 
 				goto next_minute
@@ -185,7 +188,6 @@ trace_generation:
 	}
 	log.Info("\tFinished invoking all functions.")
 
-	//* 15 min maximum waiting time based upon max. function duration of popular clouds.
 	forceTimeoutDuration := time.Duration(FORCE_TIMEOUT_MINUTE) * time.Minute
 	if !withBlocking {
 		forceTimeoutDuration = time.Second * 1
@@ -204,5 +206,10 @@ trace_generation:
 	}
 
 	defer collector.FinishAndSave(sampleSize, phaseIdx, minute)
+
+	if phaseIdx == 2 {
+		//* Bound the start of Phase 3.
+		return TRACE_WARMUP_DURATION + 1
+	}
 	return phaseOffset + minute
 }

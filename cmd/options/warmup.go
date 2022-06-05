@@ -45,7 +45,7 @@ func ComputeFunctionsWarmupScales(clusterSize int, functions []tc.Function) []in
 	return scales
 }
 
-func Warmup(sampleSize int, totalNumPhases int, rps int,
+func Warmup(sampleSize int, totalNumPhases int,
 	functions []tc.Function, traces tc.FunctionTraces) int {
 	nextPhaseStart := 0
 	for phaseIdx := 1; phaseIdx < totalNumPhases; phaseIdx++ {
@@ -59,8 +59,7 @@ func Warmup(sampleSize int, totalNumPhases int, rps int,
 			sampleSize,
 			phaseIdx,
 			nextPhaseStart,
-			false, //! Non-blocking: directly go into the next phase.
-			rps,
+			false, //! Non-blocking: directly go to the next phase.
 			functions,
 			traces.InvocationsEachMinute[nextPhaseStart:],
 			traces.TotalInvocationsPerMinute[nextPhaseStart:],
