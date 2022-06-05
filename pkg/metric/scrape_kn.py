@@ -51,15 +51,15 @@ if __name__ == "__main__":
                 pass
 
         if label.endswith('queue'):
-            measure = float(measure) if measure else 0.0
+            measure = float(measure) if measure else -99
         elif 'p50' in label or 'p99' in label:
             if measure == 'NaN': 
                 # Not available.
                 measure = -999
             else: 
-                measure = float(measure) if measure else 0.0
+                measure = float(measure) if measure else -99
         else:
-            measure = int(measure) if measure else 0
+            measure = int(measure) if measure else -99
             
         kn_status[label] = measure
     
