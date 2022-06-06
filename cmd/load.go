@@ -112,7 +112,10 @@ func main() {
 
 func runTraceMode(invPath, runPath, memPath string) {
 	/** Trace parsing */
-	traces = tc.ParseInvocationTrace(invPath, util.MinOf(1440, *duration*2))
+	if *duration < 1 {
+		log.Fatal("Trace duration should be longer than 0 minutes.")
+	}
+	traces = tc.ParseInvocationTrace(invPath, util.MinOf(1440, *duration*gen.TRACE_WARMUP_DURATION))
 	tc.ParseDurationTrace(&traces, runPath)
 	tc.ParseMemoryTrace(&traces, memPath)
 
@@ -156,8 +159,8 @@ func runTraceMode(invPath, runPath, memPath string) {
 		nextPhaseStart,
 		true,
 		functions,
-		traces.InvocationsEachMinute[nextPhaseStart:],
-		traces.TotalInvocationsPerMinute[nextPhaseStart:])
+		traces.InvocationsEachMinute[nextPhaseStart:nextPhaseStart+*duration],
+		traces.TotalInvocationsPerMinute[nextPhaseStart:nextPhaseStart+*duration])
 }
 
 func runStressMode() {
