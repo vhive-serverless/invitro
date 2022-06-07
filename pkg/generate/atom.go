@@ -19,9 +19,9 @@ const (
 	OVERFLOAD_THRESHOLD = 0.3
 	OVERFLOAD_TOLERANCE = 2
 
-	FORCE_TIMEOUT_MINUTE = 15 //* 15 min maximum waiting time based upon max. function duration of popular clouds.
+	FORCE_TIMEOUT_MINUTE = 15 // 15 min maximum waiting time based upon max. function duration of popular clouds.
 
-	RPS_WARMUP_FRACTION  = 0.9
+	RPS_WARMUP_FRACTION  = 0.5
 	MAX_RPS_STARTUP_STEP = 5
 
 	MAX_EXEC_TIME_MILLI = 10e3 // 10s (avg. p90 from Wild).
