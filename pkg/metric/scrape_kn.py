@@ -55,7 +55,7 @@ if __name__ == "__main__":
         elif 'p50' in label or 'p99' in label:
             if measure == 'NaN': 
                 # Not available.
-                measure = -999
+                measure = -99
             else: 
                 measure = float(measure) if measure else -99
         else:
