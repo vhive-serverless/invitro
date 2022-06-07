@@ -59,9 +59,9 @@ func ParseInvocationTrace(traceFile string, traceDuration int) FunctionTraces {
 		if funcIdx != -1 {
 			// Parse invocations.
 			var invocations []int
-			headerLen := 4
-			for i := headerLen; i < headerLen+traceDuration; i++ {
-				minute := i - headerLen
+			idsLen := 3
+			for i := idsLen; i < idsLen+traceDuration; i++ {
+				minute := i - idsLen
 				num, err := strconv.Atoi(record[i])
 				util.Check(err)
 
@@ -81,8 +81,8 @@ func ParseInvocationTrace(traceFile string, traceDuration int) FunctionTraces {
 			function := Function{
 				Name:            funcName,
 				Endpoint:        GetFuncEndpoint(funcName),
+				Hash:            record[0],
 				AppHash:         record[1],
-				Hash:            record[2],
 				InvocationStats: ProfileFunctionInvocations(invocations),
 			}
 			functions = append(functions, function)

@@ -143,9 +143,10 @@ func GenerateExecutionSpecs(function tc.Function) (int, int) {
 	}
 
 	var runtime, memory int
-	//* Generate a uniform quantiles in [0, 1).
+	//* Generate uniform quantiles in [0, 1).
 	memQtl := specRand.Float64()
 	runQtl := specRand.Float64()
+	//* Generate gaussian quantiles in [0, 1).
 	// sigma := .25
 	// mu := .5
 	// memQtl := specRand.NormFloat64()*sigma + mu
