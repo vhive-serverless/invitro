@@ -24,15 +24,16 @@ def main(argv):
     flagf = 'overload.flag'
     if glob(flagf): os.system(f"rm {flagf}")
 
-    for size in sizes:
-        # for _ in range(repeat):
-        os.system('make -i clean')
-        sleep(5)
+    for i, size in enumerate(sizes):
+        if i > 0:
+            os.system('kubectl rollout restart deployment activator -n knative-serving')
+            os.system('make -i clean')
+            sleep(5)
         try:
             cmd = f"make ARGS='-sample {size} -duration {duration} -cluster {cluster} -server {server} -warmup' run 2>&1 | tee cap_{size}.log"
             print(cmd)
             os.system(command=cmd)
-            # if glob(flagf): break
+            if glob(flagf): break
         except KeyboardInterrupt:
             print('Experiment interrupted')
             try: sys.exit(0)

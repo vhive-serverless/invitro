@@ -10,7 +10,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	tracer "github.com/ease-lab/vhive/utils/tracing/go"
-	wu "github.com/eth-easl/loader/cmd/options"
+	opts "github.com/eth-easl/loader/cmd/options"
 	util "github.com/eth-easl/loader/pkg"
 	fc "github.com/eth-easl/loader/pkg/function"
 	gen "github.com/eth-easl/loader/pkg/generate"
@@ -35,7 +35,6 @@ var (
 	duration   = flag.Int("duration", 3, "Duration of the experiment")
 	sampleSize = flag.Int("sample", 10, "Sample size of the traces")
 
-	rps            = flag.Int("rps", -900_000, "Request per second")
 	rpsStart       = flag.Int("start", 0, "Starting RPS value")
 	rpsEnd         = flag.Int("end", -900_000, "Ending RPS value")
 	rpsSlot        = flag.Int("slot", 60, "Time slot in seconds for each RPS in the `stress` mode")
@@ -113,7 +112,10 @@ func main() {
 
 func runTraceMode(invPath, runPath, memPath string) {
 	/** Trace parsing */
-	traces = tc.ParseInvocationTrace(invPath, *duration)
+	if *duration < 1 {
+		log.Fatal("Trace duration should be longer than 0 minutes.")
+	}
+	traces = tc.ParseInvocationTrace(invPath, util.MinOf(1440, *duration*gen.TRACE_WARMUP_DURATION))
 	tc.ParseDurationTrace(&traces, runPath)
 	tc.ParseMemoryTrace(&traces, memPath)
 
@@ -132,7 +134,7 @@ func runTraceMode(invPath, runPath, memPath string) {
 			traces.Functions[funcIdx].ConcurrencySats =
 				tc.ProfileFunctionConcurrencies(function, profilingMinutes)
 		}
-		traces.WarmupScales = wu.ComputeFunctionsWarmupScales(*cluster, traces.Functions)
+		traces.WarmupScales = opts.ComputeFunctionsWarmupScales(*cluster, traces.Functions)
 	}
 
 	/** Deployment */
@@ -141,26 +143,24 @@ func runTraceMode(invPath, runPath, memPath string) {
 	/** Warmup (Phase 1 and 2) */
 	nextPhaseStart := 0
 	if *withWarmup {
-		nextPhaseStart = wu.Warmup(*sampleSize, totalNumPhases, *rps, functions, traces)
+		nextPhaseStart = opts.Warmup(*sampleSize, totalNumPhases, functions, traces)
 	}
 
 	/** Measurement (Phase 3) */
 	if nextPhaseStart == *duration {
 		// gen.DumpOverloadFlag()
-		log.Infof("Warmup failed to finish in %d minutes", *duration)
+		log.Warn("Warmup failed to finish in %d minutes", *duration)
 	}
-	//* Start from the beginning regardless of the warmup.
-	nextPhaseStart = 0
+
 	log.Infof("Phase 3: Generate real workloads as of Minute[%d]", nextPhaseStart)
 	defer gen.GenerateTraceLoads(
 		*sampleSize,
 		totalNumPhases,
 		nextPhaseStart,
 		true,
-		*rps,
 		functions,
-		traces.InvocationsEachMinute[nextPhaseStart:],
-		traces.TotalInvocationsPerMinute[nextPhaseStart:])
+		traces.InvocationsEachMinute[nextPhaseStart:nextPhaseStart+*duration],
+		traces.TotalInvocationsPerMinute[nextPhaseStart:nextPhaseStart+*duration])
 }
 
 func runStressMode() {
@@ -173,14 +173,12 @@ func runStressMode() {
 			Name:     stressFunc,
 			Endpoint: tc.GetFuncEndpoint(stressFunc),
 			RuntimeStats: tc.FunctionRuntimeStats{
-				Minimum: *funcDuration,
 				Average: *funcDuration,
-				Maximum: *funcDuration,
+				Maximum: 0,
 			},
 			MemoryStats: tc.FunctionMemoryStats{
 				Average:       *funcMemory,
-				Percentile1:   *funcMemory,
-				Percentile100: *funcMemory,
+				Percentile100: 0,
 			},
 		})
 		initialScales = append(initialScales, 1)

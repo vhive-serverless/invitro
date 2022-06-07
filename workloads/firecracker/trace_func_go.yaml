@@ -8,6 +8,7 @@ spec:
       annotations:
         autoscaling.knative.dev/initial-scale: "0"  # Should start from 0, otherwise we can't deploy more functions than the node physically permits.
         autoscaling.knative.dev/target-utilization-percentage: "100"  # Enforce container concurrency at any time.
+        autoscaling.knative.dev/max-scale: "200"  # Maximum instances limit of Azure.
     spec:
       containerConcurrency: 1
       containers:
@@ -20,3 +21,7 @@ spec:
               value: "50051"
             - name: GUEST_IMAGE # Container image to use for firecracker-containerd container.
               value: "hyhe/trace-func-firecracker:latest"
+            - name: COLD_ITER_PER_1MS
+              value: "90"
+            - name: WARM_ITER_PER_1MS
+              value: "115"
