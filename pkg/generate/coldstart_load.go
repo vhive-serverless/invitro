@@ -59,7 +59,7 @@ func GenerateColdStartLoads(
 
 coldstart_generation:
 	for {
-		iats := GenerateInterarrivalTimesInMicro(
+		iats := GenerateOneMinuteInterarrivalTimesInMicro(
 			rps*60,
 			true,
 		)

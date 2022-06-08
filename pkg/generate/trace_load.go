@@ -70,7 +70,7 @@ func GenerateTraceLoads(
 	var successCountTotal int64 = 0
 	var failureCountTotal int64 = 0
 
-trace_generation:
+trace_gen:
 	for ; minute < int(totalDurationMinutes); minute++ {
 		tick := 0
 		var iats []float64
@@ -84,7 +84,7 @@ trace_generation:
 			continue
 		}
 
-		iats = GenerateInterarrivalTimesInMicro(
+		iats = GenerateOneMinuteInterarrivalTimesInMicro(
 			numInvocatonsThisMinute,
 			isFixedRate,
 		)
@@ -157,7 +157,7 @@ trace_generation:
 				case 1:
 					if collector.IsLatencyStationary(rps*60*stationaryWindow, STATIONARY_P_VALUE) {
 						minute++
-						break trace_generation
+						break trace_gen
 					}
 				case 2:
 					if collector.IsLatencyStationary(rps*60*stationaryWindow, STATIONARY_P_VALUE) {
@@ -166,7 +166,7 @@ trace_generation:
 								log.Warn("Warmup took longer than the required duration: ", TRACE_WARMUP_DURATION)
 							}
 							minute++
-							break trace_generation
+							break trace_gen
 						}
 					}
 				}
