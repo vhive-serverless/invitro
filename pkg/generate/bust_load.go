@@ -109,6 +109,11 @@ burst_gen:
 						defer wg.Done()
 						wg.Add(1)
 
+						//* Let the bursty function start ramping up.
+						if _function.Name == "victim" {
+							time.Sleep(3 * time.Second)
+						}
+
 						atomic.AddInt64(&invocationCount, 1)
 
 						runtimeRequested, memoryRequested := GenerateExecutionSpecs(function)
@@ -142,7 +147,7 @@ burst_gen:
 			}
 		}
 	next_rps:
-		if rps == burstTarget {
+		if rps == rpsTarget {
 			break burst_gen
 		}
 		minute += durationMinutes
