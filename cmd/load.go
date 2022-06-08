@@ -196,7 +196,7 @@ func runStressMode() {
 func runBurstMode() {
 	var functions []tc.Function
 	functionsTable := make(map[string]tc.Function)
-	initialScales := []int{1, 1, 1}
+	initialScales := []int{1, 1, 0}
 
 	for _, f := range []string{"steady", "bursty", "victim"} {
 		functionsTable[f] = tc.Function{
