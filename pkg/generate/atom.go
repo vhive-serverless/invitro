@@ -45,7 +45,7 @@ func InitSeed(s int64) {
 	specRand = rand.New(rand.NewSource(s))
 }
 
-func GenerateInterarrivalTimesInMicro(invocationsPerMinute int, uniform bool) []float64 {
+func GenerateOneMinuteInterarrivalTimesInMicro(invocationsPerMinute int, uniform bool) []float64 {
 	oneSecondInMicro := 1000_000.0
 	oneMinuteInMicro := 60*oneSecondInMicro - 1000
 

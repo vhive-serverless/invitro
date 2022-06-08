@@ -26,25 +26,27 @@ var (
 
 	serviceConfigPath = ""
 
-	mode      = flag.String("mode", "trace", "Choose a mode from [trace, stress, coldstart]")
+	mode      = flag.String("mode", "trace", "Choose a mode from [trace, stress, burst, coldstart]")
 	server    = flag.String("server", "trace", "Choose a function server from [wimpy, trace]")
 	tracePath = flag.String("tracePath", "data/traces/", "Path to trace")
 
-	print      = flag.String("print", "all", "Choose a mode from [all, debug, info]")
 	cluster    = flag.Int("cluster", 1, "Size of the cluster measured by #workers")
-	duration   = flag.Int("duration", 3, "Duration of the experiment")
+	duration   = flag.Int("duration", 3, "Duration of the experiment in minutes")
 	sampleSize = flag.Int("sample", 10, "Sample size of the traces")
 
 	rpsStart       = flag.Int("start", 0, "Starting RPS value")
-	rpsEnd         = flag.Int("end", -900_000, "Ending RPS value")
+	rpsEnd         = flag.Int("end", -900_000, "Final RPS value")
 	rpsSlot        = flag.Int("slot", 60, "Time slot in seconds for each RPS in the `stress` mode")
 	rpsStep        = flag.Int("step", 1, "Step size for increasing RPS in the `stress` mode")
 	totalFunctions = flag.Int("totalFunctions", 1, "Total number of functions used in the `stress` mode")
 
+	burstTarget = flag.Int("burst", 10, "The target volumn of burst")
+
 	funcDuration = flag.Int("funcDuration", 1000, "Function execution duration in ms (under `stress` mode)")
 	funcMemory   = flag.Int("funcMemory", 170, "Function memeory in MiB(under `stress` mode)")
 
-	seed = flag.Int64("seed", 42, "Random seed for the generator")
+	seed  = flag.Int64("seed", 42, "Random seed for the generator")
+	print = flag.String("print", "all", "Choose a mode from [all, debug, info]")
 
 	// withWarmup = flag.Int("withWarmup", -1000, "Duration of the withWarmup")
 	withWarmup  = flag.Bool("warmup", false, "Enable warmup")
@@ -103,6 +105,8 @@ func main() {
 		runTraceMode(invPath, runPath, memPath)
 	case "stress":
 		runStressMode()
+	case "burst":
+		runBurstMode()
 	case "coldstart":
 		runColdStartMode()
 	default:
@@ -187,6 +191,32 @@ func runStressMode() {
 	fc.DeployTrace(functions, serviceConfigPath, initialScales)
 
 	defer gen.GenerateStressLoads(*rpsStart, *rpsEnd, *rpsStep, *rpsSlot, functions)
+}
+
+func runBurstMode() {
+	var functions []tc.Function
+	functionsTable := make(map[string]tc.Function)
+	initialScales := []int{1, 1, 1}
+
+	for _, f := range []string{"steady", "bursty", "victim"} {
+		functionsTable[f] = tc.Function{
+			Name:     f + "-func",
+			Endpoint: tc.GetFuncEndpoint(f + "-func"),
+			RuntimeStats: tc.FunctionRuntimeStats{
+				Average: *funcDuration,
+				Maximum: 0,
+			},
+			MemoryStats: tc.FunctionMemoryStats{
+				Average:       *funcMemory,
+				Percentile100: 0,
+			},
+		}
+		functions = append(functions, functionsTable[f])
+	}
+
+	fc.DeployTrace(functions, serviceConfigPath, initialScales)
+
+	defer gen.GenerateBurstLoads(*rpsEnd, *burstTarget, *duration, functionsTable)
 }
 
 func runColdStartMode() {
