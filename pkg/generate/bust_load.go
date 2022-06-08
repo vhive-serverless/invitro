@@ -93,26 +93,23 @@ burst_gen:
 			case <-ticker.C:
 				function := functionsTable[roundrobinFunctions[tick%2]]
 
+				nap := 0
 				if rps == rpsTarget && tick == rps*60*durationMinutes/2 {
 					log.Info("Burst starts!")
 					/** Creating the burst in the middle of the `burstDurationMinutes`. */
 					burstSize = burstTarget
 					function = functionsTable["bursty"]
+					nap = 1000 / (burstTarget + 1)
 				}
 
 				for i := 0; i < burstSize+1; i++ {
-					if burstSize == burstTarget && i == burstTarget {
-						/** Invoking the victim function in the end. */
+					if burstSize == burstTarget && i == burstTarget/2 {
+						/** Invoking the victim function in the middle. */
 						function = functionsTable["victim"]
 					}
 					go func(_function tc.Function, rps int, interval int64) {
 						defer wg.Done()
 						wg.Add(1)
-
-						//* Let the bursty function start ramping up.
-						if _function.Name == "victim" {
-							time.Sleep(3 * time.Second)
-						}
 
 						atomic.AddInt64(&invocationCount, 1)
 
@@ -128,9 +125,15 @@ burst_gen:
 						collector.ReportExecution(execRecord, clusterUsage, knStats)
 					}(function, rps, interval.Milliseconds())
 					//! Push function onto stack!!! (concurrency again problem again gosh...)
+
+					if function.Name == "victim-func" {
+						function = functionsTable["bursty"]
+					}
+					time.Sleep(time.Duration(nap) * time.Millisecond)
 				}
 
-				burstSize = 0 // Reset burstSize.
+				burstSize = 0
+				nap = 0
 
 			case <-done:
 				invRecord := mc.MinuteInvocationRecord{
