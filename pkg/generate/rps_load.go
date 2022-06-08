@@ -58,9 +58,9 @@ func GenerateStressLoads(
 	rps := rpsStart
 	tolerance := 0
 
-stress_generation:
+rps_gen:
 	for {
-		iats := GenerateInterarrivalTimesInMicro(
+		iats := GenerateOneMinuteInterarrivalTimesInMicro(
 			rps*60,
 			true,
 		)
@@ -132,12 +132,12 @@ stress_generation:
 				if tolerance < OVERFLOAD_TOLERANCE {
 					rps -= rpsStep //* Second chance: try the current RPS one more time.
 				} else {
-					break stress_generation
+					break rps_gen
 				}
 			}
 		} else if rps >= rpsEnd || rpsStep == 0 {
 			/** Ending RPS specified. */
-			break stress_generation
+			break rps_gen
 		}
 		if rps < 100 {
 			rps += util.MinOf(MAX_RPS_STARTUP_STEP, rpsStep)
