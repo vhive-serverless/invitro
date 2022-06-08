@@ -105,14 +105,14 @@ burst_gen:
 						/** Invoking the victim function in the end. */
 						function = functionsTable["victim"]
 					}
-					go func(rps int, interval int64) {
+					go func(_function tc.Function, rps int, interval int64) {
 						defer wg.Done()
 						wg.Add(1)
 
 						atomic.AddInt64(&invocationCount, 1)
 
 						runtimeRequested, memoryRequested := GenerateExecutionSpecs(function)
-						success, execRecord := fc.Invoke(function, runtimeRequested, memoryRequested)
+						success, execRecord := fc.Invoke(_function, runtimeRequested, memoryRequested)
 
 						if !success {
 							atomic.AddInt64(&failureCount, 1)
@@ -121,7 +121,8 @@ burst_gen:
 						execRecord.Interval = interval
 						execRecord.Rps = rps
 						collector.ReportExecution(execRecord, clusterUsage, knStats)
-					}(rps, interval.Milliseconds())
+					}(function, rps, interval.Milliseconds())
+					//! Push function onto stack!!! (concurrency again problem again gosh...)
 				}
 
 				burstSize = 0 // Reset burstSize.
