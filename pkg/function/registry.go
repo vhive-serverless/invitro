@@ -7,6 +7,8 @@ import (
 	util "github.com/eth-easl/loader/pkg"
 )
 
+var registry = LoadRegistry{}
+
 type LoadRegistry struct {
 	mutex     sync.Mutex
 	loadGauge int64

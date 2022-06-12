@@ -9,7 +9,7 @@ import (
 	tc "github.com/eth-easl/loader/pkg/trace"
 )
 
-func DeployTrace(functions []tc.Function, serviceConfigPath string, initScales []int) []tc.Function {
+func DeployFunctions(functions []tc.Function, serviceConfigPath string, initScales []int) []tc.Function {
 	var urls []string
 	// deploymentConcurrency := 1 //* Serialise deployment.
 	deploymentConcurrency := len(functions) //* Fully parallelise deployment.
@@ -28,7 +28,7 @@ func DeployTrace(functions []tc.Function, serviceConfigPath string, initScales [
 			}
 			// log.Info(function.GetName(), " -> initScale: ", initScale)
 
-			hasDeployed := DeployFunction(&function, serviceConfigPath, initScale)
+			hasDeployed := deploy(&function, serviceConfigPath, initScale)
 			function.SetStatus(hasDeployed)
 
 			if hasDeployed {
@@ -41,10 +41,12 @@ func DeployTrace(functions []tc.Function, serviceConfigPath string, initScales [
 	for i := 0; i < cap(sem); i++ {
 		sem <- true
 	}
+
+	defer CreateGrpcPool(functions)
 	return functions
 }
 
-func DeployFunction(function *tc.Function, serviceConfigPath string, initScale int) bool {
+func deploy(function *tc.Function, serviceConfigPath string, initScale int) bool {
 	cmd := exec.Command(
 		"kn",
 		"service",
