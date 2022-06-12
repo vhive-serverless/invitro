@@ -2,16 +2,14 @@ package function
 
 import (
 	"context"
-	"io"
 	"time"
 
 	log "github.com/sirupsen/logrus"
-	"google.golang.org/grpc"
 
 	util "github.com/eth-easl/loader/pkg"
 	mc "github.com/eth-easl/loader/pkg/metric"
 	tc "github.com/eth-easl/loader/pkg/trace"
-	rpc "github.com/eth-easl/loader/server"
+	"github.com/eth-easl/loader/server"
 )
 
 const (
@@ -23,8 +21,6 @@ const (
 	connectionTimeout = 10 * time.Hour
 	executionTimeout  = 15 * time.Hour
 )
-
-var registry = LoadRegistry{}
 
 func Invoke(function tc.Function, runtimeRequested int, memoryRequested int) (bool, mc.ExecutionRecord) {
 	log.Tracef("(Invoke)\t %s: %d[ms], %d[MiB]", function.Name, runtimeRequested, memoryRequested)
@@ -38,26 +34,21 @@ func Invoke(function tc.Function, runtimeRequested int, memoryRequested int) (bo
 	start := time.Now()
 	record.Timestamp = start.UnixMicro()
 
-	//* Use the maximum socket timeout from AWS (1min).
-	dailCxt, cancelDailing := context.WithTimeout(context.Background(), connectionTimeout)
-	defer cancelDailing()
-
-	conn, err := grpc.DialContext(dailCxt, function.Endpoint+port, grpc.WithInsecure(), grpc.WithBlock())
-	defer dclose(conn)
+	conn, err := pools.GetConn(function.Endpoint)
 	if err != nil {
-		//! Failures will also be recorded with 0's.
+		//! Failures will also be recorded as 0's.
 		log.Warnf("gRPC connection failed: %v", err)
 		record.Timeout = true
 		registry.Deregister(memoryRequested)
 		return false, record
 	}
 
-	grpcClient := rpc.NewExecutorClient(conn)
+	grpcClient := server.NewExecutorClient(conn)
 	// Contact the server and print out its response.
 	executionCxt, cancelExecution := context.WithTimeout(context.Background(), executionTimeout)
 	defer cancelExecution()
 
-	response, err := grpcClient.Execute(executionCxt, &rpc.FaasRequest{
+	response, err := grpcClient.Execute(executionCxt, &server.FaasRequest{
 		Message:           "nothing",
 		RuntimeInMilliSec: uint32(runtimeRequested),
 		MemoryInMebiBytes: uint32(memoryRequested),
@@ -85,10 +76,4 @@ func Invoke(function tc.Function, runtimeRequested int, memoryRequested int) (bo
 	log.Tracef("(E2E Latency) %s: %.2f[ms]\n", function.Name, float64(responseTime)/1e3)
 
 	return true, record
-}
-
-func dclose(c io.Closer) {
-	if err := c.Close(); err != nil {
-		log.Warn("Connection closing error: ", err)
-	}
 }

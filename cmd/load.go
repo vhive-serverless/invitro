@@ -112,6 +112,7 @@ func main() {
 	default:
 		log.Fatal("Invalid mode: ", *mode)
 	}
+	fc.DestroyGrpcPool()
 }
 
 func runTraceMode(invPath, runPath, memPath string) {
@@ -142,7 +143,7 @@ func runTraceMode(invPath, runPath, memPath string) {
 	}
 
 	/** Deployment */
-	functions := fc.DeployTrace(traces.Functions, serviceConfigPath, traces.WarmupScales)
+	functions := fc.DeployFunctions(traces.Functions, serviceConfigPath, traces.WarmupScales)
 
 	/** Warmup (Phase 1 and 2) */
 	nextPhaseStart := 0
@@ -188,7 +189,7 @@ func runStressMode() {
 		initialScales = append(initialScales, 1)
 	}
 
-	fc.DeployTrace(functions, serviceConfigPath, initialScales)
+	fc.DeployFunctions(functions, serviceConfigPath, initialScales)
 
 	defer gen.GenerateStressLoads(*rpsStart, *rpsEnd, *rpsStep, *rpsSlot, functions)
 }
@@ -214,7 +215,7 @@ func runBurstMode() {
 		functions = append(functions, functionsTable[f])
 	}
 
-	fc.DeployTrace(functions, serviceConfigPath, initialScales)
+	fc.DeployFunctions(functions, serviceConfigPath, initialScales)
 
 	defer gen.GenerateBurstLoads(*rpsEnd, *burstTarget, *duration, functionsTable)
 }
@@ -240,7 +241,7 @@ func runColdStartMode() {
 		})
 	}
 
-	fc.DeployTrace(functions, serviceConfigPath, []int{})
+	fc.DeployFunctions(functions, serviceConfigPath, []int{})
 
 	defer gen.GenerateColdStartLoads(*rpsStart, *rpsStep, hotFunction, coldstartCounts)
 }
