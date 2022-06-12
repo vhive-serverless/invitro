@@ -27,6 +27,7 @@ func (ps *RpcPools) GetConn(endpoint string) (*grpcpool.ClientConn, error) {
 
 func CreateGrpcPool(functions []tc.Function) {
 	pools.pools = map[string]*grpcpool.Pool{}
+	pools.conns = map[string]*grpc.ClientConn{}
 	pools.contexts = map[string]context.Context{}
 	pools.callbacks = map[string]context.CancelFunc{}
 
@@ -43,7 +44,7 @@ func CreateGrpcPool(functions []tc.Function) {
 			pools.conns[function.Endpoint] = conn
 			return conn, err
 		}
-		pool, err := grpcpool.New(factory, 2, 500, time.Second)
+		pool, err := grpcpool.New(factory, 1, 1, time.Second)
 		if err != nil {
 			log.Fatalf("Failed to create gRPC pool (%s): %v", function.Name, err)
 		}
