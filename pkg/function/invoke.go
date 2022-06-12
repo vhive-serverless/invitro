@@ -34,16 +34,17 @@ func Invoke(function tc.Function, runtimeRequested int, memoryRequested int) (bo
 	start := time.Now()
 	record.Timestamp = start.UnixMicro()
 
-	conn, err := pools.GetConn(function.Endpoint)
-	if err != nil {
-		//! Failures will also be recorded as 0's.
-		log.Warnf("gRPC connection failed: %v", err)
-		record.Timeout = true
-		registry.Deregister(memoryRequested)
-		return false, record
-	}
-
+	// conn, err := pools.GetConn(function.Endpoint)
+	// if err != nil {
+	// 	//! Failures will also be recorded as 0's.
+	// 	log.Warnf("gRPC connection failed: %v", err)
+	// 	record.Timeout = true
+	// 	registry.Deregister(memoryRequested)
+	// 	return false, record
+	// }
+	conn := pools.conns[function.Endpoint]
 	grpcClient := server.NewExecutorClient(conn)
+
 	// Contact the server and print out its response.
 	executionCxt, cancelExecution := context.WithTimeout(context.Background(), executionTimeout)
 	defer cancelExecution()
