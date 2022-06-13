@@ -112,7 +112,7 @@ func main() {
 	default:
 		log.Fatal("Invalid mode: ", *mode)
 	}
-	fc.DestroyGrpcPool()
+	// fc.DestroyGrpcPool()
 }
 
 func runTraceMode(invPath, runPath, memPath string) {

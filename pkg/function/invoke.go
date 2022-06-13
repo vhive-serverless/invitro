@@ -5,6 +5,7 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
+	"google.golang.org/grpc"
 
 	util "github.com/eth-easl/loader/pkg"
 	mc "github.com/eth-easl/loader/pkg/metric"
@@ -35,14 +36,19 @@ func Invoke(function tc.Function, runtimeRequested int, memoryRequested int) (bo
 	record.Timestamp = start.UnixMicro()
 
 	// conn, err := pools.GetConn(function.Endpoint)
-	// if err != nil {
-	// 	//! Failures will also be recorded as 0's.
-	// 	log.Warnf("gRPC connection failed: %v", err)
-	// 	record.Timeout = true
-	// 	registry.Deregister(memoryRequested)
-	// 	return false, record
-	// }
-	conn := pools.conns[function.Endpoint]
+	dailCxt, cancelDailing := context.WithTimeout(context.Background(), connectionTimeout)
+	defer cancelDailing()
+
+	conn, err := grpc.DialContext(dailCxt, function.Endpoint+port, grpc.WithInsecure(), grpc.WithBlock())
+	defer closeConn(conn)
+	if err != nil {
+		//! Failures will also be recorded as 0's.
+		log.Warnf("gRPC connection failed: %v", err)
+		record.Timeout = true
+		registry.Deregister(memoryRequested)
+		return false, record
+	}
+	// conn := pools.conns[function.Endpoint]
 	grpcClient := server.NewExecutorClient(conn)
 
 	// Contact the server and print out its response.

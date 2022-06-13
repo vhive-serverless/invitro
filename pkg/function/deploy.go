@@ -42,7 +42,7 @@ func DeployFunctions(functions []tc.Function, serviceConfigPath string, initScal
 		sem <- true
 	}
 
-	defer CreateGrpcPool(functions)
+	// defer CreateGrpcPool(functions)
 	return functions
 }
 
