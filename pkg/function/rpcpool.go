@@ -44,7 +44,7 @@ func CreateGrpcPool(functions []tc.Function) {
 			pools.conns[function.Endpoint] = conn
 			return conn, err
 		}
-		pool, err := grpcpool.New(factory, 1, 1, time.Second)
+		pool, err := grpcpool.New(factory, 1, 1, time.Hour*2)
 		if err != nil {
 			log.Fatalf("Failed to create gRPC pool (%s): %v", function.Name, err)
 		}
