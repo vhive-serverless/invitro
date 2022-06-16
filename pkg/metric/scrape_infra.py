@@ -13,7 +13,9 @@ if __name__ == "__main__":
         "master_cpu_pct": 0,
         "master_mem_pct": 0,
         "cpu": [],
-        "cpu_pct": 0,
+        "cpu_pct_avg": 0,
+        "cpu_pct_active_avg": 0,
+        "cpu_pct_max": 0,
         "memory": [],
         "memory_pct": 0,
     }
@@ -26,6 +28,8 @@ if __name__ == "__main__":
     abs_out = subprocess.check_output(cmd_get_abs_vals).decode("utf-8")[:-1]
     pcts_out = subprocess.check_output(cmd_get_pcts).decode("utf-8")
 
+    cpus = []
+    mems = []
     counter = 0
     is_master = True
     for abs_vals, pcts in zip(abs_out.split('\n'), pcts_out.split('\n')):
@@ -39,17 +43,31 @@ if __name__ == "__main__":
 
         counter += 1
         cpu, mem = abs_vals.split(',')
-        cpu_pct, mem_pct = pcts[:-1].split('%')
+        cpu_pct_avg, mem_pct = pcts[:-1].split('%')
 
         result['cpu'].append(cpu[1:-1])
-        result['cpu_pct'] += float(cpu_pct)
+        cpus.append(float(cpu_pct_avg))
         result['memory'].append(mem[1:-1])
-        result['memory_pct'] += float(mem_pct)
+        mems.append(float(mem_pct))
     
     # Prevent div-0 in the case of single-node.
     if counter != 0:
-        result['cpu_pct'] /= counter
-        result['memory_pct'] /= counter
+        result['cpu_pct_avg'] =  sum(cpus) / len(cpus)
+        result['cpu_pct_max'] =  max(cpus)
+
+        active_node = 0
+        active_cpu = 0
+        active_mem = 0
+        for cpu, mem in zip(cpus, mems):
+            if cpu >= 5: # Active node
+                active_cpu += cpu
+                active_mem += mem
+                active_node += 1
+
+        if not active_node: active_node = 1
+        result['cpu_pct_active_avg'] = active_cpu / active_node
+        result['memory_pct'] = active_mem / active_node # Active memory average.
+
     else:
         result['cpu'] = ['']
         result['memory'] = ['']
