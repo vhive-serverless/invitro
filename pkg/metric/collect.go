@@ -224,6 +224,8 @@ func (collector *Collector) ReportExecution(record ExecutionRecord, clusterUsage
 	record.MasterCpu = clusterUsage.MasterCpuPct
 	record.MasterMem = clusterUsage.MasterMemoryPct
 	record.WorkerCpuAvg = clusterUsage.CpuPctAvg
+	record.WorkerCpuActiveAvg = clusterUsage.CpuPctActiveAvg
+	record.WorkerCpuMax = clusterUsage.CpuPctMax
 	record.WorkerMemAvg = clusterUsage.MemoryPctAvg
 
 	record.DesiredPods = knStats.DesiredPods
