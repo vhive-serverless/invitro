@@ -9,13 +9,13 @@ First, change the parameters (e.g., `GITHUB_TOKEN`) in the `script/setup.cfg` is
 For creating a multi-node K8s cluster (pure containers), run the following.
 
 ```bash
-bash ./scripts/setup/create_multinode_k8s.sh <master_node@IP> <worker_node@IP> ...
+bash ./scripts/setup/create_multinode_container.sh <master_node@IP> <worker_node@IP> ...
 ```
 
 For creating a multi-node vHive cluster (firecracker uVMs), run the following.
 
 ```bash
-bash ./scripts/setup/create_multinode_vhive.sh <master_node@IP> <worker_node@IP> ...
+bash ./scripts/setup/create_multinode_firecracker.sh <master_node@IP> <worker_node@IP> ...
 ```
 
 Run the following for a single-node setup.
