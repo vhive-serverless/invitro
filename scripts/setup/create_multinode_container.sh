@@ -87,6 +87,8 @@ common_init() {
 
 			#* Disable worker turbo boost for better timing.
 			server_exec './vhive/scripts/turbo_boost.sh disable'
+			#* Disable worker hyperthreading (security).
+			server_exec 'echo off | sudo tee /sys/devices/system/cpu/smt/control'
 
 			#* Stretch the capacity of the worker node to 240 (k8s default: 110).
 			#* Empirically, this gives us a max. #pods being 240-40=200.
