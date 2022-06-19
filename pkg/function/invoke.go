@@ -39,7 +39,7 @@ func Invoke(function tc.Function, runtimeRequested int, memoryRequested int) (bo
 	dailCxt, cancelDailing := context.WithTimeout(context.Background(), connectionTimeout)
 	defer cancelDailing()
 
-	conn, err := grpc.DialContext(dailCxt, function.Endpoint+port, grpc.WithInsecure(), grpc.WithBlock())
+	conn, err := grpc.DialContext(dailCxt, function.Endpoint+port, grpc.WithInsecure())
 	defer closeConn(conn)
 	if err != nil {
 		//! Failures will also be recorded as 0's.
