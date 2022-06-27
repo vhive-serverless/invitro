@@ -46,7 +46,7 @@ common_init() {
 			server_exec 'tmux new -s kwatch -d'
 			server_exec 'tmux new -s master -d'
 			server_exec 'tmux send -t master "./vhive/scripts/cluster/create_multinode_cluster.sh stock-only" ENTER'
-			
+
 			# Get the join token from k8s.
 			while [ ! "$LOGIN_TOKEN" ]
 			do
@@ -107,15 +107,16 @@ common_init() {
 
 	for i in "${!NODE_NAMES[@]}"; do
 		NODE_NAME=${NODE_NAMES[i]}
-		#* Compute subnet: 11000000.10101000.000000 00.00000000 -> about 1022 IPs per worder. 
-		#* To be safe, we change both master and workers with an offset of 4. (NB: zsh indices start from 1.)
+		#* Compute subnet: 00001010.10101000.000000 00.00000000 -> about 1022 IPs per worker. 
+		#* To be safe, we change both master and workers with an offset of 0.0.4.0 (4 * 2^8)
+		# (NB: zsh indices start from 1.)
 		#* Assume less than 63 nodes in total.
 		let SUBNET=i*4+4
 		#* Extend pod ip range, delete and create again.
-		ssh -oStrictHostKeyChecking=no -p 22 $MASTER_NODE "kubectl get node $NODE_NAME -o json | jq '.spec.podCIDR |= \"192.168.$SUBNET.0/22\"' > node.yaml"
+		ssh -oStrictHostKeyChecking=no -p 22 $MASTER_NODE "kubectl get node $NODE_NAME -o json | jq '.spec.podCIDR |= \"10.168.$SUBNET.0/22\"' > node.yaml"
 		ssh -oStrictHostKeyChecking=no -p 22 $MASTER_NODE "kubectl delete node $NODE_NAME && kubectl create -f node.yaml"
 		
-		echo "Changed pod CIDR for worker $NODE_NAME to 192.168.$SUBNET.0/22"
+		echo "Changed pod CIDR for worker $NODE_NAME to 10.168.$SUBNET.0/22"
 		sleep 5
 	done
 
@@ -139,6 +140,11 @@ common_init() {
 	#* Notify the master that all nodes have been registered
 	server_exec 'tmux send -t master "y" ENTER'
 	echo "Master node $MASTER_NODE finalised." 
+	#* Stretch the master node capacity after all kinds of restarts.
+	echo "Streching node capacity for $node."
+	server_exec 'echo "maxPods: 540" > >(sudo tee -a /var/lib/kubelet/config.yaml >/dev/null)'
+	server_exec 'sudo systemctl restart kubelet'
+	sleep 3
 
 	#* Setup github authentication.
 	ACCESS_TOKEH="$(cat $GITHUB_TOKEN)"
