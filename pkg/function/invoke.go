@@ -27,7 +27,8 @@ func Invoke(function tc.Function, runtimeRequested int, memoryRequested int) (bo
 	log.Tracef("(Invoke)\t %s: %d[ms], %d[MiB]", function.Name, runtimeRequested, memoryRequested)
 
 	var record mc.ExecutionRecord
-	record.FuncName = function.Name
+	// record.FuncName = function.Name
+	record.RequestedDuration = uint32(runtimeRequested * 1e3)
 
 	registry.Register(memoryRequested)
 
@@ -69,14 +70,14 @@ func Invoke(function tc.Function, runtimeRequested int, memoryRequested int) (bo
 
 	responseTime := time.Since(start).Microseconds()
 	record.ResponseTime = responseTime
-	record.Load = float64(registry.GetTotalMemoryLoad())
+	record.MemoryLoad = float64(registry.GetTotalMemoryLoad())
 	registry.Deregister(memoryRequested)
 
 	memoryUsage := response.MemoryUsageInKb
 	runtime := response.DurationInMicroSec
 
 	record.Memory = memoryUsage
-	record.Runtime = runtime
+	record.ActualDuration = runtime
 
 	log.Tracef("(Replied)\t %s: %s, %.2f[ms], %d[MiB]", function.Name, response.Message,
 		float64(runtime)/1e3, util.Kib2Mib(memoryUsage))
