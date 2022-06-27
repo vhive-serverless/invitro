@@ -175,7 +175,7 @@ func (collector *Collector) GetLatenciesInOrder() []float64 {
 
 	lantencies := make([]float64, len(collector.executionRecords))
 	for i, record := range collector.executionRecords {
-		lantencies[i] = float64(record.ResponseTime) - float64(record.Runtime)
+		lantencies[i] = float64(record.ResponseTime) - float64(record.RequestedDuration)
 	}
 	return lantencies
 }
