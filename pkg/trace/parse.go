@@ -14,8 +14,8 @@ import (
 )
 
 const (
-	gatewayUrl = "192.168.1.240.sslip.io" // Address of the load balancer.
-	namespace  = "default"
+	bareMetalLB = "10.168.1.240.sslip.io" // Address of the bare-metal load balancer.
+	namespace   = "default"
 )
 
 func init() {
@@ -23,7 +23,7 @@ func init() {
 }
 
 var GetFuncEndpoint = func(name string) string {
-	return fmt.Sprintf("%s.%s.%s", name, namespace, gatewayUrl)
+	return fmt.Sprintf("%s.%s.%s", name, namespace, bareMetalLB)
 }
 
 func ParseInvocationTrace(traceFile string, traceDuration int) FunctionTraces {

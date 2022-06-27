@@ -24,9 +24,9 @@ const (
 	RPS_WARMUP_FRACTION  = 0.5
 	MAX_RPS_STARTUP_STEP = 5
 
-	MAX_EXEC_TIME_MILLI = 10e3 // 10s (avg. p90 from Wild).
+	MAX_EXEC_TIME_MILLI = 60e3 // 60s (avg. p96 from Wild).
 	MIN_EXEC_TIME_MILLI = 1    // 1ms (min. billing unit of AWS).
-	MAX_MEM_MIB         = 200  // 170MiB (max. p50 for the whole App from Wild).
+	MAX_MEM_MIB         = 400  // 400MiB (max. p90 for the whole App from Wild).
 	MIN_MEM_MIB         = 1
 )
 
