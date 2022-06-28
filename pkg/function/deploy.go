@@ -2,11 +2,16 @@ package function
 
 import (
 	"os/exec"
+	"regexp"
 	"strconv"
 
 	log "github.com/sirupsen/logrus"
 
 	tc "github.com/eth-easl/loader/pkg/trace"
+)
+
+var (
+	regex = regexp.MustCompile("at URL:\nhttp://([^\n]+)")
 )
 
 func DeployFunctions(functions []tc.Function, serviceConfigPath string, initScales []int) []tc.Function {
@@ -68,8 +73,13 @@ func deploy(function *tc.Function, serviceConfigPath string, initScale int) bool
 	log.Debug("CMD response: ", string(stdoutStderr))
 
 	if err != nil {
-		log.Warnf("Failed to deploy function %s: %v\n%s\n", function.GetName(), err, stdoutStderr)
+		log.Warnf("Failed to deploy function %s: %v\n%s\n", function.Name, err, stdoutStderr)
 		return false
+	}
+
+	if endpoint := regex.FindStringSubmatch(string(stdoutStderr))[1]; endpoint != function.Endpoint {
+		log.Warnf("Update function endpoint to %s\n", endpoint)
+		function.Endpoint = endpoint
 	}
 
 	log.Info("Deployed function ", function.Endpoint)
