@@ -141,7 +141,7 @@ common_init() {
 	server_exec 'tmux send -t master "y" ENTER'
 	echo "Master node $MASTER_NODE finalised." 
 	#* Stretch the master node capacity after all kinds of restarts.
-	echo "Streching node capacity for $node."
+	echo "Streching node capacity for $MASTER_NODE."
 	server_exec 'echo "maxPods: 540" > >(sudo tee -a /var/lib/kubelet/config.yaml >/dev/null)'
 	server_exec 'sudo systemctl restart kubelet'
 	sleep 3
