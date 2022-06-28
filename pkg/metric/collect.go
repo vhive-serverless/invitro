@@ -130,7 +130,7 @@ func (collector *Collector) IsLatencyStationary(windowSize int, pvalueThreshold 
 	}
 	//* Here `-` is used to form a single cmd argument to prevent the violation of the calling convention.
 	latenciesStr := strings.Trim(strings.Join(
-		strings.Fields(fmt.Sprint(latencies)), "-"), "[]")
+		strings.Fields(fmt.Sprint(latencies)), "@"), "[]")
 
 	cmd := exec.Command(
 		"python3",
@@ -175,7 +175,7 @@ func (collector *Collector) GetLatenciesInOrder() []float64 {
 
 	lantencies := make([]float64, len(collector.executionRecords))
 	for i, record := range collector.executionRecords {
-		lantencies[i] = float64(record.ResponseTime) - float64(record.RequestedDuration)
+		lantencies[i] = float64(record.ResponseTime) - float64(record.ActualDuration)
 	}
 	return lantencies
 }
