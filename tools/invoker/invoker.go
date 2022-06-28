@@ -27,7 +27,7 @@ func main() {
 
 	// Start latency measurement.
 	start := time.Now()
-	conn, err := grpc.Dial(*name+".default.192.168.1.240.sslip.io:80", grpc.WithInsecure(), grpc.WithBlock())
+	conn, err := grpc.Dial(*name+".default.10.200.3.4.sslip.io:80", grpc.WithInsecure(), grpc.WithBlock())
 	if err != nil {
 		//! Failures will also be recorded with 0's.
 		log.Warnf("gRPC connection failed: %v", err)
