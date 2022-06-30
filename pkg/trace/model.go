@@ -55,11 +55,14 @@ type FunctionMemoryStats struct {
 }
 
 type Function struct {
-	Name            string
-	Endpoint        string
-	AppHash         string
-	Hash            string
-	Deployed        bool
+	Name     string
+	Endpoint string
+	AppHash  string
+	Hash     string
+	Deployed bool
+
+	InvocationsPerMinute []int
+
 	ConcurrencySats FunctionConcurrencyStats
 	InvocationStats FunctionInvocationStats
 	RuntimeStats    FunctionRuntimeStats
