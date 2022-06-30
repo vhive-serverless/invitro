@@ -79,10 +79,12 @@ func ParseInvocationTrace(traceFile string, traceDuration int) FunctionTraces {
 			funcName := fmt.Sprintf("%s-%d-%d", "trace-func", funcIdx, rand.Uint64())
 
 			function := Function{
-				Name:            funcName,
-				Endpoint:        GetFuncEndpoint(funcName),
-				Hash:            record[0],
-				AppHash:         record[1],
+				Name:                 funcName,
+				Endpoint:             GetFuncEndpoint(funcName),
+				Hash:                 record[0],
+				AppHash:              record[1],
+				InvocationsPerMinute: invocations,
+
 				InvocationStats: ProfileFunctionInvocations(invocations),
 			}
 			functions = append(functions, function)
