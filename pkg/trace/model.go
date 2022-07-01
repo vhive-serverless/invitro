@@ -57,8 +57,11 @@ type FunctionMemoryStats struct {
 type Function struct {
 	Name     string
 	Endpoint string
-	AppHash  string
-	Hash     string
+
+	HashOwner    string
+	HashApp      string
+	HashFunction string
+
 	Deployed bool
 
 	InvocationsPerMinute []int
@@ -78,7 +81,7 @@ type FunctionTraces struct {
 }
 
 func (f *Function) SetHash(hash int) {
-	f.Hash = fmt.Sprintf("%015d", hash)
+	f.HashFunction = fmt.Sprintf("%015d", hash)
 }
 
 func (f *Function) SetName(name string) {

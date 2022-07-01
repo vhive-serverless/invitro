@@ -136,7 +136,6 @@ func randIntBetween(min, max int) int {
 }
 
 func GenerateExecutionSpecs(function tc.Function) (int, int) {
-
 	if function.MemoryStats.Percentile100 == function.RuntimeStats.Maximum {
 		//* Custom runtime specs.
 		return function.RuntimeStats.Average, function.MemoryStats.Average
