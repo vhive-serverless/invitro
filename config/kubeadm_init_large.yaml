@@ -3,7 +3,6 @@ kind: ClusterConfiguration
 apiServer:
   extraArgs:
     authorization-mode: Node,RBAC
-    bind-address: "10.500.6.7"
   timeoutForControlPlane: 4m0s  # The timeout that we wait for the API server to appear
 certificatesDir: /etc/kubernetes/pki
 clusterName: kubernetes
