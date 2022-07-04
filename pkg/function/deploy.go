@@ -65,7 +65,7 @@ func deploy(function *tc.Function, serviceConfigPath string, initScale int, isPa
 		panicThreshold = "\"1000.0\""
 	}
 
-	memoryLimit := util.MinOf(128, function.MemoryStats.Percentile99)
+	memoryLimit := util.MinOf(10_240, util.MaxOf(128, function.MemoryStats.Percentile99+200))
 	cpuLimit := 1000 * memoryLimit / 1_769
 
 	cmd := exec.Command(
