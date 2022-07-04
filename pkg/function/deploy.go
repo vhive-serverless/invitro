@@ -1,6 +1,9 @@
 package function
 
 import (
+	"fmt"
+	"io/ioutil"
+	"os"
 	"os/exec"
 	"regexp"
 	"strconv"
@@ -8,11 +11,68 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	tc "github.com/eth-easl/loader/pkg/trace"
+	"gopkg.in/yaml.v3"
 )
 
 var (
 	regex = regexp.MustCompile("at URL:\nhttp://([^\n]+)")
 )
+
+type YamlType map[string]interface{}
+
+func readStemYAML(path string, service *YamlType) {
+	stem, err := ioutil.ReadFile(path)
+	if err != nil {
+		log.Fatal("Error reading stem YAML stem.")
+	}
+
+	err = yaml.Unmarshal(stem, &service)
+	if err != nil {
+		log.Fatal("Error unmarshalling stem Knative service.")
+	}
+}
+
+func addMemoryConstaint(function *tc.Function, knativeService *YamlType) {
+	// Reference - https://knative.tips/pod-config/cpu-memory-resources/
+
+	t := ((*knativeService)["spec"].(YamlType))["template"].(YamlType)
+	t1 := (t["spec"].(YamlType))["containers"].([]interface{})[0].(YamlType)
+
+	requests := make(map[string]string)
+	requests["memory"] = fmt.Sprintf("%dM", function.MemoryStats.Average)
+	t1["resources"] = map[string]interface{}{"requests": requests}
+}
+
+func writeServiceYaml(outputPath string, knativeService *YamlType) {
+	d, err := yaml.Marshal(&knativeService)
+	if err != nil {
+		log.Fatalf("Error writing modified service file.")
+	}
+
+	//fmt.Printf("--- m dump:\n%s\n\n", string(d))
+	f, err := os.Create(outputPath)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	defer f.Close()
+
+	_, err2 := f.WriteString(string(d))
+	if err2 != nil {
+		log.Fatal(err2)
+	}
+}
+
+func createCustomYAML(function *tc.Function, parentYAMLPath string) string {
+	knativeService := make(YamlType)
+	outputFileName := fmt.Sprintf("tmp/%s.yaml", function.Name)
+
+	readStemYAML(parentYAMLPath, &knativeService)
+	addMemoryConstaint(function, &knativeService)
+	writeServiceYaml(outputFileName, &knativeService)
+
+	return outputFileName
+}
 
 func DeployFunctions(functions []tc.Function, serviceConfigPath string, initScales []int) []tc.Function {
 	var urls []string
@@ -33,7 +93,9 @@ func DeployFunctions(functions []tc.Function, serviceConfigPath string, initScal
 			}
 			// log.Info(function.GetName(), " -> initScale: ", initScale)
 
-			hasDeployed := deploy(&function, serviceConfigPath, initScale)
+			customYAMLPath := createCustomYAML(&function, serviceConfigPath)
+
+			hasDeployed := deploy(&function, customYAMLPath, initScale)
 			function.SetStatus(hasDeployed)
 
 			if hasDeployed {
@@ -65,7 +127,7 @@ func deploy(function *tc.Function, serviceConfigPath string, initScale int) bool
 		strconv.Itoa(initScale),
 		"--concurrency-target",
 		"1",
-		//* Wait for infintely long for ensuring warmup.
+		//* Wait for infinitely long for ensuring warmup.
 		"--wait-timeout",
 		"2000000",
 	)

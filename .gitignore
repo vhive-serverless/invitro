@@ -1,3 +1,7 @@
+.idea
+tmp
+test.yaml
+
 load
 analysis
 .vscode/
