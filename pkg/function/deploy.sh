@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+CONFIG_FILE=$1
+export FUNC_NAME=$2
+
+export MEMORY_LIMIT=$3
+export CPU_LIMIT=$4
+INIT_SCALE=$5
+
+export PANIC_WINDOW=$6
+export PANIC_THRESHOLD=$7
+
+cat $CONFIG_FILE | envsubst | kn service apply $FUNC_NAME --scale-init $INIT_SCALE --concurrency-target 1 --wait-timeout 2000000 -f -
+

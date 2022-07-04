@@ -49,8 +49,9 @@ var (
 	print = flag.String("print", "all", "Choose a mode from [all, debug, info]")
 
 	// withWarmup = flag.Int("withWarmup", -1000, "Duration of the withWarmup")
-	withWarmup  = flag.Bool("warmup", false, "Enable warmup")
-	withTracing = flag.Bool("trace", false, "Enable tracing in the client")
+	isPartiallyPanic = flag.Bool("partiallyPanic", false, "Enable partially panic")
+	withWarmup       = flag.Bool("warmup", false, "Enable warmup")
+	withTracing      = flag.Bool("trace", false, "Enable tracing in the client")
 )
 
 func init() {
@@ -143,7 +144,7 @@ func runTraceMode(invPath, runPath, memPath string) {
 	}
 
 	/** Deployment */
-	functions := fc.DeployFunctions(traces.Functions, serviceConfigPath, traces.WarmupScales)
+	functions := fc.DeployFunctions(traces.Functions, serviceConfigPath, traces.WarmupScales, *isPartiallyPanic)
 
 	/** Warmup (Phase 1 and 2) */
 	nextPhaseStart := 0
@@ -189,7 +190,7 @@ func runStressMode() {
 		initialScales = append(initialScales, 1)
 	}
 
-	fc.DeployFunctions(functions, serviceConfigPath, initialScales)
+	fc.DeployFunctions(functions, serviceConfigPath, initialScales, *isPartiallyPanic)
 
 	defer gen.GenerateStressLoads(*rpsStart, *rpsEnd, *rpsStep, *rpsSlot, functions)
 }
@@ -215,7 +216,7 @@ func runBurstMode() {
 		functions = append(functions, functionsTable[f])
 	}
 
-	fc.DeployFunctions(functions, serviceConfigPath, initialScales)
+	fc.DeployFunctions(functions, serviceConfigPath, initialScales, *isPartiallyPanic)
 
 	defer gen.GenerateBurstLoads(*rpsEnd, *burstTarget, *duration, functionsTable)
 }
@@ -241,7 +242,7 @@ func runColdStartMode() {
 		})
 	}
 
-	fc.DeployFunctions(functions, serviceConfigPath, []int{})
+	fc.DeployFunctions(functions, serviceConfigPath, []int{}, *isPartiallyPanic)
 
 	defer gen.GenerateColdStartLoads(*rpsStart, *rpsStep, hotFunction, coldstartCounts)
 }

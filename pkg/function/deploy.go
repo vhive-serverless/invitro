@@ -7,6 +7,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 
+	util "github.com/eth-easl/loader/pkg"
 	tc "github.com/eth-easl/loader/pkg/trace"
 )
 
@@ -14,7 +15,12 @@ var (
 	regex = regexp.MustCompile("at URL:\nhttp://([^\n]+)")
 )
 
-func DeployFunctions(functions []tc.Function, serviceConfigPath string, initScales []int) []tc.Function {
+func DeployFunctions(
+	functions []tc.Function,
+	serviceConfigPath string,
+	initScales []int,
+	isPartiallyPanic bool,
+) []tc.Function {
 	var urls []string
 	// deploymentConcurrency := 1 //* Serialise deployment.
 	deploymentConcurrency := len(functions) //* Fully parallelise deployment.
@@ -33,7 +39,7 @@ func DeployFunctions(functions []tc.Function, serviceConfigPath string, initScal
 			}
 			// log.Info(function.GetName(), " -> initScale: ", initScale)
 
-			hasDeployed := deploy(&function, serviceConfigPath, initScale)
+			hasDeployed := deploy(&function, serviceConfigPath, initScale, isPartiallyPanic)
 			function.SetStatus(hasDeployed)
 
 			if hasDeployed {
@@ -51,24 +57,31 @@ func DeployFunctions(functions []tc.Function, serviceConfigPath string, initScal
 	return functions
 }
 
-func deploy(function *tc.Function, serviceConfigPath string, initScale int) bool {
+func deploy(function *tc.Function, serviceConfigPath string, initScale int, isPartiallyPanic bool) bool {
+	panicWindow := "10.0"
+	panicThreshold := "200.0"
+	if isPartiallyPanic {
+		panicWindow = "100.0"
+		panicThreshold = "1000.0"
+	}
+
+	memoryLimit := util.MinOf(128, function.MemoryStats.Percentile99)
+	cpuLimit := 1000 * memoryLimit / 1_769
+
 	cmd := exec.Command(
-		"kn",
-		"service",
-		"apply",
-		function.Name,
-		"-f",
+		"bash",
+		"./pkg/function/deploy.sh",
 		serviceConfigPath,
-		//! `--scale-min` should NOT be used here since it only has a per-revision key,
-		//! i.e., it will change the min scale for all the (future) pods of this kn service.
-		"--scale-init",
+		function.Name,
+
+		strconv.Itoa(memoryLimit)+"Mi",
+		strconv.Itoa(cpuLimit)+"m",
 		strconv.Itoa(initScale),
-		"--concurrency-target",
-		"1",
-		//* Wait for infintely long for ensuring warmup.
-		"--wait-timeout",
-		"2000000",
+
+		panicWindow,
+		panicThreshold,
 	)
+
 	stdoutStderr, err := cmd.CombinedOutput()
 	log.Debug("CMD response: ", string(stdoutStderr))
 
