@@ -29,6 +29,10 @@ spec:
             - name: WARM_ITER_PER_1MS
               value: "115"
           resources:
+            requests:
+              memory: 0
+              cpu: 0
             limits:
               cpu: $CPU_LIMIT
               memory: $MEMORY_LIMIT
+            
