@@ -58,11 +58,11 @@ func DeployFunctions(
 }
 
 func deploy(function *tc.Function, serviceConfigPath string, initScale int, isPartiallyPanic bool) bool {
-	panicWindow := "10.0"
-	panicThreshold := "200.0"
+	panicWindow := "\"10.0\""
+	panicThreshold := "\"200.0\""
 	if isPartiallyPanic {
-		panicWindow = "100.0"
-		panicThreshold = "1000.0"
+		panicWindow = "\"100.0\""
+		panicThreshold = "\"1000.0\""
 	}
 
 	memoryLimit := util.MinOf(128, function.MemoryStats.Percentile99)
