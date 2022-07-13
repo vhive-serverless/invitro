@@ -126,9 +126,9 @@ func ShuffleAllInvocationsInplace(invocationsEachMinute *[][]int) {
 	}
 }
 
-var notMedian = func() bool {
-	return specRand.Int31()&0x01 == 0
-}
+// var notMedian = func() bool {
+// 	return specRand.Int31()&0x01 == 0
+// }
 
 func randIntBetween(min, max int) int {
 	inverval := util.MaxOf(1, max-min)
@@ -137,7 +137,7 @@ func randIntBetween(min, max int) int {
 
 func GenerateExecutionSpecs(function tc.Function) (int, int) {
 
-	if function.MemoryStats.Percentile100 == function.RuntimeStats.Maximum {
+	if function.MemoryStats.Count < 0 {
 		//* Custom runtime specs.
 		return function.RuntimeStats.Average, function.MemoryStats.Average
 	}

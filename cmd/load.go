@@ -179,12 +179,14 @@ func runStressMode() {
 			Name:     stressFunc,
 			Endpoint: tc.GetFuncEndpoint(stressFunc),
 			RuntimeStats: tc.FunctionRuntimeStats{
+				Count:   -1,
 				Average: *funcDuration,
-				Maximum: 0,
+				Maximum: *funcDuration * 10,
 			},
 			MemoryStats: tc.FunctionMemoryStats{
+				Count:         -1,
 				Average:       *funcMemory,
-				Percentile100: 0,
+				Percentile100: *funcMemory * 10,
 			},
 		})
 		initialScales = append(initialScales, 1)
