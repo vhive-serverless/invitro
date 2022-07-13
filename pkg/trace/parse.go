@@ -72,6 +72,8 @@ func ParseInvocationTrace(traceFile string, traceDuration int) FunctionTraces {
 					hashAppIndex = i
 				case "hashfunction":
 					hashFunctionIndex = i
+				case "trigger": //! Unused field.
+					invocationColumnIndex = i + 1
 				}
 			}
 
@@ -156,9 +158,13 @@ func parseToInt(text string) int {
 func ParseDurationTrace(trace *FunctionTraces, traceFile string) {
 	log.Infof("Parsing function duration trace: %s", traceFile)
 
-	// Create mapping from function hash to function position in trace
+	// Create mapping from function hash to function position in `FunctionTraces`.
 	funcPos := make(map[string]int)
 	for i, function := range trace.Functions {
+		if _, exist := funcPos[function.HashFunction]; exist {
+			//* Replace duplicated function hash.
+			function.HashFunction = strconv.Itoa(int(util.Hash(function.Name)))
+		}
 		funcPos[function.HashFunction] = i
 	}
 
@@ -234,9 +240,13 @@ func parseMemoryStats(record []string) FunctionMemoryStats {
 func ParseMemoryTrace(trace *FunctionTraces, traceFile string) {
 	log.Infof("Parsing function memory trace: %s", traceFile)
 
-	// Create mapping from function hash to function position in trace
+	// Create mapping from function hash to function position in `FunctionTraces`.
 	funcPos := make(map[string]int)
 	for i, function := range trace.Functions {
+		if _, exist := funcPos[function.HashApp]; exist {
+			//* Replace duplicated function hash.
+			function.HashApp = strconv.Itoa(int(util.Hash(function.Name)))
+		}
 		funcPos[function.HashApp] = i
 	}
 
