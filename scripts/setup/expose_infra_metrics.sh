@@ -59,5 +59,6 @@ server_exec() {
 	echo 'Done setting up monitoring components'
 
 	server_exec 'cd loader; bash scripts/setup/patch_init_scale.sh'
+	server_exec 'cd loader/data; wget -q -O traces.zip "https://www.dropbox.com/scl/fo/x4ct0kzzjnn6we7h31md4/h?dl=1&rlkey=llxj5f5i3uz9rvd9h3m573ueg" && unzip traces.zip -q -d traces'
 	exit
 }
