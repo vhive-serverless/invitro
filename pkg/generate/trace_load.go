@@ -109,29 +109,35 @@ trace_gen:
 			select {
 			case <-ticker.C:
 
-				go func(m int, nxt int, phase int, rps int, interval int64) {
-					defer wg.Done()
-					wg.Add(1)
+				if tick >= numInvocatonsThisMinute {
+					//* Finished before timeout.
+					log.Info("Finish target invocation early at Minute slot ", minute, " Itr. ", tick)
+					done <- true
+				} else {
+					go func(m int, nxt int, phase int, rps int, interval int64) {
+						defer wg.Done()
+						wg.Add(1)
 
-					atomic.AddInt64(&numFuncInvokedThisMinute, 1)
-					funcIndx := invocationsEachMinute[m][nxt]
-					function := functions[funcIndx]
+						atomic.AddInt64(&numFuncInvokedThisMinute, 1)
+						funcIndx := invocationsEachMinute[m][nxt]
+						function := functions[funcIndx]
 
-					runtimeRequested, memoryRequested := GenerateExecutionSpecs(function)
-					success, execRecord := fc.Invoke(function, runtimeRequested, memoryRequested)
+						runtimeRequested, memoryRequested := GenerateExecutionSpecs(function)
+						success, execRecord := fc.Invoke(function, runtimeRequested, memoryRequested)
 
-					if success {
-						atomic.AddInt64(&successCountTotal, 1)
-					} else {
-						atomic.AddInt64(&failureCountTotal, 1)
-					}
-					execRecord.Phase = phase
-					execRecord.Interval = interval
-					execRecord.Rps = rps
-					execRecord.ColdStartCount = coldStartGauge
-					collector.ReportExecution(execRecord, clusterUsage, knStats)
+						if success {
+							atomic.AddInt64(&successCountTotal, 1)
+						} else {
+							atomic.AddInt64(&failureCountTotal, 1)
+						}
+						execRecord.Phase = phase
+						execRecord.Interval = interval
+						execRecord.Rps = rps
+						execRecord.ColdStartCount = coldStartGauge
+						collector.ReportExecution(execRecord, clusterUsage, knStats)
 
-				}(minute, tick, phaseIdx, rps, interval.Milliseconds()) //* Push vars onto the stack to prevent racing.
+					}(minute, tick, phaseIdx, rps, interval.Milliseconds()) //* Push vars onto the stack to prevent racing.
+				}
 
 			case <-done:
 				log.Info("Iteration spent: ", time.Since(iterStart), "\tMinute Nbr. ", minute)
@@ -150,12 +156,12 @@ trace_gen:
 				collector.ReportInvocation(invRecord)
 				coldStartMinuteCount = 0
 
-				/** Warmup phase */
+				/** Warmup phases */
 				stationaryWindow := 1
-
 				switch phaseIdx {
 				case 1:
-					if collector.IsLatencyStationary(rps*60*stationaryWindow, STATIONARY_P_VALUE) {
+					// if collector.IsLatencyStationary(rps*60*stationaryWindow, STATIONARY_P_VALUE) {
+					if minute > 2 { //* Static warmup.
 						minute++
 						break trace_gen
 					}
@@ -174,15 +180,10 @@ trace_gen:
 				goto next_minute
 			}
 
-			if tick++; tick < numInvocatonsThisMinute {
-				//* Load the next inter-arrival time.
-				interval = time.Duration(iats[tick]) * time.Microsecond
-				ticker = time.NewTicker(interval)
-			} else {
-				//* Finished before timeout.
-				log.Info("Finish target invocation early at Minute slot ", minute, " Itr. ", tick)
-				done <- true
-			}
+			tick++
+			//* Load the next inter-arrival time.
+			interval = time.Duration(iats[tick]) * time.Microsecond
+			ticker = time.NewTicker(interval)
 		}
 	next_minute:
 	}

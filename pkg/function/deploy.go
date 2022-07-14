@@ -75,7 +75,7 @@ func deploy(function *tc.Function, serviceConfigPath string, initScale int, isPa
 	}
 
 	memoryLimit := int(SANDBOX_OVERHEAD_MIB + util.MinOf(MAX_MEM_MIB, util.MaxOf(128, int(float32(function.MemoryStats.Percentile100)*(1.0+OVERPROVISION_MEM_RATIO)))))
-	cpuLimit := 1000 * memoryLimit / 1_769 //* AWS conversion.
+	cpuLimit := util.MaxOf(1000, 1000*memoryLimit/1_769) //* AWS conversion.
 
 	cmd := exec.Command(
 		"bash",
