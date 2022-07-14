@@ -30,9 +30,6 @@ spec:
               value: "115"
           resources:
             requests:
-              memory: 0
-              cpu: 0
-            limits:
-              cpu: $CPU_LIMIT
-              memory: $MEMORY_LIMIT
+              cpu: $CPU_REQUEST
+              memory: $MEMORY_REQUEST
             

@@ -115,15 +115,21 @@ $ bash scripts/experiments/run_rps_mode.sh \
     <print-option: debug | info | all>
 ```
 
-### Build the image for server functions
+## Build the image for server functions
 
-```sh
+```bash
 $ make build <trace-func|busy-wait|sleep>
 ```
-### Update gRPC protocol
+## Update gRPC protocol
 
-```sh
+```bash
 $ make proto
+```
+
+## Clean up between runs
+
+```bash
+$ make clean
 ```
 
 ---

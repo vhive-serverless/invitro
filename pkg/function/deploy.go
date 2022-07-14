@@ -74,8 +74,8 @@ func deploy(function *tc.Function, serviceConfigPath string, initScale int, isPa
 		panicThreshold = "\"1000.0\""
 	}
 
-	memoryLimit := int(SANDBOX_OVERHEAD_MIB + util.MinOf(MAX_MEM_MIB, util.MaxOf(128, int(float32(function.MemoryStats.Percentile100)*(1.0+OVERPROVISION_MEM_RATIO)))))
-	cpuLimit := util.MaxOf(1000, 1000*memoryLimit/1_769) //* AWS conversion.
+	memoryRequest := util.MinOf(MAX_MEM_MIB, util.MaxOf(128, function.MemoryStats.Percentile100))
+	cpuRequest := 1000 * memoryRequest / 1_769 //* AWS conversion.
 
 	cmd := exec.Command(
 		"bash",
@@ -83,8 +83,8 @@ func deploy(function *tc.Function, serviceConfigPath string, initScale int, isPa
 		serviceConfigPath,
 		function.Name,
 
-		strconv.Itoa(memoryLimit)+"Mi",
-		strconv.Itoa(cpuLimit)+"m",
+		strconv.Itoa(memoryRequest)+"Mi",
+		strconv.Itoa(cpuRequest)+"m",
 		strconv.Itoa(initScale),
 
 		panicWindow,
