@@ -9,6 +9,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	util "github.com/eth-easl/loader/pkg"
+	fc "github.com/eth-easl/loader/pkg/function"
 	tc "github.com/eth-easl/loader/pkg/trace"
 )
 
@@ -23,11 +24,6 @@ const (
 
 	RPS_WARMUP_FRACTION  = 0.5
 	MAX_RPS_STARTUP_STEP = 5
-
-	MAX_EXEC_TIME_MILLI = 60e3   // 60s (avg. p96 from Wild).
-	MIN_EXEC_TIME_MILLI = 1      // 1ms (min. billing unit of AWS).
-	MAX_MEM_MIB         = 10_240 // Max. volume from AWS Lambda. 400MiB (max. p90 for the whole App from Wild).
-	MIN_MEM_MIB         = 1
 )
 
 /** Seed the math/rand package for it to be different on each run. */
@@ -193,8 +189,8 @@ func GenerateExecutionSpecs(function tc.Function) (int, int) {
 	}
 
 	//* Clamp specs to prevent outliers.
-	runtime = util.MinOf(MAX_EXEC_TIME_MILLI, util.MaxOf(MIN_EXEC_TIME_MILLI, runtime))
-	memory = util.MinOf(MAX_MEM_MIB, util.MaxOf(MIN_MEM_MIB, memory))
+	runtime = util.MinOf(fc.MAX_EXEC_TIME_MILLI, util.MaxOf(fc.MIN_EXEC_TIME_MILLI, runtime))
+	memory = util.MinOf(fc.MAX_MEM_MIB, util.MaxOf(fc.MIN_MEM_MIB, memory))
 	return runtime, memory
 }
 

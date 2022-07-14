@@ -11,6 +11,15 @@ import (
 	tc "github.com/eth-easl/loader/pkg/trace"
 )
 
+const (
+	MAX_EXEC_TIME_MILLI             = 60e3   // 60s (avg. p96 from Wild).
+	MIN_EXEC_TIME_MILLI             = 1      // 1ms (min. billing unit of AWS).
+	MAX_MEM_MIB                     = 10_240 // Max. volume from AWS Lambda. 400MiB (max. p90 for the whole App from Wild).
+	MIN_MEM_MIB                     = 1
+	OVERPROVISION_MEM_RATIO float32 = 0.3 // From Quasar paper.
+	SANDBOX_OVERHEAD_MIB            = 200
+)
+
 var (
 	regex = regexp.MustCompile("at URL:\nhttp://([^\n]+)")
 )
@@ -65,8 +74,8 @@ func deploy(function *tc.Function, serviceConfigPath string, initScale int, isPa
 		panicThreshold = "\"1000.0\""
 	}
 
-	memoryLimit := util.MinOf(10_240, util.MaxOf(128, function.MemoryStats.Percentile100+200))
-	cpuLimit := 1000 * memoryLimit / 1_769
+	memoryLimit := int(SANDBOX_OVERHEAD_MIB + util.MinOf(MAX_MEM_MIB, util.MaxOf(128, int(float32(function.MemoryStats.Percentile100)*(1.0+OVERPROVISION_MEM_RATIO)))))
+	cpuLimit := 1000 * memoryLimit / 1_769 //* AWS conversion.
 
 	cmd := exec.Command(
 		"bash",
