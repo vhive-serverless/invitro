@@ -10,11 +10,11 @@ certificatesDir: /etc/kubernetes/pki
 clusterName: kubernetes
 dns:
   type: CoreDNS
-etcd:
-  local:
-    dataDir: /var/lib/etcd
-  extraArgs: 
-    listen-client-urls: "http://10.0.1.1:2379"
+# etcd:
+#   local:
+#     dataDir: /var/lib/etcd
+#   extraArgs: 
+#     listen-client-urls: "http://10.0.1.1:2379"
 imageRepository: k8s.gcr.io
 # kubernetesVersion: v1.20.6
 # kubernetesVersion: v1.20.15

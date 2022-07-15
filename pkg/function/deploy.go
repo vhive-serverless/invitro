@@ -17,7 +17,6 @@ const (
 	MAX_MEM_MIB                     = 10_240 // Max. volume from AWS Lambda. 400MiB (max. p90 for the whole App from Wild).
 	MIN_MEM_MIB                     = 1
 	OVERPROVISION_MEM_RATIO float32 = 0.3 // From Quasar paper.
-	SANDBOX_OVERHEAD_MIB            = 200
 )
 
 var (
@@ -74,8 +73,22 @@ func deploy(function *tc.Function, serviceConfigPath string, initScale int, isPa
 		panicThreshold = "\"1000.0\""
 	}
 
-	memoryRequest := util.MinOf(MAX_MEM_MIB, util.MaxOf(128, function.MemoryStats.Percentile100))
-	cpuRequest := 1000 * memoryRequest / 1_769 //* AWS conversion.
+	var cpuRequest float32
+	var memoryRequest int
+	switch memoryRequest = util.MinOf(MAX_MEM_MIB, util.MaxOf(128, function.MemoryStats.Percentile100)); {
+	// GCP conversion: https://cloud.google.com/functions/pricing
+	case memoryRequest <= 128:
+		cpuRequest = 0.083
+	case memoryRequest <= 512:
+		cpuRequest = 0.167
+	case memoryRequest <= 1024:
+		cpuRequest = 0.333
+	case memoryRequest <= 2024:
+		cpuRequest = 1
+	default:
+		cpuRequest = 2
+	}
+	cpuRequest *= 1000
 
 	cmd := exec.Command(
 		"bash",
@@ -84,7 +97,7 @@ func deploy(function *tc.Function, serviceConfigPath string, initScale int, isPa
 		function.Name,
 
 		strconv.Itoa(memoryRequest)+"Mi",
-		strconv.Itoa(cpuRequest)+"m",
+		strconv.Itoa(int(cpuRequest))+"m",
 		strconv.Itoa(initScale),
 
 		panicWindow,
