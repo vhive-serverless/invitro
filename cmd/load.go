@@ -121,7 +121,7 @@ func runTraceMode(invPath, runPath, memPath string) {
 	if *duration < 1 {
 		log.Fatal("Trace duration should be longer than 0 minutes.")
 	}
-	traces = tc.ParseInvocationTrace(invPath, util.MinOf(1440, *duration*gen.TRACE_WARMUP_DURATION))
+	traces = tc.ParseInvocationTrace(invPath, util.MinOf(1440, *duration+gen.WARMUP_DURATION_MINUTES*2))
 	tc.ParseDurationTrace(&traces, runPath)
 	tc.ParseMemoryTrace(&traces, memPath)
 
@@ -131,16 +131,14 @@ func runTraceMode(invPath, runPath, memPath string) {
 	}
 
 	totalNumPhases := 3
-	profilingMinutes := *duration/2 + 1 //TODO
 
 	/* Profiling */
 	if *withWarmup {
 		for funcIdx := 0; funcIdx < len(traces.Functions); funcIdx++ {
 			function := traces.Functions[funcIdx]
-			traces.Functions[funcIdx].ConcurrencySats =
-				tc.ProfileFunctionConcurrencies(function, profilingMinutes)
+			traces.Functions[funcIdx] = tc.ProfileFunction(function, gen.PROFILING_DURATION_MINUTES)
 		}
-		traces.WarmupScales = opts.ComputeFunctionsWarmupScales(*cluster, traces.Functions)
+		traces.WarmupScales = opts.ComputeFunctionWarmupScales(*cluster, traces.Functions)
 	}
 
 	/** Deployment */

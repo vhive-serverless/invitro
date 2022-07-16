@@ -167,9 +167,9 @@ trace_gen:
 					}
 				case 2:
 					if collector.IsLatencyStationary(rps*60*stationaryWindow, STATIONARY_P_VALUE) {
-						if minute+phaseOffset+1 >= TRACE_WARMUP_DURATION {
-							if minute+phaseOffset+1 > TRACE_WARMUP_DURATION {
-								log.Warn("Warmup took longer than the required duration: ", TRACE_WARMUP_DURATION)
+						if minute+phaseOffset+1 >= WARMUP_DURATION_MINUTES {
+							if minute+phaseOffset+1 > WARMUP_DURATION_MINUTES {
+								log.Warn("Warmup took longer than the required duration: ", WARMUP_DURATION_MINUTES)
 							}
 							minute++
 							break trace_gen
@@ -210,7 +210,7 @@ trace_gen:
 
 	if phaseIdx == 2 {
 		//* Bound the start of Phase 3.
-		return TRACE_WARMUP_DURATION + 1
+		return WARMUP_DURATION_MINUTES + 1
 	}
 	return phaseOffset + minute
 }

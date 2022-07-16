@@ -14,8 +14,9 @@ import (
 )
 
 const (
-	STATIONARY_P_VALUE    = 0.05
-	TRACE_WARMUP_DURATION = 6 // Six-minute warmup for unifying the starting time.
+	STATIONARY_P_VALUE         = 0.05
+	PROFILING_DURATION_MINUTES = 5  // K8s default eviction duration.
+	WARMUP_DURATION_MINUTES    = 10 // Ten-minute warmup for unifying the starting time.
 
 	OVERFLOAD_THRESHOLD = 0.3
 	OVERFLOAD_TOLERANCE = 2
@@ -190,7 +191,7 @@ func GenerateExecutionSpecs(function tc.Function) (int, int) {
 
 	//* Clamp specs to prevent outliers.
 	runtime = util.MinOf(fc.MAX_EXEC_TIME_MILLI, util.MaxOf(fc.MIN_EXEC_TIME_MILLI, runtime))
-	memory = util.MinOf(fc.MAX_MEM_MIB, util.MaxOf(fc.MIN_MEM_MIB, memory))
+	memory = util.MinOf(1, util.MaxOf(tc.MAX_MEM_QUOTA_MIB, memory))
 	return runtime, memory
 }
 

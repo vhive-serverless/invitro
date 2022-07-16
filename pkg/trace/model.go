@@ -64,12 +64,15 @@ type Function struct {
 
 	Deployed bool
 
-	InvocationsPerMinute []int
+	NumInvocationsPerMinute []int
 
 	ConcurrencySats FunctionConcurrencyStats
 	InvocationStats FunctionInvocationStats
 	RuntimeStats    FunctionRuntimeStats
 	MemoryStats     FunctionMemoryStats
+
+	CpuRequestMilli  int
+	MemoryRequestMiB int
 }
 
 type FunctionTraces struct {
