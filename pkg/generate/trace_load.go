@@ -160,7 +160,7 @@ trace_gen:
 				stationaryWindow := 2
 				switch phaseIdx {
 				case 1:
-					if minute+phaseOffset+1 >= WARMUP_DURATION_MINUTES {
+					if minute+1 >= WARMUP_DURATION_MINUTES {
 						if !collector.IsLatencyStationary(rps*60*stationaryWindow, STATIONARY_P_VALUE) {
 							log.Warnf("Warmup may need longer than %d minutes", WARMUP_DURATION_MINUTES)
 						}
@@ -193,8 +193,8 @@ trace_gen:
 		log.Info("[No timeout] Total invocation + waiting duration: ", totalDuration, "\n")
 	}
 
-	//* Only check overload after the entire Phase 3 to account for all late returns.
-	if phaseIdx == 3 && CheckOverload(atomic.LoadInt64(&successCountTotal), atomic.LoadInt64(&failureCountTotal)) {
+	//* Only check overload after the entire Phase 2 to account for all late returns.
+	if phaseIdx == 2 && CheckOverload(atomic.LoadInt64(&successCountTotal), atomic.LoadInt64(&failureCountTotal)) {
 		DumpOverloadFlag()
 	}
 

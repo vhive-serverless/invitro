@@ -156,7 +156,7 @@ func runTraceMode(invPath, runPath, memPath string) {
 		log.Warn("Warmup failed to finish in %d minutes", *duration)
 	}
 
-	log.Infof("Phase 3: Generate real workloads as of Minute[%d]", nextPhaseStart)
+	log.Infof("Phase 2: Generate real workloads as of Minute[%d]", nextPhaseStart)
 	defer gen.GenerateTraceLoads(
 		*sampleSize,
 		totalNumPhases,
@@ -176,15 +176,16 @@ func runStressMode() {
 		functions = append(functions, tc.Function{
 			Name:     stressFunc,
 			Endpoint: tc.GetFuncEndpoint(stressFunc),
+			//! Set best-effort for RPS sweeping.
+			CpuRequestMilli:  0,
+			MemoryRequestMiB: 0,
 			RuntimeStats: tc.FunctionRuntimeStats{
 				Count:   -1,
 				Average: *funcDuration,
-				Maximum: *funcDuration * 10,
 			},
 			MemoryStats: tc.FunctionMemoryStats{
-				Count:         -1,
-				Average:       *funcMemory,
-				Percentile100: *funcMemory * 10,
+				Count:   -1,
+				Average: *funcMemory,
 			},
 		})
 		initialScales = append(initialScales, 1)

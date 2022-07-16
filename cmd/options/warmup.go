@@ -22,7 +22,7 @@ func ComputeFunctionWarmupScales(clusterSize int, functions []tc.Function) []int
 	totalCpuRequestMilli := 0
 
 	for _, function := range functions {
-		expectedConcurrency := function.ConcurrencySats.Average
+		expectedConcurrency := function.ConcurrencyStats.Average
 		scale := util.MaxOf(MIN_WARMUP_SCALE, int(math.Ceil(expectedConcurrency))) // Round up.
 		scales = append(scales, scale)
 		totalCpuRequestMilli += scale * function.CpuRequestMilli

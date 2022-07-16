@@ -66,10 +66,10 @@ type Function struct {
 
 	NumInvocationsPerMinute []int
 
-	ConcurrencySats FunctionConcurrencyStats
-	InvocationStats FunctionInvocationStats
-	RuntimeStats    FunctionRuntimeStats
-	MemoryStats     FunctionMemoryStats
+	ConcurrencyStats FunctionConcurrencyStats
+	InvocationStats  FunctionInvocationStats
+	RuntimeStats     FunctionRuntimeStats
+	MemoryStats      FunctionMemoryStats
 
 	CpuRequestMilli  int
 	MemoryRequestMiB int

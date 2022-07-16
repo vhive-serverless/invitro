@@ -15,13 +15,13 @@ const (
 )
 
 func ProfileFunction(function Function, duration int) Function {
-	function.ConcurrencySats = profileFunctionConcurrencies(function, duration)
+	function.ConcurrencyStats = profileFunctionConcurrencies(function, duration)
 	function.MemoryRequestMiB = function.MemoryStats.Percentile100
-	function.CpuRequestMilli = convertMemoryToCpu(function.MemoryRequestMiB)
+	function.CpuRequestMilli = ConvertMemoryToCpu(function.MemoryRequestMiB)
 	return function
 }
 
-func convertMemoryToCpu(memoryRequest int) int {
+func ConvertMemoryToCpu(memoryRequest int) int {
 	var cpuRequest float32
 	switch memoryRequest = util.MinOf(MAX_MEM_QUOTA_MIB, util.MaxOf(MIN_MEM_QUOTA_MIB, memoryRequest)); {
 	// GCP conversion: https://cloud.google.com/functions/pricing
