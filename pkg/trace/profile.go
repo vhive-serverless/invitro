@@ -45,7 +45,7 @@ func profileFunctionConcurrencies(function Function, duration int) FunctionConcu
 		//* Compute arrival rate (unit: 1s).
 		expectedRps := numInvocationsPerMinute / 60
 		//* Compute processing rate (= runtime_in_milli / 1000) assuming it can be process right away upon arrival.
-		expectedProcessingRatePerSec := float64(function.RuntimeStats.Percentile50) / 1000
+		expectedProcessingRatePerSec := float64(function.RuntimeStats.Average) / 1000
 		//* Expected concurrency == the inventory (total #jobs in the system) of Little's law.
 		expectedConcurrency := float64(expectedRps) * expectedProcessingRatePerSec
 		concurrencies = append(concurrencies, expectedConcurrency)

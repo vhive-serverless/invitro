@@ -191,7 +191,7 @@ func GenerateExecutionSpecs(function tc.Function) (int, int) {
 
 	//* Clamp specs to prevent outliers.
 	runtime = util.MinOf(fc.MAX_EXEC_TIME_MILLI, util.MaxOf(fc.MIN_EXEC_TIME_MILLI, runtime))
-	memory = util.MinOf(1, util.MaxOf(tc.MAX_MEM_QUOTA_MIB, memory))
+	memory = util.MinOf(tc.MAX_MEM_QUOTA_MIB, util.MaxOf(1, memory))
 	return runtime, memory
 }
 

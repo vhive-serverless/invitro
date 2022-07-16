@@ -22,17 +22,18 @@ func ComputeFunctionWarmupScales(clusterSize int, functions []tc.Function) []int
 	totalCpuRequestMilli := 0
 
 	for _, function := range functions {
-		expectedConcurrency := function.ConcurrencySats.Median
+		expectedConcurrency := function.ConcurrencySats.Average
 		scale := util.MaxOf(MIN_WARMUP_SCALE, int(math.Ceil(expectedConcurrency))) // Round up.
 		scales = append(scales, scale)
 		totalCpuRequestMilli += scale * function.CpuRequestMilli
 	}
 
-	log.Info("Warmup scales (%d ms) <-> Cluster capacity (%d)", totalCpuRequestMilli, totalClusterCapacityMilli)
+	log.Infof("Warmup CPU demand (%d ms) <-> Cluster capacity (%d ms)", totalCpuRequestMilli, totalClusterCapacityMilli)
+	log.Info("Warmup scales: ", scales)
 
 	if totalCpuRequestMilli > totalClusterCapacityMilli {
 		scales = MaxMaxAlloc(totalClusterCapacityMilli, scales, functions)
-		log.Info("Max-min scales: ", scales)
+		log.Info("Max-max scales: ", scales)
 	}
 	return scales
 }
@@ -92,9 +93,14 @@ func MaxMaxAlloc(totalClusterCapacityMilli int, scales []int, functions []tc.Fun
 	return newScales
 }
 
-func Warmup(sampleSize int, totalNumPhases int,
-	functions []tc.Function, traces tc.FunctionTraces) int {
-	nextPhaseStart := 0
+func Warmup(
+	sampleSize int,
+	totalNumPhases int,
+	functions []tc.Function,
+	traces tc.FunctionTraces,
+) int {
+	//* Skip the profiling minutes.
+	nextPhaseStart := gen.PROFILING_DURATION_MINUTES
 	for phaseIdx := 1; phaseIdx < totalNumPhases; phaseIdx++ {
 		// //* Set up kn environment
 		// if phaseIdx == 1 {

@@ -157,23 +157,15 @@ trace_gen:
 				coldStartMinuteCount = 0
 
 				/** Warmup phases */
-				stationaryWindow := 1
+				stationaryWindow := 2
 				switch phaseIdx {
 				case 1:
-					// if collector.IsLatencyStationary(rps*60*stationaryWindow, STATIONARY_P_VALUE) {
-					if minute > 2 { //* Static warmup.
+					if minute+phaseOffset+1 >= WARMUP_DURATION_MINUTES {
+						if !collector.IsLatencyStationary(rps*60*stationaryWindow, STATIONARY_P_VALUE) {
+							log.Warnf("Warmup may need longer than %d minutes", WARMUP_DURATION_MINUTES)
+						}
 						minute++
 						break trace_gen
-					}
-				case 2:
-					if collector.IsLatencyStationary(rps*60*stationaryWindow, STATIONARY_P_VALUE) {
-						if minute+phaseOffset+1 >= WARMUP_DURATION_MINUTES {
-							if minute+phaseOffset+1 > WARMUP_DURATION_MINUTES {
-								log.Warn("Warmup took longer than the required duration: ", WARMUP_DURATION_MINUTES)
-							}
-							minute++
-							break trace_gen
-						}
 					}
 				}
 
@@ -208,9 +200,5 @@ trace_gen:
 
 	defer collector.FinishAndSave(sampleSize, phaseIdx, minute)
 
-	if phaseIdx == 2 {
-		//* Bound the start of Phase 3.
-		return WARMUP_DURATION_MINUTES + 1
-	}
 	return phaseOffset + minute
 }

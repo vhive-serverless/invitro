@@ -130,7 +130,7 @@ func runTraceMode(invPath, runPath, memPath string) {
 		fmt.Println("\t" + function.GetName())
 	}
 
-	totalNumPhases := 3
+	totalNumPhases := 2
 
 	/* Profiling */
 	if *withWarmup {
@@ -144,13 +144,13 @@ func runTraceMode(invPath, runPath, memPath string) {
 	/** Deployment */
 	functions := fc.DeployFunctions(traces.Functions, serviceConfigPath, traces.WarmupScales, *isPartiallyPanic)
 
-	/** Warmup (Phase 1 and 2) */
+	/** Warmup (Phase 1) */
 	nextPhaseStart := 0
 	if *withWarmup {
 		nextPhaseStart = opts.Warmup(*sampleSize, totalNumPhases, functions, traces)
 	}
 
-	/** Measurement (Phase 3) */
+	/** Measurement (Phase 2) */
 	if nextPhaseStart == *duration {
 		// gen.DumpOverloadFlag()
 		log.Warn("Warmup failed to finish in %d minutes", *duration)
