@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestMaxMinAlloc(t *testing.T) {
+func TestMaxMaxAlloc(t *testing.T) {
 	totalClusterCapacityMilli := 100
 	scales := []int{8, 1, 9, 2, 2, 8, 0, 0}
 	var functions []tc.Function
@@ -19,27 +19,19 @@ func TestMaxMinAlloc(t *testing.T) {
 	}
 
 	/** Sufficient capacity. */
-	newScales := cmd.MaxMinAlloc(totalClusterCapacityMilli, scales, functions)
+	newScales := cmd.MaxMaxAlloc(totalClusterCapacityMilli, scales, functions)
 	assert.Equal(t, scales, newScales)
 
-	/** Max min. */
-	// 9 1 8 2 2 8 -> 1 2 8 9
-	// => -1
-	// 8 0 7 1 1 7 (+6)
-	// => -2
-	// 6 0 5 0 0 5 (+8)
-	// 3 1 3 2 2 3
-	totalClusterCapacityMilli = 14
-	newScales = cmd.MaxMinAlloc(totalClusterCapacityMilli, scales, functions)
-	assert.Equal(t, []int{3, 1, 3, 2, 2, 3, 0, 0}, newScales)
+	/** Max max. */
+	totalClusterCapacityMilli = 27
+	newScales = cmd.MaxMaxAlloc(totalClusterCapacityMilli, scales, functions)
+	assert.Equal(t, []int{8, 0, 9, 1, 1, 8, 0, 0}, newScales)
 
-	/** Prioritising the big ones. */
-	totalClusterCapacityMilli = 10
-	newScales = cmd.MaxMinAlloc(totalClusterCapacityMilli, scales, functions)
-	assert.Equal(t, []int{1, 1, 5, 1, 1, 1, 0, 0}, newScales)
+	totalClusterCapacityMilli = 21
+	newScales = cmd.MaxMaxAlloc(totalClusterCapacityMilli, scales, functions)
+	assert.Equal(t, []int{6, 0, 9, 0, 0, 6, 0, 0}, newScales)
 
-	/** Only prioritising the big ones. */
 	totalClusterCapacityMilli = 4
-	newScales = cmd.MaxMinAlloc(totalClusterCapacityMilli, scales, functions)
+	newScales = cmd.MaxMaxAlloc(totalClusterCapacityMilli, scales, functions)
 	assert.Equal(t, []int{0, 0, 4, 0, 0, 0, 0, 0}, newScales)
 }

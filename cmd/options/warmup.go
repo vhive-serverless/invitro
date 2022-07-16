@@ -12,7 +12,6 @@ import (
 )
 
 const (
-	// NODE_CAPACITY    = 100 //* Empirical limit of a single-node cluster (NOT one-worker cluster).
 	NODE_CORE_COUNT  = 16
 	MIN_WARMUP_SCALE = 0
 )
@@ -32,83 +31,64 @@ func ComputeFunctionWarmupScales(clusterSize int, functions []tc.Function) []int
 	log.Info("Warmup scales (%d ms) <-> Cluster capacity (%d)", totalCpuRequestMilli, totalClusterCapacityMilli)
 
 	if totalCpuRequestMilli > totalClusterCapacityMilli {
-		scales = MaxMinAlloc(totalClusterCapacityMilli, scales, functions)
+		scales = MaxMaxAlloc(totalClusterCapacityMilli, scales, functions)
 		log.Info("Max-min scales: ", scales)
 	}
-
-	// totalScale, _ := stats.Sum(scalesData)
-	// log.Info("Total #pods required:\t", totalScale)
-	// log.Info("Warmup scales:\t\t", scales)
-
-	// if totalScale > float64(totalClusterCapacityMilli) {
-	// 	//* Rescale warmup scales.
-	// 	for i := 0; i < len(scales); i++ {
-	// 		ratio := float64(scales[i]) / totalScale
-	// 		scales[i] = int(float64(totalClusterCapacityMilli) * ratio) //! Round down to prevent resource outage.
-	// 	}
-	// }
-	// scalesData = stats.LoadRawData(scales)
-	// totalScale, _ = stats.Sum(scalesData)
-	// log.Info("Rescale to:\t", scales)
-	// log.Info("Total #pods granted:\t", totalScale)
 	return scales
 }
 
-func MaxMinAlloc(totalClusterCapacityMilli int, scales []int, functions []tc.Function) []int {
-	newScales := make([]int, len(functions))
-	quotas := make([]int, len(functions))
+func MaxMaxAlloc(totalClusterCapacityMilli int, scales []int, functions []tc.Function) []int {
+	scalePairs := make(util.PairList, len(scales))
+	for i, scale := range scales {
+		scalePairs[i] = util.Pair{Key: i, Value: scale}
+	}
+	sort.Sort(sort.Reverse(scalePairs))
+
+	quotas := make([]int, len(scales))
 	copy(quotas, scales)
 	sort.Ints(quotas)
-	prevQuota := -1
 
-max_min_alloc:
-	for _, quota := range quotas {
-		if quota == 0 || quota == prevQuota {
-			continue
-		}
+	carry := 0
+	for j, pair := range scalePairs {
+		desiredScale := pair.Value
+		function := functions[(pair.Key).(int)]
+		isFirst := false
 
-		totalPerFunctionRequestedMilli := 0
-		for i, function := range functions {
-			if scales[i]-newScales[i] > 0 {
-				totalPerFunctionRequestedMilli += function.CpuRequestMilli
-			}
-		}
-
-		//* When there's not enough quota to distribute, prioritise the big ones.
-		if totalClusterCapacityMilli < totalPerFunctionRequestedMilli {
-			for j := 1; j <= len(quotas); j++ {
-				maxQuota := quotas[len(quotas)-j]
-				for i, desiredQuota := range scales {
-					if desiredQuota == maxQuota {
-						ration := totalClusterCapacityMilli / functions[i].CpuRequestMilli
-						totalClusterCapacityMilli -= functions[i].CpuRequestMilli * ration
-						if totalClusterCapacityMilli >= 0 {
-							newScales[i] += ration
-						} else {
-							break max_min_alloc
-						}
-					}
+		if carry == 0 && j < len(scalePairs)-1 {
+			isFirst = true
+			for i := j + 1; i < len(scalePairs); i++ {
+				if scalePairs[i].Value == desiredScale {
+					carry++
+				} else {
+					break
 				}
 			}
-
+		} else {
+			carry--
 		}
 
-		for i := 0; i < len(functions); i++ {
-			scale := util.MinOf(quota, util.MaxOf(0, scales[i]-newScales[i]))
-			totalClusterCapacityMilli -= functions[i].CpuRequestMilli * scale
-			if totalClusterCapacityMilli >= 0 {
-				newScales[i] += scale
-			} else {
-				break max_min_alloc
+		totalPossible := totalClusterCapacityMilli / function.CpuRequestMilli
+		ration := util.MinOf(desiredScale, totalPossible)
+		if isFirst && carry > 0 {
+			if totalPossible < desiredScale*(carry+1) {
+				ration = totalPossible / (carry + 1)
 			}
+		} else if carry > 0 {
+			ration = scalePairs[j-1].Value
 		}
-		prevQuota = quota
-	}
-	// minScale, _ := stats.LoadRawData(newScales).Min()
-	// if minScale == 0 {
-	// 	log.Fatal("Not enough capacity")
-	// }
 
+		totalClusterCapacityMilli -= ration * function.CpuRequestMilli
+		if totalClusterCapacityMilli >= 0 {
+			scalePairs[j].Value = ration
+		} else {
+			break
+		}
+	}
+
+	newScales := make([]int, len(scales))
+	for _, pair := range scalePairs {
+		newScales[(pair.Key).(int)] = pair.Value
+	}
 	return newScales
 }
 
