@@ -157,7 +157,7 @@ trace_gen:
 				coldStartMinuteCount = 0
 
 				/** Warmup phases */
-				stationaryWindow := 2
+				stationaryWindow := 1
 				switch phaseIdx {
 				case 1:
 					if minute+1 >= WARMUP_DURATION_MINUTES {

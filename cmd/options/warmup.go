@@ -12,13 +12,14 @@ import (
 )
 
 const (
-	NODE_CORE_COUNT  = 16
-	MIN_WARMUP_SCALE = 0
+	NODE_CORE_COUNT                  = 16
+	MIN_WARMUP_SCALE                 = 0
+	SYS_CPU_OVERHEAD_PERCENT float32 = 0.6
 )
 
 func ComputeFunctionWarmupScales(clusterSize int, functions []tc.Function) []int {
 	var scales []int
-	totalClusterCapacityMilli := NODE_CORE_COUNT * clusterSize * 1000
+	totalClusterCapacityMilli := int(float32(NODE_CORE_COUNT*clusterSize*1000) * (1.0 - SYS_CPU_OVERHEAD_PERCENT))
 	totalCpuRequestMilli := 0
 
 	for _, function := range functions {

@@ -2,7 +2,7 @@
 
 A load generator for benchmarking serverless systems based upon [faas-load-generator](https://github.com/eth-easl/faas-load-generator) and the example code in [vHive](https://github.com/ease-lab/vhive).
 
-## Set up a cluster
+## Create a cluster
 
 First, change the parameters (e.g., `GITHUB_TOKEN`) in the `script/setup.cfg` is necessary.
 
