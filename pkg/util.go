@@ -13,6 +13,22 @@ import (
 // 	rand.Seed(time.Now().UnixNano())
 // }
 
+type Pair struct {
+	Key   interface{}
+	Value int
+}
+type PairList []Pair
+
+func (p PairList) Len() int {
+	return len(p)
+}
+func (p PairList) Swap(i, j int) {
+	p[i], p[j] = p[j], p[i]
+}
+func (p PairList) Less(i, j int) bool {
+	return p[i].Value < p[j].Value
+}
+
 func ReadIntArray(filePath, delimiter string) []int {
 	content, err := ioutil.ReadFile(filePath)
 	Check(err)
@@ -94,8 +110,8 @@ func Check(e error) {
 	}
 }
 
-func Hash(s string) uint32 {
-	h := fnv.New32a()
+func Hash(s string) uint64 {
+	h := fnv.New64a()
 	h.Write([]byte(s))
-	return h.Sum32()
+	return h.Sum64()
 }

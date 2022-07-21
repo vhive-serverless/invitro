@@ -3,56 +3,110 @@ package cmd
 import (
 	"math"
 	"os/exec"
+	"sort"
 
 	util "github.com/eth-easl/loader/pkg"
 	gen "github.com/eth-easl/loader/pkg/generate"
 	tc "github.com/eth-easl/loader/pkg/trace"
-	"github.com/montanaflynn/stats"
 	log "github.com/sirupsen/logrus"
 )
 
 const (
-	NODE_CAPACITY    = 100 //* Empirical limit of a single-node cluster (NOT one-worker cluster).
-	MIN_WARMUP_SCALE = 1
+	NODE_CORE_COUNT                  = 16
+	MIN_WARMUP_SCALE                 = 0
+	SYS_CPU_OVERHEAD_PERCENT float32 = 0.6
 )
 
-func ComputeFunctionsWarmupScales(clusterSize int, functions []tc.Function) []int {
+func ComputeFunctionWarmupScales(clusterSize int, functions []tc.Function) []int {
 	var scales []int
-	totalCapacity := NODE_CAPACITY * clusterSize
+	totalClusterCapacityMilli := int(float32(NODE_CORE_COUNT*clusterSize*1000) * (1.0 - SYS_CPU_OVERHEAD_PERCENT))
+	totalCpuRequestMilli := 0
 
 	for _, function := range functions {
-		expectedConcurrency := function.ConcurrencySats.Median
-		scale := util.MaxOf(MIN_WARMUP_SCALE, int(math.Ceil(expectedConcurrency))) //* Round up.
+		expectedConcurrency := function.ConcurrencyStats.Average
+		scale := util.MaxOf(MIN_WARMUP_SCALE, int(math.Ceil(expectedConcurrency))) // Round up.
 		scales = append(scales, scale)
+		totalCpuRequestMilli += scale * function.CpuRequestMilli
 	}
 
-	scalesData := stats.LoadRawData(scales)
-	totalScale, _ := stats.Sum(scalesData)
-	log.Info("Total #pods required:\t", totalScale)
-	log.Info("Warmup scales:\t\t", scales)
+	log.Infof("Warmup CPU demand (%d ms) <-> Cluster capacity (%d ms)", totalCpuRequestMilli, totalClusterCapacityMilli)
+	log.Info("Warmup scales: ", scales)
 
-	if totalScale > float64(totalCapacity) {
-		//* Rescale warmup scales.
-		for i := 0; i < len(scales); i++ {
-			ratio := float64(scales[i]) / totalScale
-			scales[i] = int(float64(totalCapacity) * ratio) //! Round down to prevent resource outage.
-		}
+	if totalCpuRequestMilli > totalClusterCapacityMilli {
+		scales = MaxMaxAlloc(totalClusterCapacityMilli, scales, functions)
+		log.Info("Max-max scales: ", scales)
 	}
-	scalesData = stats.LoadRawData(scales)
-	totalScale, _ = stats.Sum(scalesData)
-	log.Info("Rescale to:\t", scales)
-	log.Info("Total #pods granted:\t", totalScale)
 	return scales
 }
 
-func Warmup(sampleSize int, totalNumPhases int,
-	functions []tc.Function, traces tc.FunctionTraces) int {
-	nextPhaseStart := 0
-	for phaseIdx := 1; phaseIdx < totalNumPhases; phaseIdx++ {
-		//* Set up kn environment
-		if phaseIdx == 1 {
-			setKnConfigMap("config/kn_configmap_warmup_init_patch.yaml")
+func MaxMaxAlloc(totalClusterCapacityMilli int, scales []int, functions []tc.Function) []int {
+	scalePairs := make(util.PairList, len(scales))
+	for i, scale := range scales {
+		scalePairs[i] = util.Pair{Key: i, Value: scale}
+	}
+	sort.Sort(sort.Reverse(scalePairs))
+
+	quotas := make([]int, len(scales))
+	copy(quotas, scales)
+	sort.Ints(quotas)
+
+	carry := 0
+	for j, pair := range scalePairs {
+		desiredScale := pair.Value
+		function := functions[(pair.Key).(int)]
+		isFirst := false
+
+		if carry == 0 && j < len(scalePairs)-1 {
+			isFirst = true
+			for i := j + 1; i < len(scalePairs); i++ {
+				if scalePairs[i].Value == desiredScale {
+					carry++
+				} else {
+					break
+				}
+			}
+		} else {
+			carry--
 		}
+
+		totalPossible := totalClusterCapacityMilli / function.CpuRequestMilli
+		ration := util.MinOf(desiredScale, totalPossible)
+		if isFirst && carry > 0 {
+			if totalPossible < desiredScale*(carry+1) {
+				ration = totalPossible / (carry + 1)
+			}
+		} else if carry > 0 {
+			ration = scalePairs[j-1].Value
+		}
+
+		totalClusterCapacityMilli -= ration * function.CpuRequestMilli
+		if totalClusterCapacityMilli >= 0 {
+			scalePairs[j].Value = ration
+		} else {
+			break
+		}
+	}
+
+	newScales := make([]int, len(scales))
+	for _, pair := range scalePairs {
+		newScales[(pair.Key).(int)] = pair.Value
+	}
+	return newScales
+}
+
+func Warmup(
+	sampleSize int,
+	totalNumPhases int,
+	functions []tc.Function,
+	traces tc.FunctionTraces,
+) int {
+	//* Skip the profiling minutes.
+	nextPhaseStart := gen.PROFILING_DURATION_MINUTES
+	for phaseIdx := 1; phaseIdx < totalNumPhases; phaseIdx++ {
+		// //* Set up kn environment
+		// if phaseIdx == 1 {
+		// 	setKnConfigMap("config/kn_configmap_warmup_init_patch.yaml")
+		// }
 
 		log.Infof("Enter Phase %d as of Minute[%d]", phaseIdx, nextPhaseStart)
 		nextPhaseStart = gen.GenerateTraceLoads(
@@ -65,11 +119,11 @@ func Warmup(sampleSize int, totalNumPhases int,
 			traces.TotalInvocationsPerMinute[nextPhaseStart:],
 		)
 
-		//* Reset kn environment
-		if phaseIdx == 1 {
-			setKnConfigMap("config/kn_configmap_warmup_reset_patch.yaml")
-			livePatchKpas("scripts/warmup/livepatch_kpa.sh")
-		}
+		// //* Reset kn environment
+		// if phaseIdx == 1 {
+		// 	setKnConfigMap("config/kn_configmap_warmup_reset_patch.yaml")
+		// 	livePatchKpas("scripts/warmup/livepatch_kpa.sh")
+		// }
 	}
 	return nextPhaseStart
 }
