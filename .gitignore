@@ -1,6 +1,8 @@
 load
 analysis
 .vscode/
+.idea
+tmp
 
 ### CMake ###
 CMakeLists.txt.user
