@@ -1,6 +1,7 @@
 apiVersion: serving.knative.dev/v1
 kind: Service
 metadata:
+  name: $FUNC_NAME
   namespace: default
 spec:
   template:
@@ -11,6 +12,9 @@ spec:
         autoscaling.knative.dev/target-utilization-percentage: "100"  # Enforce container concurrency at any time.
         autoscaling.knative.dev/target-burst-capacity: "-1"  # Put activator always in the path explicitly.
         autoscaling.knative.dev/max-scale: "200"  # Maximum instances limit of Azure.
+
+        autoscaling.knative.dev/panic-window-percentage: $PANIC_WINDOW
+        autoscaling.knative.dev/panic-threshold-percentage: $PANIC_THRESHOLD
     spec:
       containerConcurrency: 1
       containers:
@@ -24,3 +28,8 @@ spec:
               value: "90"
             - name: WARM_ITER_PER_1MS
               value: "115"
+          resources:
+            requests:
+              cpu: $CPU_REQUEST
+              memory: $MEMORY_REQUEST
+            

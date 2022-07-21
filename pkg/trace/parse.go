@@ -7,6 +7,7 @@ import (
 	"math/rand"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	util "github.com/eth-easl/loader/pkg"
@@ -44,6 +45,12 @@ func ParseInvocationTrace(traceFile string, traceDuration int) FunctionTraces {
 
 	reader := csv.NewReader(csvfile)
 	funcIdx := -1
+
+	hashOwnerIndex := -1
+	hashAppIndex := -1
+	hashFunctionIndex := -1
+	invocationColumnIndex := -1
+
 	for {
 		// Read each record from csv.
 		record, err := reader.Read()
@@ -55,13 +62,34 @@ func ParseInvocationTrace(traceFile string, traceDuration int) FunctionTraces {
 			log.Fatal(err)
 		}
 
-		// Skip header.
-		if funcIdx != -1 {
+		if funcIdx == -1 {
+			// Parse header.
+			for i := 0; i < 4; i++ {
+				switch strings.ToLower(record[i]) {
+				case "hashowner":
+					hashOwnerIndex = i
+				case "hashapp":
+					hashAppIndex = i
+				case "hashfunction":
+					hashFunctionIndex = i
+				case "trigger": //! Unused field.
+					invocationColumnIndex = i + 1
+				}
+			}
+
+			if hashOwnerIndex == -1 || hashAppIndex == -1 || hashFunctionIndex == -1 {
+				panic("Invocation trace does not contain one of the hashes.")
+			}
+
+			if invocationColumnIndex == -1 {
+				invocationColumnIndex = 3
+			}
+		} else {
 			// Parse invocations.
 			var invocations []int
-			idsLen := 3
-			for i := idsLen; i < idsLen+traceDuration; i++ {
-				minute := i - idsLen
+
+			for i := invocationColumnIndex; i < invocationColumnIndex+traceDuration; i++ {
+				minute := i - invocationColumnIndex
 				num, err := strconv.Atoi(record[i])
 				util.Check(err)
 
@@ -79,11 +107,12 @@ func ParseInvocationTrace(traceFile string, traceDuration int) FunctionTraces {
 			funcName := fmt.Sprintf("%s-%d-%d", "trace-func", funcIdx, rand.Uint64())
 
 			function := Function{
-				Name:                 funcName,
-				Endpoint:             GetFuncEndpoint(funcName),
-				Hash:                 record[0],
-				AppHash:              record[1],
-				InvocationsPerMinute: invocations,
+				Name:                    funcName,
+				Endpoint:                GetFuncEndpoint(funcName),
+				HashOwner:               record[hashOwnerIndex],
+				HashApp:                 record[hashAppIndex],
+				HashFunction:            record[hashFunctionIndex],
+				NumInvocationsPerMinute: invocations,
 
 				InvocationStats: ProfileFunctionInvocations(invocations),
 			}
@@ -129,10 +158,14 @@ func parseToInt(text string) int {
 func ParseDurationTrace(trace *FunctionTraces, traceFile string) {
 	log.Infof("Parsing function duration trace: %s", traceFile)
 
-	// Create mapping from function hash to function position in trace
+	// Create mapping from function hash to function position in `FunctionTraces`.
 	funcPos := make(map[string]int)
 	for i, function := range trace.Functions {
-		funcPos[function.Hash] = i
+		if _, exist := funcPos[function.HashFunction]; exist {
+			//* Replace duplicated function hash.
+			function.HashFunction = strconv.Itoa(int(util.Hash(function.Name)))
+		}
+		funcPos[function.HashFunction] = i
 	}
 
 	csvfile, err := os.Open(traceFile)
@@ -143,6 +176,9 @@ func ParseDurationTrace(trace *FunctionTraces, traceFile string) {
 	reader := csv.NewReader(csvfile)
 	l := -1
 	foundDurations := 0
+
+	functionHashIndex := -1
+
 	for {
 		// Read each record from csv
 		record, err := reader.Read()
@@ -154,10 +190,21 @@ func ParseDurationTrace(trace *FunctionTraces, traceFile string) {
 			log.Fatal(err)
 		}
 
-		// Skip header
-		if l != -1 {
+		if l == -1 {
+			// Parse header
+			for i := 0; i < 3; i++ {
+				if record[i] == "HashFunction" {
+					functionHashIndex = i
+					break
+				}
+			}
+
+			if functionHashIndex == -1 {
+				panic("Invalid duration trace. No function hash.")
+			}
+		} else {
 			// Parse durations
-			functionHash := record[2]
+			functionHash := record[functionHashIndex]
 			funcIdx, contained := funcPos[functionHash]
 			if contained {
 				trace.Functions[funcIdx].RuntimeStats = parseDurationStats(record)
@@ -193,10 +240,14 @@ func parseMemoryStats(record []string) FunctionMemoryStats {
 func ParseMemoryTrace(trace *FunctionTraces, traceFile string) {
 	log.Infof("Parsing function memory trace: %s", traceFile)
 
-	// Create mapping from function hash to function position in trace
+	// Create mapping from function hash to function position in `FunctionTraces`.
 	funcPos := make(map[string]int)
 	for i, function := range trace.Functions {
-		funcPos[function.AppHash] = i
+		if _, exist := funcPos[function.HashApp]; exist {
+			//* Replace duplicated function hash.
+			function.HashApp = strconv.Itoa(int(util.Hash(function.Name)))
+		}
+		funcPos[function.HashApp] = i
 	}
 
 	csvfile, err := os.Open(traceFile)
@@ -207,6 +258,9 @@ func ParseMemoryTrace(trace *FunctionTraces, traceFile string) {
 	r := csv.NewReader(csvfile)
 	l := -1
 	foundDurations := 0
+
+	hashAppIndex := -1
+
 	for {
 		// Read each record from csv
 		record, err := r.Read()
@@ -219,10 +273,21 @@ func ParseMemoryTrace(trace *FunctionTraces, traceFile string) {
 		}
 
 		// Skip header
-		if l != -1 {
+		if l == -1 {
+			for i := 0; i < 2; i++ {
+				if record[i] == "HashApp" {
+					hashAppIndex = i
+					break
+				}
+			}
+
+			if hashAppIndex == -1 {
+				panic("Memory trace is missing hash app column.")
+			}
+		} else {
 			// Parse durations
-			functionHash := record[1]
-			funcIdx, contained := funcPos[functionHash]
+			hashApp := record[hashAppIndex]
+			funcIdx, contained := funcPos[hashApp]
 			if contained {
 				trace.Functions[funcIdx].MemoryStats = parseMemoryStats(record)
 				foundDurations += 1

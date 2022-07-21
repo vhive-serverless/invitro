@@ -9,12 +9,14 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	util "github.com/eth-easl/loader/pkg"
+	fc "github.com/eth-easl/loader/pkg/function"
 	tc "github.com/eth-easl/loader/pkg/trace"
 )
 
 const (
-	STATIONARY_P_VALUE    = 0.05
-	TRACE_WARMUP_DURATION = 6 // Six-minute warmup for unifying the starting time.
+	STATIONARY_P_VALUE         = 0.05
+	PROFILING_DURATION_MINUTES = 5  // K8s default eviction duration.
+	WARMUP_DURATION_MINUTES    = 10 // Ten-minute warmup for unifying the starting time.
 
 	OVERFLOAD_THRESHOLD = 0.3
 	OVERFLOAD_TOLERANCE = 2
@@ -23,11 +25,6 @@ const (
 
 	RPS_WARMUP_FRACTION  = 0.5
 	MAX_RPS_STARTUP_STEP = 5
-
-	MAX_EXEC_TIME_MILLI = 60e3 // 60s (avg. p96 from Wild).
-	MIN_EXEC_TIME_MILLI = 1    // 1ms (min. billing unit of AWS).
-	MAX_MEM_MIB         = 400  // 400MiB (max. p90 for the whole App from Wild).
-	MIN_MEM_MIB         = 1
 )
 
 /** Seed the math/rand package for it to be different on each run. */
@@ -126,9 +123,9 @@ func ShuffleAllInvocationsInplace(invocationsEachMinute *[][]int) {
 	}
 }
 
-var notMedian = func() bool {
-	return specRand.Int31()&0x01 == 0
-}
+// var notMedian = func() bool {
+// 	return specRand.Int31()&0x01 == 0
+// }
 
 func randIntBetween(min, max int) int {
 	inverval := util.MaxOf(1, max-min)
@@ -137,7 +134,7 @@ func randIntBetween(min, max int) int {
 
 func GenerateExecutionSpecs(function tc.Function) (int, int) {
 
-	if function.MemoryStats.Percentile100 == function.RuntimeStats.Maximum {
+	if function.MemoryStats.Count < 0 {
 		//* Custom runtime specs.
 		return function.RuntimeStats.Average, function.MemoryStats.Average
 	}
@@ -158,18 +155,30 @@ func GenerateExecutionSpecs(function tc.Function) (int, int) {
 	switch {
 	case memQtl <= 0.01:
 		memory = memStats.Percentile1
-	case memQtl <= 0.05:
+	case memQtl < 0.05:
 		memory = randIntBetween(memStats.Percentile1, memStats.Percentile5)
-	case memQtl <= 0.25:
+	case memQtl == 0.05:
+		memory = memStats.Percentile5
+	case memQtl < 0.25:
 		memory = randIntBetween(memStats.Percentile5, memStats.Percentile25)
-	case memQtl <= 0.50:
+	case memQtl == 0.25:
+		memory = memStats.Percentile25
+	case memQtl < 0.50:
 		memory = randIntBetween(memStats.Percentile25, memStats.Percentile50)
-	case memQtl <= 0.75:
+	case memQtl == 0.50:
+		memory = memStats.Percentile50
+	case memQtl < 0.75:
 		memory = randIntBetween(memStats.Percentile50, memStats.Percentile75)
-	case memQtl <= 0.95:
+	case memQtl == 0.75:
+		memory = memStats.Percentile75
+	case memQtl < 0.95:
 		memory = randIntBetween(memStats.Percentile75, memStats.Percentile95)
-	case memQtl <= 0.99:
+	case memQtl == 0.95:
+		memory = memStats.Percentile95
+	case memQtl < 0.99:
 		memory = randIntBetween(memStats.Percentile95, memStats.Percentile99)
+	case memQtl == 0.99:
+		memory = memStats.Percentile99
 	case memQtl < 1:
 		memory = randIntBetween(memStats.Percentile99, memStats.Percentile100)
 	}
@@ -177,24 +186,32 @@ func GenerateExecutionSpecs(function tc.Function) (int, int) {
 	switch {
 	case runQtl <= 0.01:
 		runtime = runStats.Percentile0
-	case runQtl <= 0.25:
+	case runQtl < 0.25:
 		runtime = randIntBetween(runStats.Percentile1, runStats.Percentile25)
-	case runQtl <= 0.50:
+	case runQtl == 0.25:
+		runtime = runStats.Percentile25
+	case runQtl < 0.50:
 		runtime = randIntBetween(runStats.Percentile25, runStats.Percentile50)
-	case runQtl <= 0.75:
+	case runQtl == 0.50:
+		runtime = runStats.Percentile50
+	case runQtl < 0.75:
 		runtime = randIntBetween(runStats.Percentile50, runStats.Percentile75)
+	case runQtl == 0.75:
+		runtime = runStats.Percentile75
 	case runQtl <= 0.95:
 		runtime = randIntBetween(runStats.Percentile75, runStats.Percentile99)
-	case runQtl <= 0.99:
+	case runQtl < 0.99:
 		runtime = randIntBetween(runStats.Percentile99, runStats.Percentile100)
+	case runQtl == 0.99:
+		runtime = runStats.Percentile99
 	case runQtl < 1:
 		// 100%ile is smaller from the max. somehow.
 		runtime = randIntBetween(runStats.Percentile100, runStats.Maximum)
 	}
 
 	//* Clamp specs to prevent outliers.
-	runtime = util.MinOf(MAX_EXEC_TIME_MILLI, util.MaxOf(MIN_EXEC_TIME_MILLI, runtime))
-	memory = util.MinOf(MAX_MEM_MIB, util.MaxOf(MIN_MEM_MIB, memory))
+	runtime = util.MinOf(fc.MAX_EXEC_TIME_MILLI, util.MaxOf(fc.MIN_EXEC_TIME_MILLI, runtime))
+	memory = util.MinOf(tc.MAX_MEM_QUOTA_MIB, util.MaxOf(1, memory))
 	return runtime, memory
 }
 

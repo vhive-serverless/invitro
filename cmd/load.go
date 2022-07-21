@@ -49,8 +49,9 @@ var (
 	print = flag.String("print", "all", "Choose a mode from [all, debug, info]")
 
 	// withWarmup = flag.Int("withWarmup", -1000, "Duration of the withWarmup")
-	withWarmup  = flag.Bool("warmup", false, "Enable warmup")
-	withTracing = flag.Bool("trace", false, "Enable tracing in the client")
+	isPartiallyPanic = flag.Bool("partiallyPanic", false, "Enable partially panic")
+	withWarmup       = flag.Bool("warmup", false, "Enable warmup")
+	withTracing      = flag.Bool("trace", false, "Enable tracing in the client")
 )
 
 func init() {
@@ -120,7 +121,7 @@ func runTraceMode(invPath, runPath, memPath string) {
 	if *duration < 1 {
 		log.Fatal("Trace duration should be longer than 0 minutes.")
 	}
-	traces = tc.ParseInvocationTrace(invPath, util.MinOf(1440, *duration*gen.TRACE_WARMUP_DURATION))
+	traces = tc.ParseInvocationTrace(invPath, util.MinOf(1440, *duration+gen.WARMUP_DURATION_MINUTES*2))
 	tc.ParseDurationTrace(&traces, runPath)
 	tc.ParseMemoryTrace(&traces, memPath)
 
@@ -129,35 +130,33 @@ func runTraceMode(invPath, runPath, memPath string) {
 		fmt.Println("\t" + function.GetName())
 	}
 
-	totalNumPhases := 3
-	profilingMinutes := *duration/2 + 1 //TODO
+	totalNumPhases := 2
 
 	/* Profiling */
 	if *withWarmup {
 		for funcIdx := 0; funcIdx < len(traces.Functions); funcIdx++ {
 			function := traces.Functions[funcIdx]
-			traces.Functions[funcIdx].ConcurrencySats =
-				tc.ProfileFunctionConcurrencies(function, profilingMinutes)
+			traces.Functions[funcIdx] = tc.ProfileFunction(function, gen.PROFILING_DURATION_MINUTES)
 		}
-		traces.WarmupScales = opts.ComputeFunctionsWarmupScales(*cluster, traces.Functions)
+		traces.WarmupScales = opts.ComputeFunctionWarmupScales(*cluster, traces.Functions)
 	}
 
 	/** Deployment */
-	functions := fc.DeployFunctions(traces.Functions, serviceConfigPath, traces.WarmupScales)
+	functions := fc.DeployFunctions(traces.Functions, serviceConfigPath, traces.WarmupScales, *isPartiallyPanic)
 
-	/** Warmup (Phase 1 and 2) */
+	/** Warmup (Phase 1) */
 	nextPhaseStart := 0
 	if *withWarmup {
 		nextPhaseStart = opts.Warmup(*sampleSize, totalNumPhases, functions, traces)
 	}
 
-	/** Measurement (Phase 3) */
+	/** Measurement (Phase 2) */
 	if nextPhaseStart == *duration {
 		// gen.DumpOverloadFlag()
 		log.Warn("Warmup failed to finish in %d minutes", *duration)
 	}
 
-	log.Infof("Phase 3: Generate real workloads as of Minute[%d]", nextPhaseStart)
+	log.Infof("Phase 2: Generate real workloads as of Minute[%d]", nextPhaseStart)
 	defer gen.GenerateTraceLoads(
 		*sampleSize,
 		totalNumPhases,
@@ -177,19 +176,22 @@ func runStressMode() {
 		functions = append(functions, tc.Function{
 			Name:     stressFunc,
 			Endpoint: tc.GetFuncEndpoint(stressFunc),
+			//! Set best-effort for RPS sweeping.
+			CpuRequestMilli:  0,
+			MemoryRequestMiB: 0,
 			RuntimeStats: tc.FunctionRuntimeStats{
+				Count:   -1,
 				Average: *funcDuration,
-				Maximum: 0,
 			},
 			MemoryStats: tc.FunctionMemoryStats{
-				Average:       *funcMemory,
-				Percentile100: 0,
+				Count:   -1,
+				Average: *funcMemory,
 			},
 		})
 		initialScales = append(initialScales, 1)
 	}
 
-	fc.DeployFunctions(functions, serviceConfigPath, initialScales)
+	fc.DeployFunctions(functions, serviceConfigPath, initialScales, *isPartiallyPanic)
 
 	defer gen.GenerateStressLoads(*rpsStart, *rpsEnd, *rpsStep, *rpsSlot, functions)
 }
@@ -215,7 +217,7 @@ func runBurstMode() {
 		functions = append(functions, functionsTable[f])
 	}
 
-	fc.DeployFunctions(functions, serviceConfigPath, initialScales)
+	fc.DeployFunctions(functions, serviceConfigPath, initialScales, *isPartiallyPanic)
 
 	defer gen.GenerateBurstLoads(*rpsEnd, *burstTarget, *duration, functionsTable)
 }
@@ -241,7 +243,7 @@ func runColdStartMode() {
 		})
 	}
 
-	fc.DeployFunctions(functions, serviceConfigPath, []int{})
+	fc.DeployFunctions(functions, serviceConfigPath, []int{}, *isPartiallyPanic)
 
 	defer gen.GenerateColdStartLoads(*rpsStart, *rpsStep, hotFunction, coldstartCounts)
 }

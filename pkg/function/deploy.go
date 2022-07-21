@@ -10,11 +10,22 @@ import (
 	tc "github.com/eth-easl/loader/pkg/trace"
 )
 
+const (
+	MAX_EXEC_TIME_MILLI             = 60e3 // 60s (avg. p96 from Wild).
+	MIN_EXEC_TIME_MILLI             = 1    // 1ms (min. billing unit of AWS).
+	OVERPROVISION_MEM_RATIO float32 = 0.3  // From Quasar paper.
+)
+
 var (
 	regex = regexp.MustCompile("at URL:\nhttp://([^\n]+)")
 )
 
-func DeployFunctions(functions []tc.Function, serviceConfigPath string, initScales []int) []tc.Function {
+func DeployFunctions(
+	functions []tc.Function,
+	serviceConfigPath string,
+	initScales []int,
+	isPartiallyPanic bool,
+) []tc.Function {
 	var urls []string
 	// deploymentConcurrency := 1 //* Serialise deployment.
 	deploymentConcurrency := len(functions) //* Fully parallelise deployment.
@@ -33,7 +44,7 @@ func DeployFunctions(functions []tc.Function, serviceConfigPath string, initScal
 			}
 			// log.Info(function.GetName(), " -> initScale: ", initScale)
 
-			hasDeployed := deploy(&function, serviceConfigPath, initScale)
+			hasDeployed := deploy(&function, serviceConfigPath, initScale, isPartiallyPanic)
 			function.SetStatus(hasDeployed)
 
 			if hasDeployed {
@@ -51,24 +62,28 @@ func DeployFunctions(functions []tc.Function, serviceConfigPath string, initScal
 	return functions
 }
 
-func deploy(function *tc.Function, serviceConfigPath string, initScale int) bool {
+func deploy(function *tc.Function, serviceConfigPath string, initScale int, isPartiallyPanic bool) bool {
+	panicWindow := "\"10.0\""
+	panicThreshold := "\"200.0\""
+	if isPartiallyPanic {
+		panicWindow = "\"100.0\""
+		panicThreshold = "\"1000.0\""
+	}
+
 	cmd := exec.Command(
-		"kn",
-		"service",
-		"apply",
-		function.Name,
-		"-f",
+		"bash",
+		"./pkg/function/deploy.sh",
 		serviceConfigPath,
-		//! `--scale-min` should NOT be used here since it only has a per-revision key,
-		//! i.e., it will change the min scale for all the (future) pods of this kn service.
-		"--scale-init",
+		function.Name,
+
+		strconv.Itoa(function.MemoryRequestMiB)+"Mi",
+		strconv.Itoa(function.CpuRequestMilli)+"m",
 		strconv.Itoa(initScale),
-		"--concurrency-target",
-		"1",
-		//* Wait for infintely long for ensuring warmup.
-		"--wait-timeout",
-		"2000000",
+
+		panicWindow,
+		panicThreshold,
 	)
+
 	stdoutStderr, err := cmd.CombinedOutput()
 	log.Debug("CMD response: ", string(stdoutStderr))
 
