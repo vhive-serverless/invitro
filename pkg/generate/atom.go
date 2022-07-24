@@ -21,9 +21,9 @@ const (
 	OVERFLOAD_THRESHOLD = 0.3
 	OVERFLOAD_TOLERANCE = 2
 
-	FORCE_TIMEOUT_MINUTE = 15 // 15 min maximum waiting time based upon max. function duration of popular clouds.
+	FORCE_TIMEOUT_MINUTE = 0
 
-	RPS_WARMUP_FRACTION  = 0.5
+	RPS_WARMUP_FRACTION  = 0.5 // Take th last 50% measurements.
 	MAX_RPS_STARTUP_STEP = 5
 )
 
@@ -123,10 +123,7 @@ func ShuffleAllInvocationsInplace(invocationsEachMinute *[][]int) {
 	}
 }
 
-// var notMedian = func() bool {
-// 	return specRand.Int31()&0x01 == 0
-// }
-
+// Choose a random number in between.
 func randIntBetween(min, max int) int {
 	inverval := util.MaxOf(1, max-min)
 	return specRand.Intn(inverval) + min
@@ -155,61 +152,38 @@ func GenerateExecutionSpecs(function tc.Function) (int, int) {
 	switch {
 	case memQtl <= 0.01:
 		memory = memStats.Percentile1
-	case memQtl < 0.05:
-		memory = randIntBetween(memStats.Percentile1, memStats.Percentile5)
 	case memQtl == 0.05:
 		memory = memStats.Percentile5
-	case memQtl < 0.25:
-		memory = randIntBetween(memStats.Percentile5, memStats.Percentile25)
 	case memQtl == 0.25:
 		memory = memStats.Percentile25
-	case memQtl < 0.50:
-		memory = randIntBetween(memStats.Percentile25, memStats.Percentile50)
 	case memQtl == 0.50:
 		memory = memStats.Percentile50
-	case memQtl < 0.75:
-		memory = randIntBetween(memStats.Percentile50, memStats.Percentile75)
 	case memQtl == 0.75:
 		memory = memStats.Percentile75
-	case memQtl < 0.95:
-		memory = randIntBetween(memStats.Percentile75, memStats.Percentile95)
 	case memQtl == 0.95:
 		memory = memStats.Percentile95
-	case memQtl < 0.99:
-		memory = randIntBetween(memStats.Percentile95, memStats.Percentile99)
 	case memQtl == 0.99:
 		memory = memStats.Percentile99
 	case memQtl < 1:
-		memory = randIntBetween(memStats.Percentile99, memStats.Percentile100)
+		memory = memStats.Percentile100
 	}
 
 	switch {
 	case runQtl <= 0.01:
 		runtime = runStats.Percentile0
-	case runQtl < 0.25:
-		runtime = randIntBetween(runStats.Percentile1, runStats.Percentile25)
 	case runQtl == 0.25:
 		runtime = runStats.Percentile25
-	case runQtl < 0.50:
-		runtime = randIntBetween(runStats.Percentile25, runStats.Percentile50)
 	case runQtl == 0.50:
 		runtime = runStats.Percentile50
-	case runQtl < 0.75:
-		runtime = randIntBetween(runStats.Percentile50, runStats.Percentile75)
 	case runQtl == 0.75:
 		runtime = runStats.Percentile75
-	case runQtl <= 0.95:
-		runtime = randIntBetween(runStats.Percentile75, runStats.Percentile99)
-	case runQtl < 0.99:
-		runtime = randIntBetween(runStats.Percentile99, runStats.Percentile100)
 	case runQtl == 0.99:
 		runtime = runStats.Percentile99
 	case runQtl < 1:
-		// 100%ile is smaller from the max. somehow.
-		runtime = randIntBetween(runStats.Percentile100, runStats.Maximum)
+		runtime = runStats.Percentile100
 	}
 
-	//* Clamp specs to prevent outliers.
+	//* Restrict specs to valid range.
 	runtime = util.MinOf(fc.MAX_EXEC_TIME_MILLI, util.MaxOf(fc.MIN_EXEC_TIME_MILLI, runtime))
 	memory = util.MinOf(tc.MAX_MEM_QUOTA_MIB, util.MaxOf(1, memory))
 	return runtime, memory

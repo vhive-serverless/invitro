@@ -35,7 +35,7 @@ func ParseInvocationTrace(traceFile string, traceDuration int) FunctionTraces {
 
 	var functions []Function
 	// Indices of functions to invoke.
-	invocationIdices := make([][]int, traceDuration)
+	invocationIndices := make([][]int, traceDuration)
 	totalInvocations := make([]int, traceDuration)
 
 	csvfile, err := os.Open(traceFile)
@@ -97,8 +97,8 @@ func ParseInvocationTrace(traceFile string, traceDuration int) FunctionTraces {
 
 				for j := 0; j < num; j++ {
 					//* For `num` invocations of function with index `funcIdx`,
-					//* we append (N*funcIdx) to the `invocationIdices`.
-					invocationIdices[minute] = append(invocationIdices[minute], funcIdx)
+					//* we append (N*funcIdx) to the `invocationIndices`.
+					invocationIndices[minute] = append(invocationIndices[minute], funcIdx)
 				}
 				totalInvocations[minute] = totalInvocations[minute] + num
 			}
@@ -123,7 +123,7 @@ func ParseInvocationTrace(traceFile string, traceDuration int) FunctionTraces {
 
 	return FunctionTraces{
 		Functions:                 functions,
-		InvocationsEachMinute:     invocationIdices,
+		InvocationsEachMinute:     invocationIndices,
 		TotalInvocationsPerMinute: totalInvocations,
 		Path:                      traceFile,
 	}
@@ -193,7 +193,7 @@ func ParseDurationTrace(trace *FunctionTraces, traceFile string) {
 		if l == -1 {
 			// Parse header
 			for i := 0; i < 3; i++ {
-				if record[i] == "HashFunction" {
+				if strings.ToLower(record[i]) == "hashfunction" {
 					functionHashIndex = i
 					break
 				}
@@ -203,13 +203,10 @@ func ParseDurationTrace(trace *FunctionTraces, traceFile string) {
 				panic("Invalid duration trace. No function hash.")
 			}
 		} else {
-			// Parse durations
 			functionHash := record[functionHashIndex]
 			funcIdx, contained := funcPos[functionHash]
 			if contained {
 				trace.Functions[funcIdx].RuntimeStats = parseDurationStats(record)
-				// //TODO: Move to a better place later.
-				// trace.Functions[funcIdx].ConcurrencySats = ProfileFunctionConcurrencies(trace.Functions[funcIdx])
 				foundDurations += 1
 			}
 		}
@@ -275,7 +272,7 @@ func ParseMemoryTrace(trace *FunctionTraces, traceFile string) {
 		// Skip header
 		if l == -1 {
 			for i := 0; i < 2; i++ {
-				if record[i] == "HashApp" {
+				if strings.ToLower(record[i]) == "hashapp" {
 					hashAppIndex = i
 					break
 				}

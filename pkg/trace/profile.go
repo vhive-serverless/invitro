@@ -27,11 +27,13 @@ func ConvertMemoryToCpu(memoryRequest int) int {
 	// GCP conversion: https://cloud.google.com/functions/pricing
 	case memoryRequest <= 128:
 		cpuRequest = 0.083
-	case memoryRequest <= 512:
+	case memoryRequest <= 256:
 		cpuRequest = 0.167
-	case memoryRequest <= 1024:
+	case memoryRequest <= 512:
 		cpuRequest = 0.333
-	case memoryRequest <= 2024:
+	case memoryRequest <= 1024:
+		cpuRequest = 0.583
+	case memoryRequest <= 2048:
 		cpuRequest = 1
 	default:
 		cpuRequest = 2

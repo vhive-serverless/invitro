@@ -157,7 +157,7 @@ func runTraceMode(invPath, runPath, memPath string) {
 	}
 
 	log.Infof("Phase 2: Generate real workloads as of Minute[%d]", nextPhaseStart)
-	defer gen.GenerateTraceLoads(
+	gen.GenerateTraceLoads(
 		*sampleSize,
 		totalNumPhases,
 		nextPhaseStart,
@@ -193,7 +193,7 @@ func runStressMode() {
 
 	fc.DeployFunctions(functions, serviceConfigPath, initialScales, *isPartiallyPanic)
 
-	defer gen.GenerateStressLoads(*rpsStart, *rpsEnd, *rpsStep, *rpsSlot, functions)
+	gen.GenerateStressLoads(*rpsStart, *rpsEnd, *rpsStep, *rpsSlot, functions)
 }
 
 func runBurstMode() {
@@ -219,7 +219,7 @@ func runBurstMode() {
 
 	fc.DeployFunctions(functions, serviceConfigPath, initialScales, *isPartiallyPanic)
 
-	defer gen.GenerateBurstLoads(*rpsEnd, *burstTarget, *duration, functionsTable)
+	gen.GenerateBurstLoads(*rpsEnd, *burstTarget, *duration, functionsTable)
 }
 
 func runColdStartMode() {

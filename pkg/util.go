@@ -8,11 +8,6 @@ import (
 	"strings"
 )
 
-/** Seed the math/rand package for it to be different on each run. */
-// func init() {
-// 	rand.Seed(time.Now().UnixNano())
-// }
-
 type Pair struct {
 	Key   interface{}
 	Value int
