@@ -2,9 +2,6 @@ package trace
 
 import (
 	"fmt"
-	"math"
-
-	util "github.com/eth-easl/loader/pkg"
 )
 
 //* A bit of a heck to get around cyclic import.
@@ -109,20 +106,4 @@ func (f *Function) GetUrl() string {
 
 func (f *Function) SetUrl(url string) {
 	f.Endpoint = url
-}
-
-func (f *Function) GetExpectedConcurrency() int {
-	expectedRps := f.InvocationStats.Median / 60
-	expectedFinishingRatePerSec := float64(f.RuntimeStats.Percentile100) / 1000
-	expectedConcurrency := float64(expectedRps) * expectedFinishingRatePerSec
-
-	// log.Info(expectedRps, expectedFinishingRatePerSec, expectedConcurrency)
-
-	return util.MaxOf(
-		MIN_CONCURRENCY,
-		util.MinOf(
-			MAX_CONCURRENCY,
-			int(math.Ceil(expectedConcurrency)),
-		),
-	)
 }

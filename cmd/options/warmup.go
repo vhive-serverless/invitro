@@ -3,6 +3,7 @@ package cmd
 import (
 	"math"
 	"os/exec"
+	"runtime"
 	"sort"
 
 	util "github.com/eth-easl/loader/pkg"
@@ -12,14 +13,14 @@ import (
 )
 
 const (
-	NODE_CORE_COUNT                  = 16
-	MIN_WARMUP_SCALE                 = 0
-	SYS_CPU_OVERHEAD_PERCENT float32 = 0.6
+	MIN_WARMUP_SCALE                 = 0   // Miminimum warm-up scale.
+	SYS_CPU_OVERHEAD_PERCENT float32 = 0.6 // Percentage of system overheads taken up in the scheduling quota.
 )
 
+// Compute function warmup scales.
 func ComputeFunctionWarmupScales(clusterSize int, functions []tc.Function) []int {
 	var scales []int
-	totalClusterCapacityMilli := int(float32(NODE_CORE_COUNT*clusterSize*1000) * (1.0 - SYS_CPU_OVERHEAD_PERCENT))
+	totalClusterCapacityMilli := int(float32(runtime.NumCPU()*clusterSize*1000) * (1.0 - SYS_CPU_OVERHEAD_PERCENT))
 	totalCpuRequestMilli := 0
 
 	for _, function := range functions {
@@ -39,6 +40,7 @@ func ComputeFunctionWarmupScales(clusterSize int, functions []tc.Function) []int
 	return scales
 }
 
+// Rescale the estimated warmup scales (the opposite of max-min faireness).
 func MaxMaxAlloc(totalClusterCapacityMilli int, scales []int, functions []tc.Function) []int {
 	scalePairs := make(util.PairList, len(scales))
 	for i, scale := range scales {
@@ -103,10 +105,6 @@ func Warmup(
 	//* Skip the profiling minutes.
 	nextPhaseStart := gen.PROFILING_DURATION_MINUTES
 	for phaseIdx := 1; phaseIdx < totalNumPhases; phaseIdx++ {
-		// //* Set up kn environment
-		// if phaseIdx == 1 {
-		// 	setKnConfigMap("config/kn_configmap_warmup_init_patch.yaml")
-		// }
 
 		log.Infof("Enter Phase %d as of Minute[%d]", phaseIdx, nextPhaseStart)
 		nextPhaseStart = gen.GenerateTraceLoads(
@@ -118,12 +116,6 @@ func Warmup(
 			traces.InvocationsEachMinute[nextPhaseStart:],
 			traces.TotalInvocationsPerMinute[nextPhaseStart:],
 		)
-
-		// //* Reset kn environment
-		// if phaseIdx == 1 {
-		// 	setKnConfigMap("config/kn_configmap_warmup_reset_patch.yaml")
-		// 	livePatchKpas("scripts/warmup/livepatch_kpa.sh")
-		// }
 	}
 	return nextPhaseStart
 }

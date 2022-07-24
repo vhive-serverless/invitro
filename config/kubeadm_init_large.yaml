@@ -4,17 +4,15 @@ apiServer:
   extraArgs:
     authorization-mode: Node,RBAC
   timeoutForControlPlane: 4m0s  # The timeout that we wait for the API server to appear
-localAPIEndpoint:
+localAPIEndpoint: # Local api endpoint.
   advertiseAddress: "10.0.1.1"
 certificatesDir: /etc/kubernetes/pki
 clusterName: kubernetes
 dns:
   type: CoreDNS
-# etcd:
-#   local:
-#     dataDir: /var/lib/etcd
-#   extraArgs: 
-#     listen-client-urls: "http://10.0.1.1:2379"
+etcd:
+  local:
+    dataDir: /var/lib/etcd
 imageRepository: k8s.gcr.io
 # kubernetesVersion: v1.20.6
 # kubernetesVersion: v1.20.15

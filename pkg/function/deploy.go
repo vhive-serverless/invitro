@@ -11,9 +11,8 @@ import (
 )
 
 const (
-	MAX_EXEC_TIME_MILLI             = 60e3 // 60s (avg. p96 from Wild).
-	MIN_EXEC_TIME_MILLI             = 1    // 1ms (min. billing unit of AWS).
-	OVERPROVISION_MEM_RATIO float32 = 0.3  // From Quasar paper.
+	MAX_EXEC_TIME_MILLI = 60e3 // 60s (avg. p96 from Wild).
+	MIN_EXEC_TIME_MILLI = 1    // 1ms (min. billing unit of AWS).
 )
 
 var (
@@ -27,8 +26,7 @@ func DeployFunctions(
 	isPartiallyPanic bool,
 ) []tc.Function {
 	var urls []string
-	// deploymentConcurrency := 1 //* Serialise deployment.
-	deploymentConcurrency := len(functions) //* Fully parallelise deployment.
+	deploymentConcurrency := 1 //* Serialise deployment.
 	sem := make(chan bool, deploymentConcurrency)
 
 	for funcIdx, function := range functions {

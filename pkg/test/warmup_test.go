@@ -18,20 +18,20 @@ func TestMaxMaxAlloc(t *testing.T) {
 		})
 	}
 
-	/** Sufficient capacity. */
+	/** With sufficient capacity. */
 	newScales := cmd.MaxMaxAlloc(totalClusterCapacityMilli, scales, functions)
 	assert.Equal(t, scales, newScales)
 
-	/** Max max. */
-	totalClusterCapacityMilli = 27
+	/** Test max max. */
+	totalClusterCapacityMilli = 27 // Reduce scheduling capacity.
 	newScales = cmd.MaxMaxAlloc(totalClusterCapacityMilli, scales, functions)
 	assert.Equal(t, []int{8, 0, 9, 1, 1, 8, 0, 0}, newScales)
 
-	totalClusterCapacityMilli = 21
+	totalClusterCapacityMilli = 21 // Reduce scheduling capacity.
 	newScales = cmd.MaxMaxAlloc(totalClusterCapacityMilli, scales, functions)
 	assert.Equal(t, []int{6, 0, 9, 0, 0, 6, 0, 0}, newScales)
 
-	totalClusterCapacityMilli = 4
+	totalClusterCapacityMilli = 4 // Reduce scheduling capacity.
 	newScales = cmd.MaxMaxAlloc(totalClusterCapacityMilli, scales, functions)
 	assert.Equal(t, []int{0, 0, 4, 0, 0, 0, 0, 0}, newScales)
 }
