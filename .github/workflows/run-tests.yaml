@@ -1,36 +1,39 @@
-name: Run Tests
+name: Loader integration tests
+
 on:
   push:
-    branches:    
-      - '*'  # matches every branch that doesn't contain a '/'
+    branches: [ main ]
     paths-ignore:
-      - 'docs/**'
-      - '**.md'
-  pull_request: 
-    branches: 
-      - main
+    - 'docs/**'
+    - '**.md'
+  pull_request:
+    branches: [ main ]
     paths-ignore:
-      - 'docs/**'
-      - '**.md'
+    - 'docs/**'
+    - '**.md'
+  workflow_dispatch:
+
+env:
+  GOOS: linux
+  GO111MODULE: on
 
 jobs:
-  runt-tests:
-    runs-on: ubuntu-latest
+  integration_test:
+    name: Build and test
+    runs-on: ubuntu-20.04
+    strategy:
+      fail-fast: false
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions/setup-go@v2
+      - uses: actions/checkout@v3
         with:
-          go-version: '1.17'
-      # - uses: actions/setup-python@v2
-      #   with:
-      #     python-version: '3.8'
-      # - uses: BSFishy/pip-action@v1
-      #   with:
-      #     packages: |
-      #       statsmodels
-      #       numpy
+          lfs: 'true'
 
-      - name: Build package
+      - uses: actions/setup-go@v3
+        with:
+          go-version: 1.18
+
+      - name: Build loader
         run: make build
-      - name: Test package
-        run: go test -v ./pkg/test/
+
+      - name: Run loader tests
+        run: make test

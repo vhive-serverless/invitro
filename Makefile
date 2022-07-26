@@ -45,7 +45,7 @@ run:
 	go run cmd/load.go $(ARGS)
 
 test:
-	go test ./pkg/test/ -v 
+	go test -v -cover -race ./pkg/test/
 
 trace-firecracker:
 	docker build -f Dockerfile.trace.firecracker -t hyhe/trace-func-firecracker .
