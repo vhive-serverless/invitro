@@ -152,34 +152,39 @@ func GenerateExecutionSpecs(function tc.Function) (int, int) {
 	switch {
 	case memQtl <= 0.01:
 		memory = memStats.Percentile1
-	case memQtl == 0.05:
-		memory = memStats.Percentile5
-	case memQtl == 0.25:
-		memory = memStats.Percentile25
-	case memQtl == 0.50:
-		memory = memStats.Percentile50
-	case memQtl == 0.75:
-		memory = memStats.Percentile75
-	case memQtl == 0.95:
-		memory = memStats.Percentile95
-	case memQtl == 0.99:
-		memory = memStats.Percentile99
+	case memQtl <= 0.05:
+		memory = randIntBetween(memStats.Percentile1, memStats.Percentile5)
+	case memQtl <= 0.25:
+		memory = randIntBetween(memStats.Percentile5, memStats.Percentile25)
+	case memQtl <= 0.50:
+		memory = randIntBetween(memStats.Percentile25, memStats.Percentile50)
+	case memQtl <= 0.75:
+		memory = randIntBetween(memStats.Percentile50, memStats.Percentile75)
+	case memQtl <= 0.95:
+		memory = randIntBetween(memStats.Percentile75, memStats.Percentile95)
+	case memQtl <= 0.99:
+		memory = randIntBetween(memStats.Percentile95, memStats.Percentile99)
 	case memQtl < 1:
-		memory = memStats.Percentile100
+		memory = randIntBetween(memStats.Percentile99, memStats.Percentile100)
 	}
 
 	switch {
-	case runQtl <= 0.01:
+	case runQtl == 0:
 		runtime = runStats.Percentile0
-	case runQtl == 0.25:
-		runtime = runStats.Percentile25
-	case runQtl == 0.50:
-		runtime = runStats.Percentile50
-	case runQtl == 0.75:
-		runtime = runStats.Percentile75
-	case runQtl == 0.99:
-		runtime = runStats.Percentile99
+	case runQtl <= 0.01:
+		runtime = randIntBetween(runStats.Percentile0, runStats.Percentile1)
+	case runQtl <= 0.25:
+		runtime = randIntBetween(runStats.Percentile1, runStats.Percentile25)
+	case runQtl <= 0.50:
+		runtime = randIntBetween(runStats.Percentile25, runStats.Percentile50)
+	case runQtl <= 0.75:
+		runtime = randIntBetween(runStats.Percentile50, runStats.Percentile75)
+	case runQtl <= 0.95:
+		runtime = randIntBetween(runStats.Percentile75, runStats.Percentile99)
+	case runQtl <= 0.99:
+		runtime = randIntBetween(runStats.Percentile99, runStats.Percentile100)
 	case runQtl < 1:
+		// NOTE: 100th percentile is smaller from the max. somehow.
 		runtime = runStats.Percentile100
 	}
 
