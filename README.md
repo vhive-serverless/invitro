@@ -10,6 +10,7 @@ A 2-socket server-grade node, running Linux (tested on Ubuntu 20, Intel Xeon). O
 ## Create a cluster
 
 First, change the parameters (e.g., `GITHUB_TOKEN`) in the `script/setup.cfg` is necessary.
+Github token needs the `repo` and `admin:public_key` permissions.
 
 * For creating a multi-node K8s cluster (pure containers) with maximum 500 pods per node, run the following.
 
