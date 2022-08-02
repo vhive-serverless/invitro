@@ -17,6 +17,7 @@ func GenerateColdStartLoads(
 	rpsStep int,
 	hotFunction tc.Function,
 	coldstartCounts []int,
+	iatDistribution IATDistribution,
 ) {
 
 	start := time.Now()
@@ -61,7 +62,7 @@ coldstart_generation:
 	for {
 		iats := GenerateOneMinuteInterarrivalTimesInMicro(
 			rps*60,
-			true,
+			iatDistribution,
 		)
 		//* One minute per step for matching the trace mode.
 		tick := -1
