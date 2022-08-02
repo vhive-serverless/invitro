@@ -21,6 +21,7 @@ func GenerateTraceLoads(
 	functions []tc.Function,
 	invocationsEachMinute [][]int,
 	totalNumInvocationsEachMinute []int,
+	iatDistribution IATDistribution,
 ) int {
 
 	ShuffleAllInvocationsInplace(&invocationsEachMinute)
@@ -59,8 +60,6 @@ func GenerateTraceLoads(
 		}
 	}()
 
-	isFixedRate := true //! Always use Poisson distribution for now.
-
 	start := time.Now()
 	wg := sync.WaitGroup{}
 	totalDurationMinutes := len(totalNumInvocationsEachMinute)
@@ -86,7 +85,7 @@ trace_gen:
 
 		iats = GenerateOneMinuteInterarrivalTimesInMicro(
 			numInvocatonsThisMinute,
-			isFixedRate,
+			iatDistribution,
 		)
 		log.Infof("Minute[%d]\t RPS=%d", minute, rps)
 

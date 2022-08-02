@@ -36,39 +36,54 @@ var iatRand *rand.Rand
 var invRand *rand.Rand
 var specRand *rand.Rand
 
+type IATDistribution int
+
+const (
+	Poisson     IATDistribution = 0
+	Uniform     IATDistribution = 1
+	Equidistant IATDistribution = 2
+)
+
 func InitSeed(s int64) {
 	iatRand = rand.New(rand.NewSource(s))
 	invRand = rand.New(rand.NewSource(s))
 	specRand = rand.New(rand.NewSource(s))
 }
 
-func GenerateOneMinuteInterarrivalTimesInMicro(invocationsPerMinute int, uniform bool) []float64 {
+func GenerateOneMinuteInterarrivalTimesInMicro(invocationsPerMinute int, iatDistribution IATDistribution) []float64 {
 	oneSecondInMicro := 1000_000.0
 	oneMinuteInMicro := 60*oneSecondInMicro - 1000
 
 	rps := float64(invocationsPerMinute) / 60
 	interArrivalTimes := []float64{}
 
-	totoalDuration := 0.0
+	totalDuration := 0.0
 	for i := 0; i < invocationsPerMinute; i++ {
 		var iat float64
-		if uniform {
-			iat = oneSecondInMicro / rps
-		} else {
+
+		switch iatDistribution {
+		case Poisson:
 			iat = iatRand.ExpFloat64() / rps * oneSecondInMicro
+		case Uniform:
+			iat = iatRand.Float64() / rps * oneSecondInMicro
+		case Equidistant:
+			iat = oneSecondInMicro / rps
+		default:
+			panic("Unsupported IAT distribution")
 		}
+
 		//* Only guarantee microsecond-level ganularity.
 		if iat < 1 {
 			iat = 1
 		}
 		interArrivalTimes = append(interArrivalTimes, iat)
-		totoalDuration += iat
+		totalDuration += iat
 	}
 
-	if totoalDuration > oneMinuteInMicro {
+	if totalDuration > oneMinuteInMicro {
 		//* Normalise if it's longer than 1min.
 		for i, iat := range interArrivalTimes {
-			iat = iat / totoalDuration * oneMinuteInMicro
+			iat = iat / totalDuration * oneMinuteInMicro
 			if iat < 1 {
 				iat = 1
 			}
@@ -130,7 +145,6 @@ func randIntBetween(min, max int) int {
 }
 
 func GenerateExecutionSpecs(function tc.Function) (int, int) {
-
 	if function.MemoryStats.Count < 0 {
 		//* Custom runtime specs.
 		return function.RuntimeStats.Average, function.MemoryStats.Average

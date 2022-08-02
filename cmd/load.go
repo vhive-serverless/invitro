@@ -22,7 +22,8 @@ const (
 )
 
 var (
-	traces tc.FunctionTraces
+	traces  tc.FunctionTraces
+	iatType gen.IATDistribution
 
 	serviceConfigPath = ""
 
@@ -44,6 +45,8 @@ var (
 
 	funcDuration = flag.Int("funcDuration", 1000, "Function execution duration in ms (under `stress` mode)")
 	funcMemory   = flag.Int("funcMemory", 170, "Function memeory in MiB(under `stress` mode)")
+
+	iatDistribution = flag.String("iatDistribution", "poisson", "Choose a distribution from [poisson, uniform, equidistant]")
 
 	seed  = flag.Int64("seed", 42, "Random seed for the generator")
 	print = flag.String("print", "all", "Choose a mode from [all, debug, info]")
@@ -97,6 +100,17 @@ func init() {
 func main() {
 	gen.InitSeed(*seed)
 
+	switch *iatDistribution {
+	case "poisson":
+		iatType = gen.Poisson
+	case "uniform":
+		iatType = gen.Uniform
+	case "equidistant":
+		iatType = gen.Equidistant
+	default:
+		panic("Unsupported IAT distribution.")
+	}
+
 	switch *mode {
 	case "trace":
 		invPath := *tracePath + strconv.Itoa(*sampleSize) + "_inv.csv"
@@ -113,6 +127,7 @@ func main() {
 	default:
 		log.Fatal("Invalid mode: ", *mode)
 	}
+
 	// fc.DestroyGrpcPool()
 }
 
@@ -147,7 +162,7 @@ func runTraceMode(invPath, runPath, memPath string) {
 	/** Warmup (Phase 1) */
 	nextPhaseStart := 0
 	if *withWarmup {
-		nextPhaseStart = opts.Warmup(*sampleSize, totalNumPhases, functions, traces)
+		nextPhaseStart = opts.Warmup(*sampleSize, totalNumPhases, functions, traces, iatType)
 	}
 
 	/** Measurement (Phase 2) */
@@ -164,7 +179,8 @@ func runTraceMode(invPath, runPath, memPath string) {
 		true,
 		functions,
 		traces.InvocationsEachMinute[nextPhaseStart:nextPhaseStart+*duration],
-		traces.TotalInvocationsPerMinute[nextPhaseStart:nextPhaseStart+*duration])
+		traces.TotalInvocationsPerMinute[nextPhaseStart:nextPhaseStart+*duration],
+		iatType)
 }
 
 func runStressMode() {
@@ -193,7 +209,7 @@ func runStressMode() {
 
 	fc.DeployFunctions(functions, serviceConfigPath, initialScales, *isPartiallyPanic)
 
-	gen.GenerateStressLoads(*rpsStart, *rpsEnd, *rpsStep, *rpsSlot, functions)
+	gen.GenerateStressLoads(*rpsStart, *rpsEnd, *rpsStep, *rpsSlot, functions, iatType)
 }
 
 func runBurstMode() {
@@ -219,7 +235,7 @@ func runBurstMode() {
 
 	fc.DeployFunctions(functions, serviceConfigPath, initialScales, *isPartiallyPanic)
 
-	gen.GenerateBurstLoads(*rpsEnd, *burstTarget, *duration, functionsTable)
+	gen.GenerateBurstLoads(*rpsEnd, *burstTarget, *duration, functionsTable, iatType)
 }
 
 func runColdStartMode() {
@@ -245,5 +261,5 @@ func runColdStartMode() {
 
 	fc.DeployFunctions(functions, serviceConfigPath, []int{}, *isPartiallyPanic)
 
-	defer gen.GenerateColdStartLoads(*rpsStart, *rpsStep, hotFunction, coldstartCounts)
+	defer gen.GenerateColdStartLoads(*rpsStart, *rpsStep, hotFunction, coldstartCounts, iatType)
 }

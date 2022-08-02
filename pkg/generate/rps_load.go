@@ -19,6 +19,7 @@ func GenerateStressLoads(
 	rpsStep int,
 	stressSlotInSecs int,
 	functions []tc.Function,
+	iatDistribution IATDistribution,
 ) {
 	start := time.Now()
 	wg := sync.WaitGroup{}
@@ -62,7 +63,7 @@ rps_gen:
 	for {
 		iats := GenerateOneMinuteInterarrivalTimesInMicro(
 			rps*60,
-			true,
+			iatDistribution,
 		)
 		tick := -1
 		timeout := time.After(time.Second * time.Duration(stressSlotInSecs))

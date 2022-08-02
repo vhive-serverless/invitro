@@ -17,6 +17,7 @@ func GenerateBurstLoads(
 	burstTarget int,
 	burstDurationMinutes int,
 	functionsTable map[string]tc.Function,
+	iatDistribution IATDistribution,
 ) {
 
 	start := time.Now()
@@ -68,7 +69,7 @@ burst_gen:
 
 		iats := GenerateOneMinuteInterarrivalTimesInMicro(
 			rps*60,
-			true,
+			iatDistribution,
 		)
 		tick := -1
 		timeout := time.After(time.Duration(durationMinutes) * time.Minute)
