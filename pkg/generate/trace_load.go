@@ -173,7 +173,12 @@ trace_gen:
 
 			tick++
 			//* Load the next inter-arrival time.
-			interval = time.Duration(iats[tick]) * time.Microsecond
+			d := 1
+			if tick < len(iats) {
+				d = int(iats[tick])
+			}
+
+			interval = time.Duration(d) * time.Microsecond
 			ticker = time.NewTicker(interval)
 		}
 	next_minute:
