@@ -137,6 +137,8 @@ common_init() {
 	#* Create CGroup.
 	server_exec 'sudo bash loader/scripts/isolation/define_cgroup.sh'
 
+  taint_master $MASTER_NODE
+
 	echo "Logging in master node $MASTER_NODE"
 	ssh -p 22 $MASTER_NODE
 	exit
