@@ -123,7 +123,12 @@ common_init() {
 	server_exec 'echo -en "\n\n" | sudo apt-get install python3-pip python-dev'
 	server_exec 'cd; cd loader; pip install -r config/requirements.txt'
 
+  source $DIR/taint.sh
+
+  taint_workers $MASTER_NODE
 	$DIR/expose_infra_metrics.sh $MASTER_NODE
+	$DIR/setup_trace_plotter.sh
+	untaint_workers $MASTER_NODE
 
 	#* Disable master turbo boost.
 	server_exec 'bash loader/scripts/setup/turbo_boost.sh disable'
@@ -132,6 +137,7 @@ common_init() {
 	#* Create CGroup.
 	server_exec 'sudo bash loader/scripts/isolation/define_cgroup.sh'
 
+  # TODO: add zipkin and elastic search install
 
 	echo "Logging in master node $MASTER_NODE"
 	ssh -p 22 $MASTER_NODE
