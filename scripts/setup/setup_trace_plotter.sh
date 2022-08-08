@@ -8,8 +8,8 @@ server_exec() {
 
 echo "Installing Dohyun's trace plotter"
 
-server_exec 'git clone https://github.com/ease-lab/vSwarm.git'
-VSWARM='cd vSwarm/tools/trace-plotter/'
+server_exec 'git clone https://github.com/ease-lab/vSwarm'
+VSWARM='vSwarm/tools/trace-plotter/'
 
 server_exec "cd ${VSWARM}; helm repo add openzipkin https://openzipkin.github.io/zipkin"
 server_exec "cd ${VSWARM}; helm pull --untar openzipkin/zipkin"
@@ -27,7 +27,9 @@ server_exec "kubectl patch configmap/config-tracing \
   --type merge \
   -p '{\"data\":{\"backend\":\"zipkin\",\"zipkin-endpoint\":\"http://zipkin.zipkin.svc.cluster.local:9411/api/v2/spans\",\"debug\":\"true\"}}'"
 
-server_exec "nohup kubectl port-forward --namespace elasticsearch svc/elasticsearch 9200:9200 &"
-server_exec "nohup kubectl port-forward --namespace zipkin deployment/zipkin 9411:9411 &"
+server_exec 'tmux new -s tp_elasticsearch -d'
+server_exec 'tmux send -t tp_elasticsearch "nohup kubectl port-forward --namespace elasticsearch svc/elasticsearch 9200:9200 &" ENTER'
+server_exec 'tmux new -s tp_zipkin -d'
+server_exec 'tmux send -t tp_zipkin "nohup kubectl port-forward --namespace zipkin deployment/zipkin 9411:9411 &" ENTER'
 
 echo "Finished installing Dohyun's trace plotter"
