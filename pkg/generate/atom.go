@@ -33,8 +33,13 @@ const (
 // }
 
 var iatRand *rand.Rand
+var iatMu sync.Mutex
+
 var invRand *rand.Rand
+var invMu sync.Mutex
+
 var specRand *rand.Rand
+var specMu sync.Mutex
 
 type IATDistribution int
 
@@ -63,9 +68,13 @@ func GenerateOneMinuteInterarrivalTimesInMicro(invocationsPerMinute int, iatDist
 
 		switch iatDistribution {
 		case Poisson:
+			iatMu.Lock()
 			iat = iatRand.ExpFloat64() / rps * oneSecondInMicro
+			iatMu.Unlock()
 		case Uniform:
+			iatMu.Lock()
 			iat = iatRand.Float64() / rps * oneSecondInMicro
+			iatMu.Unlock()
 		case Equidistant:
 			iat = oneSecondInMicro / rps
 		default:
@@ -128,9 +137,11 @@ func wgWaitWithTimeout(wg *sync.WaitGroup, timeout time.Duration) bool {
  */
 func ShuffleAllInvocationsInplace(invocationsEachMinute *[][]int) {
 	suffleOneMinute := func(invocations *[]int) {
+		invMu.Lock()
 		invRand.Shuffle(len(*invocations), func(i, j int) {
 			(*invocations)[i], (*invocations)[j] = (*invocations)[j], (*invocations)[i]
 		})
+		invMu.Unlock()
 	}
 
 	for minute := range *invocationsEachMinute {
@@ -141,7 +152,10 @@ func ShuffleAllInvocationsInplace(invocationsEachMinute *[][]int) {
 // Choose a random number in between.
 func randIntBetween(min, max int) int {
 	inverval := util.MaxOf(1, max-min)
-	return specRand.Intn(inverval) + min
+	specMu.Lock()
+	rand := specRand.Intn(inverval) + min
+	specMu.Unlock()
+	return rand
 }
 
 func GenerateExecutionSpecs(function tc.Function) (int, int) {
@@ -152,8 +166,10 @@ func GenerateExecutionSpecs(function tc.Function) (int, int) {
 
 	var runtime, memory int
 	//* Generate uniform quantiles in [0, 1).
+	specMu.Lock()
 	memQtl := specRand.Float64()
 	runQtl := specRand.Float64()
+	specMu.Unlock()
 	//* Generate gaussian quantiles in [0, 1).
 	// sigma := .25
 	// mu := .5
