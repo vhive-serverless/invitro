@@ -16,7 +16,7 @@ taint_master() {
 
     if [[ $TYPE == *"master"* ]]; then
       echo "Tainted ${NODE}"
-      server_exec "kubectl taint nodes ${NODE} key1=value1:NoSchedule"
+      server_exec "kubectl taint nodes ${NODE} key1=value1:NoSchedule" < /dev/null
     fi
   done < tmp
 
