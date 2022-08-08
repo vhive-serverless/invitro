@@ -137,8 +137,6 @@ common_init() {
 	#* Create CGroup.
 	server_exec 'sudo bash loader/scripts/isolation/define_cgroup.sh'
 
-  # TODO: add zipkin and elastic search install
-
 	echo "Logging in master node $MASTER_NODE"
 	ssh -p 22 $MASTER_NODE
 	exit

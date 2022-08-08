@@ -33,7 +33,7 @@ taint_workers() {
 
     if [[ $TYPE != *"master"* ]]; then
       echo "Tainted ${NODE}"
-      server_exec "kubectl taint nodes ${NODE} key1=value1:NoSchedule"
+      server_exec "kubectl taint nodes ${NODE} key1=value1:NoSchedule" < /dev/null
     fi
   done < tmp
 
@@ -50,7 +50,7 @@ untaint_workers() {
 
     if [[ $TYPE != *"master"* ]]; then
       echo "Untainted ${NODE}"
-      server_exec "kubectl taint nodes ${NODE} key1-"
+      server_exec "kubectl taint nodes ${NODE} key1-" < /dev/null
     fi
   done < tmp
 
