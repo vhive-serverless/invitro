@@ -1,0 +1,7 @@
+**/*.csv
+.ipynb_checkpoints
+.DS_Store
+trace_analysis
+traces/
+output/
+.venv
