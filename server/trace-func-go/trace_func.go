@@ -3,11 +3,14 @@ package main
 import (
 	"context"
 	"errors"
+	"flag"
 	"fmt"
 	"net"
 	"os"
 	"strconv"
 	"time"
+
+	tracing "github.com/ease-lab/vSwarm/utils/tracing/go"
 
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
@@ -80,11 +83,24 @@ func (s *funcServer) Execute(ctx context.Context, req *rpc.FaasRequest) (*rpc.Fa
 	}, nil
 }
 
+var (
+	zipkin = flag.String("zipkin", "http://zipkin.zipkin:9411/api/v2/spans", "zipkin url")
+)
+
 func main() {
 	serverPort := 80 // For containers.
 	// serverPort := 50051 // For firecracker.
 	if len(os.Args) > 1 {
 		serverPort, _ = strconv.Atoi(os.Args[1])
+	}
+
+	if tracing.IsTracingEnabled() {
+		log.Printf("Start tracing on : %s\n", *zipkin)
+		shutdown, err := tracing.InitBasicTracer(*zipkin, "aes function")
+		if err != nil {
+			log.Warn(err)
+		}
+		defer shutdown()
 	}
 
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", serverPort))
@@ -93,7 +109,12 @@ func main() {
 	}
 
 	funcServer := &funcServer{}
-	grpcServer := grpc.NewServer()
+	var grpcServer *grpc.Server
+	if tracing.IsTracingEnabled() {
+		grpcServer = tracing.GetGRPCServerWithUnaryInterceptor()
+	} else {
+		grpcServer = grpc.NewServer()
+	}
 	reflection.Register(grpcServer) // gRPC Server Reflection is used by gRPC CLI.
 	rpc.RegisterExecutorServer(grpcServer, funcServer)
 	grpcServer.Serve(lis)
