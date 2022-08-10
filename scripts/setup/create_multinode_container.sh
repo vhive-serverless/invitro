@@ -124,10 +124,10 @@ common_init() {
 	server_exec 'echo -en "\n\n" | sudo apt-get install python3-pip python-dev'
 	server_exec 'cd; cd loader; pip install -r config/requirements.txt'
 
-  source $DIR/taint.sh
+	source $DIR/taint.sh
 
-  # force placement of metrics collectors and instrumentation on the master node
-  taint_workers $MASTER_NODE
+	# force placement of metrics collectors and instrumentation on the master node
+	taint_workers $MASTER_NODE
 	$DIR/expose_infra_metrics.sh $MASTER_NODE
 	untaint_workers $MASTER_NODE
 
@@ -138,7 +138,7 @@ common_init() {
 	#* Create CGroup.
 	server_exec 'sudo bash loader/scripts/isolation/define_cgroup.sh'
 
-  taint_master $MASTER_NODE
+	taint_master $MASTER_NODE
 
 	echo "Logging in master node $MASTER_NODE"
 	ssh -p 22 $MASTER_NODE
