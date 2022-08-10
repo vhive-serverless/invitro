@@ -20,6 +20,7 @@ func GenerateStressLoads(
 	stressSlotInSecs int,
 	functions []tc.Function,
 	iatDistribution IATDistribution,
+	withTracing bool,
 ) {
 	start := time.Now()
 	wg := sync.WaitGroup{}
@@ -95,7 +96,7 @@ rps_gen:
 					wg.Add(1)
 
 					atomic.AddInt64(&numFuncInvokedThisSlot, 1)
-					success, execRecord := fc.Invoke(function, runtimeRequested, memoryRequested)
+					success, execRecord := fc.Invoke(function, runtimeRequested, memoryRequested, withTracing)
 
 					if success {
 						atomic.AddInt64(&successCountRpsStep, 1)

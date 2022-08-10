@@ -79,14 +79,6 @@ func init() {
 		log.Debug("Info logging is enabled")
 	}
 
-	if *withTracing {
-		shutdown, err := tracer.InitBasicTracer(zipkinAddr, "loader")
-		if err != nil {
-			log.Print(err)
-		}
-		defer shutdown()
-	}
-
 	switch *server {
 	case "wimpy":
 		serviceConfigPath = "workloads/container/wimpy.yaml"
@@ -99,6 +91,14 @@ func init() {
 
 func main() {
 	gen.InitSeed(*seed)
+
+	if *withTracing {
+		shutdown, err := tracer.InitBasicTracer(zipkinAddr, "loader")
+		if err != nil {
+			log.Print(err)
+		}
+		defer shutdown()
+	}
 
 	switch *iatDistribution {
 	case "poisson":
@@ -180,7 +180,9 @@ func runTraceMode(invPath, runPath, memPath string) {
 		functions,
 		traces.InvocationsEachMinute[nextPhaseStart:nextPhaseStart+*duration],
 		traces.TotalInvocationsPerMinute[nextPhaseStart:nextPhaseStart+*duration],
-		iatType)
+		iatType,
+		*withTracing,
+	)
 }
 
 func runStressMode() {
@@ -209,7 +211,7 @@ func runStressMode() {
 
 	fc.DeployFunctions(functions, serviceConfigPath, initialScales, *isPartiallyPanic)
 
-	gen.GenerateStressLoads(*rpsStart, *rpsEnd, *rpsStep, *rpsSlot, functions, iatType)
+	gen.GenerateStressLoads(*rpsStart, *rpsEnd, *rpsStep, *rpsSlot, functions, iatType, *withTracing)
 }
 
 func runBurstMode() {
@@ -235,7 +237,7 @@ func runBurstMode() {
 
 	fc.DeployFunctions(functions, serviceConfigPath, initialScales, *isPartiallyPanic)
 
-	gen.GenerateBurstLoads(*rpsEnd, *burstTarget, *duration, functionsTable, iatType)
+	gen.GenerateBurstLoads(*rpsEnd, *burstTarget, *duration, functionsTable, iatType, *withTracing)
 }
 
 func runColdStartMode() {
@@ -261,5 +263,5 @@ func runColdStartMode() {
 
 	fc.DeployFunctions(functions, serviceConfigPath, []int{}, *isPartiallyPanic)
 
-	defer gen.GenerateColdStartLoads(*rpsStart, *rpsStep, hotFunction, coldstartCounts, iatType)
+	defer gen.GenerateColdStartLoads(*rpsStart, *rpsStep, hotFunction, coldstartCounts, iatType, *withTracing)
 }
