@@ -18,6 +18,7 @@ func GenerateBurstLoads(
 	burstDurationMinutes int,
 	functionsTable map[string]tc.Function,
 	iatDistribution IATDistribution,
+	withTracing bool,
 ) {
 
 	start := time.Now()
@@ -115,7 +116,7 @@ burst_gen:
 						atomic.AddInt64(&invocationCount, 1)
 
 						runtimeRequested, memoryRequested := GenerateExecutionSpecs(function)
-						success, execRecord := fc.Invoke(_function, runtimeRequested, memoryRequested)
+						success, execRecord := fc.Invoke(_function, runtimeRequested, memoryRequested, withTracing)
 
 						if !success {
 							atomic.AddInt64(&failureCount, 1)

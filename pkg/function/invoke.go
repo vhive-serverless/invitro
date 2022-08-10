@@ -7,6 +7,8 @@ import (
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
+
 	util "github.com/eth-easl/loader/pkg"
 	mc "github.com/eth-easl/loader/pkg/metric"
 	tc "github.com/eth-easl/loader/pkg/trace"
@@ -23,7 +25,7 @@ const (
 	executionTimeout  = 15 * time.Hour
 )
 
-func Invoke(function tc.Function, runtimeRequested int, memoryRequested int) (bool, mc.ExecutionRecord) {
+func Invoke(function tc.Function, runtimeRequested int, memoryRequested int, withTracing bool) (bool, mc.ExecutionRecord) {
 	log.Tracef("(Invoke)\t %s: %d[ms], %d[MiB]", function.Name, runtimeRequested, memoryRequested)
 
 	var record mc.ExecutionRecord
@@ -40,7 +42,14 @@ func Invoke(function tc.Function, runtimeRequested int, memoryRequested int) (bo
 	dailCxt, cancelDailing := context.WithTimeout(context.Background(), connectionTimeout)
 	defer cancelDailing()
 
-	conn, err := grpc.DialContext(dailCxt, function.Endpoint+port, grpc.WithInsecure())
+	var dialOptions []grpc.DialOption
+	dialOptions = append(dialOptions, grpc.WithInsecure())
+	if withTracing {
+		// enable line below -> will exclude istio from tracing
+		dialOptions = append(dialOptions, grpc.WithUnaryInterceptor(otelgrpc.UnaryClientInterceptor()))
+	}
+
+	conn, err := grpc.DialContext(dailCxt, function.Endpoint+port, dialOptions...)
 	defer closeConn(conn)
 	if err != nil {
 		//! Failures will also be recorded as 0's.

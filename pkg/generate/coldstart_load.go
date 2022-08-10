@@ -18,6 +18,7 @@ func GenerateColdStartLoads(
 	hotFunction tc.Function,
 	coldstartCounts []int,
 	iatDistribution IATDistribution,
+	withTracing bool,
 ) {
 
 	start := time.Now()
@@ -103,7 +104,7 @@ coldstart_generation:
 					wg.Add(1)
 
 					runtimeRequested, memoryRequested := GenerateExecutionSpecs(function)
-					success, execRecord := fc.Invoke(function, runtimeRequested, memoryRequested)
+					success, execRecord := fc.Invoke(function, runtimeRequested, memoryRequested, withTracing)
 
 					if success {
 						atomic.AddInt64(&successCountRpsStep, 1)
