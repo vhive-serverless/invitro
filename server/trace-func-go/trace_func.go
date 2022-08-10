@@ -5,12 +5,11 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	tracing "github.com/ease-lab/vSwarm/utils/tracing/go"
 	"net"
 	"os"
 	"strconv"
 	"time"
-
-	tracing "github.com/ease-lab/vSwarm/utils/tracing/go"
 
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
@@ -96,7 +95,7 @@ func main() {
 
 	if tracing.IsTracingEnabled() {
 		log.Printf("Start tracing on : %s\n", *zipkin)
-		shutdown, err := tracing.InitBasicTracer(*zipkin, "aes function")
+		shutdown, err := tracing.InitBasicTracer(*zipkin, "")
 		if err != nil {
 			log.Warn(err)
 		}
