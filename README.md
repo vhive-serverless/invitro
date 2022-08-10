@@ -168,3 +168,4 @@ For more options, please see the `Makefile`.
 
 To account for difference in CPU performance set `COLD_ITER_PER_1MS=102` and `WARM_ITER_PER_1MS=115` if you are using
 Cloudlab XL170 machines.
+Date of measurement: 10-Aug-2022.

@@ -45,7 +45,7 @@ func Invoke(function tc.Function, runtimeRequested int, memoryRequested int, wit
 	var dialOptions []grpc.DialOption
 	dialOptions = append(dialOptions, grpc.WithInsecure())
 	if withTracing {
-		// enable line below -> will exclude istio from tracing
+		// [FIXME]: will exclude Istio from tracing
 		dialOptions = append(dialOptions, grpc.WithUnaryInterceptor(otelgrpc.UnaryClientInterceptor()))
 	}
 

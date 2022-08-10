@@ -6,7 +6,7 @@ server_exec() {
   ssh -oStrictHostKeyChecking=no -p 22 $MASTER_NODE $1;
 }
 
-echo "Installing Dohyun's trace plotter"
+echo "Installing trace visualizer"
 
 server_exec 'git clone https://github.com/ease-lab/vSwarm'
 VSWARM='vSwarm/tools/trace-plotter/'
@@ -32,4 +32,4 @@ server_exec 'tmux send -t tp_elasticsearch "nohup kubectl port-forward --namespa
 server_exec 'tmux new -s tp_zipkin -d'
 server_exec 'tmux send -t tp_zipkin "nohup kubectl port-forward --namespace zipkin deployment/zipkin 9411:9411 &" ENTER'
 
-echo "Finished installing Dohyun's trace plotter"
+echo "Finished installing the trace visualizer"
