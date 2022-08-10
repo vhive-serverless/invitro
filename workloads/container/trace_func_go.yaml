@@ -18,7 +18,7 @@ spec:
     spec:
       containerConcurrency: 1
       containers:
-        - image: docker.io/hyhe/trace-func-container:latest
+        - image: docker.io/cvetkovic/trace_function:latest
           # imagePullPolicy: Always  # No need if the tag is `latest`.
           ports:
             - name: h2c  # For gRPC support
@@ -28,6 +28,8 @@ spec:
               value: "90"
             - name: WARM_ITER_PER_1MS
               value: "115"
+            - name: ENABLE_TRACING
+              value: "true"
           resources:
             requests:
               cpu: $CPU_REQUEST
