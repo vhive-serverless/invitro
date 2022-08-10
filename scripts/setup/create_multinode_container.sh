@@ -126,9 +126,9 @@ common_init() {
 
   source $DIR/taint.sh
 
+  # force placement of metrics collectors and instrumentation on the master node
   taint_workers $MASTER_NODE
 	$DIR/expose_infra_metrics.sh $MASTER_NODE
-	#$DIR/setup_trace_plotter.sh $MASTER_NODE
 	untaint_workers $MASTER_NODE
 
 	#* Disable master turbo boost.
