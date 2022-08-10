@@ -102,6 +102,7 @@ func Warmup(
 	functions []tc.Function,
 	traces tc.FunctionTraces,
 	iatDistribution gen.IATDistribution,
+	withTracing bool,
 ) int {
 	//* Skip the profiling minutes.
 	nextPhaseStart := gen.PROFILING_DURATION_MINUTES
@@ -117,6 +118,7 @@ func Warmup(
 			traces.InvocationsEachMinute[nextPhaseStart:],
 			traces.TotalInvocationsPerMinute[nextPhaseStart:],
 			iatDistribution,
+			withTracing,
 		)
 	}
 	return nextPhaseStart
