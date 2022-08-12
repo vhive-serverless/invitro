@@ -236,32 +236,26 @@ func parseMemoryStats(record []string) FunctionMemoryStats {
 
 func ParseMemoryTrace(trace *FunctionTraces, traceFile string) {
 	log.Infof("Parsing function memory trace: %s", traceFile)
-
-	// Create mapping from function hash to function position in `FunctionTraces`.
-	funcPos := make(map[string]int)
-	for i, function := range trace.Functions {
-		if _, exist := funcPos[function.HashApp]; exist {
-			//* Replace duplicated function hash.
-			function.HashApp = strconv.Itoa(int(util.Hash(function.Name)))
-		}
-		funcPos[function.HashApp] = i
-	}
+	memMap := make(map[string]FunctionMemoryStats)
+	appFuncCntMap := make(map[string]int)
 
 	csvfile, err := os.Open(traceFile)
 	if err != nil {
 		log.Fatal("Failed to load CSV file", err)
 	}
 
+	// Count number of functions for each app
+	for _, function := range trace.Functions {
+		appFuncCntMap[function.HashApp] += 1
+	}
+
 	r := csv.NewReader(csvfile)
 	l := -1
-	foundDurations := 0
-
 	hashAppIndex := -1
 
+	// Parse memory stats for each app
 	for {
-		// Read each record from csv
 		record, err := r.Read()
-
 		if err != nil {
 			if err == io.EOF {
 				break
@@ -269,7 +263,6 @@ func ParseMemoryTrace(trace *FunctionTraces, traceFile string) {
 			log.Fatal(err)
 		}
 
-		// Skip header
 		if l == -1 {
 			for i := 0; i < 2; i++ {
 				if strings.ToLower(record[i]) == "hashapp" {
@@ -282,18 +275,43 @@ func ParseMemoryTrace(trace *FunctionTraces, traceFile string) {
 				log.Fatal("Memory trace is missing hash app column.")
 			}
 		} else {
-			// Parse durations
 			hashApp := record[hashAppIndex]
-			funcIdx, contained := funcPos[hashApp]
-			if contained {
-				trace.Functions[funcIdx].MemoryStats = parseMemoryStats(record)
-				foundDurations += 1
+
+			switch fncCnt := appFuncCntMap[hashApp]; {
+			case fncCnt == 1: // Only one function in the app
+				memMap[hashApp] = parseMemoryStats(record)
+			case fncCnt < 1: // No functions in the app
+				panic("Function is missing for app " + hashApp)
+			default: // Multiple functions in the app, assume each function uses equal amount of memory
+				appMem := parseMemoryStats(record)
+				funcAvgMem := FunctionMemoryStats{
+					Average:       appMem.Average / fncCnt,
+					Count:         appMem.Count / fncCnt,
+					Percentile1:   appMem.Percentile1 / fncCnt,
+					Percentile5:   appMem.Percentile5 / fncCnt,
+					Percentile25:  appMem.Percentile25 / fncCnt,
+					Percentile50:  appMem.Percentile50 / fncCnt,
+					Percentile75:  appMem.Percentile75 / fncCnt,
+					Percentile95:  appMem.Percentile95 / fncCnt,
+					Percentile99:  appMem.Percentile99 / fncCnt,
+					Percentile100: appMem.Percentile100 / fncCnt,
+				}
+				memMap[hashApp] = funcAvgMem
 			}
 		}
 		l++
 	}
+	var foundMemories int
 
-	if foundDurations != len(trace.Functions) {
-		log.Fatal("Could not find all memory footprints for all invocations in the supplied trace ", foundDurations, len(trace.Functions))
+	// Assign apps memory to each function
+	for idx := range trace.Functions {
+		if mem, ok := memMap[trace.Functions[idx].HashApp]; ok {
+			trace.Functions[idx].MemoryStats = mem
+			foundMemories++
+		}
+	}
+
+	if foundMemories != len(trace.Functions) {
+		log.Fatal("Could not find all memory footprints for all invocations in the supplied trace ", foundMemories, len(trace.Functions))
 	}
 }
