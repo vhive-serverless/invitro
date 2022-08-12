@@ -276,28 +276,31 @@ func ParseMemoryTrace(trace *FunctionTraces, traceFile string) {
 			}
 		} else {
 			hashApp := record[hashAppIndex]
-
-			switch fncCnt := appFuncCntMap[hashApp]; {
-			case fncCnt == 1: // Only one function in the app
-				memMap[hashApp] = parseMemoryStats(record)
-			case fncCnt < 1: // No functions in the app
-				panic("Function is missing for app " + hashApp)
-			default: // Multiple functions in the app, assume each function uses equal amount of memory
-				appMem := parseMemoryStats(record)
-				funcAvgMem := FunctionMemoryStats{
-					Average:       appMem.Average / fncCnt,
-					Count:         appMem.Count / fncCnt,
-					Percentile1:   appMem.Percentile1 / fncCnt,
-					Percentile5:   appMem.Percentile5 / fncCnt,
-					Percentile25:  appMem.Percentile25 / fncCnt,
-					Percentile50:  appMem.Percentile50 / fncCnt,
-					Percentile75:  appMem.Percentile75 / fncCnt,
-					Percentile95:  appMem.Percentile95 / fncCnt,
-					Percentile99:  appMem.Percentile99 / fncCnt,
-					Percentile100: appMem.Percentile100 / fncCnt,
-				}
-				memMap[hashApp] = funcAvgMem
+			fncCnt := appFuncCntMap[hashApp]
+			if fncCnt < 1 {
+				log.Fatal("Function is missing for app " + hashApp)
 			}
+
+			if fncCnt == 1 {
+				memMap[hashApp] = parseMemoryStats(record)
+				continue
+			}
+
+			appMem := parseMemoryStats(record)
+			funcAvgMem := FunctionMemoryStats{
+				Average:       appMem.Average / fncCnt,
+				Count:         appMem.Count / fncCnt,
+				Percentile1:   appMem.Percentile1 / fncCnt,
+				Percentile5:   appMem.Percentile5 / fncCnt,
+				Percentile25:  appMem.Percentile25 / fncCnt,
+				Percentile50:  appMem.Percentile50 / fncCnt,
+				Percentile75:  appMem.Percentile75 / fncCnt,
+				Percentile95:  appMem.Percentile95 / fncCnt,
+				Percentile99:  appMem.Percentile99 / fncCnt,
+				Percentile100: appMem.Percentile100 / fncCnt,
+			}
+			memMap[hashApp] = funcAvgMem
+
 		}
 		l++
 	}
