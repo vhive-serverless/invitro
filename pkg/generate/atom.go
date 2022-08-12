@@ -48,6 +48,7 @@ const (
 var iatRand *rand.Rand
 var invRand *rand.Rand
 var specRand *rand.Rand
+var specMutex *sync.Mutex
 
 type IatDistribution int
 
@@ -61,6 +62,7 @@ func InitSeed(s int64) {
 	iatRand = rand.New(rand.NewSource(s))
 	invRand = rand.New(rand.NewSource(s))
 	specRand = rand.New(rand.NewSource(s))
+	specMutex = &sync.Mutex{}
 }
 
 func GenerateOneMinuteInterarrivalTimesInMicro(invocationsPerMinute int, iatDistribution IatDistribution) []float64 {
@@ -154,7 +156,10 @@ func ShuffleAllInvocationsInplace(invocationsEachMinute *[][]int) {
 // Choose a random number in between.
 func randIntBetween(min, max int) int {
 	inverval := util.MaxOf(1, max-min)
-	return specRand.Intn(inverval) + min
+	specMutex.Lock()
+	randNum := specRand.Intn(inverval) + min
+	specMutex.Unlock()
+	return randNum
 }
 
 func GenerateExecutionSpecs(function tc.Function) (int, int) {
@@ -165,8 +170,10 @@ func GenerateExecutionSpecs(function tc.Function) (int, int) {
 
 	var runtime, memory int
 	//* Generate uniform quantiles in [0, 1).
+	specMutex.Lock()
 	memQtl := specRand.Float64()
 	runQtl := specRand.Float64()
+	specMutex.Unlock()
 	//* Generate gaussian quantiles in [0, 1).
 	// sigma := .25
 	// mu := .5
