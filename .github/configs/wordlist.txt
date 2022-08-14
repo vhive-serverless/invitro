@@ -657,3 +657,12 @@ tpA
 CDF
 UI
 elasticsearch
+faas
+Xeon
+Cgroups
+uVMs
+CIDR
+timing
+cgroups
+noop
+YAMLs
