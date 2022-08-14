@@ -17,7 +17,7 @@ func GenerateColdStartLoads(
 	rpsStep int,
 	hotFunction tc.Function,
 	coldstartCounts []int,
-	iatDistribution IATDistribution,
+	iatDistribution IatDistribution,
 	withTracing bool,
 ) {
 
