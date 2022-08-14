@@ -6,10 +6,9 @@ in [vHive](https://github.com/ease-lab/vhive).
 
 ## Pre-requisites
 
-A 2-socket server-grade node, running Linux (tested on Ubuntu 20, Intel Xeon). On CloudLab, one can choose the APT
-cluster `d430` node.
+The experiments require a 2-socket server-grade node, running Linux (tested on Ubuntu 20, Intel Xeon). On CloudLab, one can choose the APT cluster `d430` node.
 
-**Note:** A node with more sockets provides better isolation for a loader - target system setup (on a single node)
+The master node should have at least two sockets, because, although we have isolated the loader with Cgroups, the isolation provided by our setup scripts is better achieved when it runs on one socket separate from the rest of the components running on master. 
 
 ## Create a cluster
 
@@ -81,12 +80,13 @@ $ bash ./scripts/util/set_function_scale.sh <scale>
 $ kubectl -n default get podautoscalers
 ```
 
-## Tune the timinig for the benchmark function
+## Tune the timing for the benchmark function
 
-Before start any experiments, you should tune the benchmark function.
+Before start any experiments, the timing of the benchmark function should be tuned so that it consumes the required service time more precisely.
 
-First, run the following command to deploy the timing benchmark that checks the number of iterations the function needs
-to run the execution unit for a given duration.
+First, run the following command to deploy the timing benchmark that yields the number of execution units* the function needs to run given a required service time.
+
+* The execution unit is approximately 100 `SQRTSD` x86 instructions.
 
 ```bash
 $ kubectl apply -f server/benchmark/timing.yaml
