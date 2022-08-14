@@ -14,16 +14,29 @@ import (
 )
 
 const (
-	STATIONARY_P_VALUE         = 0.05
-	PROFILING_DURATION_MINUTES = 5  // K8s default eviction duration.
-	WARMUP_DURATION_MINUTES    = 10 // Ten-minute warmup for unifying the starting time.
-
+	// The stationary p-value for the ADF test that warns users if the cluster hasn't been warmed up
+	// after predefined period.
+	STATIONARY_P_VALUE = 0.05
+	// K8s default eviction duration, after which all decisions made before should either be executed
+	// or failed (and cleaned).
+	PROFILING_DURATION_MINUTES = 5
+	// Ten-minute warmup for unifying the starting time when the experiments consists of multiple runs.
+	WARMUP_DURATION_MINUTES = 10
+	// The fraction of RETURNED failures to the total invocations fired. This threshold is a patent overestimation
+	// and it's here to stop the sweeping when the cluster is no longer functioning.
 	OVERFLOAD_THRESHOLD = 0.3
+	// The number of times allowed for the measured failure rate to surpass the `OVERFLOAD_THRESHOLD`.
+	// It's here to avoid "early stopping" so that we make sure sufficient load has been imposed on the system.
 	OVERFLOAD_TOLERANCE = 2
-
-	FORCE_TIMEOUT_MINUTE = 0
-
-	RPS_WARMUP_FRACTION  = 0.5 // Take th last 50% measurements.
+	// The compulsory timeout after which the loader will no longer await the goroutines that haven't returned,
+	// and move on to the next generation round. We need it because some functions may end up in nowhere and never return.
+	// By default, the wait-group will halt forever in that case.
+	FORCE_TIMEOUT_MINUTE = 15
+	// The portion of measurements we take in the RPS mode. The first 50% serves as a step-wise warm-up, and
+	// we only take the second half of the measurements.
+	RPS_WARMUP_FRACTION = 0.5
+	// The maximum step size in the early stage of the RPS mode -- we shouldn't take too large a RPS step before reaching
+	// ~100RPS in order to ensure sufficient number of measurements for lower variance (smaller the RPS, the less total data points).
 	MAX_RPS_STARTUP_STEP = 5
 )
 
@@ -36,12 +49,12 @@ var iatRand *rand.Rand
 var invRand *rand.Rand
 var specRand *rand.Rand
 
-type IATDistribution int
+type IatDistribution int
 
 const (
-	Poisson     IATDistribution = 0
-	Uniform     IATDistribution = 1
-	Equidistant IATDistribution = 2
+	Poisson     IatDistribution = iota
+	Uniform     IatDistribution = iota
+	Equidistant IatDistribution = iota
 )
 
 func InitSeed(s int64) {
@@ -50,7 +63,7 @@ func InitSeed(s int64) {
 	specRand = rand.New(rand.NewSource(s))
 }
 
-func GenerateOneMinuteInterarrivalTimesInMicro(invocationsPerMinute int, iatDistribution IATDistribution) []float64 {
+func GenerateOneMinuteInterarrivalTimesInMicro(invocationsPerMinute int, iatDistribution IatDistribution) []float64 {
 	oneSecondInMicro := 1000_000.0
 	oneMinuteInMicro := 60*oneSecondInMicro - 1000
 
@@ -166,68 +179,46 @@ func GenerateExecutionSpecs(function tc.Function) (int, int) {
 	switch {
 	case memQtl <= 0.01:
 		memory = memStats.Percentile1
-	case memQtl < 0.05:
+	case memQtl <= 0.05:
 		memory = randIntBetween(memStats.Percentile1, memStats.Percentile5)
-	case memQtl == 0.05:
-		memory = memStats.Percentile5
-	case memQtl < 0.25:
+	case memQtl <= 0.25:
 		memory = randIntBetween(memStats.Percentile5, memStats.Percentile25)
-	case memQtl == 0.25:
-		memory = memStats.Percentile25
-	case memQtl < 0.50:
+	case memQtl <= 0.50:
 		memory = randIntBetween(memStats.Percentile25, memStats.Percentile50)
-	case memQtl == 0.50:
-		memory = memStats.Percentile50
-	case memQtl < 0.75:
+	case memQtl <= 0.75:
 		memory = randIntBetween(memStats.Percentile50, memStats.Percentile75)
-	case memQtl == 0.75:
-		memory = memStats.Percentile75
-	case memQtl < 0.95:
+	case memQtl <= 0.95:
 		memory = randIntBetween(memStats.Percentile75, memStats.Percentile95)
-	case memQtl == 0.95:
-		memory = memStats.Percentile95
-	case memQtl < 0.99:
+	case memQtl <= 0.99:
 		memory = randIntBetween(memStats.Percentile95, memStats.Percentile99)
-	case memQtl == 0.99:
-		memory = memStats.Percentile99
 	case memQtl < 1:
 		memory = randIntBetween(memStats.Percentile99, memStats.Percentile100)
 	}
 
 	switch {
-	case runQtl <= 0.01:
+	case runQtl == 0:
 		runtime = runStats.Percentile0
-	case runQtl < 0.25:
+	case runQtl <= 0.01:
+		runtime = randIntBetween(runStats.Percentile0, runStats.Percentile1)
+	case runQtl <= 0.25:
 		runtime = randIntBetween(runStats.Percentile1, runStats.Percentile25)
-	case runQtl == 0.25:
-		runtime = runStats.Percentile25
-	case runQtl < 0.50:
+	case runQtl <= 0.50:
 		runtime = randIntBetween(runStats.Percentile25, runStats.Percentile50)
-	case runQtl == 0.50:
-		runtime = runStats.Percentile50
-	case runQtl < 0.75:
+	case runQtl <= 0.75:
 		runtime = randIntBetween(runStats.Percentile50, runStats.Percentile75)
-	case runQtl == 0.75:
-		runtime = runStats.Percentile75
 	case runQtl <= 0.95:
 		runtime = randIntBetween(runStats.Percentile75, runStats.Percentile99)
-	case runQtl < 0.99:
+	case runQtl <= 0.99:
 		runtime = randIntBetween(runStats.Percentile99, runStats.Percentile100)
-	case runQtl == 0.99:
-		runtime = runStats.Percentile99
 	case runQtl < 1:
-		runtime = randIntBetween(runStats.Percentile100, runStats.Maximum)
+		// NOTE: 100th percentile is smaller from the max. somehow.
+		runtime = runStats.Percentile100
 	}
 
 	//* Restrict specs to valid range.
 	runtime = util.MinOf(fc.MAX_EXEC_TIME_MILLI, util.MaxOf(fc.MIN_EXEC_TIME_MILLI, runtime))
 	memory = util.MinOf(tc.MAX_MEM_QUOTA_MIB, util.MaxOf(1, memory))
 	return runtime, memory
-}
-
-func computeActualRps(start time.Time, counter int64) float64 {
-	duration := time.Since(start).Seconds()
-	return float64(counter) / duration
 }
 
 func DumpOverloadFlag() {

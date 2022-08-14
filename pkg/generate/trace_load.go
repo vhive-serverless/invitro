@@ -21,7 +21,7 @@ func GenerateTraceLoads(
 	functions []tc.Function,
 	invocationsEachMinute [][]int,
 	totalNumInvocationsEachMinute []int,
-	iatDistribution IATDistribution,
+	iatDistribution IatDistribution,
 	withTracing bool,
 ) int {
 
@@ -158,15 +158,12 @@ trace_gen:
 
 				/** Warmup phases */
 				stationaryWindow := 1
-				switch phaseIdx {
-				case 1:
-					if minute+1 >= WARMUP_DURATION_MINUTES {
-						if !collector.IsLatencyStationary(rps*60*stationaryWindow, STATIONARY_P_VALUE) {
-							log.Warnf("Warmup may need longer than %d minutes", WARMUP_DURATION_MINUTES)
-						}
-						minute++
-						break trace_gen
+				if phaseIdx == 1 && minute+1 >= WARMUP_DURATION_MINUTES {
+					if !collector.IsLatencyStationary(rps*60*stationaryWindow, STATIONARY_P_VALUE) {
+						log.Warnf("Warmup may need longer than %d minutes", WARMUP_DURATION_MINUTES)
 					}
+					minute++
+					break trace_gen
 				}
 
 				goto next_minute

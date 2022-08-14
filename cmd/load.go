@@ -23,7 +23,7 @@ const (
 
 var (
 	traces  tc.FunctionTraces
-	iatType gen.IATDistribution
+	iatType gen.IatDistribution
 
 	serviceConfigPath = ""
 
@@ -51,7 +51,6 @@ var (
 	seed  = flag.Int64("seed", 42, "Random seed for the generator")
 	print = flag.String("print", "all", "Choose a mode from [all, debug, info]")
 
-	// withWarmup = flag.Int("withWarmup", -1000, "Duration of the withWarmup")
 	isPartiallyPanic = flag.Bool("partiallyPanic", false, "Enable partially panic")
 	withWarmup       = flag.Bool("warmup", false, "Enable warmup")
 	withTracing      = flag.Bool("trace", false, "Enable tracing in the client")

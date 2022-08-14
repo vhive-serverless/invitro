@@ -17,7 +17,7 @@ func GenerateBurstLoads(
 	burstTarget int,
 	burstDurationMinutes int,
 	functionsTable map[string]tc.Function,
-	iatDistribution IATDistribution,
+	iatDistribution IatDistribution,
 	withTracing bool,
 ) {
 

@@ -19,7 +19,7 @@ func GenerateStressLoads(
 	rpsStep int,
 	stressSlotInSecs int,
 	functions []tc.Function,
-	iatDistribution IATDistribution,
+	iatDistribution IatDistribution,
 	withTracing bool,
 ) {
 	start := time.Now()
