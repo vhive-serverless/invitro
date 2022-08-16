@@ -6,6 +6,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 
@@ -43,7 +44,7 @@ func Invoke(function tc.Function, runtimeRequested int, memoryRequested int, wit
 	defer cancelDailing()
 
 	var dialOptions []grpc.DialOption
-	dialOptions = append(dialOptions, grpc.WithInsecure())
+	dialOptions = append(dialOptions, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if withTracing {
 		// [FIXME]: will exclude Istio from tracing
 		dialOptions = append(dialOptions, grpc.WithUnaryInterceptor(otelgrpc.UnaryClientInterceptor()))

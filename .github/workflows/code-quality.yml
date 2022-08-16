@@ -5,6 +5,7 @@ on:
   pull_request:
     branches: [main]
 
+
 env:
   GOOS: linux
   GO111MODULE: on
@@ -26,17 +27,22 @@ jobs:
     needs: resolve-modules
     runs-on: ubuntu-20.04
     strategy:
-      matrix: ${{ fromJson(needs.resolve-modules.outputs.matrix) }}
+      matrix: { dir: ['cmd', 'pkg'] }
       fail-fast: false
     steps:
       - name: Setup Go 1.18
         uses: actions/setup-go@v3
         with:
           go-version: 1.18
+
+      - name: Install dependencies for cgo
+        run: sudo apt update && sudo apt install libsnmp-dev
+
       - name: Checkout code into go module directory
         uses: actions/checkout@v3
+        
       - name: Lint with golangci-lint
         uses: golangci/golangci-lint-action@v3.2.0
         with:
-          working-directory: ${{ matrix.workdir }}
+          working-directory: ${{ matrix.dir }}
           args: --timeout 5m

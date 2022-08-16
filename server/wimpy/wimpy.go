@@ -61,5 +61,6 @@ func main() {
 	grpcServer := grpc.NewServer()
 	reflection.Register(grpcServer) // gRPC Server Reflection is used by gRPC CLI.
 	rpc.RegisterExecutorServer(grpcServer, funcServer)
-	grpcServer.Serve(lis)
+	err = grpcServer.Serve(lis)
+	util.Check(err)
 }

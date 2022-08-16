@@ -167,7 +167,7 @@ func runTraceMode(invPath, runPath, memPath string) {
 	/** Measurement (Phase 2) */
 	if nextPhaseStart == *duration {
 		// gen.DumpOverloadFlag()
-		log.Warn("Warmup failed to finish in %d minutes", *duration)
+		log.Warnf("Warmup failed to finish in %d minutes", *duration)
 	}
 
 	log.Infof("Phase 2: Generate real workloads as of Minute[%d]", nextPhaseStart)

@@ -1,8 +1,6 @@
 # Loader
 
-A load generator for benchmarking serverless systems based
-upon [faas-load-generator](https://github.com/eth-easl/faas-load-generator) and the example code
-in [vHive](https://github.com/ease-lab/vhive).
+A load generator for benchmarking serverless systems.
 
 ## Pre-requisites
 
@@ -104,6 +102,8 @@ template `workloads/container/trace_func_go.yaml` based on `cold_iter_per_1ms` a
 To explain this further, `cold_iter_per_1ms` is for short executions (<1s), and `warm_iter_per_1ms` is for the longer
 ones (>=1s).
 
+To account for difference in CPU performance set `COLD_ITER_PER_1MS=102` and `WARM_ITER_PER_1MS=115` if you are using Cloudlab XL170 machines. (Date of measurement: 10-Aug-2022)
+
 ## Single execution
 
 In the Trace mode, the loader replays the Azure trace.
@@ -164,8 +164,3 @@ $ make clean
 
 For more options, please see the `Makefile`.
 
-## Configuring loader YAMLs
-
-To account for difference in CPU performance set `COLD_ITER_PER_1MS=102` and `WARM_ITER_PER_1MS=115` if you are using
-Cloudlab XL170 machines.
-Date of measurement: 10-Aug-2022.
