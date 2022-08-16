@@ -9,6 +9,7 @@ import (
 	grpcpool "github.com/processout/grpc-go-pool"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 var pools = RpcPools{}
@@ -35,7 +36,7 @@ func CreateGrpcPool(functions []tc.Function) {
 		dailCxt, cancelDailing := context.WithTimeout(context.Background(), connectionTimeout)
 		var factory grpcpool.Factory = func() (*grpc.ClientConn, error) {
 			// defer cancelDailing()
-			conn, err := grpc.DialContext(dailCxt, function.Endpoint+port, grpc.WithInsecure())
+			conn, err := grpc.DialContext(dailCxt, function.Endpoint+port, grpc.WithTransportCredentials(insecure.NewCredentials()))
 			if err != nil {
 				log.Fatalf("Failed to start gRPC connection (%s): %v", function.Name, err)
 			}

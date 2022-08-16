@@ -5,11 +5,12 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	tracing "github.com/ease-lab/vSwarm/utils/tracing/go"
 	"net"
 	"os"
 	"strconv"
 	"time"
+
+	tracing "github.com/ease-lab/vSwarm/utils/tracing/go"
 
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
@@ -116,5 +117,6 @@ func main() {
 	}
 	reflection.Register(grpcServer) // gRPC Server Reflection is used by gRPC CLI.
 	rpc.RegisterExecutorServer(grpcServer, funcServer)
-	grpcServer.Serve(lis)
+	err = grpcServer.Serve(lis)
+	util.Check(err)
 }
