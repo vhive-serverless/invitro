@@ -158,14 +158,25 @@ func parseToInt(text string) int {
 func ParseDurationTrace(trace *FunctionTraces, traceFile string) {
 	log.Infof("Parsing function duration trace: %s", traceFile)
 
-	// Create mapping from function hash to function position in `FunctionTraces`.
-	funcPos := make(map[string]int)
+	// Create a mapping from function hash to function position in `FunctionTraces`.
+	funcPosMap := make(map[string]int)
+	// Ceate a map from duplicated function hash to new hashes.
+	duplicatedFunctionMap := make(map[string][]string)
+
 	for i, function := range trace.Functions {
-		if _, exist := funcPos[function.HashFunction]; exist {
+		if _, existed := funcPosMap[function.HashFunction]; existed {
+			newHash := strconv.Itoa(int(util.Hash(function.Name)))
+			duplicates, added := duplicatedFunctionMap[function.HashFunction]
+			if added {
+				duplicatedFunctionMap[function.HashFunction] = append(duplicates, newHash)
+			} else {
+				duplicatedFunctionMap[function.HashFunction] =
+					[]string{function.HashFunction, newHash} //* Add both the original hash and the new hash
+			}
 			//* Replace duplicated function hash.
-			function.HashFunction = strconv.Itoa(int(util.Hash(function.Name)))
+			function.HashFunction = newHash
 		}
-		funcPos[function.HashFunction] = i
+		funcPosMap[function.HashFunction] = i
 	}
 
 	csvfile, err := os.Open(traceFile)
@@ -200,11 +211,19 @@ func ParseDurationTrace(trace *FunctionTraces, traceFile string) {
 			}
 
 			if functionHashIndex == -1 {
-				log.Fatal("Invalid duration trace. No function hash.")
+				panic("Invalid duration trace. No function hash.")
 			}
 		} else {
 			functionHash := record[functionHashIndex]
-			funcIdx, contained := funcPos[functionHash]
+			duplicates, duplicated := duplicatedFunctionMap[functionHash]
+			if duplicated {
+				//* If it's duplicated, then we choose a hash from one of the new function hashes.
+				functionHash = duplicates[len(duplicates)-1]
+				//* Delete the used function hash.
+				duplicatedFunctionMap[functionHash] = duplicates[:len(duplicates)-1]
+			}
+
+			funcIdx, contained := funcPosMap[functionHash]
 			if contained {
 				trace.Functions[funcIdx].RuntimeStats = parseDurationStats(record)
 				foundDurations += 1
@@ -219,43 +238,70 @@ func ParseDurationTrace(trace *FunctionTraces, traceFile string) {
 }
 
 /** Get memory usages in MiB. */
-func parseMemoryStats(record []string) FunctionMemoryStats {
+func parseMemoryStats(record []string, fncCnt int) FunctionMemoryStats {
 	return FunctionMemoryStats{
-		Count:         parseToInt(record[2]),
-		Average:       parseToInt(record[3]),
-		Percentile1:   parseToInt(record[4]),
-		Percentile5:   parseToInt(record[5]),
-		Percentile25:  parseToInt(record[6]),
-		Percentile50:  parseToInt(record[7]),
-		Percentile75:  parseToInt(record[8]),
-		Percentile95:  parseToInt(record[9]),
-		Percentile99:  parseToInt(record[10]),
-		Percentile100: parseToInt(record[11]),
+		Count:         parseToInt(record[2]) / fncCnt,
+		Average:       parseToInt(record[3]) / fncCnt,
+		Percentile1:   parseToInt(record[4]) / fncCnt,
+		Percentile5:   parseToInt(record[5]) / fncCnt,
+		Percentile25:  parseToInt(record[6]) / fncCnt,
+		Percentile50:  parseToInt(record[7]) / fncCnt,
+		Percentile75:  parseToInt(record[8]) / fncCnt,
+		Percentile95:  parseToInt(record[9]) / fncCnt,
+		Percentile99:  parseToInt(record[10]) / fncCnt,
+		Percentile100: parseToInt(record[11]) / fncCnt,
 	}
 }
 
 func ParseMemoryTrace(trace *FunctionTraces, traceFile string) {
 	log.Infof("Parsing function memory trace: %s", traceFile)
-	memMap := make(map[string]FunctionMemoryStats)
-	appFuncCntMap := make(map[string]int)
+
+	// Create a mapping from app hash to function position in `FunctionTraces`.
+	funcPosMap := make(map[string]int)
+	// Ceate a map from duplicated app hash to new hashes.
+	duplicatedAppMap := make(map[string][]string)
+	// Create a mapping from app hash to the # functions that belong to this app.
+	functionCounts := make(map[string]int)
+
+	for i, function := range trace.Functions {
+		_, existed := funcPosMap[function.HashApp]
+		if existed {
+			newHash := strconv.Itoa(int(util.Hash(function.Name)))
+			duplicates, added := duplicatedAppMap[function.HashApp]
+			if added {
+				duplicatedAppMap[function.HashApp] = append(duplicates, newHash)
+			} else {
+				duplicatedAppMap[function.HashFunction] =
+					[]string{function.HashApp, newHash} //* Add both the original hash and the new hash
+			}
+			//* Replace duplicated function hash.
+			function.HashApp = newHash
+		}
+		if existed {
+			//* If the app contains multiple functions, update the function count.
+			//* (The update may happen several times until the end.)
+			functionCounts[function.HashApp] = len(duplicatedAppMap[function.HashApp])
+		} else {
+			functionCounts[function.HashApp] = 1
+		}
+		funcPosMap[function.HashApp] = i
+	}
 
 	csvfile, err := os.Open(traceFile)
 	if err != nil {
 		log.Fatal("Failed to load CSV file", err)
 	}
 
-	// Count number of functions for each app
-	for _, function := range trace.Functions {
-		appFuncCntMap[function.HashApp] += 1
-	}
-
 	r := csv.NewReader(csvfile)
 	l := -1
+	foundDurations := 0
+
 	hashAppIndex := -1
 
-	// Parse memory stats for each app
 	for {
+		// Read each record from csv
 		record, err := r.Read()
+
 		if err != nil {
 			if err == io.EOF {
 				break
@@ -263,6 +309,7 @@ func ParseMemoryTrace(trace *FunctionTraces, traceFile string) {
 			log.Fatal(err)
 		}
 
+		// Skip header
 		if l == -1 {
 			for i := 0; i < 2; i++ {
 				if strings.ToLower(record[i]) == "hashapp" {
@@ -275,46 +322,26 @@ func ParseMemoryTrace(trace *FunctionTraces, traceFile string) {
 				log.Fatal("Memory trace is missing hash app column.")
 			}
 		} else {
+			// Parse durations
 			hashApp := record[hashAppIndex]
-			fncCnt := appFuncCntMap[hashApp]
-			if fncCnt < 1 {
-				log.Fatal("Function is missing for app " + hashApp)
+			duplicates, duplicated := duplicatedAppMap[hashApp]
+			if duplicated {
+				//* If it's duplicated, then we choose a hash from one of the new function hashes.
+				hashApp = duplicates[len(duplicates)-1]
+				//* Delete the used app hash.
+				duplicatedAppMap[hashApp] = duplicates[:len(duplicates)-1]
 			}
 
-			if fncCnt == 1 {
-				memMap[hashApp] = parseMemoryStats(record)
-				continue
+			funcIdx, contained := funcPosMap[hashApp]
+			if contained {
+				trace.Functions[funcIdx].MemoryStats = parseMemoryStats(record, functionCounts[hashApp])
+				foundDurations += 1
 			}
-
-			appMem := parseMemoryStats(record)
-			funcAvgMem := FunctionMemoryStats{
-				Average:       appMem.Average / fncCnt,
-				Count:         appMem.Count / fncCnt,
-				Percentile1:   appMem.Percentile1 / fncCnt,
-				Percentile5:   appMem.Percentile5 / fncCnt,
-				Percentile25:  appMem.Percentile25 / fncCnt,
-				Percentile50:  appMem.Percentile50 / fncCnt,
-				Percentile75:  appMem.Percentile75 / fncCnt,
-				Percentile95:  appMem.Percentile95 / fncCnt,
-				Percentile99:  appMem.Percentile99 / fncCnt,
-				Percentile100: appMem.Percentile100 / fncCnt,
-			}
-			memMap[hashApp] = funcAvgMem
-
 		}
 		l++
 	}
-	var foundMemories int
 
-	// Assign apps memory to each function
-	for idx := range trace.Functions {
-		if mem, ok := memMap[trace.Functions[idx].HashApp]; ok {
-			trace.Functions[idx].MemoryStats = mem
-			foundMemories++
-		}
-	}
-
-	if foundMemories != len(trace.Functions) {
-		log.Fatal("Could not find all memory footprints for all invocations in the supplied trace ", foundMemories, len(trace.Functions))
+	if foundDurations != len(trace.Functions) {
+		log.Fatal("Could not find all memory footprints for all invocations in the supplied trace ", foundDurations, len(trace.Functions))
 	}
 }
