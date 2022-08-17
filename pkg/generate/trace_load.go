@@ -79,13 +79,13 @@ trace_gen:
 		rps := int(math.Ceil(float64(totalNumInvocationsEachMinute[minute]) / 60.0))
 
 		//* Bound the #invocations/minute by RPS.
-		numInvocatonsThisMinute := totalNumInvocationsEachMinute[minute]
-		if numInvocatonsThisMinute < 1 {
+		numInvocationsThisMinute := totalNumInvocationsEachMinute[minute]
+		if numInvocationsThisMinute < 1 {
 			continue
 		}
 
 		iats = GenerateOneMinuteInterarrivalTimesInMicro(
-			numInvocatonsThisMinute,
+			numInvocationsThisMinute,
 			iatDistribution,
 		)
 		log.Infof("Minute[%d]\t RPS=%d", minute, rps)
@@ -109,7 +109,7 @@ trace_gen:
 			select {
 			case <-ticker.C:
 
-				if tick >= numInvocatonsThisMinute {
+				if tick >= numInvocationsThisMinute {
 					//* Finished before timeout.
 					log.Info("Finish target invocation early at Minute slot ", minute, " Itr. ", tick)
 					done <- true

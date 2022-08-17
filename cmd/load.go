@@ -107,7 +107,7 @@ func main() {
 	case "equidistant":
 		iatType = gen.Equidistant
 	default:
-		panic("Unsupported IAT distribution.")
+		log.Fatal("Unsupported IAT distribution.")
 	}
 
 	switch *mode {

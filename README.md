@@ -6,8 +6,13 @@ A load generator for benchmarking serverless systems.
 
 The experiments require a 2-socket server-grade node, running Linux (tested on Ubuntu 20, Intel Xeon). On CloudLab, one can choose the APT cluster `d430` node.
 
+### Multi-node cluster
+
 The master node should have at least two sockets, because, although we have isolated the loader with Cgroups, the isolation provided by our setup scripts is better achieved when it runs on one socket separate from the rest of the components running on master. 
 
+### Single-node cluster
+
+This mode is only for debugging purposes, and there is no guarantees of isolation between the loader and the master-node components.
 ## Create a cluster
 
 First, change the parameters (e.g., `GITHUB_TOKEN`) in the `script/setup.cfg` is necessary.
@@ -112,7 +117,7 @@ For Trace mode, run the following command
 
 ```bash
 cgexec -g cpuset,memory:loader-cg \
-    make ARGS='-sample <sample_trace_size> -duration <minutes[1,1440]> -cluster <num_workers> -server <trace|busy|sleep> -tracePath <path_to_trace> -warmup' run
+    make ARGS='-sample <sample_trace_size> -duration <minutes[1,1440]> -cluster <num_workers> -server <trace|busy|sleep> -tracePath <path_to_trace> -iatDistributionn <poission|uniform|equidistant> -warmup' run
 ```
 
 In the RPS mode, the loader sweeps fixed number of invocations per second.
@@ -133,7 +138,7 @@ For running experiments, use the wrapper scripts in the `scripts/experiments` di
 ```bash
 #* Trace mode
 $ bash scripts/experiments/run_trace_mode.sh \
-    <duration_in_minutes> <num_workers> <trace_path>
+    <duration_in_minutes> <num_workers> <trace_path> 
 
 #* RPS mode
 $ bash scripts/experiments/run_rps_mode.sh \

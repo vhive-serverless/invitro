@@ -84,7 +84,7 @@ func GenerateOneMinuteInterarrivalTimesInMicro(invocationsPerMinute int, iatDist
 		case Equidistant:
 			iat = oneSecondInMicro / rps
 		default:
-			panic("Unsupported IAT distribution")
+			log.Fatal("Unsupported IAT distribution")
 		}
 
 		//* Only guarantee microsecond-level ganularity.
