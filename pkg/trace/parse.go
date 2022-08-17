@@ -78,7 +78,7 @@ func ParseInvocationTrace(traceFile string, traceDuration int) FunctionTraces {
 			}
 
 			if hashOwnerIndex == -1 || hashAppIndex == -1 || hashFunctionIndex == -1 {
-				panic("Invocation trace does not contain one of the hashes.")
+				log.Fatal("Invocation trace does not contain one of the hashes.")
 			}
 
 			if invocationColumnIndex == -1 {
@@ -200,7 +200,7 @@ func ParseDurationTrace(trace *FunctionTraces, traceFile string) {
 			}
 
 			if functionHashIndex == -1 {
-				panic("Invalid duration trace. No function hash.")
+				log.Fatal("Invalid duration trace. No function hash.")
 			}
 		} else {
 			functionHash := record[functionHashIndex]
@@ -279,7 +279,7 @@ func ParseMemoryTrace(trace *FunctionTraces, traceFile string) {
 			}
 
 			if hashAppIndex == -1 {
-				panic("Memory trace is missing hash app column.")
+				log.Fatal("Memory trace is missing hash app column.")
 			}
 		} else {
 			// Parse durations

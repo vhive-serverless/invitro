@@ -40,6 +40,7 @@ func ComputeFunctionWarmupScales(clusterSize int, functions []tc.Function) []int
 	log.Info("Warmup scales: ", scales)
 
 	if totalCpuRequestMilli > totalClusterCapacityMilli {
+		log.Fatal("The system is going to overload")
 		scales = MaxMaxAlloc(totalClusterCapacityMilli, scales, functions)
 		log.Info("Max-max scales: ", scales)
 	}
