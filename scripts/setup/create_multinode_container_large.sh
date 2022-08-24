@@ -167,6 +167,8 @@ common_init() {
 	server_exec 'echo off | sudo tee /sys/devices/system/cpu/smt/control'
 	#* Create CGroup.
 	server_exec 'sudo bash loader/scripts/isolation/define_cgroup.sh'
+	#* Extract trace.
+	server_exec 'tar -xf data/traces/traces.tar.xz -C data/traces/'
 
 
 	echo "Logging in master node $MASTER_NODE"
