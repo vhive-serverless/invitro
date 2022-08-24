@@ -70,7 +70,7 @@ rps_gen:
 		timeout := time.After(time.Second * time.Duration(stressSlotInSecs))
 		interval := time.Duration(iats[0]) * time.Microsecond
 		ticker := time.NewTicker(interval)
-		done := make(chan bool, 1)
+		done := make(chan bool, 2)
 
 		//* The following counters are for each RPS step slot.
 		var successCountRpsStep int64 = 0
@@ -85,39 +85,46 @@ rps_gen:
 		}()
 
 		for {
+			totalNumInvocationThisMinute := rps * stressSlotInSecs
 			select {
 			case <-ticker.C:
 				tick++
-				//* Invoke functions using round robin.
-				function := functions[tick%len(functions)]
+				if tick >= totalNumInvocationThisMinute {
+					//* Finished before timeout.
+					log.Info("Finish target invocation early at RPS=", rps)
+					done <- true
+				} else {
+					//* Invoke functions using round robin.
+					function := functions[tick%len(functions)]
 
-				go func(_tick int, _rps int, _interval int64) {
-					defer wg.Done()
-					wg.Add(1)
+					go func(_tick int, _rps int, _interval int64) {
+						defer wg.Done()
+						wg.Add(1)
 
-					atomic.AddInt64(&numFuncInvokedThisSlot, 1)
-					success, execRecord := fc.Invoke(function, runtimeRequested, memoryRequested, withTracing)
+						atomic.AddInt64(&numFuncInvokedThisSlot, 1)
+						success, execRecord := fc.Invoke(function, runtimeRequested, memoryRequested, withTracing)
 
-					if success {
-						atomic.AddInt64(&successCountRpsStep, 1)
-					} else {
-						atomic.AddInt64(&failureCountRpsStep, 1)
-					}
+						if success {
+							atomic.AddInt64(&successCountRpsStep, 1)
+						} else {
+							atomic.AddInt64(&failureCountRpsStep, 1)
+						}
 
-					totalInvocationsThisSlot := _rps * stressSlotInSecs
-					if float64(_tick)/float64(totalInvocationsThisSlot) > RPS_WARMUP_FRACTION {
+						totalInvocationsThisSlot := _rps * stressSlotInSecs
+						if float64(_tick)/float64(totalInvocationsThisSlot) > RPS_WARMUP_FRACTION {
 
-						execRecord.Interval = _interval
-						execRecord.Rps = _rps
-						collector.ReportExecution(execRecord, clusterUsage, knStats)
-					}
-				}(tick, rps, interval.Milliseconds()) //* NB: `clusterUsage` needn't be pushed onto the stack as we want the latest.
+							execRecord.Interval = _interval
+							execRecord.Rps = _rps
+							collector.ReportExecution(execRecord, clusterUsage, knStats)
+						}
+					}(tick, rps, interval.Milliseconds()) //* NB: `clusterUsage` needn't be pushed onto the stack as we want the latest.
+				}
 
 			case <-done:
 				invRecord := mc.MinuteInvocationRecord{
 					Rps:             rps,
 					Duration:        int64(stressSlotInSecs),
-					NumFuncTargeted: rps * stressSlotInSecs,
+					NumFuncTargeted: totalNumInvocationThisMinute,
 					NumFuncInvoked:  int(numFuncInvokedThisSlot),
 				}
 				//* Export metrics for all phases.
