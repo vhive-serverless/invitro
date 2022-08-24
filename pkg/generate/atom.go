@@ -67,7 +67,10 @@ func InitSeed(s int64) {
 
 func GenerateOneMinuteInterarrivalTimesInMicro(invocationsPerMinute int, iatDistribution IatDistribution) []float64 {
 	oneSecondInMicro := 1000_000.0
-	oneMinuteInMicro := 60*oneSecondInMicro - 1000
+	//* Launching goroutine takes time, especially in high load,
+	//* so we need to guarantee the required #invocations before timeout.
+	slackMicro := 5 * oneSecondInMicro
+	oneMinuteInMicro := 60*oneSecondInMicro - slackMicro
 
 	rps := float64(invocationsPerMinute) / 60
 	interArrivalTimes := []float64{}

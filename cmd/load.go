@@ -215,11 +215,11 @@ func runStressMode() {
 
 func runBurstMode() {
 	var functions []tc.Function
-	functionsTable := make(map[string]tc.Function)
+	functionTable := make(map[string]tc.Function)
 	initialScales := []int{1, 1, 0}
 
 	for _, f := range []string{"steady", "bursty", "victim"} {
-		functionsTable[f] = tc.Function{
+		functionTable[f] = tc.Function{
 			Name:     f + "-func",
 			Endpoint: tc.GetFuncEndpoint(f + "-func"),
 			RuntimeStats: tc.FunctionRuntimeStats{
@@ -231,12 +231,12 @@ func runBurstMode() {
 				Percentile100: 0,
 			},
 		}
-		functions = append(functions, functionsTable[f])
+		functions = append(functions, functionTable[f])
 	}
 
 	fc.DeployFunctions(functions, serviceConfigPath, initialScales, *isPartiallyPanic)
 
-	gen.GenerateBurstLoads(*rpsEnd, *burstTarget, *duration, functionsTable, iatType, *withTracing)
+	gen.GenerateBurstLoads(*rpsEnd, *burstTarget, *duration, functionTable, iatType, *withTracing)
 }
 
 func runColdStartMode() {

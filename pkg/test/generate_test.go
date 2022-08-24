@@ -24,24 +24,28 @@ func TestGenCheckOverload(t *testing.T) {
 }
 
 func TestGenerateIat(t *testing.T) {
+	invocationsPerMinute := 30_000
+	oneMinuteInMicro := 60_000_000.0
 
-	invocationsPerMinute := 20_000
+	/** Testing Equidistance */
 	iats := gen.GenerateOneMinuteInterarrivalTimesInMicro(invocationsPerMinute, gen.Equidistant)
 	duration, _ := stats.Sum(stats.LoadRawData(iats))
 
 	assert.Equal(t, iats[rand.Intn(len(iats))], iats[rand.Intn(len(iats))])
 	assert.Equal(t, invocationsPerMinute, len(iats))
-	assert.Greater(t, 60_000_000.0, duration)
+	assert.Greater(t, oneMinuteInMicro, duration)
+	t.Log(duration)
 
 	for _, iat := range iats {
 		assert.GreaterOrEqual(t, iat, 1.0)
 	}
 
+	/** Testing Poisson */
 	iats = gen.GenerateOneMinuteInterarrivalTimesInMicro(invocationsPerMinute, gen.Poisson)
 	duration, _ = stats.Sum(stats.LoadRawData(iats))
 
 	assert.Equal(t, invocationsPerMinute, len(iats))
-	assert.Greater(t, 60_000_000.0, duration)
+	assert.Greater(t, oneMinuteInMicro, duration)
 
 	for _, iat := range iats {
 		assert.GreaterOrEqual(t, iat, 1.0)
@@ -49,7 +53,7 @@ func TestGenerateIat(t *testing.T) {
 
 	iats = gen.GenerateOneMinuteInterarrivalTimesInMicro(0, gen.Poisson)
 	assert.Equal(t, 0, len(iats))
-	t.Log(iats)
+	// t.Log(iats)
 }
 
 func TestShuffling(t *testing.T) {
