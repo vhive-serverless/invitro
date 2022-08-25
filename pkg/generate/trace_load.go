@@ -84,7 +84,8 @@ trace_gen:
 			continue
 		}
 
-		iats = GenerateOneMinuteInterarrivalTimesInMicro(
+		iats = GenerateInterarrivalTimesInMicro(
+			60,
 			numInvocationsThisMinute,
 			iatDistribution,
 		)
@@ -169,9 +170,9 @@ trace_gen:
 				goto next_minute
 			}
 
-			tick++
+			tick++ //! FIX: Wrong place -> inside ticker.C!
 			//* Load the next inter-arrival time.
-			d := 1
+			d := 1 //! FIX
 			if tick < len(iats) {
 				d = int(iats[tick])
 			}

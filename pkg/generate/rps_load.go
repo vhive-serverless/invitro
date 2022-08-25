@@ -62,15 +62,36 @@ func GenerateStressLoads(
 
 rps_gen:
 	for {
-		iats := GenerateOneMinuteInterarrivalTimesInMicro(
-			rps*60,
+		totalNumInvocationThisSlot := rps * stressSlotInSecs
+		iats := GenerateInterarrivalTimesInMicro(
+			stressSlotInSecs,
+			totalNumInvocationThisSlot,
 			iatDistribution,
 		)
-		tick := -1
+
+		// if stressSlotInSecs <= 60 {
+		// 	iats = GenerateInterarrivalTimesInMicro(
+		// 		rps*60,
+		// 		iatDistribution,
+		// 	)
+		// } else {
+		// 	totalMinutes := stressSlotInSecs/60 + 1
+		// 	for i := 0; i < totalMinutes; i++ {
+		// 		iats = append(iats,
+		// 			GenerateInterarrivalTimesInMicro(
+		// 				rps*60,
+		// 				iatDistribution,
+		// 			)...,
+		// 		)
+		// 	}
+		// }
+		// iats = iats[:rps*stressSlotInSecs]
+
 		timeout := time.After(time.Second * time.Duration(stressSlotInSecs))
 		interval := time.Duration(iats[0]) * time.Microsecond
 		ticker := time.NewTicker(interval)
 		done := make(chan bool, 2)
+		tick := 0
 
 		//* The following counters are for each RPS step slot.
 		var successCountRpsStep int64 = 0
@@ -85,46 +106,47 @@ rps_gen:
 		}()
 
 		for {
-			totalNumInvocationThisMinute := rps * stressSlotInSecs
 			select {
 			case <-ticker.C:
-				tick++
-				if tick >= totalNumInvocationThisMinute {
+				//* Invoke functions using round robin.
+				function := functions[tick%len(functions)]
+
+				go func(_tick int, _rps int, _interval int64) {
+					defer wg.Done()
+					wg.Add(1)
+
+					atomic.AddInt64(&numFuncInvokedThisSlot, 1)
+					success, execRecord := fc.Invoke(function, runtimeRequested, memoryRequested, withTracing)
+
+					if success {
+						atomic.AddInt64(&successCountRpsStep, 1)
+					} else {
+						atomic.AddInt64(&failureCountRpsStep, 1)
+					}
+
+					totalInvocationsThisSlot := _rps * stressSlotInSecs
+					if float64(_tick)/float64(totalInvocationsThisSlot) > RPS_WARMUP_FRACTION {
+
+						execRecord.Interval = _interval
+						execRecord.Rps = _rps
+						collector.ReportExecution(execRecord, clusterUsage, knStats)
+					}
+				}(tick, rps, interval.Milliseconds()) //* NB: `clusterUsage` needn't be pushed onto the stack as we want the latest.
+
+				if tick >= totalNumInvocationThisSlot {
 					//* Finished before timeout.
 					log.Info("Finish target invocation early at RPS=", rps)
 					done <- true
 				} else {
-					//* Invoke functions using round robin.
-					function := functions[tick%len(functions)]
-
-					go func(_tick int, _rps int, _interval int64) {
-						defer wg.Done()
-						wg.Add(1)
-
-						atomic.AddInt64(&numFuncInvokedThisSlot, 1)
-						success, execRecord := fc.Invoke(function, runtimeRequested, memoryRequested, withTracing)
-
-						if success {
-							atomic.AddInt64(&successCountRpsStep, 1)
-						} else {
-							atomic.AddInt64(&failureCountRpsStep, 1)
-						}
-
-						totalInvocationsThisSlot := _rps * stressSlotInSecs
-						if float64(_tick)/float64(totalInvocationsThisSlot) > RPS_WARMUP_FRACTION {
-
-							execRecord.Interval = _interval
-							execRecord.Rps = _rps
-							collector.ReportExecution(execRecord, clusterUsage, knStats)
-						}
-					}(tick, rps, interval.Milliseconds()) //* NB: `clusterUsage` needn't be pushed onto the stack as we want the latest.
+					interval = time.Duration(iats[tick]) * time.Microsecond
+					ticker = time.NewTicker(interval)
 				}
-
+				tick++
 			case <-done:
 				invRecord := mc.MinuteInvocationRecord{
 					Rps:             rps,
 					Duration:        int64(stressSlotInSecs),
-					NumFuncTargeted: totalNumInvocationThisMinute,
+					NumFuncTargeted: totalNumInvocationThisSlot,
 					NumFuncInvoked:  int(numFuncInvokedThisSlot),
 				}
 				//* Export metrics for all phases.
@@ -148,6 +170,7 @@ rps_gen:
 			/** Ending RPS specified. */
 			break rps_gen
 		}
+
 		if rps < 100 {
 			rps += util.MinOf(MAX_RPS_STARTUP_STEP, rpsStep)
 		} else {

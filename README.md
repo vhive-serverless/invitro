@@ -117,7 +117,7 @@ For Trace mode, run the following command
 
 ```bash
 cgexec -g cpuset,memory:loader-cg \
-    make ARGS='-sample <sample_trace_size> -duration <minutes[1,1440]> -cluster <num_workers> -server <trace|busy|sleep> -tracePath <path_to_trace> -iatDistributionn <poission|uniform|equidistant> -warmup' run
+    make ARGS='-sample <sample_trace_size> -duration <minutes[1,1440]> -cluster <num_workers> -server <trace|busy|sleep> -tracePath <path_to_trace> -iatDistributionn <poission|uniform|equidistance> -warmup' run
 ```
 
 In the RPS mode, the loader sweeps fixed number of invocations per second.

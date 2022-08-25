@@ -68,7 +68,8 @@ burst_gen:
 			durationMinutes = burstDurationMinutes
 		}
 
-		iats := GenerateOneMinuteInterarrivalTimesInMicro(
+		iats := GenerateInterarrivalTimesInMicro(
+			60,
 			rps*60,
 			iatDistribution,
 		)
