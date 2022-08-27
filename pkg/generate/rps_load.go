@@ -39,8 +39,8 @@ func GenerateStressLoads(
 		}
 	}()
 
-	/** Launch a scraper that updates Knative states every 2s (max. interval). */
-	scrape_kn := time.NewTicker(time.Second * 2)
+	/** Launch a scraper that updates Knative states every 15s (max. interval). */
+	scrape_kn := time.NewTicker(time.Second * 15)
 	go func() {
 		for {
 			<-scrape_kn.C
@@ -49,7 +49,7 @@ func GenerateStressLoads(
 	}()
 
 	/** Launch a scraper for getting cold-start count. */
-	scrape_scales := time.NewTicker(time.Second * 1)
+	scrape_scales := time.NewTicker(time.Second * 60)
 	go func() {
 		for {
 			<-scrape_scales.C
@@ -68,24 +68,6 @@ rps_gen:
 			totalNumInvocationThisSlot,
 			iatDistribution,
 		)
-
-		// if stressSlotInSecs <= 60 {
-		// 	iats = GenerateInterarrivalTimesInMicro(
-		// 		rps*60,
-		// 		iatDistribution,
-		// 	)
-		// } else {
-		// 	totalMinutes := stressSlotInSecs/60 + 1
-		// 	for i := 0; i < totalMinutes; i++ {
-		// 		iats = append(iats,
-		// 			GenerateInterarrivalTimesInMicro(
-		// 				rps*60,
-		// 				iatDistribution,
-		// 			)...,
-		// 		)
-		// 	}
-		// }
-		// iats = iats[:rps*stressSlotInSecs]
 
 		timeout := time.After(time.Second * time.Duration(stressSlotInSecs))
 		interval := time.Duration(iats[0]) * time.Microsecond
@@ -142,6 +124,7 @@ rps_gen:
 					ticker = time.NewTicker(interval)
 				}
 				tick++
+
 			case <-done:
 				invRecord := mc.MinuteInvocationRecord{
 					Rps:             rps,

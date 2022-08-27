@@ -34,7 +34,7 @@ const (
 	FORCE_TIMEOUT_MINUTE = 15
 	// The portion of measurements we take in the RPS mode. The first 50% serves as a step-wise warm-up, and
 	// we only take the second half of the measurements.
-	RPS_WARMUP_FRACTION = 0
+	RPS_WARMUP_FRACTION = 0.2
 	// The maximum step size in the early stage of the RPS mode -- we shouldn't take too large a RPS step before reaching
 	// ~100RPS in order to ensure sufficient number of measurements for lower variance (smaller the RPS, the less total data points).
 	MAX_RPS_STARTUP_STEP = 5
@@ -53,9 +53,9 @@ var specMutex *sync.Mutex
 type IatDistribution int
 
 const (
-	Poisson      IatDistribution = iota
-	Uniform      IatDistribution = iota
-	Equidistance IatDistribution = iota
+	Exponential IatDistribution = iota
+	Uniform     IatDistribution = iota
+	Equidistant IatDistribution = iota
 )
 
 func InitSeed(s int64) {
@@ -72,7 +72,11 @@ func GenerateInterarrivalTimesInMicro(
 	oneSecondInMicro := 1000_000.0
 	//* Launching goroutine takes time, especially in high load (5%: e.g., 3s/minute),
 	//* so we need to guarantee the required #invocations before timeout.
-	slackTimeMicro := float64(totalDurationInSec) * .05 * oneSecondInMicro
+	var slackFrac float64
+	if slackFrac = .05; iatDistribution == Exponential {
+		slackFrac *= 2 // Emperically, we need more slack when generating exponential due to potentially shorter intervals.
+	}
+	slackTimeMicro := float64(totalDurationInSec) * slackFrac * oneSecondInMicro
 	durationInMicro := float64(totalDurationInSec)*oneSecondInMicro - slackTimeMicro
 
 	rps := float64(totalNumInvocations) / 60
@@ -83,11 +87,11 @@ func GenerateInterarrivalTimesInMicro(
 		var iat float64
 
 		switch iatDistribution {
-		case Poisson:
+		case Exponential:
 			iat = iatRand.ExpFloat64() / rps * oneSecondInMicro
 		case Uniform:
 			iat = iatRand.Float64() / rps * oneSecondInMicro
-		case Equidistance:
+		case Equidistant:
 			iat = oneSecondInMicro / rps
 		default:
 			log.Fatal("Unsupported IAT distribution")
@@ -102,7 +106,7 @@ func GenerateInterarrivalTimesInMicro(
 	}
 
 	if totalDuration > durationInMicro {
-		//* Normalise if it's longer than 1min.
+		//* Normalise if it's longer than the total duration.
 		for i, iat := range interArrivalTimes {
 			iat = iat / totalDuration * durationInMicro
 			if iat < 1 {

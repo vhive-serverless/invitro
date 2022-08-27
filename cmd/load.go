@@ -46,7 +46,7 @@ var (
 	funcDuration = flag.Int("funcDuration", 1000, "Function execution duration in ms (under `stress` mode)")
 	funcMemory   = flag.Int("funcMemory", 170, "Function memeory in MiB(under `stress` mode)")
 
-	iatDistribution = flag.String("iatDistribution", "poisson", "Choose a distribution from [poisson, uniform, equidistance]")
+	iatDistribution = flag.String("iatDistribution", "exponential", "Choose a distribution from [exponential, uniform, equidistant]")
 
 	seed  = flag.Int64("seed", 42, "Random seed for the generator")
 	print = flag.String("print", "all", "Choose a mode from [all, debug, info]")
@@ -100,12 +100,12 @@ func main() {
 	}
 
 	switch *iatDistribution {
-	case "poisson":
-		iatType = gen.Poisson
+	case "exponential":
+		iatType = gen.Exponential
 	case "uniform":
 		iatType = gen.Uniform
-	case "equidistance":
-		iatType = gen.Equidistance
+	case "equidistant":
+		iatType = gen.Equidistant
 	default:
 		log.Fatal("Unsupported IAT distribution.")
 	}

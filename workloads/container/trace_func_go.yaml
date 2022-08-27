@@ -25,7 +25,7 @@ spec:
               containerPort: 80
           env:
             - name: COLD_ITER_PER_1MS
-              value: "90"
+              value: "95"
             - name: WARM_ITER_PER_1MS
               value: "115"
             - name: ENABLE_TRACING

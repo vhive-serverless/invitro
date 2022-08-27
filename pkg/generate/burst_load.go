@@ -38,8 +38,8 @@ func GenerateBurstLoads(
 		}
 	}()
 
-	/** Launch a scraper that updates Knative states every 2s (max. interval). */
-	scrape_kn := time.NewTicker(time.Second * 2)
+	/** Launch a scraper that updates Knative states every 15s (max. interval). */
+	scrape_kn := time.NewTicker(time.Second * 15)
 	go func() {
 		for {
 			<-scrape_kn.C
@@ -48,7 +48,7 @@ func GenerateBurstLoads(
 	}()
 
 	/** Launch a scraper for getting cold-start count. */
-	scrape_scales := time.NewTicker(time.Second * 1)
+	scrape_scales := time.NewTicker(time.Second * 60)
 	go func() {
 		for {
 			<-scrape_scales.C

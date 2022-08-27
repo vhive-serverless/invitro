@@ -28,8 +28,8 @@ func TestGenerateIat(t *testing.T) {
 	oneMinuteInMicro := 60_000_000.0
 	halfMinuteInMicro := oneMinuteInMicro / 2
 
-	/** Testing Equidistance */
-	iats := gen.GenerateInterarrivalTimesInMicro(60, totalNumInvocations, gen.Equidistance)
+	/** Testing Equidistant */
+	iats := gen.GenerateInterarrivalTimesInMicro(60, totalNumInvocations, gen.Equidistant)
 	duration, _ := stats.Sum(stats.LoadRawData(iats))
 
 	assert.Equal(t, iats[rand.Intn(len(iats))], iats[rand.Intn(len(iats))])
@@ -41,8 +41,8 @@ func TestGenerateIat(t *testing.T) {
 		assert.GreaterOrEqual(t, iat, 1.0)
 	}
 
-	/** Testing Poisson */
-	iats = gen.GenerateInterarrivalTimesInMicro(60, totalNumInvocations, gen.Poisson)
+	/** Testing Exponential */
+	iats = gen.GenerateInterarrivalTimesInMicro(60, totalNumInvocations, gen.Exponential)
 	duration, _ = stats.Sum(stats.LoadRawData(iats))
 
 	assert.Equal(t, totalNumInvocations, len(iats))
@@ -52,12 +52,12 @@ func TestGenerateIat(t *testing.T) {
 		assert.GreaterOrEqual(t, iat, 1.0)
 	}
 
-	iats = gen.GenerateInterarrivalTimesInMicro(60, 0, gen.Poisson)
+	iats = gen.GenerateInterarrivalTimesInMicro(60, 0, gen.Exponential)
 	assert.Equal(t, 0, len(iats))
 	// t.Log(iats)
 
 	/** Testing shorter intervals. */
-	iats = gen.GenerateInterarrivalTimesInMicro(30, totalNumInvocations, gen.Poisson)
+	iats = gen.GenerateInterarrivalTimesInMicro(30, totalNumInvocations, gen.Uniform)
 	duration, _ = stats.Sum(stats.LoadRawData(iats))
 
 	assert.Greater(t, halfMinuteInMicro, duration)
