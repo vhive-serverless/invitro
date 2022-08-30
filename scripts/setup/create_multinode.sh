@@ -12,6 +12,8 @@ then
 elif [ $OPERATION_MODE = "container_large" ]
 then
     OPERATION_MODE="stock-only"
+    echo "Not yet implemented"
+    exit 1
 elif [ $OPERATION_MODE = "firecracker" ]
 then
     OPERATION_MODE=""
