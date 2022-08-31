@@ -29,7 +29,7 @@ spec:
             - name: WARM_ITER_PER_1MS
               value: "115"
             - name: ENABLE_TRACING
-              value: "true"
+              value: "false"
           resources:
             requests:
               cpu: $CPU_REQUEST

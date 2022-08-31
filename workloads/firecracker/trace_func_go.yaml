@@ -27,12 +27,6 @@ spec:
               value: "50051"
             - name: GUEST_IMAGE # Container image to use for firecracker-containerd container.
               value: "hyhe/trace-func-firecracker:latest"
-            - name: COLD_ITER_PER_1MS
-              value: "90"
-            - name: WARM_ITER_PER_1MS
-              value: "115"
-            - name: ENABLE_TRACING
-              value: "false"
           resources:
             requests:
               cpu: $CPU_REQUEST
