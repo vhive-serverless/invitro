@@ -5,12 +5,11 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	tracing "github.com/ease-lab/vSwarm/utils/tracing/go"
 	"net"
 	"os"
 	"strconv"
 	"time"
-
-	tracing "github.com/ease-lab/vSwarm/utils/tracing/go"
 
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
@@ -44,9 +43,17 @@ type funcServer struct {
 func busySpin(runtimeMilli uint32) {
 	var unitIterations int
 	if runtimeMilli > 1e3 {
-		unitIterations, _ = strconv.Atoi(os.Getenv("WARM_ITER_PER_1MS"))
+		if _, ok := os.LookupEnv("WARM_ITER_PER_1MS"); ok {
+			unitIterations, _ = strconv.Atoi(os.Getenv("WARM_ITER_PER_1MS"))
+		} else {
+			unitIterations = 115
+		}
 	} else {
-		unitIterations, _ = strconv.Atoi(os.Getenv("COLD_ITER_PER_1MS"))
+		if _, ok := os.LookupEnv("COLD_ITER_PER_1MS"); ok {
+			unitIterations, _ = strconv.Atoi(os.Getenv("COLD_ITER_PER_1MS"))
+		} else {
+			unitIterations = 90
+		}
 	}
 	totalIterations := unitIterations * int(runtimeMilli)
 
@@ -55,7 +62,7 @@ func busySpin(runtimeMilli uint32) {
 	}
 }
 
-func (s *funcServer) Execute(ctx context.Context, req *rpc.FaasRequest) (*rpc.FaasReply, error) {
+func (s *funcServer) Execute(_ context.Context, req *rpc.FaasRequest) (*rpc.FaasReply, error) {
 	start := time.Now()
 	runtimeRequestedMilli := req.RuntimeInMilliSec
 	if runtimeRequestedMilli <= 0 {
