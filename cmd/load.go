@@ -83,8 +83,10 @@ func init() {
 		serviceConfigPath = "workloads/container/wimpy.yaml"
 	case "trace":
 		serviceConfigPath = "workloads/container/trace_func_go.yaml"
-		// serviceConfigPath = "workloads/firecracker/trace_func_go.yaml"
+	case "trace_firecracker":
+		serviceConfigPath = "workloads/firecracker/trace_func_go.yaml"
 	}
+
 	log.Info("Using service config file: ", serviceConfigPath)
 }
 
