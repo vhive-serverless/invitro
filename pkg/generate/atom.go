@@ -70,7 +70,7 @@ func GenerateInterarrivalTimesInMicro(
 	iatDistribution IatDistribution,
 ) []float64 {
 	oneSecondInMicro := 1000_000.0
-	//* Launching goroutine takes time, especially in high load (5%: e.g., 3s/minute),
+	//* Launching goroutine takes time, especially under high load (5%: e.g., 3s/minute),
 	//* so we need to guarantee the required #invocations before timeout.
 	var slackFrac float64
 	if slackFrac = .05; iatDistribution == Exponential {
@@ -90,9 +90,9 @@ func GenerateInterarrivalTimesInMicro(
 		case Exponential:
 			iat = iatRand.ExpFloat64() / rps * oneSecondInMicro
 		case Uniform:
-			iat = iatRand.Float64() / rps * oneSecondInMicro
+			iat = iatRand.Float64() * (durationInMicro / rps)
 		case Equidistant:
-			iat = oneSecondInMicro / rps
+			iat = durationInMicro / rps
 		default:
 			log.Fatal("Unsupported IAT distribution")
 		}

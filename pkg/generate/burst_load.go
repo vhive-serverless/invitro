@@ -85,6 +85,9 @@ burst_gen:
 
 		/** Launch a timer. */
 		go func() {
+			defer wg.Done()
+			wg.Add(1)
+
 			<-timeout
 			ticker.Stop()
 			done <- true

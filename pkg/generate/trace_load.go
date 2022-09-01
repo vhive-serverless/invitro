@@ -100,6 +100,9 @@ trace_gen:
 
 		/** Launch a timer. */
 		go func() {
+			defer wg.Done()
+			wg.Add(1)
+
 			t := <-timeout
 			log.Warn("(Slot finished)\t", t.Format(time.StampMilli), "\tMinute Nbr. ", minute)
 			ticker.Stop()
