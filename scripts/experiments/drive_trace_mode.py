@@ -30,7 +30,7 @@ def main(argv):
             os.system('make -i clean')
             sleep(5)
         try:
-            cmd = f"make ARGS='-sample {size} -duration {duration} -cluster {cluster} -server {server} -warmup -iatDistribution exponential' run 2>&1 | tee cap_{size}.log"
+            cmd = f"make ARGS='-sample {size} -duration {duration} -cluster {cluster} -server {server} -warmup -iatDistribution exponential -tracePath data/traces/10-1k/' run 2>&1 | tee cap_{size}.log"
             print(cmd)
             os.system(command=cmd)
             if glob(flagf): break
