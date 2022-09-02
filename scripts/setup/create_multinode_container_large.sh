@@ -168,7 +168,7 @@ common_init() {
 	#* Create CGroup.
 	server_exec 'sudo bash loader/scripts/isolation/define_cgroup.sh'
 	#* Extract trace.
-	server_exec 'tar -xf data/traces/traces.tar.xz -C data/traces/'
+	server_exec 'tar -xf loader/data/traces/traces.tar.xz -C loader/data/traces/'
 
 
 	echo "Logging in master node $MASTER_NODE"

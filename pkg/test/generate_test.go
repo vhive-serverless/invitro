@@ -35,7 +35,7 @@ func TestGenerateIat(t *testing.T) {
 	assert.Equal(t, iats[rand.Intn(len(iats))], iats[rand.Intn(len(iats))])
 	assert.Equal(t, totalNumInvocations, len(iats))
 	assert.Greater(t, oneMinuteInMicro, duration)
-	t.Log("One-minute duration: ", duration)
+	t.Log("One-minute duration (equidistant): ", duration)
 
 	for _, iat := range iats {
 		assert.GreaterOrEqual(t, iat, 1.0)
@@ -47,6 +47,7 @@ func TestGenerateIat(t *testing.T) {
 
 	assert.Equal(t, totalNumInvocations, len(iats))
 	assert.Greater(t, oneMinuteInMicro, duration)
+	t.Log("One-minute duration (exponential): ", duration)
 
 	for _, iat := range iats {
 		assert.GreaterOrEqual(t, iat, 1.0)
@@ -61,7 +62,7 @@ func TestGenerateIat(t *testing.T) {
 	duration, _ = stats.Sum(stats.LoadRawData(iats))
 
 	assert.Greater(t, halfMinuteInMicro, duration)
-	t.Log("Half-minute duration: ", duration)
+	t.Log("Half-minute duration (uniform): ", duration)
 }
 
 func TestShuffling(t *testing.T) {
