@@ -1,17 +1,17 @@
 name: Loader integration tests
 
-on:
-  push:
-    branches: [ main ]
-    paths-ignore:
-    - 'docs/**'
-    - '**.md'
-  pull_request:
-    branches: [ main ]
-    paths-ignore:
-    - 'docs/**'
-    - '**.md'
-  workflow_dispatch:
+# on:
+  # push:
+  #   branches: [ main ]
+  #   paths-ignore:
+  #   - 'docs/**'
+  #   - '**.md'
+  # pull_request:
+  #   branches: [ main ]
+  #   paths-ignore:
+  #   - 'docs/**'
+  #   - '**.md'
+  # workflow_dispatch:
 
 env:
   GOOS: linux
