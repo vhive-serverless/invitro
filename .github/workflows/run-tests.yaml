@@ -1,6 +1,6 @@
 name: Loader integration tests
 
-# on:
+on:
   # push:
   #   branches: [ main ]
   #   paths-ignore:

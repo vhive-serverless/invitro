@@ -1,5 +1,5 @@
 name: Linters
-# on:
+on:
   # push:
   #   branches: [main]
   # pull_request:
