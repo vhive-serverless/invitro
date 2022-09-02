@@ -4,7 +4,6 @@ analysis
 .idea
 tmp
 data/out
-data/traces
 
 ### CMake ###
 CMakeLists.txt.user

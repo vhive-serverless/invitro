@@ -15,7 +15,7 @@ def main(argv):
     
     repeat = 1 # Repeat the experiements
 
-    tracef = list(map(ntpath.basename, sorted(glob('data/traces/*.csv'))))
+    tracef = list(map(ntpath.basename, sorted(glob('data/traces/10-1k/*.csv'))))
     sizes = []
     for f in tracef[::3]: #* Duplicated sizes (3 times).
         sizes.append(int(f.split('_')[0]))
