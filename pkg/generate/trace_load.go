@@ -109,6 +109,7 @@ trace_gen:
 			done <- true
 		}()
 
+	this_minute_gen:
 		for {
 			select {
 			case <-ticker.C:
@@ -137,6 +138,7 @@ trace_gen:
 
 				}(minute, tick, phaseIdx, rps, interval.Milliseconds()) //* Push vars onto the stack to prevent racing.
 
+				tick++
 				if tick >= numInvocationsThisMinute {
 					//* Finished before timeout.
 					log.Info("Finish target invocation early at Minute slot ", minute, " Itr. ", tick)
@@ -146,7 +148,6 @@ trace_gen:
 					interval = time.Duration(iats[tick]) * time.Microsecond
 					ticker = time.NewTicker(interval)
 				}
-				tick++
 
 			case <-done:
 				log.Info("Iteration spent: ", time.Since(iterStart), "\tMinute Nbr. ", minute)
@@ -175,10 +176,9 @@ trace_gen:
 					break trace_gen
 				}
 
-				goto next_minute
+				break this_minute_gen
 			}
 		}
-	next_minute:
 	}
 	log.Info("\tFinished invoking all functions.")
 
