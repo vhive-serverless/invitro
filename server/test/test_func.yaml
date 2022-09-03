@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: testing
+spec:
+  containers:
+  - name: test-func
+    image: docker.io/hyhe/test-func:latest
+  automountServiceAccountToken: false
+  restartPolicy: Never
+
+            

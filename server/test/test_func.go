@@ -6,12 +6,22 @@ package main
 //     return r;
 // }
 import "C"
-import "sync"
+import (
+	"log"
+	"sync"
+
+	rpc "github.com/eth-easl/loader/server"
+)
+
+type funcServer struct {
+	rpc.UnimplementedExecutorServer
+}
 
 func busySpin(wg *sync.WaitGroup) C.double {
 	defer wg.Done()
 	wg.Add(1)
 
+	log.Println("Start spining ...")
 	var tmp C.double
 	for i := 0; i < 1e15; i++ {
 		tmp = C.SQRTSD(C.double(10))
@@ -21,9 +31,6 @@ func busySpin(wg *sync.WaitGroup) C.double {
 
 func main() {
 	wg := sync.WaitGroup{}
-
-	for i := 0; i < 16; i++ {
-		go busySpin(&wg)
-	}
+	go busySpin(&wg)
 	wg.Wait()
 }
