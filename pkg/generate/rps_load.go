@@ -80,10 +80,10 @@ rps_gen:
 		var failureCountRpsStep int64 = 0
 		var numFuncInvokedThisSlot int64 = 0
 
+		wg.Add(1)
 		/** Launch a timer. */
 		go func() {
 			defer wg.Done()
-			wg.Add(1)
 
 			<-timeout
 			ticker.Stop()
@@ -96,9 +96,9 @@ rps_gen:
 				//* Invoke functions using round robin.
 				function := functions[tick%len(functions)]
 
+				wg.Add(1)
 				go func(_tick int, _rps int, _interval int64) {
 					defer wg.Done()
-					wg.Add(1)
 
 					atomic.AddInt64(&numFuncInvokedThisSlot, 1)
 					success, execRecord := fc.Invoke(function, runtimeRequested, memoryRequested, withTracing)

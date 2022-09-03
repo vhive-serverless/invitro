@@ -170,6 +170,7 @@ common_init() {
 	#* Extract trace.
 	# server_exec 'tar -xf loader/data/traces/50-10k/traces.tar.xz -C loader/data/traces/50-10k/'
 
+	server_exec 'kubectl patch node $(kubectl get no | grep master | awk '"'"'{print $1}'"'"') -p "{\"spec\":{\"unschedulable\":true}}"'
 
 	echo "Logging in master node $MASTER_NODE"
 	ssh -p 22 $MASTER_NODE

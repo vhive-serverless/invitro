@@ -83,10 +83,10 @@ burst_gen:
 		var invocationCount int64 = 0
 		var failureCount int64 = 0
 
+		wg.Add(1)
 		/** Launch a timer. */
 		go func() {
 			defer wg.Done()
-			wg.Add(1)
 
 			<-timeout
 			ticker.Stop()
@@ -113,9 +113,9 @@ burst_gen:
 						/** Invoking the victim function in the middle. */
 						function = functionsTable["victim"]
 					}
+					wg.Add(1)
 					go func(_function tc.Function, rps int, interval int64) {
 						defer wg.Done()
-						wg.Add(1)
 
 						atomic.AddInt64(&invocationCount, 1)
 

@@ -14,10 +14,7 @@ COPY go.* ./
 RUN go mod download
 
 # Copy local code to the container image.
-COPY . ./
-
-# Build the binary.
-WORKDIR /app/server/test
+COPY * ./
 
 # -mod=readonly: ensures immutable go.mod and go.sum in container builds.
 # CGO_ENABLED=1: uses common libraries found on most major OS distributions.
@@ -31,7 +28,7 @@ FROM debian:stable-slim
 # RUN apk add --no-cache libc6-compat 
 
 # Copy the binary to the production image from the BUILDER stage.
-COPY --from=BUILDER /app/server/test/test-server /test-server
+COPY --from=BUILDER /app/test-server /test-server
 
 # Run the web service on container startup.
 CMD ["/test-server"]

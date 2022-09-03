@@ -98,10 +98,10 @@ trace_gen:
 		done := make(chan bool, 2) // Two semaphores, one for timer, one for early completion.
 		tick := 0
 
+		wg.Add(1)
 		/** Launch a timer. */
 		go func() {
 			defer wg.Done()
-			wg.Add(1)
 
 			t := <-timeout
 			log.Warn("(Slot finished)\t", t.Format(time.StampMilli), "\tMinute Nbr. ", minute)
@@ -114,9 +114,9 @@ trace_gen:
 			select {
 			case <-ticker.C:
 
+				wg.Add(1)
 				go func(m int, nxt int, phase int, rps int, interval int64) {
 					defer wg.Done()
-					wg.Add(1)
 
 					atomic.AddInt64(&numFuncInvokedThisMinute, 1)
 					funcIndx := invocationsEachMinute[m][nxt]
