@@ -5,18 +5,19 @@ DIR="$(pwd)/scripts/setup/"
 
 source "$DIR/setup.cfg"
 
-# OPERATION_MODE
+# OPERATION_MODE imported from setup.cfg
+FIRECRACKER_SNAPSHOTS=""
+
 if [ "$OPERATION_MODE" = "container" ]
 then
     OPERATION_MODE="stock-only"
-elif [ $OPERATION_MODE = "container_large" ]
-then
-    OPERATION_MODE="stock-only"
-    echo "Not yet implemented"
-    exit 1
 elif [ $OPERATION_MODE = "firecracker" ]
 then
     OPERATION_MODE=""
+elif [ $OPERATION_MODE = "firecracker_snapshots" ]
+then
+    OPERATION_MODE=""
+    FIRECRACKER_SNAPSHOTS="-snapshots"
 else
     echo "Unsupported operation mode"
     exit 1
@@ -92,7 +93,8 @@ common_init() {
         server_exec 'tmux send -t firecracker "sudo PATH=$PATH /usr/local/bin/firecracker-containerd --config /etc/firecracker-containerd/config.toml 2>&1 | tee ~/firecracker_log.txt" ENTER'
         server_exec 'tmux new -s vhive -d'
         server_exec 'tmux send -t vhive "cd vhive" ENTER'
-        server_exec 'tmux send -t vhive "sudo ./vhive 2>&1 | tee ~/vhive_log.txt" ENTER'
+        RUN_VHIVE_CMD="sudo ./vhive ${FIRECRACKER_SNAPSHOTS} 2>&1 | tee ~/vhive_log.txt"
+        server_exec "tmux send -t vhive \"$RUN_VHIVE_CMD\" ENTER"
 			fi
 		fi
 	done
@@ -115,7 +117,8 @@ common_init() {
 			#* Stretch the capacity of the worker node to 240 (k8s default: 110).
 			#* Empirically, this gives us a max. #pods being 240-40=200.
 			echo "Streching node capacity for $node."
-			server_exec 'echo "maxPods: 240" > >(sudo tee -a /var/lib/kubelet/config.yaml >/dev/null)'
+			MAX_PODS_CMD="maxPods: ${PODS_PER_NODE}"
+			server_exec "echo \"$MAX_PODS_CMD\" > >(sudo tee -a /var/lib/kubelet/config.yaml >/dev/null)"
 			server_exec 'sudo systemctl restart kubelet'
 
 			#* Rejoin has to be performed although errors will be thrown. Otherwise, restarting the kubelet will cause the node unreachable for some reason.
