@@ -4,36 +4,31 @@ A load generator for benchmarking serverless systems.
 
 ## Pre-requisites
 
-The experiments require a 2-socket server-grade node, running Linux (tested on Ubuntu 20, Intel Xeon). On CloudLab, one can choose the APT cluster `d430` node.
+The experiments require a 2-socket server-grade node, running Linux (tested on Ubuntu 20, Intel Xeon). On CloudLab, one
+can choose the APT cluster `d430` node.
 
 ### Multi-node cluster
 
-The master node should have at least two sockets, because, although we have isolated the loader with Cgroups, the isolation provided by our setup scripts is better achieved when it runs on one socket separate from the rest of the components running on master. 
+The master node should have at least two sockets, because, although we have isolated the loader with Cgroups, the
+isolation provided by our setup scripts is better achieved when it runs on one socket separate from the rest of the
+components running on master.
 
 ### Single-node cluster
 
-This mode is only for debugging purposes, and there is no guarantees of isolation between the loader and the master-node components.
+This mode is only for debugging purposes, and there is no guarantees of isolation between the loader and the master-node
+components.
+
 ## Create a cluster
 
-First, change the parameters (e.g., `GITHUB_TOKEN`) in the `script/setup.cfg` is necessary.
-Github token needs the `repo` and `admin:public_key` permissions.
+First, configure `script/setup.cfg`. You can specify there which vHive branch to use, loader branch, operation mode
+(sandbox type), maximum number of pods per node, and the Github token. All these configurations are mandatory. Github
+token needs `repo` and `admin:public_key` permissions. We currently support the following modes:
+containerd (`container`), Firecracker (`firecracker`), and Firecracker with snapshots (`firecracker_snapshots`).
 
-* For creating a multi-node K8s cluster (pure containers) with maximum 500 pods per node, run the following.
-
-```bash
-$ bash ./scripts/setup/create_multinode_container_large.sh <master_node@IP> <worker_node@IP> ...
-```
-
-* For creating a multi-node K8s cluster (pure containers) with maximum 200 pods per node, run the following.
+* To create a multi-node cluster, specify the node addresses as the arguments and run the following command:
 
 ```bash
-$ bash ./scripts/setup/create_multinode_container.sh <master_node@IP> <worker_node@IP> ...
-```
-
-* For creating a multi-node vHive cluster (firecracker uVMs), run the following.
-
-```bash
-$ bash ./scripts/setup/create_multinode_firecracker.sh <master_node@IP> <worker_node@IP> ...
+$ bash ./scripts/setup/create_multinode.sh <master_node@IP> <worker_node@IP> ...
 ```
 
 * Run the following for a single-node setup. The capacity of this node is below 100 pods.
@@ -85,9 +80,11 @@ $ kubectl -n default get podautoscalers
 
 ## Tune the timing for the benchmark function
 
-Before start any experiments, the timing of the benchmark function should be tuned so that it consumes the required service time more precisely.
+Before start any experiments, the timing of the benchmark function should be tuned so that it consumes the required
+service time more precisely.
 
-First, run the following command to deploy the timing benchmark that yields the number of execution units* the function needs to run given a required service time.
+First, run the following command to deploy the timing benchmark that yields the number of execution units* the function
+needs to run given a required service time.
 
 * The execution unit is approximately 100 `SQRTSD` x86 instructions.
 
@@ -107,7 +104,8 @@ template `workloads/container/trace_func_go.yaml` based on `cold_iter_per_1ms` a
 To explain this further, `cold_iter_per_1ms` is for short executions (<1s), and `warm_iter_per_1ms` is for the longer
 ones (>=1s).
 
-To account for difference in CPU performance set `COLD_ITER_PER_1MS=102` and `WARM_ITER_PER_1MS=115` if you are using Cloudlab XL170 machines. (Date of measurement: 10-Aug-2022)
+To account for difference in CPU performance set `COLD_ITER_PER_1MS=102` and `WARM_ITER_PER_1MS=115` if you are using
+Cloudlab XL170 machines. (Date of measurement: 10-Aug-2022)
 
 ## Single execution
 
