@@ -23,7 +23,10 @@ def main(argv):
         except KeyboardInterrupt:
             print('Experiment interrupted')
             try: sys.exit(0)
-            except SystemExit: os._exit(0)     
+            except SystemExit: os._exit(0)  
+        
+        os.system(command=f"mv data/out data/out-{workload}")
+        os.system(command=f"mkdir data/out")
         
 
 if __name__ == '__main__':
