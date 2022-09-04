@@ -1,18 +1,3 @@
-data/samples/50_inv_hermes.csv filter=lfs diff=lfs merge=lfs -text
-data/samples/50_inv_medes.csv filter=lfs diff=lfs merge=lfs -text
-data/samples/50_mem_atoll.csv filter=lfs diff=lfs merge=lfs -text
-data/samples/50_inv_atoll.csv filter=lfs diff=lfs merge=lfs -text
-data/samples/50_inv_faascache.csv filter=lfs diff=lfs merge=lfs -text
-data/samples/50_inv_sampler.csv filter=lfs diff=lfs merge=lfs -text
-data/samples/50_mem_sampler.csv filter=lfs diff=lfs merge=lfs -text
-data/samples/50_run_faascache.csv filter=lfs diff=lfs merge=lfs -text
-data/samples/50_run_medes.csv filter=lfs diff=lfs merge=lfs -text
-data/samples/50_run_sampler.csv filter=lfs diff=lfs merge=lfs -text
-data/samples/50_mem_hermes.csv filter=lfs diff=lfs merge=lfs -text
-data/samples/50_run_hermes.csv filter=lfs diff=lfs merge=lfs -text
-data/samples/50_mem_faascache.csv filter=lfs diff=lfs merge=lfs -text
-data/samples/50_mem_medes.csv filter=lfs diff=lfs merge=lfs -text
-data/samples/50_run_atoll.csv filter=lfs diff=lfs merge=lfs -text
 data/traces/10-1k/250_run.csv filter=lfs diff=lfs merge=lfs -text
 data/traces/10-1k/560_inv.csv filter=lfs diff=lfs merge=lfs -text
 data/traces/10-1k/690_inv.csv filter=lfs diff=lfs merge=lfs -text
@@ -314,3 +299,4 @@ data/traces/10-1k/270_run.csv filter=lfs diff=lfs merge=lfs -text
 data/traces/10-1k/420_inv.csv filter=lfs diff=lfs merge=lfs -text
 data/traces/10-1k/50_mem.csv filter=lfs diff=lfs merge=lfs -text
 data/traces/50-10k/traces.tar.xz filter=lfs diff=lfs merge=lfs -text
+data/samples/** filter=lfs diff=lfs merge=lfs -text
