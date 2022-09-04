@@ -120,12 +120,46 @@ common_init() {
 			MAX_PODS_CMD="maxPods: ${PODS_PER_NODE}"
 			server_exec "echo \"$MAX_PODS_CMD\" > >(sudo tee -a /var/lib/kubelet/config.yaml >/dev/null)"
 			server_exec 'sudo systemctl restart kubelet'
+			server_exec 'sleep 10'
 
 			#* Rejoin has to be performed although errors will be thrown. Otherwise, restarting the kubelet will cause the node unreachable for some reason.
 			ssh -oStrictHostKeyChecking=no -p 22 $node "sudo ${LOGIN_TOKEN} > /dev/null 2>&1"
 			echo "Worker node $node joined the cluster (again :P)."
 		fi
 	done
+
+  if [ $PODS_PER_NODE -gt 240 ]; then
+    #* Get node name list.
+    readarray -t NODE_NAMES < <(ssh -oStrictHostKeyChecking=no -p 22 $MASTER_NODE 'kubectl get no' | tail -n +2 | awk '{print $1}')
+
+    for i in "${!NODE_NAMES[@]}"; do
+      NODE_NAME=${NODE_NAMES[i]}
+      #* Compute subnet: 00001010.10101000.000000 00.00000000 -> about 1022 IPs per worker.
+      #* To be safe, we change both master and workers with an offset of 0.0.4.0 (4 * 2^8)
+      # (NB: zsh indices start from 1.)
+      #* Assume less than 63 nodes in total.
+      let SUBNET=i*4+4
+      #* Extend pod ip range, delete and create again.
+      ssh -oStrictHostKeyChecking=no -p 22 $MASTER_NODE "kubectl get node $NODE_NAME -o json | jq '.spec.podCIDR |= \"10.168.$SUBNET.0/22\"' > node.yaml"
+      ssh -oStrictHostKeyChecking=no -p 22 $MASTER_NODE "kubectl delete node $NODE_NAME && kubectl create -f node.yaml"
+
+      echo "Changed pod CIDR for worker $NODE_NAME to 10.168.$SUBNET.0/22"
+      sleep 5
+    done
+
+    #* Join the cluster for the 3rd time.
+    IS_MASTER=1
+    for node in "$@"
+    do
+      if [ $IS_MASTER -eq 1 ]
+      then
+        IS_MASTER=0
+      else
+        ssh -oStrictHostKeyChecking=no -p 22 $node "sudo ${LOGIN_TOKEN} > /dev/null 2>&1"
+        echo "Worker node $node joined the cluster (again^2 :D)."
+      fi
+    done
+  fi
 
 	server_exec() {
 		ssh -oStrictHostKeyChecking=no -p 22 $MASTER_NODE $1;
@@ -152,7 +186,11 @@ common_init() {
 
 	# force placement of metrics collectors and instrumentation on the master node
 	taint_workers $MASTER_NODE
-	$DIR/expose_infra_metrics.sh $MASTER_NODE
+	LARGE_CLUSTER=""
+	if [ $PODS_PER_NODE -gt 240 ]; then
+	    LARGE_CLUSTER="large"
+	fi
+	$DIR/expose_infra_metrics.sh $MASTER_NODE $LARGE_CLUSTER
 	untaint_workers $MASTER_NODE
 
 	#* Disable master turbo boost.
