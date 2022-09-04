@@ -61,6 +61,7 @@ func TestGenerateIat(t *testing.T) {
 	iats = gen.GenerateInterarrivalTimesInMicro(30, totalNumInvocations, gen.Uniform)
 	duration, _ = stats.Sum(stats.LoadRawData(iats))
 
+	assert.Equal(t, totalNumInvocations, len(iats))
 	assert.Greater(t, halfMinuteInMicro, duration)
 	t.Log("Half-minute duration (uniform): ", duration)
 }

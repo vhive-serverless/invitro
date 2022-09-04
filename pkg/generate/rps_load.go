@@ -118,7 +118,8 @@ rps_gen:
 					}
 				}(tick, rps, interval.Milliseconds()) //* NB: `clusterUsage` needn't be pushed onto the stack as we want the latest.
 
-				if tick >= totalNumInvocationThisSlot {
+				if numFuncInvokedThisSlot >= int64(totalNumInvocationThisSlot) ||
+					tick >= totalNumInvocationThisSlot {
 					//* Finished before timeout.
 					log.Info("Finish target invocation early at RPS=", rps)
 					done <- true

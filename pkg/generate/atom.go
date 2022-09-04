@@ -83,6 +83,7 @@ func GenerateInterarrivalTimesInMicro(
 	interArrivalTimes := []float64{}
 
 	totalDuration := 0.0
+	slot := durationInMicro / float64(totalNumInvocations) // Uniform slot.
 	for i := 0; i < totalNumInvocations; i++ {
 		var iat float64
 
@@ -90,9 +91,9 @@ func GenerateInterarrivalTimesInMicro(
 		case Exponential:
 			iat = iatRand.ExpFloat64() / rps * oneSecondInMicro
 		case Uniform:
-			iat = iatRand.Float64() * (durationInMicro / rps)
+			iat = iatRand.Float64() * slot
 		case Equidistant:
-			iat = durationInMicro / rps
+			iat = slot
 		default:
 			log.Fatal("Unsupported IAT distribution")
 		}
@@ -103,6 +104,20 @@ func GenerateInterarrivalTimesInMicro(
 		}
 		interArrivalTimes = append(interArrivalTimes, iat)
 		totalDuration += iat
+	}
+
+	if iatDistribution == Uniform {
+		tmp := []float64{interArrivalTimes[0]}
+		for i, iat := range interArrivalTimes[1:] {
+			i++
+			gap := slot - interArrivalTimes[i-1] // Fill in the remaining time of previous iat in its slot.
+
+			if gap < 0 {
+				log.Info(slot, interArrivalTimes[i-1])
+			}
+			tmp = append(tmp, gap+iat)
+		}
+		interArrivalTimes = tmp
 	}
 
 	if totalDuration > durationInMicro {
