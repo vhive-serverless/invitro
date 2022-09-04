@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"os"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -29,23 +30,29 @@ func (s *funcServer) Execute(ctx context.Context, req *rpc.FaasRequest) (*rpc.Fa
 		return &rpc.FaasReply{}, errors.New("non-positive execution time")
 	}
 
-	pageSize := unix.Getpagesize()
-	numPagesRequested := util.Mib2b(req.MemoryInMebiBytes) / uint32(pageSize)
-	//* Golang internally uses `mmap()`, talking to OS directly.
-	pages, err := unix.Mmap(-1, 0, int(numPagesRequested)*int(numPagesRequested),
-		unix.PROT_WRITE, unix.MAP_ANON|unix.MAP_PRIVATE)
-	if err != nil {
-		log.Errorf("Failed to allocate requested memory: %v", err)
-		return &rpc.FaasReply{}, err
+	if os.Getenv("ALLOC_VIRTUAL_MEM") == "true" {
+		pageSize := unix.Getpagesize()
+		numPagesRequested := util.Mib2b(req.MemoryInMebiBytes) / uint32(pageSize)
+		//* Golang internally uses `mmap()`, talking to OS directly.
+		pages, err := unix.Mmap(-1, 0, int(numPagesRequested)*int(numPagesRequested),
+			unix.PROT_WRITE, unix.MAP_ANON|unix.MAP_PRIVATE)
+		if err != nil {
+			log.Errorf("Failed to allocate requested memory: %v", err)
+			return &rpc.FaasReply{}, err
+		}
+		err = unix.Munmap(pages) //* Don't even touch the allocated pages -> let them stay virtaul memory.
+		util.Check(err)
+	} else {
+		memoryRequestedBytes := util.Mib2b(req.MemoryInMebiBytes)
+		//* `make()` gets a piece of initialised memory. No need to touch it.
+		_ = make([]byte, memoryRequestedBytes)
 	}
-	err = unix.Munmap(pages) //* Don't even touch the allocated pages -> let them stay virtaul memory.
-	util.Check(err)
 
 	<-timeoutSem //* Blocking wait.
 	return &rpc.FaasReply{
 		Message:            "Wimpy func -- DONE", // Unused
 		DurationInMicroSec: uint32(time.Since(start).Microseconds()),
-		MemoryUsageInKb:    util.B2Kib(numPagesRequested * uint32(pageSize)),
+		MemoryUsageInKb:    util.Mib2Kib(req.MemoryInMebiBytes),
 	}, nil
 }
 

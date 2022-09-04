@@ -117,7 +117,7 @@ For Trace mode, run the following command
 
 ```bash
 cgexec -g cpuset,memory:loader-cg \
-    make ARGS='-sample <sample_trace_size> -duration <minutes[1,1440]> -cluster <num_workers> -server <trace|busy|sleep> -tracePath <path_to_trace> -iatDistributionn <poission|uniform|equidistant> -warmup' run
+    make ARGS='-sample <sample_trace_size> -duration <minutes[1,1440]> -cluster <num_workers> -server <trace|wimpy> -tracePath <path_to_trace> -iatDistributionn <poission|uniform|equidistant> -warmup' run
 ```
 
 In the RPS mode, the loader sweeps fixed number of invocations per second.
@@ -126,7 +126,7 @@ When using RPS mode, run the following command
 
 ```bash
 cgexec -g cpuset,memory:loader-cg \
-    make ARGS="-mode stress -start <initial_rps> -end <stop_rps> -step <rps_step> -slot <rps_step_in_seconds> -server <trace|busy|sleep> -totalFunctions <num_functions>" run 2>&1 | tee stress.log
+    make ARGS="-mode stress -start <initial_rps> -end <stop_rps> -step <rps_step> -slot <rps_step_in_seconds> -server <trace|wimpy> -totalFunctions <num_functions>" run 2>&1 | tee stress.log
 ```
 
 NB: cgroups are for isolating the loader on master node from the control plane components.
