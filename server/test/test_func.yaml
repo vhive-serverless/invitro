@@ -1,7 +1,7 @@
 kind: Deployment
 apiVersion: apps/v1
 metadata:
-  name: testing-deployment
+  name: test-deployment
   labels:
     name: test-func
 spec:

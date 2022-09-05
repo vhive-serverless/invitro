@@ -40,8 +40,8 @@ func Invoke(function tc.Function, runtimeRequested int, memoryRequested int, wit
 	record.Timestamp = start.UnixMicro()
 
 	// conn, err := pools.GetConn(function.Endpoint)
-	dailCxt, cancelDailing := context.WithTimeout(context.Background(), connectionTimeout)
-	defer cancelDailing()
+	// dailCxt, cancelDailing := context.WithTimeout(context.Background(), connectionTimeout)
+	// defer cancelDailing()
 
 	var dialOptions []grpc.DialOption
 	dialOptions = append(dialOptions, grpc.WithTransportCredentials(insecure.NewCredentials()))
@@ -50,7 +50,7 @@ func Invoke(function tc.Function, runtimeRequested int, memoryRequested int, wit
 		dialOptions = append(dialOptions, grpc.WithUnaryInterceptor(otelgrpc.UnaryClientInterceptor()))
 	}
 
-	conn, err := grpc.DialContext(dailCxt, function.Endpoint+port, dialOptions...)
+	conn, err := grpc.DialContext(context.Background(), function.Endpoint+port, dialOptions...)
 	defer closeConn(conn)
 	if err != nil {
 		//! Failures will also be recorded as 0's.
@@ -62,11 +62,11 @@ func Invoke(function tc.Function, runtimeRequested int, memoryRequested int, wit
 	// conn := pools.conns[function.Endpoint]
 	grpcClient := server.NewExecutorClient(conn)
 
-	// Contact the server and print out its response.
-	executionCxt, cancelExecution := context.WithTimeout(context.Background(), executionTimeout)
-	defer cancelExecution()
+	// // Contact the server and print out its response.
+	// executionCxt, cancelExecution := context.WithTimeout(context.Background(), executionTimeout)
+	// defer cancelExecution()
 
-	response, err := grpcClient.Execute(executionCxt, &server.FaasRequest{
+	response, err := grpcClient.Execute(context.Background(), &server.FaasRequest{
 		Message:           "nothing",
 		RuntimeInMilliSec: uint32(runtimeRequested),
 		MemoryInMebiBytes: uint32(memoryRequested),
