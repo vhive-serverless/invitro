@@ -1,6 +1,6 @@
 # Use the official Golang image to create a build artifact.
 # This is based on Debian and sets the GOPATH to /go.
-FROM golang:1.17 as BUILDER
+FROM golang:1.18 as BUILDER
 
 # Create and change to the app directory.
 WORKDIR /app

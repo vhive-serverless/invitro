@@ -32,8 +32,8 @@ const (
 	// and move on to the next generation round. We need it because some functions may end up in nowhere and never return.
 	// By default, the wait-group will halt forever in that case.
 	FORCE_TIMEOUT_MINUTE = 15
-	// The portion of measurements we take in the RPS mode. The first 50% serves as a step-wise warm-up, and
-	// we only take the second half of the measurements.
+	// The portion of measurements we take in the RPS mode. The first 20% serves as a step-wise warm-up, and
+	// we only take the last 80% of the measurements.
 	RPS_WARMUP_FRACTION = 0.2
 	// The maximum step size in the early stage of the RPS mode -- we shouldn't take too large a RPS step before reaching
 	// ~100RPS in order to ensure sufficient number of measurements for lower variance (smaller the RPS, the less total data points).

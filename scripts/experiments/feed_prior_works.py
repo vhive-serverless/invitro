@@ -9,7 +9,7 @@ def main(argv):
     _, duration, cluster = argv
     
     workloads = ['faascache', 'medes', 'hermes', 'atoll', 'mu']
-    sizes = [200, 10, 50, 70, 2]
+    function_count = [200, 10, 50, 70, 2]
     
     for i, workload in enumerate(workloads):
         trace_path = f"data/samples/original-size/{workload}/"
@@ -18,7 +18,7 @@ def main(argv):
             os.system('make -i clean')
             sleep(5)
         try:
-            cmd = f"make ARGS='-sample {sizes[i]} -duration {duration} -cluster {cluster} -server trace -warmup -iatDistribution exponential -tracePath {trace_path}' run 2>&1 | tee {workload}.log"
+            cmd = f"make ARGS='-sample {function_count[i]} -duration {duration} -cluster {cluster} -server trace -warmup -iatDistribution exponential -tracePath {trace_path}' run 2>&1 | tee {workload}.log"
             print(cmd)
             os.system(command=cmd)
         except KeyboardInterrupt:

@@ -31,10 +31,8 @@ func (s *funcServer) Execute(ctx context.Context, req *rpc.FaasRequest) (*rpc.Fa
 	}
 
 	if os.Getenv("ALLOC_VIRTUAL_MEM") == "true" {
-		pageSize := unix.Getpagesize()
-		numPagesRequested := util.Mib2b(req.MemoryInMebiBytes) / uint32(pageSize)
 		//* Golang internally uses `mmap()`, talking to OS directly.
-		pages, err := unix.Mmap(-1, 0, int(numPagesRequested)*int(numPagesRequested),
+		pages, err := unix.Mmap(-1, 0, int(req.MemoryInMebiBytes),
 			unix.PROT_WRITE, unix.MAP_ANON|unix.MAP_PRIVATE)
 		if err != nil {
 			log.Errorf("Failed to allocate requested memory: %v", err)
