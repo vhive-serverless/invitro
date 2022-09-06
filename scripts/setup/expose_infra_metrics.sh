@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
 MASTER_NODE=$1
-USE_LARGE=$2
 
 server_exec() { 
 	ssh -oStrictHostKeyChecking=no -p 22 $MASTER_NODE $1;
@@ -27,12 +26,7 @@ server_exec() {
 	server_exec 'cd loader; kubectl apply -f config/prometh_kn.yaml'
 
 	#* Bind addresses of the control manager and scheduler to "0.0.0.0" so that prometheus can scrape them from any domains.
-	if [[ ! -z $USE_LARGE && $USE_LARGE == 'large' ]]; 
-	then
-		server_exec 'cd loader; sudo kubeadm upgrade apply --config config/kubeadm_init_large.yaml --ignore-preflight-errors all --force --v=5'	
-	else
-		server_exec 'cd loader; sudo kubeadm upgrade apply --config config/kubeadm_init.yaml --ignore-preflight-errors all --force --v=5'
-	fi
+  server_exec 'cd loader; sudo kubeadm upgrade apply --config config/kubeadm_init.yaml --ignore-preflight-errors all --force --v=5'
 
 
 	#* Change scrape intervals to 2s for all used monitors.

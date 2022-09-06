@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
-MASTER_NODE=$1
 
+set -x
+
+MASTER_NODE=$1
 DIR="$(pwd)/scripts/setup/"
 
 source "$DIR/setup.cfg"
@@ -45,92 +47,89 @@ common_init() {
 	done
 	wait $!
 
+  # make argument list only contain worker nodes (drops master node)
+  shift
+
 	LOGIN_TOKEN=""
-	IS_MASTER=1
+  function setup_master() {
+    echo "Setting up master node: $MASTER_NODE"
+
+    server_exec "$MASTER_NODE" 'wget -q https://dl.google.com/go/go1.17.linux-amd64.tar.gz >/dev/null'
+    server_exec "$MASTER_NODE" 'sudo rm -rf /usr/local/go && sudo tar -C /usr/local/ -xzf go1.17.linux-amd64.tar.gz >/dev/null'
+    # server_exec 'sudo apt-get install libcairo2-dev libjpeg-dev libgif-dev'
+    server_exec "$MASTER_NODE" 'echo "export PATH=$PATH:/usr/local/go/bin" >> .profile'
+
+    server_exec "$MASTER_NODE" 'tmux new -s runner -d'
+    server_exec "$MASTER_NODE" 'tmux new -s kwatch -d'
+    server_exec "$MASTER_NODE" 'tmux new -s master -d'
+    MN_CLUSTER="./vhive/scripts/cluster/create_multinode_cluster.sh ${OPERATION_MODE}"
+    server_exec "$MASTER_NODE" "tmux send -t master \"$MN_CLUSTER\" ENTER"
+
+    # Get the join token from k8s.
+    while [ ! "$LOGIN_TOKEN" ]
+    do
+      sleep 1s
+      server_exec "$MASTER_NODE" 'tmux capture-pane -t master -b token'
+      LOGIN_TOKEN="$(server_exec "$MASTER_NODE" 'tmux show-buffer -b token | grep -B 3 "All nodes need to be joined"')"
+      echo "$LOGIN_TOKEN"
+    done
+    # cut of last line
+    LOGIN_TOKEN=${LOGIN_TOKEN%[$'\t\r\n']*}
+    # remove the \
+    LOGIN_TOKEN=${LOGIN_TOKEN/\\/}
+    # remove all remaining tabs, line ends and returns
+    LOGIN_TOKEN=${LOGIN_TOKEN//[$'\t\r\n']}
+
+    echo $LOGIN_TOKEN
+  }
+
+  setup_master
+  echo $LOGIN_TOKEN
+
 	for node in "$@"
 	do
-		server_exec() {
-			ssh -oStrictHostKeyChecking=no -p 22 "$node" "$1";
-		}
-		if [ $IS_MASTER -eq 1 ]
-		then
-			echo "Setting up master node: $node"
-			IS_MASTER=0
-			server_exec 'wget -q https://dl.google.com/go/go1.17.linux-amd64.tar.gz >/dev/null'
-			server_exec 'sudo rm -rf /usr/local/go && sudo tar -C /usr/local/ -xzf go1.17.linux-amd64.tar.gz >/dev/null'
-			# server_exec 'sudo apt-get install libcairo2-dev libjpeg-dev libgif-dev'
-			server_exec 'echo "export PATH=$PATH:/usr/local/go/bin" >> .profile'
+    echo "Setting up worker node: $node"
+    server_exec $node "./vhive/scripts/cluster/setup_worker_kubelet.sh $OPERATION_MODE"
 
-			server_exec 'tmux new -s runner -d'
-			server_exec 'tmux new -s kwatch -d'
-			server_exec 'tmux new -s master -d'
-			MN_CLUSTER="./vhive/scripts/cluster/create_multinode_cluster.sh ${OPERATION_MODE}"
-			server_exec "tmux send -t master \"$MN_CLUSTER\" ENTER"
-
-			# Get the join token from k8s.
-			while [ ! "$LOGIN_TOKEN" ]
-			do
-				sleep 1s
-				server_exec 'tmux capture-pane -t master -b token'
-				LOGIN_TOKEN="$(server_exec 'tmux show-buffer -b token | grep -B 3 "All nodes need to be joined"')"
-			done
-			# cut of last line
-			LOGIN_TOKEN=${LOGIN_TOKEN%[$'\t\r\n']*}
-			# remove the \
-			LOGIN_TOKEN=${LOGIN_TOKEN/\\/}
-			# remove all remaining tabs, line ends and returns
-			LOGIN_TOKEN=${LOGIN_TOKEN//[$'\t\r\n']}
-
-		else
-			echo "Setting up worker node: $node"
-			server_exec "./vhive/scripts/cluster/setup_worker_kubelet.sh $OPERATION_MODE"
-
-			#* We don't need vhive in container mode.
-			if [ "$OPERATION_MODE" = "" ] # empty string corresponds to firecracker
-			then
-        server_exec 'cd vhive; source /etc/profile && go build'
-        server_exec 'tmux new -s firecracker -d'
-        server_exec 'tmux send -t firecracker "sudo PATH=$PATH /usr/local/bin/firecracker-containerd --config /etc/firecracker-containerd/config.toml 2>&1 | tee ~/firecracker_log.txt" ENTER'
-        server_exec 'tmux new -s vhive -d'
-        server_exec 'tmux send -t vhive "cd vhive" ENTER'
-        RUN_VHIVE_CMD="sudo ./vhive ${FIRECRACKER_SNAPSHOTS} 2>&1 | tee ~/vhive_log.txt"
-        server_exec "tmux send -t vhive \"$RUN_VHIVE_CMD\" ENTER"
-			fi
-		fi
+    #* We don't need this with vHive in container mode.
+    if [ "$OPERATION_MODE" = "" ] # empty string corresponds to firecracker
+    then
+      server_exec $node 'cd vhive; source /etc/profile && go build'
+      server_exec $node 'tmux new -s firecracker -d'
+      server_exec $node 'tmux send -t firecracker "sudo PATH=$PATH /usr/local/bin/firecracker-containerd --config /etc/firecracker-containerd/config.toml 2>&1 | tee ~/firecracker_log.txt" ENTER'
+      server_exec $node 'tmux new -s vhive -d'
+      server_exec $node 'tmux send -t vhive "cd vhive" ENTER'
+      RUN_VHIVE_CMD="sudo ./vhive ${FIRECRACKER_SNAPSHOTS} 2>&1 | tee ~/vhive_log.txt"
+      server_exec $node "tmux send -t vhive \"$RUN_VHIVE_CMD\" ENTER"
+    fi
 	done
 
-	IS_MASTER=1
 	for node in "$@"
 	do
-		if [ $IS_MASTER -eq 1 ]
-		then
-			IS_MASTER=0
-		else
-			ssh -oStrictHostKeyChecking=no -p 22 $node "sudo ${LOGIN_TOKEN}"
-			echo "Worker node $node joined the cluster."
+    server_exec $node "sudo ${LOGIN_TOKEN}"
+    echo "Worker node $node has joined the cluster."
 
-			#* Disable worker turbo boost for better timing.
-			server_exec './vhive/scripts/turbo_boost.sh disable'
-			#* Disable worker hyperthreading (security).
-			server_exec 'echo off | sudo tee /sys/devices/system/cpu/smt/control'
+    #* Disable worker turbo boost for better timing.
+    server_exec $node './vhive/scripts/turbo_boost.sh disable'
+    #* Disable worker hyperthreading (security).
+    server_exec $node 'echo off | sudo tee /sys/devices/system/cpu/smt/control'
 
-			#* Stretch the capacity of the worker node to 240 (k8s default: 110).
-			#* Empirically, this gives us a max. #pods being 240-40=200.
-			echo "Streching node capacity for $node."
-			MAX_PODS_CMD="maxPods: ${PODS_PER_NODE}"
-			server_exec "echo \"$MAX_PODS_CMD\" > >(sudo tee -a /var/lib/kubelet/config.yaml >/dev/null)"
-			server_exec 'sudo systemctl restart kubelet'
-			server_exec 'sleep 10'
+    #* Stretch the capacity of the worker node to 240 (k8s default: 110).
+    #* Empirically, this gives us a max. #pods being 240-40=200.
+    echo "Streching node capacity for $node."
+    MAX_PODS_CMD="maxPods: ${PODS_PER_NODE}"
+    server_exec $node "echo \"$MAX_PODS_CMD\" > >(sudo tee -a /var/lib/kubelet/config.yaml >/dev/null)"
+    server_exec $node 'sudo systemctl restart kubelet'
+    server_exec $node 'sleep 10'
 
-			#* Rejoin has to be performed although errors will be thrown. Otherwise, restarting the kubelet will cause the node unreachable for some reason.
-			ssh -oStrictHostKeyChecking=no -p 22 $node "sudo ${LOGIN_TOKEN} > /dev/null 2>&1"
-			echo "Worker node $node joined the cluster (again :P)."
-		fi
+    #* Rejoin has to be performed although errors will be thrown. Otherwise, restarting the kubelet will cause the node unreachable for some reason.
+    server_exec $node "sudo ${LOGIN_TOKEN} > /dev/null 2>&1"
+    echo "Worker node $node joined the cluster (again :P)."
 	done
 
   if [ $PODS_PER_NODE -gt 240 ]; then
     #* Get node name list.
-    readarray -t NODE_NAMES < <(ssh -oStrictHostKeyChecking=no -p 22 $MASTER_NODE 'kubectl get no' | tail -n +2 | awk '{print $1}')
+    readarray -t NODE_NAMES < <(server_exec $MASTER_NODE 'kubectl get no' | tail -n +2 | awk '{print $1}')
 
     for i in "${!NODE_NAMES[@]}"; do
       NODE_NAME=${NODE_NAMES[i]}
@@ -140,65 +139,51 @@ common_init() {
       #* Assume less than 63 nodes in total.
       let SUBNET=i*4+4
       #* Extend pod ip range, delete and create again.
-      ssh -oStrictHostKeyChecking=no -p 22 $MASTER_NODE "kubectl get node $NODE_NAME -o json | jq '.spec.podCIDR |= \"10.168.$SUBNET.0/22\"' > node.yaml"
-      ssh -oStrictHostKeyChecking=no -p 22 $MASTER_NODE "kubectl delete node $NODE_NAME && kubectl create -f node.yaml"
+      server_exec $MASTER_NODE "kubectl get node $NODE_NAME -o json | jq '.spec.podCIDR |= \"10.168.$SUBNET.0/22\"' > node.yaml"
+      server_exec $MASTER_NODE "kubectl delete node $NODE_NAME && kubectl create -f node.yaml"
 
       echo "Changed pod CIDR for worker $NODE_NAME to 10.168.$SUBNET.0/22"
       sleep 5
     done
 
     #* Join the cluster for the 3rd time.
-    IS_MASTER=1
     for node in "$@"
     do
-      if [ $IS_MASTER -eq 1 ]
-      then
-        IS_MASTER=0
-      else
-        ssh -oStrictHostKeyChecking=no -p 22 $node "sudo ${LOGIN_TOKEN} > /dev/null 2>&1"
-        echo "Worker node $node joined the cluster (again^2 :D)."
-      fi
+      server_exec $node "sudo ${LOGIN_TOKEN} > /dev/null 2>&1"
+      echo "Worker node $node joined the cluster (again^2 :D)."
     done
   fi
 
-	server_exec() {
-		ssh -oStrictHostKeyChecking=no -p 22 $MASTER_NODE $1;
-	}
-
 	#* Notify the master that all nodes have been registered
-	server_exec 'tmux send -t master "y" ENTER'
+	server_exec $MASTER_NODE 'tmux send -t master "y" ENTER'
 	echo "Master node $MASTER_NODE finalised."
 
 	#* Setup github authentication.
 	ACCESS_TOKEH="$(cat $GITHUB_TOKEN)"
 
-	server_exec 'echo -en "\n\n" | ssh-keygen -t rsa'
-	server_exec 'ssh-keyscan -t rsa github.com >> ~/.ssh/known_hosts'
+	server_exec $MASTER_NODE 'echo -en "\n\n" | ssh-keygen -t rsa'
+	server_exec $MASTER_NODE 'ssh-keyscan -t rsa github.com >> ~/.ssh/known_hosts'
 
-	server_exec 'curl -H "Authorization: token '"$ACCESS_TOKEH"'" --data "{\"title\":\"'"key:\$(hostname)"'\",\"key\":\"'"\$(cat ~/.ssh/id_rsa.pub)"'\"}" https://api.github.com/user/keys'
+	server_exec $MASTER_NODE 'curl -H "Authorization: token '"$ACCESS_TOKEH"'" --data "{\"title\":\"'"key:\$(hostname)"'\",\"key\":\"'"\$(cat ~/.ssh/id_rsa.pub)"'\"}" https://api.github.com/user/keys'
 
 	#* Get loader and dependencies.
-	server_exec "git clone --branch=$LOADER_BRANCH git@github.com:eth-easl/loader.git"
-	server_exec 'echo -en "\n\n" | sudo apt-get install python3-pip python-dev'
-	server_exec 'cd; cd loader; pip install -r config/requirements.txt'
+	server_exec $MASTER_NODE "git clone --branch=$LOADER_BRANCH git@github.com:eth-easl/loader.git"
+	server_exec $MASTER_NODE 'echo -en "\n\n" | sudo apt-get install python3-pip python-dev'
+	server_exec $MASTER_NODE 'cd; cd loader; pip install -r config/requirements.txt'
 
 	source $DIR/taint.sh
 
 	# force placement of metrics collectors and instrumentation on the master node
 	taint_workers $MASTER_NODE
-	LARGE_CLUSTER=""
-	if [ $PODS_PER_NODE -gt 240 ]; then
-	    LARGE_CLUSTER="large"
-	fi
-	$DIR/expose_infra_metrics.sh $MASTER_NODE $LARGE_CLUSTER
+	$DIR/expose_infra_metrics.sh $MASTER_NODE
 	untaint_workers $MASTER_NODE
 
 	#* Disable master turbo boost.
-	server_exec 'bash loader/scripts/setup/turbo_boost.sh disable'
+	server_exec $MASTER_NODE 'bash loader/scripts/setup/turbo_boost.sh disable'
 	#* Disable master hyperthreading.
-	server_exec 'echo off | sudo tee /sys/devices/system/cpu/smt/control'
+	server_exec $MASTER_NODE 'echo off | sudo tee /sys/devices/system/cpu/smt/control'
 	#* Create CGroup.
-	server_exec 'sudo bash loader/scripts/isolation/define_cgroup.sh'
+	server_exec $MASTER_NODE 'sudo bash loader/scripts/isolation/define_cgroup.sh'
 
 	taint_master $MASTER_NODE
 

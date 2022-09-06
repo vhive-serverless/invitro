@@ -1,13 +1,13 @@
 #!/bin/bash
 
-MASTER_NODE=$1
-
 server_exec() {
-  ssh -oStrictHostKeyChecking=no -p 22 $MASTER_NODE $1;
+  ssh -oStrictHostKeyChecking=no -p 22 $1 $2;
 }
 
 taint_master() {
-  server_exec 'kubectl get nodes' > tmp
+  MASTER_NODE=$1
+
+  server_exec $MASTER_NODE 'kubectl get nodes' > tmp
   sed -i '1d' tmp
 
   while read LINE; do
@@ -16,7 +16,7 @@ taint_master() {
 
     if [[ $TYPE == *"master"* ]]; then
       echo "Tainted ${NODE}"
-      server_exec "kubectl taint nodes ${NODE} key1=value1:NoSchedule" < /dev/null
+      server_exec $MASTER_NODE "kubectl taint nodes ${NODE} key1=value1:NoSchedule" < /dev/null
     fi
   done < tmp
 
@@ -24,7 +24,9 @@ taint_master() {
 }
 
 taint_workers() {
-  server_exec 'kubectl get nodes' > tmp
+  MASTER_NODE=$1
+
+  server_exec $MASTER_NODE 'kubectl get nodes' > tmp
   sed -i '1d' tmp
 
   while read LINE; do
@@ -33,7 +35,7 @@ taint_workers() {
 
     if [[ $TYPE != *"master"* ]]; then
       echo "Tainted ${NODE}"
-      server_exec "kubectl taint nodes ${NODE} key1=value1:NoSchedule" < /dev/null
+      server_exec $MASTER_NODE "kubectl taint nodes ${NODE} key1=value1:NoSchedule" < /dev/null
     fi
   done < tmp
 
@@ -41,7 +43,9 @@ taint_workers() {
 }
 
 untaint_workers() {
-  server_exec 'kubectl get nodes' > tmp
+  MASTER_NODE=$1
+
+  server_exec $MASTER_NODE 'kubectl get nodes' > tmp
   sed -i '1d' tmp
 
   while read LINE; do
@@ -50,7 +54,7 @@ untaint_workers() {
 
     if [[ $TYPE != *"master"* ]]; then
       echo "Untainted ${NODE}"
-      server_exec "kubectl taint nodes ${NODE} key1-" < /dev/null
+      server_exec $MASTER_NODE "kubectl taint nodes ${NODE} key1-" < /dev/null
     fi
   done < tmp
 
