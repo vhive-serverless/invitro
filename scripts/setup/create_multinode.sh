@@ -3,7 +3,7 @@
 set -x
 
 MASTER_NODE=$1
-DIR="$(pwd)/scripts/setup/"
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" > /dev/null 2>&1 && pwd)"
 
 source "$DIR/setup.cfg"
 
@@ -21,6 +21,12 @@ then
     FIRECRACKER_SNAPSHOTS="-snapshots"
 else
     echo "Unsupported cluster mode"
+    exit 1
+fi
+
+if [ $PODS_PER_NODE -gt 1022 ]; then
+    # CIDR range limitation exceeded
+    echo "Pods per node cannot be greater than 1022. Cluster deployment has been aborted."
     exit 1
 fi
 
@@ -42,7 +48,6 @@ function setup_master() {
 
     server_exec "$MASTER_NODE" 'wget -q https://dl.google.com/go/go1.17.linux-amd64.tar.gz >/dev/null'
     server_exec "$MASTER_NODE" 'sudo rm -rf /usr/local/go && sudo tar -C /usr/local/ -xzf go1.17.linux-amd64.tar.gz >/dev/null'
-    # server_exec 'sudo apt-get install libcairo2-dev libjpeg-dev libgif-dev'
     server_exec "$MASTER_NODE" 'echo "export PATH=$PATH:/usr/local/go/bin" >> .profile'
 
     server_exec "$MASTER_NODE" 'tmux new -s runner -d'
@@ -67,21 +72,26 @@ function setup_master() {
     LOGIN_TOKEN=${LOGIN_TOKEN//[$'\t\r\n']}
 }
 
+function setup_vhive_firecracker_daemon() {
+    node=$1
+
+    server_exec $node 'cd vhive; source /etc/profile && go build'
+    server_exec $node 'tmux new -s firecracker -d'
+    server_exec $node 'tmux send -t firecracker "sudo PATH=$PATH /usr/local/bin/firecracker-containerd --config /etc/firecracker-containerd/config.toml 2>&1 | tee ~/firecracker_log.txt" ENTER'
+    server_exec $node 'tmux new -s vhive -d'
+    server_exec $node 'tmux send -t vhive "cd vhive" ENTER'
+    RUN_VHIVE_CMD="sudo ./vhive ${FIRECRACKER_SNAPSHOTS} 2>&1 | tee ~/vhive_log.txt"
+    server_exec $node "tmux send -t vhive \"$RUN_VHIVE_CMD\" ENTER"
+}
+
 function setup_workers() {
     for node in "$@"
     do
         echo "Setting up worker node: $node"
         server_exec $node "./vhive/scripts/cluster/setup_worker_kubelet.sh $OPERATION_MODE"
 
-        #* We don't need this with vHive in container mode (empty string corresponds to firecracker)
         if [ "$OPERATION_MODE" = "" ]; then
-            server_exec $node 'cd vhive; source /etc/profile && go build'
-            server_exec $node 'tmux new -s firecracker -d'
-            server_exec $node 'tmux send -t firecracker "sudo PATH=$PATH /usr/local/bin/firecracker-containerd --config /etc/firecracker-containerd/config.toml 2>&1 | tee ~/firecracker_log.txt" ENTER'
-            server_exec $node 'tmux new -s vhive -d'
-            server_exec $node 'tmux send -t vhive "cd vhive" ENTER'
-            RUN_VHIVE_CMD="sudo ./vhive ${FIRECRACKER_SNAPSHOTS} 2>&1 | tee ~/vhive_log.txt"
-            server_exec $node "tmux send -t vhive \"$RUN_VHIVE_CMD\" ENTER"
+            setup_vhive_firecracker_daemon $node
         fi
 
         server_exec $node "sudo ${LOGIN_TOKEN}"
@@ -95,8 +105,7 @@ function setup_workers() {
         #* Stretch the capacity of the worker node to 240 (k8s default: 110).
         #* Empirically, this gives us a max. #pods being 240-40=200.
         echo "Streching node capacity for $node."
-        MAX_PODS_CMD="maxPods: ${PODS_PER_NODE}"
-        server_exec $node "echo \"$MAX_PODS_CMD\" > >(sudo tee -a /var/lib/kubelet/config.yaml >/dev/null)"
+        server_exec $node "echo \"maxPods: ${PODS_PER_NODE}\" > >(sudo tee -a /var/lib/kubelet/config.yaml >/dev/null)"
         server_exec $node 'sudo systemctl restart kubelet'
         server_exec $node 'sleep 10'
 
@@ -109,6 +118,11 @@ function setup_workers() {
 function extend_CIDR() {
     #* Get node name list.
     readarray -t NODE_NAMES < <(server_exec $MASTER_NODE 'kubectl get no' | tail -n +2 | awk '{print $1}')
+
+    if [ ${#NODE_NAMES[@]} -gt 63 ]; then
+        echo "Cannot extend CIDR range for more than 63 nodes. Cluster deployment has been aborted."
+        exit 1
+    fi
 
     for i in "${!NODE_NAMES[@]}"; do
         NODE_NAME=${NODE_NAMES[i]}
@@ -133,6 +147,10 @@ function extend_CIDR() {
     done
 }
 
+###############################################
+######## MAIN SETUP PROCEDURE IS BELOW ########
+###############################################
+
 {
     #* Set up all nodes including the master.
     for node in "$@"
@@ -142,11 +160,9 @@ function extend_CIDR() {
     done
     wait $!
 
-    # make argument list only contain worker nodes (drops master node)
-    shift
+    shift # make argument list only contain worker nodes (drops master node)
 
     setup_master
-
     setup_workers "$@"
 
     if [ $PODS_PER_NODE -gt 240 ]; then
@@ -185,8 +201,4 @@ function extend_CIDR() {
     server_exec $MASTER_NODE 'sudo bash loader/scripts/isolation/define_cgroup.sh'
 
     taint_master $MASTER_NODE
-
-    echo "Logging in master node $MASTER_NODE"
-    ssh -p 22 $MASTER_NODE
-    exit
 }

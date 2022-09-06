@@ -1,5 +1,13 @@
 #!/bin/bash
 
+######################################################
+# Script for tainting cluster
+######################################################
+# taint_master $MASTER_NODE - forbid scheduling pods on nodes labeled as master nodes
+# taint_workers $MASTER_NODE - forbid scheduling pods on any node not labeled as master
+# untaint_workers $MASTER_NODE - remove taint introduced by taint_worker function
+######################################################
+
 server_exec() {
   ssh -oStrictHostKeyChecking=no -p 22 $1 $2;
 }
