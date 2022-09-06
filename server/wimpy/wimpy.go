@@ -30,9 +30,10 @@ func (s *funcServer) Execute(ctx context.Context, req *rpc.FaasRequest) (*rpc.Fa
 		return &rpc.FaasReply{}, errors.New("non-positive execution time")
 	}
 
+	memoryRequestedBytes := util.Mib2b(req.MemoryInMebiBytes)
 	if os.Getenv("ALLOC_VIRTUAL_MEM") == "true" {
 		//* Golang internally uses `mmap()`, talking to OS directly.
-		pages, err := unix.Mmap(-1, 0, int(req.MemoryInMebiBytes),
+		pages, err := unix.Mmap(-1, 0, int(memoryRequestedBytes),
 			unix.PROT_WRITE, unix.MAP_ANON|unix.MAP_PRIVATE)
 		if err != nil {
 			log.Errorf("Failed to allocate requested memory: %v", err)
@@ -41,7 +42,6 @@ func (s *funcServer) Execute(ctx context.Context, req *rpc.FaasRequest) (*rpc.Fa
 		err = unix.Munmap(pages) //* Don't even touch the allocated pages -> let them stay virtaul memory.
 		util.Check(err)
 	} else {
-		memoryRequestedBytes := util.Mib2b(req.MemoryInMebiBytes)
 		//* `make()` gets a piece of initialised memory. No need to touch it.
 		_ = make([]byte, memoryRequestedBytes)
 	}
