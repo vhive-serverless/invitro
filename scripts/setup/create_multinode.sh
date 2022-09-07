@@ -39,6 +39,11 @@ common_init() {
     server_exec $1 'tmux new -s containerd -d'
     server_exec $1 'tmux send -t containerd "sudo containerd 2>&1 | tee ~/containerd_log.txt" ENTER'
     server_exec $1 'sudo ntpdate -s ops.emulab.net' # synchronize clock across nodes
+
+    #* Disable worker turbo boost
+    server_exec $1 'cd; ./vhive/scripts/utils/turbo_boost.sh disable'
+    #* Disable hyperthreading.
+    server_exec $1 'echo off | sudo tee /sys/devices/system/cpu/smt/control'
 }
 
 function setup_master() {
@@ -98,11 +103,6 @@ function setup_workers() {
 
         server_exec $node "sudo ${LOGIN_TOKEN}"
         echo "Worker node $node has joined the cluster."
-
-        #* Disable worker turbo boost for better timing.
-        server_exec $node './vhive/scripts/utils/turbo_boost.sh disable'
-        #* Disable worker hyperthreading (security).
-        server_exec $node 'echo off | sudo tee /sys/devices/system/cpu/smt/control'
 
         #* Stretch the capacity of the worker node to 240 (k8s default: 110).
         #* Empirically, this gives us a max. #pods being 240-40=200.
@@ -195,10 +195,6 @@ function extend_CIDR() {
     $DIR/expose_infra_metrics.sh $MASTER_NODE
     untaint_workers $MASTER_NODE
 
-    #* Disable master turbo boost.
-    server_exec $MASTER_NODE './vhive/scripts/utils/turbo_boost.sh disable'
-    #* Disable master hyperthreading.
-    server_exec $MASTER_NODE 'echo off | sudo tee /sys/devices/system/cpu/smt/control'
     #* Create CGroup.
     server_exec $MASTER_NODE 'sudo bash loader/scripts/isolation/define_cgroup.sh'
 
