@@ -51,7 +51,11 @@ function setup_master() {
     server_exec "$MASTER_NODE" 'tmux new -s runner -d'
     server_exec "$MASTER_NODE" 'tmux new -s kwatch -d'
     server_exec "$MASTER_NODE" 'tmux new -s master -d'
-    MN_CLUSTER="./vhive/scripts/cluster/create_multinode_cluster.sh ${OPERATION_MODE}"
+
+    # Rewrite the YAML files for Knative and Istio in the vHive repo
+    server_exec "$MASTER_NODE" 'tmux send -t master "cd; ./loader/scripts/setup/rewrite_yaml_files.sh" ENTER'
+
+    MN_CLUSTER="cd; ./vhive/scripts/cluster/create_multinode_cluster.sh ${OPERATION_MODE}"
     server_exec "$MASTER_NODE" "tmux send -t master \"$MN_CLUSTER\" ENTER"
 
     # Get the join token from k8s.
@@ -96,7 +100,7 @@ function setup_workers() {
         echo "Worker node $node has joined the cluster."
 
         #* Disable worker turbo boost for better timing.
-        server_exec $node './vhive/scripts/turbo_boost.sh disable'
+        server_exec $node './vhive/scripts/utils/turbo_boost.sh disable'
         #* Disable worker hyperthreading (security).
         server_exec $node 'echo off | sudo tee /sys/devices/system/cpu/smt/control'
 
@@ -160,6 +164,11 @@ function extend_CIDR() {
 
     shift # make argument list only contain worker nodes (drops master node)
 
+    #* Get loader and dependencies.
+    server_exec $MASTER_NODE "git clone --branch=$LOADER_BRANCH git@github.com:eth-easl/loader.git"
+    server_exec $MASTER_NODE 'echo -en "\n\n" | sudo apt-get install python3-pip python-dev'
+    server_exec $MASTER_NODE 'cd; cd loader; pip install -r config/requirements.txt'
+
     setup_master
     setup_workers "$@"
 
@@ -179,11 +188,6 @@ function extend_CIDR() {
 
     server_exec $MASTER_NODE 'curl -H "Authorization: token '"$ACCESS_TOKEH"'" --data "{\"title\":\"'"key:\$(hostname)"'\",\"key\":\"'"\$(cat ~/.ssh/id_rsa.pub)"'\"}" https://api.github.com/user/keys'
 
-    #* Get loader and dependencies.
-    server_exec $MASTER_NODE "git clone --branch=$LOADER_BRANCH git@github.com:eth-easl/loader.git"
-    server_exec $MASTER_NODE 'echo -en "\n\n" | sudo apt-get install python3-pip python-dev'
-    server_exec $MASTER_NODE 'cd; cd loader; pip install -r config/requirements.txt'
-
     source $DIR/taint.sh
 
     # force placement of metrics collectors and instrumentation on the master node
@@ -192,7 +196,7 @@ function extend_CIDR() {
     untaint_workers $MASTER_NODE
 
     #* Disable master turbo boost.
-    server_exec $MASTER_NODE './vhive/scripts/turbo_boost.sh disable'
+    server_exec $MASTER_NODE './vhive/scripts/utils/turbo_boost.sh disable'
     #* Disable master hyperthreading.
     server_exec $MASTER_NODE 'echo off | sudo tee /sys/devices/system/cpu/smt/control'
     #* Create CGroup.
