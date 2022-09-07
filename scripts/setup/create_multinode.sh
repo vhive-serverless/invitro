@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
 
-set -x
-
 MASTER_NODE=$1
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" > /dev/null 2>&1 && pwd)"
 
@@ -194,7 +192,7 @@ function extend_CIDR() {
     untaint_workers $MASTER_NODE
 
     #* Disable master turbo boost.
-    server_exec $MASTER_NODE 'bash loader/scripts/setup/turbo_boost.sh disable'
+    server_exec $MASTER_NODE './vhive/scripts/turbo_boost.sh disable'
     #* Disable master hyperthreading.
     server_exec $MASTER_NODE 'echo off | sudo tee /sys/devices/system/cpu/smt/control'
     #* Create CGroup.
