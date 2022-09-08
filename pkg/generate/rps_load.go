@@ -39,8 +39,8 @@ func GenerateStressLoads(
 		}
 	}()
 
-	/** Launch a scraper that updates Knative states every 2s (max. interval). */
-	scrape_kn := time.NewTicker(time.Second * 2)
+	/** Launch a scraper that updates Knative states every 15s (max. interval). */
+	scrape_kn := time.NewTicker(time.Second * 15)
 	go func() {
 		for {
 			<-scrape_kn.C
@@ -49,7 +49,7 @@ func GenerateStressLoads(
 	}()
 
 	/** Launch a scraper for getting cold-start count. */
-	scrape_scales := time.NewTicker(time.Second * 1)
+	scrape_scales := time.NewTicker(time.Second * 60)
 	go func() {
 		for {
 			<-scrape_scales.C
@@ -62,23 +62,29 @@ func GenerateStressLoads(
 
 rps_gen:
 	for {
-		iats := GenerateOneMinuteInterarrivalTimesInMicro(
-			rps*60,
+		totalNumInvocationThisSlot := rps * stressSlotInSecs
+		iats := GenerateInterarrivalTimesInMicro(
+			stressSlotInSecs,
+			totalNumInvocationThisSlot,
 			iatDistribution,
 		)
-		tick := -1
+
 		timeout := time.After(time.Second * time.Duration(stressSlotInSecs))
 		interval := time.Duration(iats[0]) * time.Microsecond
 		ticker := time.NewTicker(interval)
-		done := make(chan bool, 1)
+		done := make(chan bool, 2)
+		tick := 0
 
 		//* The following counters are for each RPS step slot.
 		var successCountRpsStep int64 = 0
 		var failureCountRpsStep int64 = 0
 		var numFuncInvokedThisSlot int64 = 0
 
+		wg.Add(1)
 		/** Launch a timer. */
 		go func() {
+			defer wg.Done()
+
 			<-timeout
 			ticker.Stop()
 			done <- true
@@ -87,13 +93,12 @@ rps_gen:
 		for {
 			select {
 			case <-ticker.C:
-				tick++
 				//* Invoke functions using round robin.
 				function := functions[tick%len(functions)]
 
+				wg.Add(1)
 				go func(_tick int, _rps int, _interval int64) {
 					defer wg.Done()
-					wg.Add(1)
 
 					atomic.AddInt64(&numFuncInvokedThisSlot, 1)
 					success, execRecord := fc.Invoke(function, runtimeRequested, memoryRequested, withTracing)
@@ -113,11 +118,22 @@ rps_gen:
 					}
 				}(tick, rps, interval.Milliseconds()) //* NB: `clusterUsage` needn't be pushed onto the stack as we want the latest.
 
+				if numFuncInvokedThisSlot >= int64(totalNumInvocationThisSlot) ||
+					tick >= totalNumInvocationThisSlot {
+					//* Finished before timeout.
+					log.Info("Finish target invocation early at RPS=", rps)
+					done <- true
+				} else {
+					interval = time.Duration(iats[tick]) * time.Microsecond
+					ticker = time.NewTicker(interval)
+				}
+				tick++
+
 			case <-done:
 				invRecord := mc.MinuteInvocationRecord{
 					Rps:             rps,
 					Duration:        int64(stressSlotInSecs),
-					NumFuncTargeted: rps * stressSlotInSecs,
+					NumFuncTargeted: totalNumInvocationThisSlot,
 					NumFuncInvoked:  int(numFuncInvokedThisSlot),
 				}
 				//* Export metrics for all phases.
@@ -141,6 +157,7 @@ rps_gen:
 			/** Ending RPS specified. */
 			break rps_gen
 		}
+
 		if rps < 100 {
 			rps += util.MinOf(MAX_RPS_STARTUP_STEP, rpsStep)
 		} else {
