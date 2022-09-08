@@ -9,7 +9,7 @@ def main(argv):
     _, duration, cluster = argv
     
     workloads = ['faascache', 'medes', 'hermes', 'atoll', 'mu']
-    function_count = [200, 10, 50, 70, 2]
+    function_count = [200, 10, 50, 21, 2]
     
     for i, workload in enumerate(workloads):
         trace_path = f"data/samples/original-size/{workload}/"

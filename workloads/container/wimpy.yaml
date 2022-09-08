@@ -20,5 +20,7 @@ spec:
             - name: h2c  # For gRPC support
               containerPort: 80
           env: 
+            - name: DO_SLEEP
+              value: "true"
             - name: ALLOC_VIRTUAL_MEM
               value: "true"

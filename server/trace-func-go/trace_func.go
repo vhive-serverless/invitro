@@ -65,7 +65,7 @@ func (s *funcServer) Execute(ctx context.Context, req *rpc.FaasRequest) (*rpc.Fa
 
 	memoryRequestedBytes := util.Mib2b(req.MemoryInMebiBytes)
 	//* `make()` gets a piece of initialised memory. No need to touch it.
-	_ = make([]byte, memoryRequestedBytes)
+	_ = make([]byte, memoryRequestedBytes/2)
 
 	//* Offset the time spent on allocating memory.
 	msg := "Trace func -- OK"

@@ -135,7 +135,7 @@ func runTraceMode(invPath, runPath, memPath string) {
 	if *duration < 1 {
 		log.Fatal("Trace duration should be longer than 0 minutes.")
 	}
-	traces = tc.ParseInvocationTrace(invPath, util.MinOf(1440, *duration+gen.WARMUP_DURATION_MINUTES*2))
+	traces = tc.ParseInvocationTrace(invPath, util.MinOf(1440, *duration+gen.PROFILING_DURATION_MINUTES+gen.WARMUP_DURATION_MINUTES))
 	tc.ParseDurationTrace(&traces, runPath)
 	tc.ParseMemoryTrace(&traces, memPath)
 

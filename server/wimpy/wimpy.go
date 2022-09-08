@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"net"
 	"os"
 	"time"
@@ -46,7 +47,20 @@ func (s *funcServer) Execute(ctx context.Context, req *rpc.FaasRequest) (*rpc.Fa
 		_ = make([]byte, memoryRequestedBytes)
 	}
 
-	<-timeoutSem //* Blocking wait.
+	if os.Getenv("DO_SLEEP") == "true" {
+		<-timeoutSem //* Blocking wait.
+	} else {
+	loop:
+		for {
+			select {
+			case <-timeoutSem:
+				break loop
+			default:
+				_ = math.Pow(10.0, .5)
+			}
+		}
+	}
+
 	return &rpc.FaasReply{
 		Message:            "Wimpy func -- DONE", // Unused
 		DurationInMicroSec: uint32(time.Since(start).Microseconds()),
