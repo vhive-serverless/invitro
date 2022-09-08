@@ -42,8 +42,8 @@ func GenerateTraceLoads(
 		}
 	}()
 
-	/** Launch a scraper that updates Knative states every 2s (max. interval). */
-	scrape_kn := time.NewTicker(time.Second * 2)
+	/** Launch a scraper that updates Knative states every 15s (max. interval). */
+	scrape_kn := time.NewTicker(time.Second * 15)
 	go func() {
 		for {
 			<-scrape_kn.C
@@ -52,7 +52,7 @@ func GenerateTraceLoads(
 	}()
 
 	/** Launch a scraper for getting cold-start count. */
-	scrape_scales := time.NewTicker(time.Second * 1)
+	scrape_scales := time.NewTicker(time.Second * 60)
 	go func() {
 		for {
 			<-scrape_scales.C
@@ -72,7 +72,6 @@ func GenerateTraceLoads(
 
 trace_gen:
 	for ; minute < int(totalDurationMinutes); minute++ {
-		tick := 0
 		var iats []float64
 		var numFuncInvokedThisMinute int64 = 0
 
@@ -84,7 +83,8 @@ trace_gen:
 			continue
 		}
 
-		iats = GenerateOneMinuteInterarrivalTimesInMicro(
+		iats = GenerateInterarrivalTimesInMicro(
+			60,
 			numInvocationsThisMinute,
 			iatDistribution,
 		)
@@ -93,50 +93,60 @@ trace_gen:
 		/** Set up timer to bound the one-minute invocation. */
 		iterStart := time.Now()
 		timeout := time.After(time.Duration(60) * time.Second)
-		interval := time.Duration(iats[tick]) * time.Microsecond
+		interval := time.Duration(iats[0]) * time.Microsecond
 		ticker := time.NewTicker(interval)
 		done := make(chan bool, 2) // Two semaphores, one for timer, one for early completion.
+		tick := 0
 
+		wg.Add(1)
 		/** Launch a timer. */
 		go func() {
+			defer wg.Done()
+
 			t := <-timeout
 			log.Warn("(Slot finished)\t", t.Format(time.StampMilli), "\tMinute Nbr. ", minute)
 			ticker.Stop()
 			done <- true
 		}()
 
+	this_minute_gen:
 		for {
 			select {
 			case <-ticker.C:
 
+				wg.Add(1)
+				go func(m int, nxt int, phase int, rps int, interval int64) {
+					defer wg.Done()
+
+					atomic.AddInt64(&numFuncInvokedThisMinute, 1)
+					funcIndx := invocationsEachMinute[m][nxt]
+					function := functions[funcIndx]
+
+					runtimeRequested, memoryRequested := GenerateExecutionSpecs(function)
+					success, execRecord := fc.Invoke(function, runtimeRequested, memoryRequested, withTracing)
+
+					if success {
+						atomic.AddInt64(&successCountTotal, 1)
+					} else {
+						atomic.AddInt64(&failureCountTotal, 1)
+					}
+					execRecord.Phase = phase
+					execRecord.Interval = interval
+					execRecord.Rps = rps
+					execRecord.ColdStartCount = coldStartGauge
+					collector.ReportExecution(execRecord, clusterUsage, knStats)
+
+				}(minute, tick, phaseIdx, rps, interval.Milliseconds()) //* Push vars onto the stack to prevent racing.
+
+				tick++
 				if tick >= numInvocationsThisMinute {
 					//* Finished before timeout.
 					log.Info("Finish target invocation early at Minute slot ", minute, " Itr. ", tick)
 					done <- true
 				} else {
-					go func(m int, nxt int, phase int, rps int, interval int64) {
-						defer wg.Done()
-						wg.Add(1)
-
-						atomic.AddInt64(&numFuncInvokedThisMinute, 1)
-						funcIndx := invocationsEachMinute[m][nxt]
-						function := functions[funcIndx]
-
-						runtimeRequested, memoryRequested := GenerateExecutionSpecs(function)
-						success, execRecord := fc.Invoke(function, runtimeRequested, memoryRequested, withTracing)
-
-						if success {
-							atomic.AddInt64(&successCountTotal, 1)
-						} else {
-							atomic.AddInt64(&failureCountTotal, 1)
-						}
-						execRecord.Phase = phase
-						execRecord.Interval = interval
-						execRecord.Rps = rps
-						execRecord.ColdStartCount = coldStartGauge
-						collector.ReportExecution(execRecord, clusterUsage, knStats)
-
-					}(minute, tick, phaseIdx, rps, interval.Milliseconds()) //* Push vars onto the stack to prevent racing.
+					//* Load the next inter-arrival time.
+					interval = time.Duration(iats[tick]) * time.Microsecond
+					ticker = time.NewTicker(interval)
 				}
 
 			case <-done:
@@ -166,20 +176,9 @@ trace_gen:
 					break trace_gen
 				}
 
-				goto next_minute
+				break this_minute_gen
 			}
-
-			tick++
-			//* Load the next inter-arrival time.
-			d := 1
-			if tick < len(iats) {
-				d = int(iats[tick])
-			}
-
-			interval = time.Duration(d) * time.Microsecond
-			ticker = time.NewTicker(interval)
 		}
-	next_minute:
 	}
 	log.Info("\tFinished invoking all functions.")
 

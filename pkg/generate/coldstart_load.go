@@ -37,8 +37,8 @@ func GenerateColdStartLoads(
 		}
 	}()
 
-	/** Launch a scraper that updates Knative states every 2s (max. interval). */
-	scrape_kn := time.NewTicker(time.Second * 2)
+	/** Launch a scraper that updates Knative states every 15s (max. interval). */
+	scrape_kn := time.NewTicker(time.Second * 15)
 	go func() {
 		for {
 			<-scrape_kn.C
@@ -47,7 +47,7 @@ func GenerateColdStartLoads(
 	}()
 
 	/** Launch a scraper for getting cold-start count. */
-	scrape_scales := time.NewTicker(time.Second * 1)
+	scrape_scales := time.NewTicker(time.Second * 60)
 	go func() {
 		for {
 			<-scrape_scales.C
@@ -61,7 +61,8 @@ func GenerateColdStartLoads(
 
 coldstart_generation:
 	for {
-		iats := GenerateOneMinuteInterarrivalTimesInMicro(
+		iats := GenerateInterarrivalTimesInMicro(
+			60,
 			rps*60,
 			iatDistribution,
 		)
@@ -80,8 +81,11 @@ coldstart_generation:
 		coldStartIndices := generateColdStartTimeIdx(coldStartTarget, len(iats))
 		nxtColdStart := 0
 
+		wg.Add(1)
 		/** Launch a timer. */
 		go func() {
+			defer wg.Done()
+
 			<-timeout
 			ticker.Stop()
 			done <- true
@@ -99,9 +103,9 @@ coldstart_generation:
 					function = hotFunction
 				}
 
+				wg.Add(1)
 				go func(rps int, interval int64) {
 					defer wg.Done()
-					wg.Add(1)
 
 					runtimeRequested, memoryRequested := GenerateExecutionSpecs(function)
 					success, execRecord := fc.Invoke(function, runtimeRequested, memoryRequested, withTracing)

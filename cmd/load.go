@@ -46,7 +46,7 @@ var (
 	funcDuration = flag.Int("funcDuration", 1000, "Function execution duration in ms (under `stress` mode)")
 	funcMemory   = flag.Int("funcMemory", 170, "Function memeory in MiB(under `stress` mode)")
 
-	iatDistribution = flag.String("iatDistribution", "poisson", "Choose a distribution from [poisson, uniform, equidistant]")
+	iatDistribution = flag.String("iatDistribution", "exponential", "Choose a distribution from [exponential, uniform, equidistant]")
 
 	seed  = flag.Int64("seed", 42, "Random seed for the generator")
 	print = flag.String("print", "all", "Choose a mode from [all, debug, info]")
@@ -102,8 +102,8 @@ func main() {
 	}
 
 	switch *iatDistribution {
-	case "poisson":
-		iatType = gen.Poisson
+	case "exponential":
+		iatType = gen.Exponential
 	case "uniform":
 		iatType = gen.Uniform
 	case "equidistant":
@@ -217,11 +217,11 @@ func runStressMode() {
 
 func runBurstMode() {
 	var functions []tc.Function
-	functionsTable := make(map[string]tc.Function)
+	functionTable := make(map[string]tc.Function)
 	initialScales := []int{1, 1, 0}
 
 	for _, f := range []string{"steady", "bursty", "victim"} {
-		functionsTable[f] = tc.Function{
+		functionTable[f] = tc.Function{
 			Name:     f + "-func",
 			Endpoint: tc.GetFuncEndpoint(f + "-func"),
 			RuntimeStats: tc.FunctionRuntimeStats{
@@ -233,12 +233,12 @@ func runBurstMode() {
 				Percentile100: 0,
 			},
 		}
-		functions = append(functions, functionsTable[f])
+		functions = append(functions, functionTable[f])
 	}
 
 	fc.DeployFunctions(functions, serviceConfigPath, initialScales, *isPartiallyPanic)
 
-	gen.GenerateBurstLoads(*rpsEnd, *burstTarget, *duration, functionsTable, iatType, *withTracing)
+	gen.GenerateBurstLoads(*rpsEnd, *burstTarget, *duration, functionTable, iatType, *withTracing)
 }
 
 func runColdStartMode() {

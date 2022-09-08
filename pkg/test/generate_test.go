@@ -24,32 +24,46 @@ func TestGenCheckOverload(t *testing.T) {
 }
 
 func TestGenerateIat(t *testing.T) {
+	totalNumInvocations := 30_000
+	oneMinuteInMicro := 60_000_000.0
+	halfMinuteInMicro := oneMinuteInMicro / 2
 
-	invocationsPerMinute := 20_000
-	iats := gen.GenerateOneMinuteInterarrivalTimesInMicro(invocationsPerMinute, gen.Equidistant)
+	/** Testing Equidistant */
+	iats := gen.GenerateInterarrivalTimesInMicro(60, totalNumInvocations, gen.Equidistant)
 	duration, _ := stats.Sum(stats.LoadRawData(iats))
 
 	assert.Equal(t, iats[rand.Intn(len(iats))], iats[rand.Intn(len(iats))])
-	assert.Equal(t, invocationsPerMinute, len(iats))
-	assert.Greater(t, 60_000_000.0, duration)
+	assert.Equal(t, totalNumInvocations, len(iats))
+	assert.Greater(t, oneMinuteInMicro, duration)
+	t.Log("One-minute duration (equidistant): ", duration)
 
 	for _, iat := range iats {
 		assert.GreaterOrEqual(t, iat, 1.0)
 	}
 
-	iats = gen.GenerateOneMinuteInterarrivalTimesInMicro(invocationsPerMinute, gen.Poisson)
+	/** Testing Exponential */
+	iats = gen.GenerateInterarrivalTimesInMicro(60, totalNumInvocations, gen.Exponential)
 	duration, _ = stats.Sum(stats.LoadRawData(iats))
 
-	assert.Equal(t, invocationsPerMinute, len(iats))
-	assert.Greater(t, 60_000_000.0, duration)
+	assert.Equal(t, totalNumInvocations, len(iats))
+	assert.Greater(t, oneMinuteInMicro, duration)
+	t.Log("One-minute duration (exponential): ", duration)
 
 	for _, iat := range iats {
 		assert.GreaterOrEqual(t, iat, 1.0)
 	}
 
-	iats = gen.GenerateOneMinuteInterarrivalTimesInMicro(0, gen.Poisson)
+	iats = gen.GenerateInterarrivalTimesInMicro(60, 0, gen.Exponential)
 	assert.Equal(t, 0, len(iats))
-	t.Log(iats)
+	// t.Log(iats)
+
+	/** Testing shorter intervals. */
+	iats = gen.GenerateInterarrivalTimesInMicro(30, totalNumInvocations, gen.Uniform)
+	duration, _ = stats.Sum(stats.LoadRawData(iats))
+
+	assert.Equal(t, totalNumInvocations, len(iats))
+	assert.Greater(t, halfMinuteInMicro, duration)
+	t.Log("Half-minute duration (uniform): ", duration)
 }
 
 func TestShuffling(t *testing.T) {
