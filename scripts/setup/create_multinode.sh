@@ -164,6 +164,14 @@ function extend_CIDR() {
 
     shift # make argument list only contain worker nodes (drops master node)
 
+    #* Setup github authentication.
+    ACCESS_TOKEH="$(cat $GITHUB_TOKEN)"
+
+    server_exec $MASTER_NODE 'echo -en "\n\n" | ssh-keygen -t rsa'
+    server_exec $MASTER_NODE 'ssh-keyscan -t rsa github.com >> ~/.ssh/known_hosts'
+
+    server_exec $MASTER_NODE 'curl -H "Authorization: token '"$ACCESS_TOKEH"'" --data "{\"title\":\"'"key:\$(hostname)"'\",\"key\":\"'"\$(cat ~/.ssh/id_rsa.pub)"'\"}" https://api.github.com/user/keys'
+
     #* Get loader and dependencies.
     server_exec $MASTER_NODE "git clone --branch=$LOADER_BRANCH git@github.com:eth-easl/loader.git"
     server_exec $MASTER_NODE 'echo -en "\n\n" | sudo apt-get install python3-pip python-dev'
@@ -179,14 +187,6 @@ function extend_CIDR() {
     #* Notify the master that all nodes have been registered
     server_exec $MASTER_NODE 'tmux send -t master "y" ENTER'
     echo "Master node $MASTER_NODE finalised."
-
-    #* Setup github authentication.
-    ACCESS_TOKEH="$(cat $GITHUB_TOKEN)"
-
-    server_exec $MASTER_NODE 'echo -en "\n\n" | ssh-keygen -t rsa'
-    server_exec $MASTER_NODE 'ssh-keyscan -t rsa github.com >> ~/.ssh/known_hosts'
-
-    server_exec $MASTER_NODE 'curl -H "Authorization: token '"$ACCESS_TOKEH"'" --data "{\"title\":\"'"key:\$(hostname)"'\",\"key\":\"'"\$(cat ~/.ssh/id_rsa.pub)"'\"}" https://api.github.com/user/keys'
 
     source $DIR/taint.sh
 

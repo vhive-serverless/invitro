@@ -14,6 +14,13 @@ server_exec() {
     server_exec 'sudo DEBIAN_FRONTEND=noninteractive apt-get autoremove' 
     server_exec "git clone --branch=$VHIVE_BRANCH https://github.com/ease-lab/vhive"
 
+    # Setup github authentication.
+    ACCESS_TOKEH="$(cat $GITHUB_TOKEN)"
+    server_exec 'echo -en "\n\n" | ssh-keygen -t rsa'
+    server_exec 'ssh-keyscan -t rsa github.com >> ~/.ssh/known_hosts'
+    server_exec 'curl -H "Authorization: token '"$ACCESS_TOKEH"'" --data "{\"title\":\"'"key:\$(hostname)"'\",\"key\":\"'"\$(cat ~/.ssh/id_rsa.pub)"'\"}" https://api.github.com/user/keys'
+    # server_exec 'sleep 5'
+
     # Get loader and dependencies.
     server_exec "git clone --branch=$LOADER_BRANCH git@github.com:eth-easl/loader.git"
     server_exec 'echo -en "\n\n" | sudo apt-get install python3-pip python-dev'
@@ -38,20 +45,6 @@ server_exec() {
     server_exec 'rm go1.17*'
     server_exec 'echo "export PATH=$PATH:/usr/local/go/bin" >> ~/.profile'
     server_exec 'source ~/.profile'
-
-    # Setup github authentication.
-    ACCESS_TOKEH="$(cat $GITHUB_TOKEN)"
-
-    server_exec 'echo -en "\n\n" | ssh-keygen -t rsa'
-    server_exec 'ssh-keyscan -t rsa github.com >> ~/.ssh/known_hosts'
-
-    server_exec 'curl -H "Authorization: token '"$ACCESS_TOKEH"'" --data "{\"title\":\"'"key:\$(hostname)"'\",\"key\":\"'"\$(cat ~/.ssh/id_rsa.pub)"'\"}" https://api.github.com/user/keys'
-    # server_exec 'sleep 5'
-
-    # Get loader and dependencies.
-    server_exec "git clone --branch=$LOADER_BRANCH git@github.com:eth-easl/loader.git"
-    server_exec 'echo -en "\n\n" | sudo apt-get install python3-pip python-dev'
-    server_exec 'cd; cd loader; pip install -r config/requirements.txt'
 
     $DIR/expose_infra_metrics.sh $SERVER
 
