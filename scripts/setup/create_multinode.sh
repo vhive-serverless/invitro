@@ -57,8 +57,9 @@ function setup_master() {
     server_exec "$MASTER_NODE" 'tmux new -s kwatch -d'
     server_exec "$MASTER_NODE" 'tmux new -s master -d'
 
-    # Rewrite the YAML files for Knative and Istio in the vHive repo
-    server_exec "$MASTER_NODE" 'tmux send -t master "cd; ./loader/scripts/setup/rewrite_yaml_files.sh" ENTER'
+    # Install YQ and rewrite the YAML files for Knative and Istio in the vHive repo
+    server_exec "$MASTER_NODE" 'sudo wget https://github.com/mikefarah/yq/releases/download/v4.27.3/yq_linux_amd64 -O /usr/bin/yq && sudo chmod +x /usr/bin/yq'
+    server_exec "$MASTER_NODE" './loader/scripts/setup/rewrite_yaml_files.sh'
 
     MN_CLUSTER="cd; ./vhive/scripts/cluster/create_multinode_cluster.sh ${OPERATION_MODE}"
     server_exec "$MASTER_NODE" "tmux send -t master \"$MN_CLUSTER\" ENTER"
@@ -166,14 +167,12 @@ function extend_CIDR() {
 
     #* Setup github authentication.
     ACCESS_TOKEH="$(cat $GITHUB_TOKEN)"
-
     server_exec $MASTER_NODE 'echo -en "\n\n" | ssh-keygen -t rsa'
     server_exec $MASTER_NODE 'ssh-keyscan -t rsa github.com >> ~/.ssh/known_hosts'
-
     server_exec $MASTER_NODE 'curl -H "Authorization: token '"$ACCESS_TOKEH"'" --data "{\"title\":\"'"key:\$(hostname)"'\",\"key\":\"'"\$(cat ~/.ssh/id_rsa.pub)"'\"}" https://api.github.com/user/keys'
 
     #* Get loader and dependencies.
-    server_exec $MASTER_NODE "git clone --branch=$LOADER_BRANCH git@github.com:eth-easl/loader.git"
+    server_exec $MASTER_NODE "cd; git clone --branch=$LOADER_BRANCH git@github.com:eth-easl/loader.git"
     server_exec $MASTER_NODE 'echo -en "\n\n" | sudo apt-get install python3-pip python-dev'
     server_exec $MASTER_NODE 'cd; cd loader; pip install -r config/requirements.txt'
 

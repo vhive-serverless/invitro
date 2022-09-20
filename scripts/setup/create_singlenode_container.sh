@@ -26,7 +26,8 @@ server_exec() {
     server_exec 'echo -en "\n\n" | sudo apt-get install python3-pip python-dev'
     server_exec 'cd; cd loader; pip install -r config/requirements.txt'
 
-    # Rewrite the YAML files for Knative and Istio in the vHive repo
+    # Install YQ and rewrite the YAML files for Knative and Istio in the vHive repo
+    server_exec 'sudo wget https://github.com/mikefarah/yq/releases/download/v4.27.3/yq_linux_amd64 -O /usr/bin/yq && sudo chmod +x /usr/bin/yq'
     server_exec 'cd; ./loader/scripts/setup/rewrite_yaml_files.sh'
 
     server_exec 'cd vhive; ./scripts/cloudlab/setup_node.sh stock-only'
