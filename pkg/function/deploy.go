@@ -10,11 +10,6 @@ import (
 	tc "github.com/eth-easl/loader/pkg/trace"
 )
 
-const (
-	MAX_EXEC_TIME_MILLI = 60e3 // 60s (avg. p96 from Wild).
-	MIN_EXEC_TIME_MILLI = 1    // 1ms (min. billing unit of AWS).
-)
-
 var (
 	regex = regexp.MustCompile("at URL:\nhttp://([^\n]+)")
 )
