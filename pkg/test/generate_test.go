@@ -3,11 +3,9 @@ package test
 import (
 	"math/rand"
 	"sort"
-	"sync"
 	"testing"
 
 	gen "github.com/eth-easl/loader/pkg/generate"
-	tc "github.com/eth-easl/loader/pkg/trace"
 	"github.com/montanaflynn/stats"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
@@ -82,41 +80,4 @@ func TestShuffling(t *testing.T) {
 		log.Info(arr)
 	}
 	assert.True(t, isShuffled)
-}
-
-func TestGenerateExecutionSpecsDataRace(t *testing.T) {
-	fakeFunction := tc.Function{
-		RuntimeStats: tc.FunctionRuntimeStats{
-			Average:       50,
-			Minimum:       0,
-			Maximum:       100,
-			Percentile0:   0,
-			Percentile1:   1,
-			Percentile25:  25,
-			Percentile50:  50,
-			Percentile75:  75,
-			Percentile99:  99,
-			Percentile100: 100,
-		},
-		MemoryStats: tc.FunctionMemoryStats{
-			Average:       50,
-			Percentile1:   1,
-			Percentile5:   5,
-			Percentile25:  25,
-			Percentile50:  50,
-			Percentile75:  75,
-			Percentile95:  95,
-			Percentile99:  99,
-			Percentile100: 100,
-		},
-	}
-	wg := sync.WaitGroup{}
-	for i := 0; i < 100; i++ {
-		wg.Add(1)
-		go func() {
-			gen.GenerateExecutionSpecs(fakeFunction)
-			wg.Done()
-		}()
-	}
-	wg.Wait()
 }
