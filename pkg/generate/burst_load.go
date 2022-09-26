@@ -68,11 +68,7 @@ burst_gen:
 			durationMinutes = burstDurationMinutes
 		}
 
-		iats := GenerateInterarrivalTimesInMicro(
-			60,
-			rps*60,
-			iatDistribution,
-		)
+		iats := GenerateIAT([]int{rps * 60}, iatDistribution)
 		tick := -1
 		timeout := time.After(time.Duration(durationMinutes) * time.Minute)
 		interval := time.Duration(iats[0]) * time.Microsecond
