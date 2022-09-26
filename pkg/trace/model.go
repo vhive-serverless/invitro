@@ -24,6 +24,7 @@ type FunctionInvocationStats struct {
 	Maximum int
 	data    []int
 }
+
 type FunctionRuntimeStats struct {
 	Average       int
 	Count         int

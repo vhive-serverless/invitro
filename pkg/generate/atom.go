@@ -9,8 +9,14 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	util "github.com/eth-easl/loader/pkg"
-	fc "github.com/eth-easl/loader/pkg/function"
 	tc "github.com/eth-easl/loader/pkg/trace"
+)
+
+const (
+	// 1ms (min. billing unit of AWS)
+	MIN_EXEC_TIME_MILLI = 1
+	// 60s (avg. p96 from Wild)
+	MAX_EXEC_TIME_MILLI = 60e3
 )
 
 const (
@@ -58,6 +64,10 @@ const (
 	Equidistant IatDistribution = iota
 )
 
+const (
+	oneSecondInMicro = 1000_000.0
+)
+
 func InitSeed(s int64) {
 	iatRand = rand.New(rand.NewSource(s))
 	invRand = rand.New(rand.NewSource(s))
@@ -65,22 +75,18 @@ func InitSeed(s int64) {
 	specMutex = &sync.Mutex{}
 }
 
-func GenerateInterarrivalTimesInMicro(
-	totalDurationInSec, totalNumInvocations int,
-	iatDistribution IatDistribution,
-) []float64 {
-	oneSecondInMicro := 1000_000.0
+func GenerateInterarrivalTimesInMicro(totalDurationInSec, totalNumInvocations int, iatDistribution IatDistribution) []float64 {
 	//* Launching goroutine takes time, especially under high load (5%: e.g., 3s/minute),
 	//* so we need to guarantee the required #invocations before timeout.
 	var slackFrac float64
 	if slackFrac = .05; iatDistribution == Exponential {
-		slackFrac *= 2 // Emperically, we need more slack when generating exponential due to potentially shorter intervals.
+		slackFrac *= 2 // Empirically, we need more slack when generating exponential due to potentially shorter intervals.
 	}
 	slackTimeMicro := float64(totalDurationInSec) * slackFrac * oneSecondInMicro
 	durationInMicro := float64(totalDurationInSec)*oneSecondInMicro - slackTimeMicro
 
 	rps := float64(totalNumInvocations) / 60
-	interArrivalTimes := []float64{}
+	var interArrivalTimes []float64
 
 	totalDuration := 0.0
 	slot := durationInMicro / float64(totalNumInvocations) // Uniform slot.
@@ -178,55 +184,28 @@ func ShuffleAllInvocationsInplace(invocationsEachMinute *[][]int) {
 	}
 }
 
-// Choose a random number in between.
+// Choose a random number in between. Not thread safe.
 func randIntBetween(min, max int) int {
-	inverval := util.MaxOf(1, max-min)
-	specMutex.Lock()
-	randNum := specRand.Intn(inverval) + min
-	specMutex.Unlock()
-	return randNum
+	if max < min {
+		panic("Invalid runtime/memory specification.")
+	} else if max == min {
+		return min
+	} else {
+		return specRand.Intn(max-min) + min
+	}
 }
 
-func GenerateExecutionSpecs(function tc.Function) (int, int) {
-	if function.MemoryStats.Count < 0 {
-		//* Custom runtime specs.
-		return function.RuntimeStats.Average, function.MemoryStats.Average
-	}
-
-	var runtime, memory int
+// Should be called only when specRand is locked with its mutex
+func determineExecutionSpectSeedQuantiles() (float64, float64) {
 	//* Generate uniform quantiles in [0, 1).
-	specMutex.Lock()
-	memQtl := specRand.Float64()
 	runQtl := specRand.Float64()
-	specMutex.Unlock()
-	//* Generate gaussian quantiles in [0, 1).
-	// sigma := .25
-	// mu := .5
-	// memQtl := specRand.NormFloat64()*sigma + mu
-	// runQtl := specRand.NormFloat64()*sigma + mu
+	memQtl := specRand.Float64()
 
-	runStats := function.RuntimeStats
-	memStats := function.MemoryStats
+	return runQtl, memQtl
+}
 
-	switch {
-	case memQtl <= 0.01:
-		memory = memStats.Percentile1
-	case memQtl <= 0.05:
-		memory = randIntBetween(memStats.Percentile1, memStats.Percentile5)
-	case memQtl <= 0.25:
-		memory = randIntBetween(memStats.Percentile5, memStats.Percentile25)
-	case memQtl <= 0.50:
-		memory = randIntBetween(memStats.Percentile25, memStats.Percentile50)
-	case memQtl <= 0.75:
-		memory = randIntBetween(memStats.Percentile50, memStats.Percentile75)
-	case memQtl <= 0.95:
-		memory = randIntBetween(memStats.Percentile75, memStats.Percentile95)
-	case memQtl <= 0.99:
-		memory = randIntBetween(memStats.Percentile95, memStats.Percentile99)
-	case memQtl < 1:
-		memory = randIntBetween(memStats.Percentile99, memStats.Percentile100)
-	}
-
+// Should be called only when specRand is locked with its mutex
+func generateExecuteSpec(runQtl float64, runStats *tc.FunctionRuntimeStats) (runtime int) {
 	switch {
 	case runQtl == 0:
 		runtime = runStats.Percentile0
@@ -247,9 +226,46 @@ func GenerateExecutionSpecs(function tc.Function) (int, int) {
 		runtime = runStats.Percentile100
 	}
 
-	//* Restrict specs to valid range.
-	runtime = util.MinOf(fc.MAX_EXEC_TIME_MILLI, util.MaxOf(fc.MIN_EXEC_TIME_MILLI, runtime))
-	memory = util.MinOf(tc.MAX_MEM_QUOTA_MIB, util.MaxOf(1, memory))
+	return runtime
+}
+
+// Should be called only when specRand is locked with its mutex
+func generateMemorySpec(memQtl float64, memStats *tc.FunctionMemoryStats) (memory int) {
+	switch {
+	case memQtl <= 0.01:
+		memory = memStats.Percentile1
+	case memQtl <= 0.05:
+		memory = randIntBetween(memStats.Percentile1, memStats.Percentile5)
+	case memQtl <= 0.25:
+		memory = randIntBetween(memStats.Percentile5, memStats.Percentile25)
+	case memQtl <= 0.50:
+		memory = randIntBetween(memStats.Percentile25, memStats.Percentile50)
+	case memQtl <= 0.75:
+		memory = randIntBetween(memStats.Percentile50, memStats.Percentile75)
+	case memQtl <= 0.95:
+		memory = randIntBetween(memStats.Percentile75, memStats.Percentile95)
+	case memQtl <= 0.99:
+		memory = randIntBetween(memStats.Percentile95, memStats.Percentile99)
+	case memQtl < 1:
+		memory = randIntBetween(memStats.Percentile99, memStats.Percentile100)
+	}
+
+	return memory
+}
+
+func GenerateExecutionSpecs(function tc.Function) (int, int) {
+	runStats, memStats := function.RuntimeStats, function.MemoryStats
+	if runStats.Count <= 0 || memStats.Count <= 0 {
+		panic("Invalid duration or memory specification of the function '" + function.Name + "'.")
+	}
+
+	specMutex.Lock()
+	defer specMutex.Unlock()
+
+	runQtl, memQtl := determineExecutionSpectSeedQuantiles()
+	runtime := util.MinOf(MAX_EXEC_TIME_MILLI, util.MaxOf(MIN_EXEC_TIME_MILLI, generateExecuteSpec(runQtl, &runStats)))
+	memory := util.MinOf(tc.MAX_MEM_QUOTA_MIB, util.MaxOf(tc.MIN_MEM_QUOTA_MIB, generateMemorySpec(memQtl, &memStats)))
+
 	return runtime, memory
 }
 
