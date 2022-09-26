@@ -61,11 +61,7 @@ func GenerateColdStartLoads(
 
 coldstart_generation:
 	for {
-		iats := GenerateInterarrivalTimesInMicro(
-			60,
-			rps*60,
-			iatDistribution,
-		)
+		iats := GenerateIAT([]int{rps * 60}, iatDistribution)
 		//* One minute per step for matching the trace mode.
 		tick := -1
 		timeout := time.After(1 * time.Minute)

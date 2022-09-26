@@ -37,7 +37,7 @@ var (
 
 	rpsStart       = flag.Int("start", 0, "Starting RPS value")
 	rpsEnd         = flag.Int("end", -900_000, "Final RPS value")
-	rpsSlot        = flag.Int("slot", 60, "Time slot in seconds for each RPS in the `stress` mode")
+	rpsSlot        = flag.Int("slot", 1, "Time slot in minutes for each RPS in the `stress` mode")
 	rpsStep        = flag.Int("step", 1, "Step size for increasing RPS in the `stress` mode")
 	totalFunctions = flag.Int("totalFunctions", 1, "Total number of functions used in the `stress` mode")
 
