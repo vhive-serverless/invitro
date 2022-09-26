@@ -83,11 +83,7 @@ trace_gen:
 			continue
 		}
 
-		iats = GenerateInterarrivalTimesInMicro(
-			60,
-			numInvocationsThisMinute,
-			iatDistribution,
-		)
+		iats = GenerateIAT([]int{numInvocationsThisMinute}, iatDistribution)
 		log.Infof("Minute[%d]\t RPS=%d", minute, rps)
 
 		/** Set up timer to bound the one-minute invocation. */

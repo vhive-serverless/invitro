@@ -1,12 +1,11 @@
 package generate
 
 import (
+	log "github.com/sirupsen/logrus"
 	"math/rand"
 	"os"
 	"sync"
 	"time"
-
-	log "github.com/sirupsen/logrus"
 
 	util "github.com/eth-easl/loader/pkg"
 	tc "github.com/eth-easl/loader/pkg/trace"
@@ -52,7 +51,10 @@ const (
 // }
 
 var iatRand *rand.Rand
+var iatMutex *sync.Mutex
+
 var invRand *rand.Rand
+
 var specRand *rand.Rand
 var specMutex *sync.Mutex
 
@@ -65,124 +67,123 @@ const (
 )
 
 const (
-	oneSecondInMicro = 1000_000.0
+	oneSecondInMicro = 1_000_000.0
 )
 
 func InitSeed(s int64) {
 	iatRand = rand.New(rand.NewSource(s))
+	iatMutex = &sync.Mutex{}
+
+	// TODO: check this
 	invRand = rand.New(rand.NewSource(s))
+
 	specRand = rand.New(rand.NewSource(s))
 	specMutex = &sync.Mutex{}
 }
 
-func GenerateInterarrivalTimesInMicro(totalDurationInSec, totalNumInvocations int, iatDistribution IatDistribution) []float64 {
+//////////////////////////////////////////////////
+// IAT GENERATION
+//////////////////////////////////////////////////
+
+// generateIATForAMinute generates IAT for one minute based on given number of invocations and the given distribution
+func generateIATForAMinute(numberOfInvocations int, iatDistribution IatDistribution) []float64 {
 	//* Launching goroutine takes time, especially under high load (5%: e.g., 3s/minute),
 	//* so we need to guarantee the required #invocations before timeout.
-	var slackFrac float64
-	if slackFrac = .05; iatDistribution == Exponential {
+	/*slackFrac := .05
+	if iatDistribution == Exponential {
 		slackFrac *= 2 // Empirically, we need more slack when generating exponential due to potentially shorter intervals.
 	}
-	slackTimeMicro := float64(totalDurationInSec) * slackFrac * oneSecondInMicro
-	durationInMicro := float64(totalDurationInSec)*oneSecondInMicro - slackTimeMicro
+	slackTimeMicro := float64(totalDurationInSec) * slackFrac * oneSecondInMicro*/
+	//durationInMicro := float64(numberOfInvocations) * oneSecondInMicro - slackTimeMicro
 
-	rps := float64(totalNumInvocations) / 60
-	var interArrivalTimes []float64
+	// TODO: do we want to keep the slack?
+	// TODO: missing mutex for deterministic creation of IAT for exec specs and IAT
 
+	var iatResult []float64
 	totalDuration := 0.0
-	slot := durationInMicro / float64(totalNumInvocations) // Uniform slot.
-	for i := 0; i < totalNumInvocations; i++ {
+
+	// equal distance
+	equalDistance := oneSecondInMicro / float64(numberOfInvocations)
+
+	iatMutex.Lock()
+	for i := 0; i < numberOfInvocations; i++ {
 		var iat float64
 
 		switch iatDistribution {
 		case Exponential:
+			// TODO: check out this
+			rps := float64(numberOfInvocations) / 60
 			iat = iatRand.ExpFloat64() / rps * oneSecondInMicro
 		case Uniform:
-			iat = iatRand.Float64() * slot
+			// TODO: do we want to cut resize equalDistance
+			iat = iatRand.Float64() * equalDistance
 		case Equidistant:
-			iat = slot
+			iat = equalDistance
 		default:
-			log.Fatal("Unsupported IAT distribution")
+			log.Fatal("Unsupported IAT distribution.")
 		}
 
-		//* Only guarantee microsecond-level ganularity.
 		if iat < 1 {
+			// No nanoseconds-level granularity, only microsecond
 			iat = 1
 		}
-		interArrivalTimes = append(interArrivalTimes, iat)
+
+		iatResult = append(iatResult, iat)
 		totalDuration += iat
 	}
+	iatMutex.Unlock()
 
+	//////////////////////////////
+	// START OF UNKNOWN
+	// TODO: figure out purpose of this
 	if iatDistribution == Uniform {
-		tmp := []float64{interArrivalTimes[0]}
-		for i, iat := range interArrivalTimes[1:] {
+		tmp := []float64{iatResult[0]}
+		for i, iat := range iatResult[1:] {
 			i++
-			gap := slot - interArrivalTimes[i-1] // Fill in the remaining time of previous iat in its slot.
+			gap := equalDistance - iatResult[i-1] // Fill in the remaining time of previous iat in its equalDistance.
 
 			if gap < 0 {
-				log.Info(slot, interArrivalTimes[i-1])
+				log.Info(equalDistance, iatResult[i-1])
 			}
 			tmp = append(tmp, gap+iat)
 		}
-		interArrivalTimes = tmp
+		iatResult = tmp
 	}
+	// END OF UNKNOWN
+	//////////////////////////////
 
-	if totalDuration > durationInMicro {
-		//* Normalise if it's longer than the total duration.
-		for i, iat := range interArrivalTimes {
-			iat = iat / totalDuration * durationInMicro
+	if totalDuration > oneSecondInMicro {
+		// If all the generated invocations do not fit within a single minute normalize them
+		for i, iat := range iatResult {
+			iat /= totalDuration * oneSecondInMicro
 			if iat < 1 {
+				// No nanoseconds-level granularity, only microsecond
 				iat = 1
 			}
-			interArrivalTimes[i] = iat
+
+			iatResult[i] = iat
 		}
 	}
 
-	// log.Info(stats.Sum(stats.LoadRawData(interArrivalTimes)))
-	return interArrivalTimes
+	return iatResult
 }
 
-func CheckOverload(successCount, failureCount int64) bool {
-	//* Amongst those returned, how many has failred?
-	failureRate := float64(failureCount) / float64(successCount+failureCount)
-	log.Info("Failure rate=", failureRate)
-	return failureRate > OVERFLOAD_THRESHOLD
-}
+// GenerateIAT generates IAT according to the given distribution. Number of minutes is the length of invocationsPerMinute array
+func GenerateIAT(invocationsPerMinute []int, iatDistribution IatDistribution) []float64 {
+	var result []float64
 
-/**
- * This function waits for the waitgroup for the specified max timeout.
- * Returns true if waiting timed out.
- */
-func wgWaitWithTimeout(wg *sync.WaitGroup, timeout time.Duration) bool {
-	log.Info("Start waiting for all requests to return.")
-	c := make(chan struct{})
-	go func() {
-		defer close(c)
-		wg.Wait()
-	}()
-	select {
-	case <-c:
-		log.Info("Finished waiting for all invocations.")
-		return false
-	case <-time.After(timeout):
-		return true
-	}
-}
-
-/**
- * This function has/uses side-effects, but for the sake of performance
- * keep it for now.
- */
-func ShuffleAllInvocationsInplace(invocationsEachMinute *[][]int) {
-	suffleOneMinute := func(invocations *[]int) {
-		invRand.Shuffle(len(*invocations), func(i, j int) {
-			(*invocations)[i], (*invocations)[j] = (*invocations)[j], (*invocations)[i]
-		})
+	numberOfMinutes := len(invocationsPerMinute)
+	for i := 0; i < numberOfMinutes; i++ {
+		minuteIAT := generateIATForAMinute(invocationsPerMinute[i], iatDistribution)
+		result = append(result, minuteIAT...)
 	}
 
-	for minute := range *invocationsEachMinute {
-		suffleOneMinute(&(*invocationsEachMinute)[minute])
-	}
+	return result
 }
+
+//////////////////////////////////////////////////
+// RUNTIME AND MEMORY GENERATION
+//////////////////////////////////////////////////
 
 // Choose a random number in between. Not thread safe.
 func randIntBetween(min, max int) int {
@@ -196,7 +197,7 @@ func randIntBetween(min, max int) int {
 }
 
 // Should be called only when specRand is locked with its mutex
-func determineExecutionSpectSeedQuantiles() (float64, float64) {
+func determineExecutionSpecSeedQuantiles() (float64, float64) {
 	//* Generate uniform quantiles in [0, 1).
 	runQtl := specRand.Float64()
 	memQtl := specRand.Float64()
@@ -262,11 +263,60 @@ func GenerateExecutionSpecs(function tc.Function) (int, int) {
 	specMutex.Lock()
 	defer specMutex.Unlock()
 
-	runQtl, memQtl := determineExecutionSpectSeedQuantiles()
+	runQtl, memQtl := determineExecutionSpecSeedQuantiles()
 	runtime := util.MinOf(MAX_EXEC_TIME_MILLI, util.MaxOf(MIN_EXEC_TIME_MILLI, generateExecuteSpec(runQtl, &runStats)))
 	memory := util.MinOf(tc.MAX_MEM_QUOTA_MIB, util.MaxOf(tc.MIN_MEM_QUOTA_MIB, generateMemorySpec(memQtl, &memStats)))
 
 	return runtime, memory
+}
+
+/////////////////////////////////////
+// TODO: check and refactor everything below
+/////////////////////////////////////
+
+func CheckOverload(successCount, failureCount int64) bool {
+	//* Amongst those returned, how many has failed?
+	failureRate := float64(failureCount) / float64(successCount+failureCount)
+	log.Info("Failure rate=", failureRate)
+	return failureRate > OVERFLOAD_THRESHOLD
+}
+
+/**
+ * This function waits for the waitgroup for the specified max timeout.
+ * Returns true if waiting timed out.
+ */
+func wgWaitWithTimeout(wg *sync.WaitGroup, timeout time.Duration) bool {
+	log.Info("Start waiting for all requests to return.")
+	c := make(chan struct{})
+	go func() {
+		defer close(c)
+		wg.Wait()
+	}()
+	select {
+	case <-c:
+		log.Info("Finished waiting for all invocations.")
+		return false
+	case <-time.After(timeout):
+		return true
+	}
+}
+
+/**
+ * This function has/uses side-effects, but for the sake of performance
+ * keep it for now.
+ */
+func ShuffleAllInvocationsInplace(invocationsEachMinute *[][]int) {
+	// TODO: may be missing mutex
+
+	suffleOneMinute := func(invocations *[]int) {
+		invRand.Shuffle(len(*invocations), func(i, j int) {
+			(*invocations)[i], (*invocations)[j] = (*invocations)[j], (*invocations)[i]
+		})
+	}
+
+	for minute := range *invocationsEachMinute {
+		suffleOneMinute(&(*invocationsEachMinute)[minute])
+	}
 }
 
 func DumpOverloadFlag() {

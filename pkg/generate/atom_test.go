@@ -1,8 +1,10 @@
 package generate
 
 import (
+	"fmt"
 	tc "github.com/eth-easl/loader/pkg/trace"
 	"math"
+	"strconv"
 	"sync"
 	"testing"
 )
@@ -12,18 +14,17 @@ type SpecTuple struct {
 	memory  int
 }
 
-func TestGenerateIAT(t *testing.T) {
+func TestSerialGenerateIAT(t *testing.T) {
 	tests := []struct {
 		testName        string
 		duration        int // s
-		invocations     int
+		invocations     []int
 		iatDistribution IatDistribution
 		expectedPoints  []float64 // μs
 	}{
 		{
-			testName:        "1min_5inv_equidistant",
-			duration:        1,
-			invocations:     5,
+			testName:        "1min_5ipm_equidistant",
+			invocations:     []int{5},
 			iatDistribution: Equidistant,
 			expectedPoints: []float64{
 				200000,
@@ -32,6 +33,81 @@ func TestGenerateIAT(t *testing.T) {
 				200000,
 				200000,
 			},
+		},
+		{
+			testName:        "5min_5ipm_equidistant",
+			invocations:     []int{5, 5, 5, 5, 5},
+			iatDistribution: Equidistant,
+			expectedPoints: []float64{
+				// min 1
+				200000,
+				200000,
+				200000,
+				200000,
+				200000,
+				// min 2
+				200000,
+				200000,
+				200000,
+				200000,
+				200000,
+				// min 3
+				200000,
+				200000,
+				200000,
+				200000,
+				200000,
+				// min 4
+				200000,
+				200000,
+				200000,
+				200000,
+				200000,
+				// min 5
+				200000,
+				200000,
+				200000,
+				200000,
+				200000,
+			},
+		},
+		{
+			testName:        "1min_25ipm_uniform",
+			invocations:     []int{25},
+			iatDistribution: Uniform,
+			expectedPoints: []float64{
+				30599.122571,
+				41608.158237,
+				38196.324414,
+				30578.882235,
+				22764.889978,
+				76016.766045,
+				16592.728276,
+				35329.100169,
+				52099.267210,
+				40731.321212,
+				32513.437415,
+				23390.447643,
+				70713.474644,
+				43441.555898,
+				33898.690187,
+				43378.264279,
+				37630.168228,
+				16738.151876,
+				55379.881960,
+				43053.128652,
+				46935.569044,
+				9619.049539,
+				73383.110897,
+				42199.634584,
+				39102.216455,
+			},
+		},
+		{
+			testName:        "1min_6000ipm_uniform",
+			invocations:     []int{6000},
+			iatDistribution: Uniform,
+			expectedPoints:  nil,
 		},
 	}
 
@@ -42,21 +118,45 @@ func TestGenerateIAT(t *testing.T) {
 		t.Run(test.testName, func(t *testing.T) {
 			InitSeed(seed)
 
-			result := GenerateInterarrivalTimesInMicro(test.duration, test.invocations, test.iatDistribution)
+			result := GenerateIAT(test.invocations, test.iatDistribution)
 			failed := false
 
-			for i := 0; i < len(result); i++ {
-				if math.Abs(result[i]-test.expectedPoints[i]) > epsilon {
-					failed = true
+			if testForSpillover(len(test.invocations), result) {
+				t.Error("Generated IAT does not fit in the " + strconv.Itoa(len(test.invocations)) + " minutes time window.")
+			}
 
-					break
+			if test.expectedPoints != nil {
+				for i := 0; i < len(result); i++ {
+					if math.Abs(result[i]-test.expectedPoints[i]) > epsilon {
+						fmt.Printf("got: %f, expected: %f\n", result[i], test.expectedPoints[i])
+
+						failed = true
+						//break
+					}
+				}
+
+				if failed {
+					t.Error("Test " + test.testName + " has failed due to incorrectly generated IAT.")
 				}
 			}
 
-			if failed {
-				t.Error("Test " + test.testName + " has failed.")
-			}
+			// TODO: it would make sense to check for uniform distribution and/or Poisson using statistical tests
+
 		})
+	}
+}
+
+func testForSpillover(maxTime int, data []float64) bool {
+	sum := 0.0
+
+	for i := 0; i < len(data); i++ {
+		sum += data[i]
+	}
+
+	if sum > float64(maxTime)*oneSecondInMicro {
+		return true
+	} else {
+		return false
 	}
 }
 

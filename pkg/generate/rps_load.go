@@ -17,7 +17,7 @@ func GenerateStressLoads(
 	rpsStart int,
 	rpsEnd int,
 	rpsStep int,
-	stressSlotInSecs int,
+	stressSlotInMinutes int,
 	functions []tc.Function,
 	iatDistribution IatDistribution,
 	withTracing bool,
@@ -62,14 +62,14 @@ func GenerateStressLoads(
 
 rps_gen:
 	for {
-		totalNumInvocationThisSlot := rps * stressSlotInSecs
-		iats := GenerateInterarrivalTimesInMicro(
-			stressSlotInSecs,
-			totalNumInvocationThisSlot,
-			iatDistribution,
-		)
+		var invocations []int
+		for i := 0; i < stressSlotInMinutes; i++ {
+			invocations = append(invocations, rps*60)
+		}
 
-		timeout := time.After(time.Second * time.Duration(stressSlotInSecs))
+		iats := GenerateIAT(invocations, iatDistribution)
+
+		timeout := time.After(time.Minute * time.Duration(stressSlotInMinutes))
 		interval := time.Duration(iats[0]) * time.Microsecond
 		ticker := time.NewTicker(interval)
 		done := make(chan bool, 2)
@@ -109,7 +109,7 @@ rps_gen:
 						atomic.AddInt64(&failureCountRpsStep, 1)
 					}
 
-					totalInvocationsThisSlot := _rps * stressSlotInSecs
+					totalInvocationsThisSlot := _rps * 60
 					if float64(_tick)/float64(totalInvocationsThisSlot) > RPS_WARMUP_FRACTION {
 
 						execRecord.Interval = _interval
@@ -118,8 +118,8 @@ rps_gen:
 					}
 				}(tick, rps, interval.Milliseconds()) //* NB: `clusterUsage` needn't be pushed onto the stack as we want the latest.
 
-				if numFuncInvokedThisSlot >= int64(totalNumInvocationThisSlot) ||
-					tick >= totalNumInvocationThisSlot {
+				if numFuncInvokedThisSlot >= int64(rps*60) ||
+					tick >= rps*60 {
 					//* Finished before timeout.
 					log.Info("Finish target invocation early at RPS=", rps)
 					done <- true
@@ -132,8 +132,8 @@ rps_gen:
 			case <-done:
 				invRecord := mc.MinuteInvocationRecord{
 					Rps:             rps,
-					Duration:        int64(stressSlotInSecs),
-					NumFuncTargeted: totalNumInvocationThisSlot,
+					Duration:        int64(60),
+					NumFuncTargeted: rps * 60,
 					NumFuncInvoked:  int(numFuncInvokedThisSlot),
 				}
 				//* Export metrics for all phases.
@@ -175,5 +175,5 @@ rps_gen:
 		log.Info("[No timeout] Total invocation + waiting duration: ", totalDuration, "\n")
 	}
 
-	defer collector.FinishAndSave(0, 0, rps*stressSlotInSecs)
+	defer collector.FinishAndSave(0, 0, rps*60)
 }
