@@ -5,15 +5,16 @@ from scipy import stats
 import matplotlib.pyplot as plt
 
 distribution = sys.argv[1]
-minBoundary = float(sys.argv[2])
-maxBoundary = float(sys.argv[3])
-inputFile = sys.argv[4]
+inputFile = sys.argv[2]
 
 alpha = 0.05
 
 f = np.loadtxt("test_data.txt", dtype=float)
 
 if distribution == "uniform":
+    minBoundary = 0
+    maxBoundary = max(f)
+
     cdf = stats.uniform(loc=minBoundary, scale=maxBoundary).cdf
 elif distribution == "exponential":
     cdf = stats.expon.cdf
@@ -23,7 +24,7 @@ else:
 test = stats.kstest(f, cdf)
 
 plt.hist(f, density=True, bins=30)
-plt.savefig("distribution.png")
+plt.savefig(f"distribution_{distribution}.png")
 
 print(test)
 

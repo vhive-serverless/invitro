@@ -120,10 +120,10 @@ func generateIATForAMinute(numberOfInvocations int, iatDistribution IatDistribut
 			log.Fatal("Unsupported IAT distribution.")
 		}
 
-		/*if iat < 1 {
+		if iat == 0 {
 			// No nanoseconds-level granularity, only microsecond
-			iat = 1
-		}*/
+			panic("Generated IAT is equal to zero (unsupported). Consider increasing the clock precision.")
+		}
 
 		iatResult = append(iatResult, iat)
 		totalDuration += iat
@@ -131,9 +131,10 @@ func generateIATForAMinute(numberOfInvocations int, iatDistribution IatDistribut
 	iatMutex.Unlock()
 
 	if iatDistribution == Uniform {
+		// we need to scale IAT from [0, 1) to [0, 60 seconds)
 		for i, _ := range iatResult {
-			iatResult[i] = iatResult[i] // / totalDuration
-			//iatResult[i] = iatResult[i] * 60 * oneSecondInMicro
+			iatResult[i] = iatResult[i] / totalDuration
+			iatResult[i] = iatResult[i] * 60 * oneSecondInMicro
 		}
 	}
 

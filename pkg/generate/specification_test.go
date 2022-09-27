@@ -16,6 +16,10 @@ type SpecTuple struct {
 	memory  int
 }
 
+/* TestSerialGenerateIAT tests the following scenarios:
+- equidistant distribution within 1 minute and 5 minutes
+- uniform distribution - spillover test, distribution test, single point
+*/
 func TestSerialGenerateIAT(t *testing.T) {
 	tests := []struct {
 		testName        string
@@ -78,31 +82,31 @@ func TestSerialGenerateIAT(t *testing.T) {
 			invocations:     []int{25},
 			iatDistribution: Uniform,
 			expectedPoints: []float64{
-				30599.122571,
-				41608.158237,
-				38196.324414,
-				30578.882235,
-				22764.889978,
-				76016.766045,
-				16592.728276,
-				35329.100169,
-				52099.267210,
-				40731.321212,
-				32513.437415,
-				23390.447643,
-				70713.474644,
-				43441.555898,
-				33898.690187,
-				43378.264279,
-				37630.168228,
-				16738.151876,
-				55379.881960,
-				43053.128652,
-				46935.569044,
-				9619.049539,
-				73383.110897,
-				42199.634584,
-				39102.216455,
+				3062124.611863,
+				3223056.707367,
+				3042558.740794,
+				2099765.805752,
+				375008.683565,
+				3979289.345154,
+				1636869.797787,
+				1169442.102841,
+				2380243.616007,
+				2453428.612640,
+				1704231.066313,
+				42074.939233,
+				3115643.026141,
+				3460047.444726,
+				2849475.331077,
+				3187546.011741,
+				2950391.492700,
+				622524.819620,
+				2161625.000293,
+				2467158.610498,
+				3161216.965226,
+				120925.338482,
+				3461650.068734,
+				3681772.563419,
+				3591929.298027,
 			},
 		},
 		{
@@ -139,7 +143,7 @@ func TestSerialGenerateIAT(t *testing.T) {
 						fmt.Printf("got: %f, expected: %f\n", result[i], test.expectedPoints[i])
 
 						failed = true
-						break
+						// no break statement for debugging purpose
 					}
 				}
 
@@ -147,7 +151,7 @@ func TestSerialGenerateIAT(t *testing.T) {
 					t.Error("Test " + test.testName + " has failed due to incorrectly generated IAT.")
 				}
 			} else {
-				satisfiesDistribution := checkDistribution(result, 0, 1, test.iatDistribution)
+				satisfiesDistribution := checkDistribution(result, test.iatDistribution)
 
 				if !satisfiesDistribution {
 					t.Error("The provided sample does not satisfy the given distribution.")
@@ -159,21 +163,26 @@ func TestSerialGenerateIAT(t *testing.T) {
 
 func testForSpillover(maxTime int, data []float64) bool {
 	sum := 0.0
+	epsilon := 1e-3
 
 	for i := 0; i < len(data); i++ {
 		sum += data[i]
 	}
 
-	if sum > float64(maxTime)*60*oneSecondInMicro {
+	if math.Abs(sum-float64(maxTime)*60*oneSecondInMicro) > epsilon {
+		fmt.Printf("Total execution time: %f μs\n", sum)
+
 		return true
 	} else {
 		return false
 	}
 }
 
-func checkDistribution(data []float64, min, max float64, distribution IatDistribution) bool {
+func checkDistribution(data []float64, distribution IatDistribution) bool {
 	// PREPARING ARGUMENTS
 	var dist string
+	inputFile := "test_data.txt"
+
 	switch distribution {
 	case Uniform:
 		dist = "uniform"
@@ -182,10 +191,6 @@ func checkDistribution(data []float64, min, max float64, distribution IatDistrib
 	default:
 		panic("Unsupported distribution check")
 	}
-
-	minBoundary := fmt.Sprintf("%f", min)
-	maxBoundary := fmt.Sprintf("%f", max)
-	inputFile := "test_data.txt"
 
 	// WRITING DISTRIBUTION TO TEST
 	f, err := os.Create(inputFile)
@@ -199,15 +204,16 @@ func checkDistribution(data []float64, min, max float64, distribution IatDistrib
 		f.WriteString(fmt.Sprintf("%f\n", iat))
 	}
 
-	// CALLING THE TESTING SCRIPT
-	args := []string{"specification_statistical_test.py", dist, minBoundary, maxBoundary, inputFile}
+	// SETTING UP THE TESTING SCRIPT
+	args := []string{"specification_statistical_test.py", dist, inputFile}
 	statisticalTest := exec.Command("python3.8", args...)
-	if err := statisticalTest.Start(); err != nil {
-		panic("Failed to the data against the given distribution.")
-	}
 
-	// CHECKING FOR RESULT
+	// CALLING THE TESTING SCRIPT AND PROCESSING ITS RESULTS
+	// NOTE: the script generates a histogram in PNG format that can be used as a sanity-check
 	if err := statisticalTest.Wait(); err != nil {
+		output, _ := statisticalTest.Output()
+		fmt.Println(string(output))
+
 		switch statisticalTest.ProcessState.ExitCode() {
 		case 200:
 			return true // distribution satisfied
