@@ -68,10 +68,10 @@ burst_gen:
 			durationMinutes = burstDurationMinutes
 		}
 
-		iats := GenerateIAT([]int{rps * 60}, iatDistribution)
+		iats, _ := GenerateIAT([]int{rps * 60}, iatDistribution)
 		tick := -1
 		timeout := time.After(time.Duration(durationMinutes) * time.Minute)
-		interval := time.Duration(iats[0]) * time.Microsecond
+		interval := time.Duration(iats[0][0]) * time.Microsecond
 		ticker := time.NewTicker(interval)
 		done := make(chan bool, 1)
 
