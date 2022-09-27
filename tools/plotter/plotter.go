@@ -18,11 +18,6 @@ import (
 	"strconv"
 )
 
-var (
-	inputDir = flag.String("i", "raw_results", "Path to the directory with input CSV files")
-	outputDir = flag.String("o", "figs", "Path to the directory for output figures")
-	debugLevel = flag.String("d", "info", "Debug level: info, debug")
-)
 
 type Record struct {
 	funcCount int
@@ -30,6 +25,11 @@ type Record struct {
 }
 
 func main() {
+	var (
+		inputDir = flag.String("i", "raw_results", "Path to the directory with input CSV files")
+		outputDir = flag.String("o", "figs", "Path to the directory for output figures")
+		debugLevel = flag.String("d", "info", "Debug level: info, debug")
+	)
 	flag.Parse()
 	log.SetOutput(os.Stdout)
 
@@ -41,7 +41,8 @@ func main() {
 		log.Debug("Debug mode is enabled")
 	}
 
-	records := parseFiles(*inputDir)
+	records, totalFailedNum := parseFiles(*inputDir)
+	log.Info("The number of failed or timed out invocation is: ", totalFailedNum)
 
 	plotFig(*outputDir, records)
 }
@@ -61,6 +62,7 @@ func plotFig(outputDir string, records []Record) {
 	p.X.Label.Text = "Number of functions"
 	p.Y.Label.Text = "Slowdown"
 	p.Y.Min = 0
+	p.Y.Max = 20
 
 	err := plotutil.AddLinePoints(p,
 		"Line", getXY(records),
@@ -79,40 +81,41 @@ func plotFig(outputDir string, records []Record) {
 	}
 }
 
-func parseFiles(inputDir string) []Record {
+func parseFiles(inputDir string) ([]Record, int) {
 	files, err := ioutil.ReadDir(inputDir)
 	if err != nil {
 		log.Fatal("Cannot open the input directory:", err)
 	}
 
-	reFuncCount, err := regexp.Compile(`^exec_sample-(\d+)_phase-2_dur-\d*.csv$`)
+	filePattern, err := regexp.Compile(`^exec_sample-(\d+)_phase-2_dur-\d*.csv$`)
 	if err != nil {
 		log.Fatal("Error compiling: ", err)
 	}
 
 	var recs []Record
+	var totalFailedNum int
 	for _, file := range files {
-		if matched, _ := regexp.MatchString(`^exec_sample-\d+_phase-2_dur-\d*.csv$`, file.Name()); !matched {
-			continue
-		}
+		if matched := filePattern.MatchString(file.Name()); !matched  { continue }
 
 		log.Debug("Open file ", file.Name())
 
-		match := reFuncCount.FindStringSubmatch(file.Name())
+		match := filePattern.FindStringSubmatch(file.Name())
 		funcCount, err := strconv.Atoi(match[1])
 		if err != nil {
 			log.Fatal("Cannot convert to integer:", err)
 		}
 		log.Debug("Func count is ", funcCount)
 
+		slowdown, failedInvocationNum := getSlowdown(filepath.Join(inputDir, file.Name()))
 		recs = append(recs,
 			Record{
 				funcCount: funcCount,
-				slowdown:  getSlowdown(filepath.Join(inputDir, file.Name())),
+				slowdown:  slowdown,
 			})
+		totalFailedNum += failedInvocationNum
 	}
 
-	return recs
+	return recs, totalFailedNum
 }
 
 func getXY(records []Record) plotter.XYs {
@@ -131,9 +134,10 @@ func getXY(records []Record) plotter.XYs {
 type LatencyRecord struct {
 	responseTime, requestedDuration int
 	slowdown float64
+	failed bool
 }
 
-func getSlowdown(filePath string) float64 {
+func getSlowdown(filePath string) (float64, int) {
 	// open file
 	f, err := os.Open(filePath)
 	if err != nil {
@@ -152,6 +156,7 @@ func getSlowdown(filePath string) float64 {
 
 	var latencies []LatencyRecord
 	var slowdownList []float64
+	var failedInvocationNum int
 
 	for i, line := range data {
 		if i > 0 { // omit header line
@@ -167,16 +172,20 @@ func getSlowdown(filePath string) float64 {
 					if err != nil {
 						log.Fatal("Cannot convert to integer:", err)
 					}
+				} else if (j == 7 || j == 8) && (field == "true") {
+					// Skip the record if j=7 or 8 == true (timeout or failed, respectively)
+					rec.failed = true
+					failedInvocationNum++
 				} else {
 					continue
 				}
 			}
-			if rec.responseTime == 0 {
-				log.Warn("Skipping zero response time")
-				continue // FIXME: why there are zeros?
+			if rec.failed == true {
+				log.Warn("Skipping zero response time, file=", filePath)
+				continue
 			}
 			rec.slowdown = float64(rec.responseTime) / float64(rec.requestedDuration)
-			//log.Debug("Parsed values: ", rec)
+			log.Debug("Parsed values: ", rec)
 			latencies = append(latencies, rec)
 			slowdownList = append(slowdownList, rec.slowdown)
 		}
@@ -184,8 +193,8 @@ func getSlowdown(filePath string) float64 {
 	}
 
 	hmean := stat.HarmonicMean(slowdownList, nil)
-	//log.Debug("Harmonic mean=", hmean)
+	log.Debug("Harmonic mean=", hmean)
 
-	return hmean
+	return hmean, failedInvocationNum
 
 }
