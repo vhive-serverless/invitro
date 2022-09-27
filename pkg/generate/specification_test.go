@@ -4,6 +4,8 @@ import (
 	"fmt"
 	tc "github.com/eth-easl/loader/pkg/trace"
 	"math"
+	"os"
+	"os/exec"
 	"strconv"
 	"sync"
 	"testing"
@@ -27,11 +29,11 @@ func TestSerialGenerateIAT(t *testing.T) {
 			invocations:     []int{5},
 			iatDistribution: Equidistant,
 			expectedPoints: []float64{
-				200000,
-				200000,
-				200000,
-				200000,
-				200000,
+				12000000,
+				12000000,
+				12000000,
+				12000000,
+				12000000,
 			},
 		},
 		{
@@ -40,35 +42,35 @@ func TestSerialGenerateIAT(t *testing.T) {
 			iatDistribution: Equidistant,
 			expectedPoints: []float64{
 				// min 1
-				200000,
-				200000,
-				200000,
-				200000,
-				200000,
+				12000000,
+				12000000,
+				12000000,
+				12000000,
+				12000000,
 				// min 2
-				200000,
-				200000,
-				200000,
-				200000,
-				200000,
+				12000000,
+				12000000,
+				12000000,
+				12000000,
+				12000000,
 				// min 3
-				200000,
-				200000,
-				200000,
-				200000,
-				200000,
+				12000000,
+				12000000,
+				12000000,
+				12000000,
+				12000000,
 				// min 4
-				200000,
-				200000,
-				200000,
-				200000,
-				200000,
+				12000000,
+				12000000,
+				12000000,
+				12000000,
+				12000000,
 				// min 5
-				200000,
-				200000,
-				200000,
-				200000,
-				200000,
+				12000000,
+				12000000,
+				12000000,
+				12000000,
+				12000000,
 			},
 		},
 		{
@@ -104,9 +106,15 @@ func TestSerialGenerateIAT(t *testing.T) {
 			},
 		},
 		{
-			testName:        "1min_6000ipm_uniform",
-			invocations:     []int{6000},
+			testName:        "1min_1000000ipm_uniform",
+			invocations:     []int{1000000},
 			iatDistribution: Uniform,
+			expectedPoints:  nil,
+		},
+		{
+			testName:        "1min_1000000ipm_exponential",
+			invocations:     []int{1000000},
+			iatDistribution: Exponential,
 			expectedPoints:  nil,
 		},
 	}
@@ -131,17 +139,20 @@ func TestSerialGenerateIAT(t *testing.T) {
 						fmt.Printf("got: %f, expected: %f\n", result[i], test.expectedPoints[i])
 
 						failed = true
-						//break
+						break
 					}
 				}
 
 				if failed {
 					t.Error("Test " + test.testName + " has failed due to incorrectly generated IAT.")
 				}
+			} else {
+				satisfiesDistribution := checkDistribution(result, 0, 1, test.iatDistribution)
+
+				if !satisfiesDistribution {
+					t.Error("The provided sample does not satisfy the given distribution.")
+				}
 			}
-
-			// TODO: it would make sense to check for uniform distribution and/or Poisson using statistical tests
-
 		})
 	}
 }
@@ -153,11 +164,61 @@ func testForSpillover(maxTime int, data []float64) bool {
 		sum += data[i]
 	}
 
-	if sum > float64(maxTime)*oneSecondInMicro {
+	if sum > float64(maxTime)*60*oneSecondInMicro {
 		return true
 	} else {
 		return false
 	}
+}
+
+func checkDistribution(data []float64, min, max float64, distribution IatDistribution) bool {
+	// PREPARING ARGUMENTS
+	var dist string
+	switch distribution {
+	case Uniform:
+		dist = "uniform"
+	case Exponential:
+		dist = "exponential"
+	default:
+		panic("Unsupported distribution check")
+	}
+
+	minBoundary := fmt.Sprintf("%f", min)
+	maxBoundary := fmt.Sprintf("%f", max)
+	inputFile := "test_data.txt"
+
+	// WRITING DISTRIBUTION TO TEST
+	f, err := os.Create(inputFile)
+	if err != nil {
+		panic("err")
+	}
+
+	defer f.Close()
+
+	for _, iat := range data {
+		f.WriteString(fmt.Sprintf("%f\n", iat))
+	}
+
+	// CALLING THE TESTING SCRIPT
+	args := []string{"specification_statistical_test.py", dist, minBoundary, maxBoundary, inputFile}
+	statisticalTest := exec.Command("python3.8", args...)
+	if err := statisticalTest.Start(); err != nil {
+		panic("Failed to the data against the given distribution.")
+	}
+
+	// CHECKING FOR RESULT
+	if err := statisticalTest.Wait(); err != nil {
+		switch statisticalTest.ProcessState.ExitCode() {
+		case 200:
+			return true // distribution satisfied
+		case 300:
+			panic("Unsupported distribution by the statistical test.")
+		case 400:
+			return false // distribution not satisfied
+		}
+	}
+
+	return false
 }
 
 func TestGenerateExecutionSpecifications(t *testing.T) {
