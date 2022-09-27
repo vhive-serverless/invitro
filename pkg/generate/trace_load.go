@@ -23,6 +23,7 @@ func GenerateTraceLoads(
 	totalNumInvocationsEachMinute []int,
 	iatDistribution IatDistribution,
 	withTracing bool,
+	seed int64,
 ) int {
 	collector := mc.NewCollector()
 	clusterUsage := mc.ClusterUsage{}
@@ -67,6 +68,8 @@ func GenerateTraceLoads(
 	var successCountTotal int64 = 0
 	var failureCountTotal int64 = 0
 
+	sg := NewSpecificationGenerator(seed)
+
 trace_gen:
 	for ; minute < int(totalDurationMinutes); minute++ {
 		var iats [][]float64
@@ -80,7 +83,7 @@ trace_gen:
 			continue
 		}
 
-		iats, _ = GenerateIAT([]int{numInvocationsThisMinute}, iatDistribution)
+		iats, _ = sg.GenerateIAT([]int{numInvocationsThisMinute}, iatDistribution)
 		log.Infof("Minute[%d]\t RPS=%d", minute, rps)
 
 		/** Set up timer to bound the one-minute invocation. */
@@ -115,7 +118,7 @@ trace_gen:
 					funcIndx := invocationsEachMinute[m][nxt]
 					function := functions[funcIndx]
 
-					runtimeRequested, memoryRequested := GenerateExecutionSpecs(function)
+					runtimeRequested, memoryRequested := sg.GenerateExecutionSpecs(function)
 					success, execRecord := fc.Invoke(function, runtimeRequested, memoryRequested, withTracing)
 
 					if success {

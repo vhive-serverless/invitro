@@ -19,6 +19,7 @@ func GenerateBurstLoads(
 	functionsTable map[string]tc.Function,
 	iatDistribution IatDistribution,
 	withTracing bool,
+	seed int64,
 ) {
 
 	start := time.Now()
@@ -61,6 +62,8 @@ func GenerateBurstLoads(
 	burstSize := 0
 	durationMinutes := 1 // Before the burst period, each RPS step takes a minute.
 
+	sg := NewSpecificationGenerator(seed)
+
 burst_gen:
 	for {
 
@@ -68,7 +71,7 @@ burst_gen:
 			durationMinutes = burstDurationMinutes
 		}
 
-		iats, _ := GenerateIAT([]int{rps * 60}, iatDistribution)
+		iats, _ := sg.GenerateIAT([]int{rps * 60}, iatDistribution)
 		tick := -1
 		timeout := time.After(time.Duration(durationMinutes) * time.Minute)
 		interval := time.Duration(iats[0][0]) * time.Microsecond
@@ -115,7 +118,7 @@ burst_gen:
 
 						atomic.AddInt64(&invocationCount, 1)
 
-						runtimeRequested, memoryRequested := GenerateExecutionSpecs(function)
+						runtimeRequested, memoryRequested := sg.GenerateExecutionSpecs(function)
 						success, execRecord := fc.Invoke(_function, runtimeRequested, memoryRequested, withTracing)
 
 						if !success {

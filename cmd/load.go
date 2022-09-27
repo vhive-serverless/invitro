@@ -91,8 +91,6 @@ func init() {
 }
 
 func main() {
-	gen.InitSeed(*seed)
-
 	if *withTracing {
 		shutdown, err := tracer.InitBasicTracer(zipkinAddr, "loader")
 		if err != nil {
@@ -183,6 +181,7 @@ func runTraceMode(invPath, runPath, memPath string) {
 		traces.TotalInvocationsPerMinute[nextPhaseStart:nextPhaseStart+*duration],
 		iatType,
 		*withTracing,
+		*seed,
 	)
 }
 
@@ -212,7 +211,7 @@ func runStressMode() {
 
 	fc.DeployFunctions(functions, serviceConfigPath, initialScales, *isPartiallyPanic)
 
-	gen.GenerateStressLoads(*rpsStart, *rpsEnd, *rpsStep, *rpsSlot, functions, iatType, *withTracing)
+	gen.GenerateStressLoads(*rpsStart, *rpsEnd, *rpsStep, *rpsSlot, functions, iatType, *withTracing, *seed)
 }
 
 func runBurstMode() {
@@ -238,7 +237,7 @@ func runBurstMode() {
 
 	fc.DeployFunctions(functions, serviceConfigPath, initialScales, *isPartiallyPanic)
 
-	gen.GenerateBurstLoads(*rpsEnd, *burstTarget, *duration, functionTable, iatType, *withTracing)
+	gen.GenerateBurstLoads(*rpsEnd, *burstTarget, *duration, functionTable, iatType, *withTracing, *seed)
 }
 
 func runColdStartMode() {
@@ -264,5 +263,5 @@ func runColdStartMode() {
 
 	fc.DeployFunctions(functions, serviceConfigPath, []int{}, *isPartiallyPanic)
 
-	defer gen.GenerateColdStartLoads(*rpsStart, *rpsStep, hotFunction, coldstartCounts, iatType, *withTracing)
+	defer gen.GenerateColdStartLoads(*rpsStart, *rpsStep, hotFunction, coldstartCounts, iatType, *withTracing, *seed)
 }
