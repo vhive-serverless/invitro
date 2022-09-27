@@ -21,14 +21,17 @@ func GenerateStressLoads(
 	functions []tc.Function,
 	iatDistribution IatDistribution,
 	withTracing bool,
+	seed int64,
 ) {
+	sg := NewSpecificationGenerator(seed)
+
 	start := time.Now()
 	wg := sync.WaitGroup{}
 	collector := mc.NewCollector()
 	clusterUsage := mc.ClusterUsage{}
 	knStats := mc.KnStats{}
 	coldStartSlotCount := 0
-	runtimeRequested, memoryRequested := GenerateExecutionSpecs(functions[0])
+	runtimeRequested, memoryRequested := sg.GenerateExecutionSpecs(functions[0])
 
 	/** Launch a scraper that updates the cluster usage every 15s (max. interval). */
 	scrape_infra := time.NewTicker(time.Second * 15)
@@ -67,7 +70,7 @@ rps_gen:
 			invocations = append(invocations, rps*60)
 		}
 
-		iats, _ := GenerateIAT(invocations, iatDistribution)
+		iats, _ := sg.GenerateIAT(invocations, iatDistribution)
 
 		timeout := time.After(time.Minute * time.Duration(stressSlotInMinutes))
 		interval := time.Duration(iats[0][0]) * time.Microsecond

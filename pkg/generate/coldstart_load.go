@@ -19,6 +19,7 @@ func GenerateColdStartLoads(
 	coldstartCounts []int,
 	iatDistribution IatDistribution,
 	withTracing bool,
+	seed int64,
 ) {
 
 	start := time.Now()
@@ -59,9 +60,11 @@ func GenerateColdStartLoads(
 	minute := 0
 	tolerance := 0
 
+	sg := NewSpecificationGenerator(seed)
+
 coldstart_generation:
 	for {
-		iats, _ := GenerateIAT([]int{rps * 60}, iatDistribution)
+		iats, _ := sg.GenerateIAT([]int{rps * 60}, iatDistribution)
 		//* One minute per step for matching the trace mode.
 		tick := -1
 		timeout := time.After(1 * time.Minute)
@@ -103,7 +106,7 @@ coldstart_generation:
 				go func(rps int, interval int64) {
 					defer wg.Done()
 
-					runtimeRequested, memoryRequested := GenerateExecutionSpecs(function)
+					runtimeRequested, memoryRequested := sg.GenerateExecutionSpecs(function)
 					success, execRecord := fc.Invoke(function, runtimeRequested, memoryRequested, withTracing)
 
 					if success {
