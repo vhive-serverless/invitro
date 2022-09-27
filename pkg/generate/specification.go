@@ -102,9 +102,6 @@ func generateIATForAMinute(numberOfInvocations int, iatDistribution IatDistribut
 	var iatResult []float64
 	totalDuration := 0.0
 
-	// equal distance
-	equalDistance := oneSecondInMicro / float64(numberOfInvocations)
-
 	iatMutex.Lock()
 	for i := 0; i < numberOfInvocations; i++ {
 		var iat float64
@@ -112,50 +109,38 @@ func generateIATForAMinute(numberOfInvocations int, iatDistribution IatDistribut
 		switch iatDistribution {
 		case Exponential:
 			// TODO: check out this
-			rps := float64(numberOfInvocations) / 60
-			iat = iatRand.ExpFloat64() / rps * oneSecondInMicro
+			//rps := float64(numberOfInvocations) / 60
+			iat = iatRand.ExpFloat64() // / rps * oneSecondInMicro
 		case Uniform:
-			// TODO: do we want to cut resize equalDistance
-			iat = iatRand.Float64() * equalDistance
+			iat = iatRand.Float64()
 		case Equidistant:
+			equalDistance := 60.0 * oneSecondInMicro / float64(numberOfInvocations)
 			iat = equalDistance
 		default:
 			log.Fatal("Unsupported IAT distribution.")
 		}
 
-		if iat < 1 {
+		/*if iat < 1 {
 			// No nanoseconds-level granularity, only microsecond
 			iat = 1
-		}
+		}*/
 
 		iatResult = append(iatResult, iat)
 		totalDuration += iat
 	}
 	iatMutex.Unlock()
 
-	//////////////////////////////
-	// START OF UNKNOWN
-	// TODO: figure out purpose of this
 	if iatDistribution == Uniform {
-		tmp := []float64{iatResult[0]}
-		for i, iat := range iatResult[1:] {
-			i++
-			gap := equalDistance - iatResult[i-1] // Fill in the remaining time of previous iat in its equalDistance.
-
-			if gap < 0 {
-				log.Info(equalDistance, iatResult[i-1])
-			}
-			tmp = append(tmp, gap+iat)
+		for i, _ := range iatResult {
+			iatResult[i] = iatResult[i] // / totalDuration
+			//iatResult[i] = iatResult[i] * 60 * oneSecondInMicro
 		}
-		iatResult = tmp
 	}
-	// END OF UNKNOWN
-	//////////////////////////////
 
-	if totalDuration > oneSecondInMicro {
+	/*if totalDuration > 60*oneSecondInMicro {
 		// If all the generated invocations do not fit within a single minute normalize them
 		for i, iat := range iatResult {
-			iat /= totalDuration * oneSecondInMicro
+			iat = iat / (60 * oneSecondInMicro)
 			if iat < 1 {
 				// No nanoseconds-level granularity, only microsecond
 				iat = 1
@@ -163,7 +148,7 @@ func generateIATForAMinute(numberOfInvocations int, iatDistribution IatDistribut
 
 			iatResult[i] = iat
 		}
-	}
+	}*/
 
 	return iatResult
 }
