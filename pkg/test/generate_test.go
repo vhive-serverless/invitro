@@ -1,11 +1,9 @@
 package test
 
 import (
-	"sort"
 	"testing"
 
 	gen "github.com/eth-easl/loader/pkg/generate"
-	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -64,7 +62,7 @@ func TestGenerateIat(t *testing.T) {
 	t.Log("Half-minute duration (uniform): ", duration)*/
 }
 
-func TestShuffling(t *testing.T) {
+/*func TestShuffling(t *testing.T) {
 	arr := [][]int{}
 	arr = append(arr, []int{1, 1, 2, 2, 3, 3})
 	arr = append(arr, []int{1, 1, 2, 2, 3, 3})
@@ -80,4 +78,4 @@ func TestShuffling(t *testing.T) {
 		log.Info(arr)
 	}
 	assert.True(t, isShuffled)
-}
+}*/

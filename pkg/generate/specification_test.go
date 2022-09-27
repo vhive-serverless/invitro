@@ -182,9 +182,9 @@ func TestSerialGenerateIAT(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.testName, func(t *testing.T) {
-			InitSeed(seed)
+			sg := NewSpecificationGenerator(seed)
 
-			IAT, nonScaledDuration := GenerateIAT(test.invocations, test.iatDistribution)
+			IAT, nonScaledDuration := sg.GenerateIAT(test.invocations, test.iatDistribution)
 			failed := false
 
 			if hasSpillover(IAT) {
@@ -375,7 +375,7 @@ func TestGenerateExecutionSpecifications(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.testName, func(t *testing.T) {
-			InitSeed(seed)
+			sg := NewSpecificationGenerator(seed)
 
 			results := make(map[SpecTuple]struct{})
 
@@ -386,7 +386,7 @@ func TestGenerateExecutionSpecifications(t *testing.T) {
 				wg.Add(1)
 
 				go func() {
-					runtime, memory := GenerateExecutionSpecs(fakeFunction)
+					runtime, memory := sg.GenerateExecutionSpecs(fakeFunction)
 
 					mutex.Lock()
 					results[SpecTuple{runtime: runtime, memory: memory}] = struct{}{}
