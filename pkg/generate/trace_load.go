@@ -13,18 +13,10 @@ import (
 	tc "github.com/eth-easl/loader/pkg/trace"
 )
 
-func GenerateTraceLoads(
-	sampleSize int,
-	phaseIdx int,
-	phaseOffset int,
-	withBlocking bool,
-	functions []tc.Function,
-	invocationsEachMinute [][]int,
-	totalNumInvocationsEachMinute []int,
-	iatDistribution IatDistribution,
-	withTracing bool,
-	seed int64,
-) int {
+func GenerateTraceLoads(sampleSize int, phaseIdx int, phaseOffset int, withBlocking bool, functions []tc.Function,
+	invocationsEachMinute [][]int, totalNumInvocationsEachMinute []int, iatDistribution IatDistribution, withTracing bool,
+	seed int64) int {
+
 	collector := mc.NewCollector()
 	clusterUsage := mc.ClusterUsage{}
 	knStats := mc.KnStats{}
