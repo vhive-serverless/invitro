@@ -24,9 +24,6 @@ func GenerateTraceLoads(
 	iatDistribution IatDistribution,
 	withTracing bool,
 ) int {
-
-	ShuffleAllInvocationsInplace(&invocationsEachMinute)
-
 	collector := mc.NewCollector()
 	clusterUsage := mc.ClusterUsage{}
 	knStats := mc.KnStats{}
@@ -72,7 +69,7 @@ func GenerateTraceLoads(
 
 trace_gen:
 	for ; minute < int(totalDurationMinutes); minute++ {
-		var iats []float64
+		var iats [][]float64
 		var numFuncInvokedThisMinute int64 = 0
 
 		rps := int(math.Ceil(float64(totalNumInvocationsEachMinute[minute]) / 60.0))
@@ -83,13 +80,13 @@ trace_gen:
 			continue
 		}
 
-		iats = GenerateIAT([]int{numInvocationsThisMinute}, iatDistribution)
+		iats, _ = GenerateIAT([]int{numInvocationsThisMinute}, iatDistribution)
 		log.Infof("Minute[%d]\t RPS=%d", minute, rps)
 
 		/** Set up timer to bound the one-minute invocation. */
 		iterStart := time.Now()
 		timeout := time.After(time.Duration(60) * time.Second)
-		interval := time.Duration(iats[0]) * time.Microsecond
+		interval := time.Duration(iats[0][0]) * time.Microsecond
 		ticker := time.NewTicker(interval)
 		done := make(chan bool, 2) // Two semaphores, one for timer, one for early completion.
 		tick := 0
@@ -141,7 +138,7 @@ trace_gen:
 					done <- true
 				} else {
 					//* Load the next inter-arrival time.
-					interval = time.Duration(iats[tick]) * time.Microsecond
+					interval = time.Duration(iats[0][tick]) * time.Microsecond
 					ticker = time.NewTicker(interval)
 				}
 

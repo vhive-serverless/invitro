@@ -17,6 +17,11 @@ if distribution == "uniform":
 
     cdf = stats.uniform(loc=minBoundary, scale=maxBoundary).cdf
 elif distribution == "exponential":
+    maximum = max(f)
+    totalDuration = float(sys.argv[3])
+    for i in range(len(f)):
+        f[i] = f[i] / 60_000_000 * totalDuration
+
     cdf = stats.expon.cdf
 else:
     exit(300)

@@ -67,10 +67,10 @@ rps_gen:
 			invocations = append(invocations, rps*60)
 		}
 
-		iats := GenerateIAT(invocations, iatDistribution)
+		iats, _ := GenerateIAT(invocations, iatDistribution)
 
 		timeout := time.After(time.Minute * time.Duration(stressSlotInMinutes))
-		interval := time.Duration(iats[0]) * time.Microsecond
+		interval := time.Duration(iats[0][0]) * time.Microsecond
 		ticker := time.NewTicker(interval)
 		done := make(chan bool, 2)
 		tick := 0
@@ -124,7 +124,7 @@ rps_gen:
 					log.Info("Finish target invocation early at RPS=", rps)
 					done <- true
 				} else {
-					interval = time.Duration(iats[tick]) * time.Microsecond
+					interval = time.Duration(iats[0][tick]) * time.Microsecond
 					ticker = time.NewTicker(interval)
 				}
 				tick++

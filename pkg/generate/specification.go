@@ -86,21 +86,11 @@ func InitSeed(s int64) {
 //////////////////////////////////////////////////
 
 // generateIATForAMinute generates IAT for one minute based on given number of invocations and the given distribution
-func generateIATForAMinute(numberOfInvocations int, iatDistribution IatDistribution) []float64 {
-	//* Launching goroutine takes time, especially under high load (5%: e.g., 3s/minute),
-	//* so we need to guarantee the required #invocations before timeout.
-	/*slackFrac := .05
-	if iatDistribution == Exponential {
-		slackFrac *= 2 // Empirically, we need more slack when generating exponential due to potentially shorter intervals.
-	}
-	slackTimeMicro := float64(totalDurationInSec) * slackFrac * oneSecondInMicro*/
-	//durationInMicro := float64(numberOfInvocations) * oneSecondInMicro - slackTimeMicro
-
-	// TODO: do we want to keep the slack?
+func generateIATForAMinute(numberOfInvocations int, iatDistribution IatDistribution) ([]float64, float64) {
 	// TODO: missing mutex for deterministic creation of IAT for exec specs and IAT
 
 	var iatResult []float64
-	totalDuration := 0.0
+	totalDuration := 0.0 // total non-scaled duration
 
 	iatMutex.Lock()
 	for i := 0; i < numberOfInvocations; i++ {
@@ -108,9 +98,8 @@ func generateIATForAMinute(numberOfInvocations int, iatDistribution IatDistribut
 
 		switch iatDistribution {
 		case Exponential:
-			// TODO: check out this
-			//rps := float64(numberOfInvocations) / 60
-			iat = iatRand.ExpFloat64() // / rps * oneSecondInMicro
+			// NOTE: Serverless in the Wild - pg. 6, paragraph 1
+			iat = iatRand.ExpFloat64()
 		case Uniform:
 			iat = iatRand.Float64()
 		case Equidistant:
@@ -130,41 +119,34 @@ func generateIATForAMinute(numberOfInvocations int, iatDistribution IatDistribut
 	}
 	iatMutex.Unlock()
 
-	if iatDistribution == Uniform {
-		// we need to scale IAT from [0, 1) to [0, 60 seconds)
+	if iatDistribution == Uniform || iatDistribution == Exponential {
+		// Uniform: 		we need to scale IAT from [0, 1) to [0, 60 seconds)
+		// Exponential: 	we need to scale IAT from [0, +MaxFloat64) to [0, 60 seconds)
 		for i, _ := range iatResult {
+			// how much does the IAT contributes to the total IAT sum
 			iatResult[i] = iatResult[i] / totalDuration
+			// convert relative contribution to absolute on 60 second interval
 			iatResult[i] = iatResult[i] * 60 * oneSecondInMicro
 		}
 	}
 
-	/*if totalDuration > 60*oneSecondInMicro {
-		// If all the generated invocations do not fit within a single minute normalize them
-		for i, iat := range iatResult {
-			iat = iat / (60 * oneSecondInMicro)
-			if iat < 1 {
-				// No nanoseconds-level granularity, only microsecond
-				iat = 1
-			}
-
-			iatResult[i] = iat
-		}
-	}*/
-
-	return iatResult
+	return iatResult, totalDuration
 }
 
 // GenerateIAT generates IAT according to the given distribution. Number of minutes is the length of invocationsPerMinute array
-func GenerateIAT(invocationsPerMinute []int, iatDistribution IatDistribution) []float64 {
-	var result []float64
+func GenerateIAT(invocationsPerMinute []int, iatDistribution IatDistribution) ([][]float64, []float64) {
+	var IAT [][]float64
+	var nonScaledDuration []float64
 
 	numberOfMinutes := len(invocationsPerMinute)
 	for i := 0; i < numberOfMinutes; i++ {
-		minuteIAT := generateIATForAMinute(invocationsPerMinute[i], iatDistribution)
-		result = append(result, minuteIAT...)
+		minuteIAT, duration := generateIATForAMinute(invocationsPerMinute[i], iatDistribution)
+
+		IAT = append(IAT, minuteIAT)
+		nonScaledDuration = append(nonScaledDuration, duration)
 	}
 
-	return result
+	return IAT, nonScaledDuration
 }
 
 //////////////////////////////////////////////////
@@ -260,13 +242,6 @@ func GenerateExecutionSpecs(function tc.Function) (int, int) {
 // TODO: check and refactor everything below
 /////////////////////////////////////
 
-func CheckOverload(successCount, failureCount int64) bool {
-	//* Amongst those returned, how many has failed?
-	failureRate := float64(failureCount) / float64(successCount+failureCount)
-	log.Info("Failure rate=", failureRate)
-	return failureRate > OVERFLOAD_THRESHOLD
-}
-
 /**
  * This function waits for the waitgroup for the specified max timeout.
  * Returns true if waiting timed out.
@@ -287,22 +262,11 @@ func wgWaitWithTimeout(wg *sync.WaitGroup, timeout time.Duration) bool {
 	}
 }
 
-/**
- * This function has/uses side-effects, but for the sake of performance
- * keep it for now.
- */
-func ShuffleAllInvocationsInplace(invocationsEachMinute *[][]int) {
-	// TODO: may be missing mutex
-
-	suffleOneMinute := func(invocations *[]int) {
-		invRand.Shuffle(len(*invocations), func(i, j int) {
-			(*invocations)[i], (*invocations)[j] = (*invocations)[j], (*invocations)[i]
-		})
-	}
-
-	for minute := range *invocationsEachMinute {
-		suffleOneMinute(&(*invocationsEachMinute)[minute])
-	}
+func CheckOverload(successCount, failureCount int64) bool {
+	//* Amongst those returned, how many has failed?
+	failureRate := float64(failureCount) / float64(successCount+failureCount)
+	log.Info("Failure rate=", failureRate)
+	return failureRate > OVERFLOAD_THRESHOLD
 }
 
 func DumpOverloadFlag() {
