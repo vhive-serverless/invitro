@@ -45,6 +45,7 @@ run:
 	go run cmd/load.go $(ARGS)
 
 test:
+	go test -v -cover -race ./pkg/generate/
 	go test -v -cover -race ./pkg/test/
 	go test -v -cover -race ./tools/trace_synthesizer/tests/
 
