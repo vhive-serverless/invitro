@@ -161,7 +161,7 @@ func runTraceMode(invPath, runPath, memPath string) {
 	/** Warmup (Phase 1) */
 	nextPhaseStart := 0
 	if *withWarmup {
-		nextPhaseStart = opts.Warmup(*sampleSize, totalNumPhases, functions, traces, iatType, *withTracing)
+		nextPhaseStart = opts.Warmup(*sampleSize, totalNumPhases, functions, traces, iatType, *withTracing, *seed)
 	}
 
 	/** Measurement (Phase 2) */
