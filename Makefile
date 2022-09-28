@@ -46,6 +46,7 @@ run:
 
 test:
 	go test -v -cover -race ./pkg/test/
+	go test -v -cover -race ./tools/trace_synthesizer/tests/
 
 trace-firecracker:
 	docker build -f Dockerfile.trace.firecracker -t hyhe/trace-func-firecracker .
