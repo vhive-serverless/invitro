@@ -1,7 +1,8 @@
-package generate
+package generator
 
 import (
 	"fmt"
+	"github.com/eth-easl/loader/pkg/common"
 	tc "github.com/eth-easl/loader/pkg/trace"
 	log "github.com/sirupsen/logrus"
 	"math"
@@ -26,19 +27,19 @@ func TestSerialGenerateIAT(t *testing.T) {
 		testName        string
 		duration        int // s
 		invocations     []int
-		iatDistribution IatDistribution
+		iatDistribution common.IatDistribution
 		expectedPoints  [][]float64 // μs
 	}{
 		{
 			testName:        "no_invocations",
 			invocations:     []int{5},
-			iatDistribution: Equidistant,
+			iatDistribution: common.Equidistant,
 			expectedPoints:  [][]float64{},
 		},
 		{
 			testName:        "1min_5ipm_equidistant",
 			invocations:     []int{5},
-			iatDistribution: Equidistant,
+			iatDistribution: common.Equidistant,
 			expectedPoints: [][]float64{
 				{
 					12000000,
@@ -52,7 +53,7 @@ func TestSerialGenerateIAT(t *testing.T) {
 		{
 			testName:        "5min_5ipm_equidistant",
 			invocations:     []int{5, 5, 5, 5, 5},
-			iatDistribution: Equidistant,
+			iatDistribution: common.Equidistant,
 			expectedPoints: [][]float64{
 				{
 					// min 1
@@ -99,7 +100,7 @@ func TestSerialGenerateIAT(t *testing.T) {
 		{
 			testName:        "1min_25ipm_uniform",
 			invocations:     []int{25},
-			iatDistribution: Uniform,
+			iatDistribution: common.Uniform,
 			expectedPoints: [][]float64{
 				{
 					3062124.611863,
@@ -133,13 +134,13 @@ func TestSerialGenerateIAT(t *testing.T) {
 		{
 			testName:        "1min_1000000ipm_uniform",
 			invocations:     []int{1000000},
-			iatDistribution: Uniform,
+			iatDistribution: common.Uniform,
 			expectedPoints:  nil,
 		},
 		{
 			testName:        "1min_25ipm_exponential",
 			invocations:     []int{25},
-			iatDistribution: Exponential,
+			iatDistribution: common.Exponential,
 			expectedPoints: [][]float64{
 				{
 					1311929.341329,
@@ -173,7 +174,7 @@ func TestSerialGenerateIAT(t *testing.T) {
 		{
 			testName:        "1min_1000000ipm_exponential",
 			invocations:     []int{1000000},
-			iatDistribution: Exponential,
+			iatDistribution: common.Exponential,
 			expectedPoints:  nil,
 		},
 	}
@@ -209,7 +210,7 @@ func TestSerialGenerateIAT(t *testing.T) {
 				}
 			}
 
-			if test.iatDistribution != Equidistant && !checkDistribution(IAT, nonScaledDuration, test.iatDistribution) {
+			if test.iatDistribution != common.Equidistant && !checkDistribution(IAT, nonScaledDuration, test.iatDistribution) {
 				t.Error("The provided sample does not satisfy the given distribution.")
 			}
 		})
@@ -226,7 +227,7 @@ func hasSpillover(data [][]float64) bool {
 		}
 
 		log.Debug(fmt.Sprintf("Total execution time: %f μs\n", sum))
-		if math.Abs(sum-60*oneSecondInMicro) > epsilon {
+		if math.Abs(sum-60*common.OneSecondInMicroseconds) > epsilon {
 			return true
 		}
 	}
@@ -234,15 +235,15 @@ func hasSpillover(data [][]float64) bool {
 	return false
 }
 
-func checkDistribution(data [][]float64, nonScaledDuration []float64, distribution IatDistribution) bool {
+func checkDistribution(data [][]float64, nonScaledDuration []float64, distribution common.IatDistribution) bool {
 	// PREPARING ARGUMENTS
 	var dist string
 	inputFile := "test_data.txt"
 
 	switch distribution {
-	case Uniform:
+	case common.Uniform:
 		dist = "uniform"
-	case Exponential:
+	case common.Exponential:
 		dist = "exponential"
 	default:
 		log.Fatal("Unsupported distribution check")

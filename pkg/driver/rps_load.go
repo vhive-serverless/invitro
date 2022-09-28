@@ -1,6 +1,8 @@
-package generate
+package driver
 
 import (
+	"github.com/eth-easl/loader/pkg/common"
+	"github.com/eth-easl/loader/pkg/generator"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -19,11 +21,11 @@ func GenerateStressLoads(
 	rpsStep int,
 	stressSlotInMinutes int,
 	functions []tc.Function,
-	iatDistribution IatDistribution,
+	iatDistribution common.IatDistribution,
 	withTracing bool,
 	seed int64,
 ) {
-	sg := NewSpecificationGenerator(seed)
+	sg := generator.NewSpecificationGenerator(seed)
 
 	start := time.Now()
 	wg := sync.WaitGroup{}
@@ -113,7 +115,7 @@ rps_gen:
 					}
 
 					totalInvocationsThisSlot := _rps * 60
-					if float64(_tick)/float64(totalInvocationsThisSlot) > RPS_WARMUP_FRACTION {
+					if float64(_tick)/float64(totalInvocationsThisSlot) > common.RPS_WARMUP_FRACTION {
 
 						execRecord.Interval = _interval
 						execRecord.Rps = _rps
@@ -150,7 +152,7 @@ rps_gen:
 			if CheckOverload(atomic.LoadInt64(&successCountRpsStep), atomic.LoadInt64(&failureCountRpsStep)) {
 				/** Ending RPS NOT specified -> run until it breaks. */
 				tolerance++
-				if tolerance < OVERFLOAD_TOLERANCE {
+				if tolerance < common.OVERFLOAD_TOLERANCE {
 					rps -= rpsStep //* Second chance: try the current RPS one more time.
 				} else {
 					break rps_gen
@@ -162,7 +164,7 @@ rps_gen:
 		}
 
 		if rps < 100 {
-			rps += util.MinOf(MAX_RPS_STARTUP_STEP, rpsStep)
+			rps += util.MinOf(common.MAX_RPS_STARTUP_STEP, rpsStep)
 		} else {
 			rps += rpsStep
 		}
@@ -170,7 +172,7 @@ rps_gen:
 	}
 	log.Info("Finished stress load generation with ending RPS=", rps)
 
-	forceTimeoutDuration := FORCE_TIMEOUT_MINUTE * time.Minute
+	forceTimeoutDuration := common.FORCE_TIMEOUT_MINUTE * time.Minute
 	if wgWaitWithTimeout(&wg, forceTimeoutDuration) {
 		log.Warn("Time out waiting for all invocations to return.")
 	} else {

@@ -1,4 +1,4 @@
-package generate
+package common
 
 const (
 	// 1ms (min. billing unit of AWS)
@@ -43,5 +43,5 @@ const (
 )
 
 const (
-	oneSecondInMicro = 1_000_000.0
+	OneSecondInMicroseconds = 1_000_000.0
 )

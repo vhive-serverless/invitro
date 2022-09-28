@@ -1,12 +1,13 @@
 package cmd
 
 import (
+	gen "github.com/eth-easl/loader/pkg/common"
+	driver2 "github.com/eth-easl/loader/pkg/driver"
 	"math"
 	"runtime"
 	"sort"
 
 	util "github.com/eth-easl/loader/pkg"
-	gen "github.com/eth-easl/loader/pkg/generate"
 	tc "github.com/eth-easl/loader/pkg/trace"
 	log "github.com/sirupsen/logrus"
 )
@@ -132,7 +133,7 @@ func Warmup(
 	for phaseIdx := 1; phaseIdx < totalNumPhases; phaseIdx++ {
 		log.Infof("Enter Phase %d as of Minute[%d]", phaseIdx, nextPhaseStart)
 
-		traceLoadParams := gen.TraceGeneratorParams{
+		traceLoadParams := driver2.TraceGeneratorParams{
 			SampleSize:                    sampleSize,
 			PhaseIdx:                      phaseIdx,
 			PhaseOffset:                   nextPhaseStart,
@@ -140,12 +141,12 @@ func Warmup(
 			Functions:                     functions,
 			InvocationsEachMinute:         traces.InvocationsEachMinute[nextPhaseStart:],
 			TotalNumInvocationsEachMinute: traces.TotalInvocationsPerMinute[nextPhaseStart:],
-			IatDistribution:               iatDistribution,
+			IATDistribution:               iatDistribution,
 			WithTracing:                   withTracing,
 			Seed:                          seed,
 		}
 
-		driver := gen.NewDriver()
+		driver := driver2.NewDriver()
 		nextPhaseStart = driver.GenerateTraceLoads(traceLoadParams)
 	}
 
