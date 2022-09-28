@@ -82,7 +82,7 @@ func TestGetLatenciesInOrder(t *testing.T) {
 
 	collector.ReportExecution(
 		mc.ExecutionRecord{
-			Timestamp:    1000_000,
+			StartTime:    1000_000,
 			ResponseTime: 0,
 		},
 		clusterUsage,
@@ -90,7 +90,7 @@ func TestGetLatenciesInOrder(t *testing.T) {
 	)
 	collector.ReportExecution(
 		mc.ExecutionRecord{
-			Timestamp:    1000_000_000,
+			StartTime:    1000_000_000,
 			ResponseTime: 2,
 		},
 		clusterUsage,
@@ -98,7 +98,7 @@ func TestGetLatenciesInOrder(t *testing.T) {
 	)
 	collector.ReportExecution(
 		mc.ExecutionRecord{
-			Timestamp:    1000,
+			StartTime:    1000,
 			ResponseTime: 1,
 		},
 		clusterUsage,
@@ -114,7 +114,7 @@ func TestGetLatenciesInOrder(t *testing.T) {
 // 	for i := 0; i < 100; i++ {
 // 		collector.ReportLantency(
 // 			mc.LatencyRecord{
-// 				Timestamp: int64(i),
+// 				StartTime: int64(i),
 // 				Latency:   int64(i + 5000),
 // 			},
 // 		)

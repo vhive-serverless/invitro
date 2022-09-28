@@ -4,45 +4,20 @@ import (
 	"github.com/eth-easl/loader/pkg/common"
 	log "github.com/sirupsen/logrus"
 	"math/rand"
-	"sync"
 
 	util "github.com/eth-easl/loader/pkg"
 	tc "github.com/eth-easl/loader/pkg/trace"
 )
 
-// IATMatrix - columns are minutes, rows are IATs
-type IATMatrix [][]float64
-
-// ProbabilisticDuration used for testing the exponential distribution
-type ProbabilisticDuration []float64
-
-type RuntimeSpecification struct {
-	Runtime int
-	Memory  int
-}
-type RuntimeSpecificationMatrix [][]RuntimeSpecification
-
-type FunctionSpecification struct {
-	IAT                  IATMatrix
-	RawDuration          ProbabilisticDuration
-	RuntimeSpecification RuntimeSpecificationMatrix
-}
-
 type SpecificationGenerator struct {
 	iatRand  *rand.Rand
-	iatMutex *sync.Mutex
-
-	specRand  *rand.Rand
-	specMutex *sync.Mutex
+	specRand *rand.Rand
 }
 
 func NewSpecificationGenerator(seed int64) *SpecificationGenerator {
 	return &SpecificationGenerator{
 		iatRand:  rand.New(rand.NewSource(seed)),
-		iatMutex: &sync.Mutex{},
-
-		specRand:  rand.New(rand.NewSource(seed)),
-		specMutex: &sync.Mutex{},
+		specRand: rand.New(rand.NewSource(seed)),
 	}
 }
 
@@ -57,7 +32,6 @@ func (s *SpecificationGenerator) generateIATForAMinute(numberOfInvocations int, 
 	var iatResult []float64
 	totalDuration := 0.0 // total non-scaled duration
 
-	s.iatMutex.Lock()
 	for i := 0; i < numberOfInvocations; i++ {
 		var iat float64
 
@@ -82,7 +56,6 @@ func (s *SpecificationGenerator) generateIATForAMinute(numberOfInvocations int, 
 		iatResult = append(iatResult, iat)
 		totalDuration += iat
 	}
-	s.iatMutex.Unlock()
 
 	if iatDistribution == common.Uniform || iatDistribution == common.Exponential {
 		// Uniform: 		we need to scale IAT from [0, 1) to [0, 60 seconds)
@@ -99,7 +72,7 @@ func (s *SpecificationGenerator) generateIATForAMinute(numberOfInvocations int, 
 }
 
 // GenerateIAT generates IAT according to the given distribution. Number of minutes is the length of invocationsPerMinute array
-func (s *SpecificationGenerator) generateIAT(invocationsPerMinute []int, iatDistribution common.IatDistribution) (IATMatrix, ProbabilisticDuration) {
+func (s *SpecificationGenerator) generateIAT(invocationsPerMinute []int, iatDistribution common.IatDistribution) (common.IATMatrix, common.ProbabilisticDuration) {
 	var IAT [][]float64
 	var nonScaledDuration []float64
 
@@ -114,16 +87,16 @@ func (s *SpecificationGenerator) generateIAT(invocationsPerMinute []int, iatDist
 	return IAT, nonScaledDuration
 }
 
-func (s *SpecificationGenerator) GenerateInvocationData(function tc.Function, iatDistribution common.IatDistribution) *FunctionSpecification {
+func (s *SpecificationGenerator) GenerateInvocationData(function common.Function, iatDistribution common.IatDistribution) *common.FunctionSpecification {
 	invocationsPerMinute := function.NumInvocationsPerMinute
 
 	// Generating IAT
 	iat, rawDuration := s.generateIAT(invocationsPerMinute, iatDistribution)
 
 	// Generating runtime specifications
-	var runtimeMatrix RuntimeSpecificationMatrix
+	var runtimeMatrix common.RuntimeSpecificationMatrix
 	for i := 0; i < len(invocationsPerMinute); i++ {
-		var row []RuntimeSpecification
+		var row []common.RuntimeSpecification
 
 		for j := 0; j < invocationsPerMinute[i]; j++ {
 			row = append(row, s.generateExecutionSpecs(function))
@@ -132,7 +105,7 @@ func (s *SpecificationGenerator) GenerateInvocationData(function tc.Function, ia
 		runtimeMatrix = append(runtimeMatrix, row)
 	}
 
-	return &FunctionSpecification{
+	return &common.FunctionSpecification{
 		IAT:                  iat,
 		RawDuration:          rawDuration,
 		RuntimeSpecification: runtimeMatrix,
@@ -166,7 +139,7 @@ func (s *SpecificationGenerator) determineExecutionSpecSeedQuantiles() (float64,
 }
 
 // Should be called only when specRand is locked with its mutex
-func (s *SpecificationGenerator) generateExecuteSpec(runQtl float64, runStats *tc.FunctionRuntimeStats) (runtime int) {
+func (s *SpecificationGenerator) generateExecuteSpec(runQtl float64, runStats *common.FunctionRuntimeStats) (runtime int) {
 	switch {
 	case runQtl == 0:
 		runtime = runStats.Percentile0
@@ -191,7 +164,7 @@ func (s *SpecificationGenerator) generateExecuteSpec(runQtl float64, runStats *t
 }
 
 // Should be called only when specRand is locked with its mutex
-func (s *SpecificationGenerator) generateMemorySpec(memQtl float64, memStats *tc.FunctionMemoryStats) (memory int) {
+func (s *SpecificationGenerator) generateMemorySpec(memQtl float64, memStats *common.FunctionMemoryStats) (memory int) {
 	switch {
 	case memQtl <= 0.01:
 		memory = memStats.Percentile1
@@ -214,20 +187,17 @@ func (s *SpecificationGenerator) generateMemorySpec(memQtl float64, memStats *tc
 	return memory
 }
 
-func (s *SpecificationGenerator) generateExecutionSpecs(function tc.Function) RuntimeSpecification {
+func (s *SpecificationGenerator) generateExecutionSpecs(function common.Function) common.RuntimeSpecification {
 	runStats, memStats := function.RuntimeStats, function.MemoryStats
 	if runStats.Count <= 0 || memStats.Count <= 0 {
 		log.Fatal("Invalid duration or memory specification of the function '" + function.Name + "'.")
 	}
 
-	s.specMutex.Lock()
-	defer s.specMutex.Unlock()
-
 	runQtl, memQtl := s.determineExecutionSpecSeedQuantiles()
 	runtime := util.MinOf(common.MAX_EXEC_TIME_MILLI, util.MaxOf(common.MIN_EXEC_TIME_MILLI, s.generateExecuteSpec(runQtl, &runStats)))
 	memory := util.MinOf(tc.MAX_MEM_QUOTA_MIB, util.MaxOf(tc.MIN_MEM_QUOTA_MIB, s.generateMemorySpec(memQtl, &memStats)))
 
-	return RuntimeSpecification{
+	return common.RuntimeSpecification{
 		Runtime: runtime,
 		Memory:  memory,
 	}

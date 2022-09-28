@@ -23,7 +23,7 @@ const (
 )
 
 var (
-	traces  tc.FunctionTraces
+	traces  gen.FunctionTraces
 	iatType gen.IatDistribution
 
 	serviceConfigPath = ""
@@ -42,10 +42,10 @@ var (
 	rpsStep        = flag.Int("step", 1, "Step size for increasing RPS in the `stress` mode")
 	totalFunctions = flag.Int("totalFunctions", 1, "Total number of functions used in the `stress` mode")
 
-	burstTarget = flag.Int("burst", 10, "The target volumn of burst")
+	burstTarget = flag.Int("burst", 10, "The target volume of burst")
 
 	funcDuration = flag.Int("funcDuration", 1000, "Function execution duration in ms (under `stress` mode)")
-	funcMemory   = flag.Int("funcMemory", 170, "Function memeory in MiB(under `stress` mode)")
+	funcMemory   = flag.Int("funcMemory", 170, "Function memory in MiB(under `stress` mode)")
 
 	iatDistribution = flag.String("iatDistribution", "exponential", "Choose a distribution from [exponential, uniform, equidistant]")
 
@@ -93,6 +93,9 @@ func init() {
 
 func main() {
 	if *withTracing {
+		// TODO: how not to exlude Zipkin spans here? - file a feature request
+		log.Info("Loader Zipkin tracing has been enabled. This will exclude Istio spans from the Zipkin traces.")
+
 		shutdown, err := tracer.InitBasicTracer(zipkinAddr, "loader")
 		if err != nil {
 			log.Print(err)
@@ -189,22 +192,22 @@ func runTraceMode(invPath, runPath, memPath string) {
 }
 
 func runStressMode() {
-	var functions []tc.Function
+	var functions []gen.Function
 	var initialScales []int
 
 	for i := 0; i < *totalFunctions; i++ {
 		stressFunc := "stress-func-" + strconv.Itoa(i)
-		functions = append(functions, tc.Function{
+		functions = append(functions, gen.Function{
 			Name:     stressFunc,
 			Endpoint: tc.GetFuncEndpoint(stressFunc),
 			//! Set best-effort for RPS sweeping.
 			CpuRequestMilli:  0,
 			MemoryRequestMiB: 0,
-			RuntimeStats: tc.FunctionRuntimeStats{
+			RuntimeStats: gen.FunctionRuntimeStats{
 				Count:   -1,
 				Average: *funcDuration,
 			},
-			MemoryStats: tc.FunctionMemoryStats{
+			MemoryStats: gen.FunctionMemoryStats{
 				Count:   -1,
 				Average: *funcMemory,
 			},
@@ -218,19 +221,19 @@ func runStressMode() {
 }
 
 func runBurstMode() {
-	var functions []tc.Function
-	functionTable := make(map[string]tc.Function)
+	var functions []gen.Function
+	functionTable := make(map[string]gen.Function)
 	initialScales := []int{1, 1, 0}
 
 	for _, f := range []string{"steady", "bursty", "victim"} {
-		functionTable[f] = tc.Function{
+		functionTable[f] = gen.Function{
 			Name:     f + "-func",
 			Endpoint: tc.GetFuncEndpoint(f + "-func"),
-			RuntimeStats: tc.FunctionRuntimeStats{
+			RuntimeStats: gen.FunctionRuntimeStats{
 				Average: *funcDuration,
 				Maximum: 0,
 			},
-			MemoryStats: tc.FunctionMemoryStats{
+			MemoryStats: gen.FunctionMemoryStats{
 				Average:       *funcMemory,
 				Percentile100: 0,
 			},
@@ -247,10 +250,10 @@ func runColdStartMode() {
 	//coldStartCountFile := "data/coldstarts/200f_30min.csv"
 	//coldstartCounts := util.ReadIntArray(coldStartCountFile, ",")
 	totalFunctions := 200 - 1
-	functions := []tc.Function{}
+	functions := []gen.Function{}
 
 	// Create a single hot function.
-	hotFunction := tc.Function{
+	hotFunction := gen.Function{
 		Name:     "hot-func",
 		Endpoint: tc.GetFuncEndpoint("hot-func"),
 	}
@@ -258,7 +261,7 @@ func runColdStartMode() {
 	// Set the rest functions as cold.
 	for i := 0; i < totalFunctions; i++ {
 		coldFunc := "cold-func-" + strconv.Itoa(i)
-		functions = append(functions, tc.Function{
+		functions = append(functions, gen.Function{
 			Name:     coldFunc,
 			Endpoint: tc.GetFuncEndpoint(coldFunc),
 		})

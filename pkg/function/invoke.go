@@ -2,7 +2,7 @@ package function
 
 import (
 	"context"
-	"github.com/eth-easl/loader/pkg/generator"
+	tc "github.com/eth-easl/loader/pkg/common"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -13,58 +13,60 @@ import (
 
 	util "github.com/eth-easl/loader/pkg"
 	mc "github.com/eth-easl/loader/pkg/metric"
-	tc "github.com/eth-easl/loader/pkg/trace"
 	"github.com/eth-easl/loader/server"
 )
 
 const (
-	port = ":80"
-	// See: https://aws.amazon.com/premiumsupport/knowledge-center/lambda-function-retry-timeout-sdk/
-	// connectionTimeout = 1 * time.Minute
-	// executionTimeout  = 15 * time.Minute
-	//! Disable timeout for benchmarking all queuing effects.
-	connectionTimeout = 10 * time.Hour
-	executionTimeout  = 15 * time.Hour
+	functionPort = ":80"
+
+	// TODO: figure out the meaning of the contexts associated with this
+	// TODO: change the values and make them configurable from outside
+	grpcConnectionTimeout = 1 * time.Minute
+	// Function can execute for at most 15 minutes as in AWS Lambda
+	// https://aws.amazon.com/about-aws/whats-new/2018/10/aws-lambda-supports-functions-that-can-run-up-to-15-minutes/
+	functionTimeout = 15 * time.Minute
 )
 
-func Invoke(function tc.Function, runtimeSpec *generator.RuntimeSpecification, withTracing bool) (bool, mc.ExecutionRecord) {
+func Invoke(function tc.Function, runtimeSpec *tc.RuntimeSpecification, withTracing bool) (bool, mc.ExecutionRecord) {
 	log.Tracef("(Invoke)\t %s: %d[ms], %d[MiB]", function.Name, runtimeSpec.Runtime, runtimeSpec.Memory)
 
 	var record mc.ExecutionRecord
-	// record.FuncName = function.Name
+
+	record.FuncName = function.Name
 	record.RequestedDuration = uint32(runtimeSpec.Runtime * 1e3)
 
-	registry.Register(runtimeSpec.Memory)
-
-	// Start latency measurement.
+	////////////////////////////////////
+	// INVOKE FUNCTION
+	////////////////////////////////////
 	start := time.Now()
-	record.Timestamp = start.UnixMicro()
+	record.StartTime = start.UnixMicro()
 
-	// conn, err := pools.GetConn(function.Endpoint)
-	dailCxt, cancelDailing := context.WithTimeout(context.Background(), connectionTimeout)
-	defer cancelDailing()
+	// TODO: a gRPC pool may come in handy here
+	dialContext, cancelDialing := context.WithTimeout(context.Background(), grpcConnectionTimeout)
+	defer cancelDialing()
 
 	var dialOptions []grpc.DialOption
 	dialOptions = append(dialOptions, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if withTracing {
-		// [FIXME]: will exclude Istio from tracing
+		// NOTE: if enabled it will exclude Istio span from the Zipkin trace
 		dialOptions = append(dialOptions, grpc.WithUnaryInterceptor(otelgrpc.UnaryClientInterceptor()))
 	}
 
-	conn, err := grpc.DialContext(dailCxt, function.Endpoint+port, dialOptions...)
+	conn, err := grpc.DialContext(dialContext, function.Endpoint+functionPort, dialOptions...)
 	defer closeConn(conn)
 	if err != nil {
-		//! Failures will also be recorded as 0's.
-		log.Warnf("gRPC connection failed: %v", err)
-		record.Timeout = true
-		registry.Deregister(runtimeSpec.Memory)
+		log.Warnf("Failed to establish a gRPC connection - %v\n", err)
+
+		record.ResponseTime = time.Since(start).Microseconds()
+		record.ConnectionTimeout = false
+
 		return false, record
 	}
-	// conn := pools.conns[function.Endpoint]
+
 	grpcClient := server.NewExecutorClient(conn)
 
 	// Contact the server and print out its response.
-	executionCxt, cancelExecution := context.WithTimeout(context.Background(), executionTimeout)
+	executionCxt, cancelExecution := context.WithTimeout(context.Background(), functionTimeout)
 	defer cancelExecution()
 
 	response, err := grpcClient.Execute(executionCxt, &server.FaasRequest{
@@ -72,27 +74,22 @@ func Invoke(function tc.Function, runtimeSpec *generator.RuntimeSpecification, w
 		RuntimeInMilliSec: uint32(runtimeSpec.Runtime),
 		MemoryInMebiBytes: uint32(runtimeSpec.Memory),
 	})
+
 	if err != nil {
-		log.Warnf("Error in gRPC execution (%s): %v", function.Name, err)
-		record.Failed = true
-		registry.Deregister(runtimeSpec.Memory)
+		log.Warnf("Failed  in gRPC execution (%s): %v", function.Name, err)
+
+		record.ResponseTime = time.Since(start).Microseconds()
+		record.FunctionTimeout = true
+
 		return false, record
 	}
 
-	responseTime := time.Since(start).Microseconds()
-	record.ResponseTime = responseTime
-	record.MemoryLoad = float64(registry.GetTotalMemoryLoad())
-	registry.Deregister(runtimeSpec.Memory)
-
-	memoryUsage := response.MemoryUsageInKb
-	runtime := response.DurationInMicroSec
-
-	record.Memory = memoryUsage
-	record.ActualDuration = runtime
+	record.ResponseTime = time.Since(start).Microseconds()
+	record.ActualDuration = response.DurationInMicroSec
 
 	log.Tracef("(Replied)\t %s: %s, %.2f[ms], %d[MiB]", function.Name, response.Message,
-		float64(runtime)/1e3, util.Kib2Mib(memoryUsage))
-	log.Tracef("(E2E Latency) %s: %.2f[ms]\n", function.Name, float64(responseTime)/1e3)
+		float64(response.DurationInMicroSec)/1e3, util.Kib2Mib(0))
+	log.Tracef("(E2E Latency) %s: %.2f[ms]\n", function.Name, float64(record.ResponseTime)/1e3)
 
 	return true, record
 }

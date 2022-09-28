@@ -2,7 +2,6 @@ package driver
 
 import (
 	"github.com/eth-easl/loader/pkg/common"
-	tc "github.com/eth-easl/loader/pkg/trace"
 )
 
 func GenerateStressLoads(
@@ -10,7 +9,7 @@ func GenerateStressLoads(
 	rpsEnd int,
 	rpsStep int,
 	stressSlotInMinutes int,
-	functions []tc.Function,
+	functions []common.Function,
 	iatDistribution common.IatDistribution,
 	withTracing bool,
 	seed int64,
