@@ -38,7 +38,12 @@ common_init() {
     server_exec $1 "cd; ./vhive/scripts/cloudlab/setup_node.sh $OPERATION_MODE"
     server_exec $1 'tmux new -s containerd -d'
     server_exec $1 'tmux send -t containerd "sudo containerd 2>&1 | tee ~/containerd_log.txt" ENTER'
-    server_exec $1 'sudo ntpdate -s ops.emulab.net' # synchronize clock across nodes
+    # install precise NTP clock synchronizer
+    server_exec $1 'sudo apt-get update && sudo apt-get install -y chrony'
+    # synchronize clock across nodes
+    server_exec $1 "sudo chronyd -q \"server ops.emulab.net iburst\""
+    # dump clock info
+    server_exec $1 'sudo chronyc tracking'
 }
 
 function setup_master() {
