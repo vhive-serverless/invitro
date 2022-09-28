@@ -100,10 +100,7 @@ func ScrapeKnStats() KnStats {
 }
 
 func ScrapeClusterUsage() ClusterUsage {
-	cmd := exec.Command(
-		"python3",
-		"pkg/metric/scrape_infra.py",
-	)
+	cmd := exec.Command("python3", "pkg/metric/scrape_infra.py")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		log.Warn("Fail to scrape cluster usage: ", err)
