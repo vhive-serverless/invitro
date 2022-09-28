@@ -14,6 +14,8 @@ import (
 )
 
 type TraceGeneratorParams struct {
+	EnableMetricsCollection bool
+
 	SampleSize                    int
 	PhaseIdx                      int
 	PhaseOffset                   int
@@ -26,54 +28,82 @@ type TraceGeneratorParams struct {
 	Seed                          int64
 }
 
-func GenerateTraceLoads(params TraceGeneratorParams) int {
-	collector := mc.NewCollector()
-	clusterUsage := mc.ClusterUsage{}
-	knStats := mc.KnStats{}
-	coldStartGauge := 0
-	coldStartMinuteCount := 0
+type Driver struct {
+	collector            mc.Collector
+	clusterUsage         mc.ClusterUsage
+	knStats              mc.KnStats
+	coldStartGauge       int
+	coldStartMinuteCount int // TODO: maybe set to -1 if scraping is not enabled
+}
 
-	/** Launch a scraper that updates the cluster usage every 15s (max. interval). */
-	scrape_infra := time.NewTicker(time.Second * 15)
-	go func() {
-		for {
-			<-scrape_infra.C
-			clusterUsage = mc.ScrapeClusterUsage()
-		}
-	}()
+func NewDriver() *Driver {
+	return &Driver{}
+}
 
-	/** Launch a scraper that updates Knative states every 15s (max. interval). */
-	scrape_kn := time.NewTicker(time.Second * 15)
-	go func() {
-		for {
-			<-scrape_kn.C
-			knStats = mc.ScrapeKnStats()
-		}
-	}()
+// CreateKnativeMetricsScrapper launches a scraper that updates the cluster usage periodically
+func (d *Driver) CreateKnativeMetricsScrapper(interval time.Duration) func() {
+	timer := time.NewTicker(interval)
+	d.collector = mc.NewCollector()
 
-	/** Launch a scraper for getting cold-start count. */
-	scrape_scales := time.NewTicker(time.Second * 60)
-	go func() {
+	return func() {
 		for {
-			<-scrape_scales.C
-			coldStartGauge = collector.RecordScalesAndGetColdStartCount()
-			coldStartMinuteCount += coldStartGauge
+			<-timer.C
+			d.clusterUsage = mc.ScrapeClusterUsage()
 		}
-	}()
+	}
+}
+
+// CreateColdStartCountScrapper creates cold start count scrapper with the given period
+func (d *Driver) CreateColdStartCountScrapper(interval time.Duration) func() {
+	timer := time.NewTicker(time.Second * 60)
+	d.knStats = mc.KnStats{}
+	d.coldStartGauge = 0
+	d.coldStartMinuteCount = 0
+
+	return func() {
+		for {
+			<-timer.C
+			d.coldStartGauge = d.collector.RecordScalesAndGetColdStartCount()
+			d.coldStartMinuteCount += d.coldStartGauge
+		}
+	}
+}
+
+// CreateKnativeStateUpdateScrapper creates a scraper that updates Knative states periodically
+func (d *Driver) CreateKnativeStateUpdateScrapper(interval time.Duration) func() {
+	timer := time.NewTicker(interval)
+	d.clusterUsage = mc.ClusterUsage{}
+
+	return func() {
+		for {
+			<-timer.C
+			d.knStats = mc.ScrapeKnStats()
+		}
+	}
+}
+
+func (d *Driver) GenerateTraceLoads(params TraceGeneratorParams) int {
+	sg := NewSpecificationGenerator(params.Seed)
+	// TODO: need assert on trace parsing that the last column with non null is parsed and declared as trace length
+	totalTraceDuration := len(params.TotalNumInvocationsEachMinute)
+
+	if params.EnableMetricsCollection {
+		// TODO: these following arguments should be configurable
+		go d.CreateKnativeMetricsScrapper(time.Second * 15)
+		go d.CreateKnativeStateUpdateScrapper(time.Second * 15)
+		go d.CreateColdStartCountScrapper(time.Second * 60)
+	}
 
 	start := time.Now()
 	wg := sync.WaitGroup{}
-	totalDurationMinutes := len(params.TotalNumInvocationsEachMinute)
 
-	minute := 0
 	//* The following counters are for the whole measurement (we don't stop in the middle).
 	var successCountTotal int64 = 0
 	var failureCountTotal int64 = 0
 
-	sg := NewSpecificationGenerator(params.Seed)
-
+	var minute int
 trace_gen:
-	for ; minute < int(totalDurationMinutes); minute++ {
+	for minute = 0; minute < totalTraceDuration; minute++ {
 		var iats [][]float64
 		var numFuncInvokedThisMinute int64 = 0
 
@@ -131,8 +161,10 @@ trace_gen:
 					execRecord.Phase = phase
 					execRecord.Interval = interval
 					execRecord.Rps = rps
-					execRecord.ColdStartCount = coldStartGauge
-					collector.ReportExecution(execRecord, clusterUsage, knStats)
+					if params.EnableMetricsCollection {
+						execRecord.ColdStartCount = d.coldStartGauge
+						d.collector.ReportExecution(execRecord, d.clusterUsage, d.knStats)
+					}
 
 				}(minute, tick, params.PhaseIdx, rps, interval.Milliseconds()) //* Push vars onto the stack to prevent racing.
 
@@ -158,17 +190,22 @@ trace_gen:
 					Duration:        time.Since(iterStart).Microseconds(),
 					NumFuncTargeted: params.TotalNumInvocationsEachMinute[minute],
 					NumFuncInvoked:  int(numFuncInvokedThisMinute),
-					NumColdStarts:   coldStartMinuteCount,
 				}
-				//* Export metrics for all phases.
-				collector.ReportInvocation(invRecord)
-				coldStartMinuteCount = 0
+
+				if params.EnableMetricsCollection {
+					invRecord.NumColdStarts = d.coldStartMinuteCount
+					d.collector.ReportInvocation(invRecord)
+					d.coldStartMinuteCount = 0
+				}
 
 				/** Warmup phases */
 				stationaryWindow := 1
 				if params.PhaseIdx == 1 && minute+1 >= WARMUP_DURATION_MINUTES {
-					if !collector.IsLatencyStationary(rps*60*stationaryWindow, STATIONARY_P_VALUE) {
-						log.Warnf("Warmup may need longer than %d minutes", WARMUP_DURATION_MINUTES)
+					if params.EnableMetricsCollection {
+						// TODO: should the coller always be running?
+						if !d.collector.IsLatencyStationary(rps*60*stationaryWindow, STATIONARY_P_VALUE) {
+							log.Warnf("Warmup may need longer than %d minutes", WARMUP_DURATION_MINUTES)
+						}
 					}
 					minute++
 					break trace_gen
@@ -197,7 +234,10 @@ trace_gen:
 		DumpOverloadFlag()
 	}
 
-	defer collector.FinishAndSave(params.SampleSize, params.PhaseIdx, minute)
+	if params.EnableMetricsCollection {
+		// TODO: do we need defer here? everything above should be blocking and sequential
+		defer d.collector.FinishAndSave(params.SampleSize, params.PhaseIdx, minute)
+	}
 
 	return params.PhaseOffset + minute
 }

@@ -184,7 +184,8 @@ func runTraceMode(invPath, runPath, memPath string) {
 		WithTracing:                   *withTracing,
 		Seed:                          *seed,
 	}
-	gen.GenerateTraceLoads(traceLoadParams)
+	driver := gen.NewDriver()
+	nextPhaseStart = driver.GenerateTraceLoads(traceLoadParams)
 }
 
 func runStressMode() {

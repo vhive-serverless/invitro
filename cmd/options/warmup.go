@@ -144,7 +144,9 @@ func Warmup(
 			WithTracing:                   withTracing,
 			Seed:                          seed,
 		}
-		nextPhaseStart = gen.GenerateTraceLoads(traceLoadParams)
+
+		driver := gen.NewDriver()
+		nextPhaseStart = driver.GenerateTraceLoads(traceLoadParams)
 	}
 
 	return nextPhaseStart
