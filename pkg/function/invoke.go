@@ -2,6 +2,7 @@ package function
 
 import (
 	"context"
+	"github.com/eth-easl/loader/pkg/generator"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -26,14 +27,14 @@ const (
 	executionTimeout  = 15 * time.Hour
 )
 
-func Invoke(function tc.Function, runtimeRequested int, memoryRequested int, withTracing bool) (bool, mc.ExecutionRecord) {
-	log.Tracef("(Invoke)\t %s: %d[ms], %d[MiB]", function.Name, runtimeRequested, memoryRequested)
+func Invoke(function tc.Function, runtimeSpec *generator.RuntimeSpecification, withTracing bool) (bool, mc.ExecutionRecord) {
+	log.Tracef("(Invoke)\t %s: %d[ms], %d[MiB]", function.Name, runtimeSpec.Runtime, runtimeSpec.Memory)
 
 	var record mc.ExecutionRecord
 	// record.FuncName = function.Name
-	record.RequestedDuration = uint32(runtimeRequested * 1e3)
+	record.RequestedDuration = uint32(runtimeSpec.Runtime * 1e3)
 
-	registry.Register(memoryRequested)
+	registry.Register(runtimeSpec.Memory)
 
 	// Start latency measurement.
 	start := time.Now()
@@ -56,7 +57,7 @@ func Invoke(function tc.Function, runtimeRequested int, memoryRequested int, wit
 		//! Failures will also be recorded as 0's.
 		log.Warnf("gRPC connection failed: %v", err)
 		record.Timeout = true
-		registry.Deregister(memoryRequested)
+		registry.Deregister(runtimeSpec.Memory)
 		return false, record
 	}
 	// conn := pools.conns[function.Endpoint]
@@ -68,20 +69,20 @@ func Invoke(function tc.Function, runtimeRequested int, memoryRequested int, wit
 
 	response, err := grpcClient.Execute(executionCxt, &server.FaasRequest{
 		Message:           "nothing",
-		RuntimeInMilliSec: uint32(runtimeRequested),
-		MemoryInMebiBytes: uint32(memoryRequested),
+		RuntimeInMilliSec: uint32(runtimeSpec.Runtime),
+		MemoryInMebiBytes: uint32(runtimeSpec.Memory),
 	})
 	if err != nil {
 		log.Warnf("Error in gRPC execution (%s): %v", function.Name, err)
 		record.Failed = true
-		registry.Deregister(memoryRequested)
+		registry.Deregister(runtimeSpec.Memory)
 		return false, record
 	}
 
 	responseTime := time.Since(start).Microseconds()
 	record.ResponseTime = responseTime
 	record.MemoryLoad = float64(registry.GetTotalMemoryLoad())
-	registry.Deregister(memoryRequested)
+	registry.Deregister(runtimeSpec.Memory)
 
 	memoryUsage := response.MemoryUsageInKb
 	runtime := response.DurationInMicroSec
