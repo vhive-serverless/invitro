@@ -3,6 +3,7 @@ package trace
 import (
 	"encoding/csv"
 	"fmt"
+	"github.com/eth-easl/loader/pkg/common"
 	"io"
 	"math/rand"
 	"os"
@@ -27,13 +28,13 @@ var GetFuncEndpoint = func(name string) string {
 	return fmt.Sprintf("%s.%s.%s", name, namespace, bareMetalLbGateway)
 }
 
-func ParseInvocationTrace(traceFile string, traceDuration int) FunctionTraces {
+func ParseInvocationTrace(traceFile string, traceDuration int) common.FunctionTraces {
 	// Clamp duration to (0, 1440].
 	traceDuration = util.MaxOf(util.MinOf(traceDuration, 1440), 1)
 
 	log.Infof("Parsing function invocation trace %s (duration: %dmin)", traceFile, traceDuration)
 
-	var functions []Function
+	var functions []common.Function
 	// Indices of functions to invoke.
 	invocationIndices := make([][]int, traceDuration)
 	totalInvocations := make([]int, traceDuration)
@@ -106,7 +107,7 @@ func ParseInvocationTrace(traceFile string, traceDuration int) FunctionTraces {
 			// Create function profile.
 			funcName := fmt.Sprintf("%s-%d-%d", "trace-func", funcIdx, rand.Uint64())
 
-			function := Function{
+			function := common.Function{
 				Name:                    funcName,
 				Endpoint:                GetFuncEndpoint(funcName),
 				HashOwner:               record[hashOwnerIndex],
@@ -121,7 +122,7 @@ func ParseInvocationTrace(traceFile string, traceDuration int) FunctionTraces {
 		funcIdx++
 	}
 
-	return FunctionTraces{
+	return common.FunctionTraces{
 		Functions:                 functions,
 		InvocationsEachMinute:     invocationIndices,
 		TotalInvocationsPerMinute: totalInvocations,
@@ -130,8 +131,8 @@ func ParseInvocationTrace(traceFile string, traceDuration int) FunctionTraces {
 }
 
 /** Get execution times in ms. */
-func parseDurationStats(record []string) FunctionRuntimeStats {
-	return FunctionRuntimeStats{
+func parseDurationStats(record []string) common.FunctionRuntimeStats {
+	return common.FunctionRuntimeStats{
 		Average:       parseToInt(record[3]),
 		Count:         parseToInt(record[4]),
 		Minimum:       parseToInt(record[5]),
@@ -155,7 +156,7 @@ func parseToInt(text string) int {
 	}
 }
 
-func ParseDurationTrace(trace *FunctionTraces, traceFile string) {
+func ParseDurationTrace(trace *common.FunctionTraces, traceFile string) {
 	log.Infof("Parsing function duration trace: %s", traceFile)
 
 	// Create a mapping from function hash to function position in `FunctionTraces`.
@@ -238,8 +239,8 @@ func ParseDurationTrace(trace *FunctionTraces, traceFile string) {
 }
 
 /** Get memory usages in MiB. */
-func parseMemoryStats(record []string, fncCnt int) FunctionMemoryStats {
-	return FunctionMemoryStats{
+func parseMemoryStats(record []string, fncCnt int) common.FunctionMemoryStats {
+	return common.FunctionMemoryStats{
 		Count:         parseToInt(record[2]) / fncCnt,
 		Average:       parseToInt(record[3]) / fncCnt,
 		Percentile1:   parseToInt(record[4]) / fncCnt,
@@ -253,7 +254,7 @@ func parseMemoryStats(record []string, fncCnt int) FunctionMemoryStats {
 	}
 }
 
-func ParseMemoryTrace(trace *FunctionTraces, traceFile string) {
+func ParseMemoryTrace(trace *common.FunctionTraces, traceFile string) {
 	log.Infof("Parsing function memory trace: %s", traceFile)
 
 	// Create a mapping from app hash to function position in `FunctionTraces`.

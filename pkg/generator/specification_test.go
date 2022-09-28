@@ -3,7 +3,6 @@ package generator
 import (
 	"fmt"
 	"github.com/eth-easl/loader/pkg/common"
-	tc "github.com/eth-easl/loader/pkg/trace"
 	log "github.com/sirupsen/logrus"
 	"math"
 	"os"
@@ -12,8 +11,8 @@ import (
 	"testing"
 )
 
-var testFunction = tc.Function{
-	RuntimeStats: tc.FunctionRuntimeStats{
+var testFunction = common.Function{
+	RuntimeStats: common.FunctionRuntimeStats{
 		Average:       50,
 		Count:         100,
 		Minimum:       0,
@@ -26,7 +25,7 @@ var testFunction = tc.Function{
 		Percentile99:  99,
 		Percentile100: 100,
 	},
-	MemoryStats: tc.FunctionMemoryStats{
+	MemoryStats: common.FunctionMemoryStats{
 		Average:       5000,
 		Count:         100,
 		Percentile1:   100,
@@ -317,55 +316,55 @@ func TestGenerateExecutionSpecifications(t *testing.T) {
 	tests := []struct {
 		testName   string
 		iterations int
-		expected   map[RuntimeSpecification]struct{}
+		expected   map[common.RuntimeSpecification]struct{}
 	}{
 		{
 			testName:   "exec_spec_run_1",
 			iterations: 1,
-			expected: map[RuntimeSpecification]struct{}{
-				RuntimeSpecification{Runtime: 89, Memory: 8217}: {},
+			expected: map[common.RuntimeSpecification]struct{}{
+				common.RuntimeSpecification{Runtime: 89, Memory: 8217}: {},
 			},
 		},
 		{
 			testName:   "exec_spec_run_5",
 			iterations: 5,
-			expected: map[RuntimeSpecification]struct{}{
-				RuntimeSpecification{Runtime: 89, Memory: 8217}: {},
-				RuntimeSpecification{Runtime: 18, Memory: 9940}: {},
-				RuntimeSpecification{Runtime: 50, Memory: 1222}: {},
-				RuntimeSpecification{Runtime: 85, Memory: 7836}: {},
-				RuntimeSpecification{Runtime: 67, Memory: 7490}: {},
+			expected: map[common.RuntimeSpecification]struct{}{
+				common.RuntimeSpecification{Runtime: 89, Memory: 8217}: {},
+				common.RuntimeSpecification{Runtime: 18, Memory: 9940}: {},
+				common.RuntimeSpecification{Runtime: 50, Memory: 1222}: {},
+				common.RuntimeSpecification{Runtime: 85, Memory: 7836}: {},
+				common.RuntimeSpecification{Runtime: 67, Memory: 7490}: {},
 			},
 		},
 		{
 			testName:   "exec_spec_run_25",
 			iterations: 25,
-			expected: map[RuntimeSpecification]struct{}{
-				RuntimeSpecification{Runtime: 89, Memory: 8217}:  {},
-				RuntimeSpecification{Runtime: 18, Memory: 9940}:  {},
-				RuntimeSpecification{Runtime: 67, Memory: 7490}:  {},
-				RuntimeSpecification{Runtime: 50, Memory: 1222}:  {},
-				RuntimeSpecification{Runtime: 90, Memory: 193}:   {},
-				RuntimeSpecification{Runtime: 85, Memory: 7836}:  {},
-				RuntimeSpecification{Runtime: 24, Memory: 4875}:  {},
-				RuntimeSpecification{Runtime: 42, Memory: 5785}:  {},
-				RuntimeSpecification{Runtime: 82, Memory: 6819}:  {},
-				RuntimeSpecification{Runtime: 22, Memory: 9838}:  {},
-				RuntimeSpecification{Runtime: 11, Memory: 2223}:  {},
-				RuntimeSpecification{Runtime: 81, Memory: 2832}:  {},
-				RuntimeSpecification{Runtime: 99, Memory: 5305}:  {},
-				RuntimeSpecification{Runtime: 99, Memory: 6582}:  {},
-				RuntimeSpecification{Runtime: 58, Memory: 4581}:  {},
-				RuntimeSpecification{Runtime: 25, Memory: 1813}:  {},
-				RuntimeSpecification{Runtime: 79, Memory: 9819}:  {},
-				RuntimeSpecification{Runtime: 2, Memory: 1660}:   {},
-				RuntimeSpecification{Runtime: 98, Memory: 3110}:  {},
-				RuntimeSpecification{Runtime: 18, Memory: 6178}:  {},
-				RuntimeSpecification{Runtime: 3, Memory: 7770}:   {},
-				RuntimeSpecification{Runtime: 100, Memory: 4063}: {},
-				RuntimeSpecification{Runtime: 6, Memory: 5022}:   {},
-				RuntimeSpecification{Runtime: 35, Memory: 8003}:  {},
-				RuntimeSpecification{Runtime: 20, Memory: 3544}:  {},
+			expected: map[common.RuntimeSpecification]struct{}{
+				common.RuntimeSpecification{Runtime: 89, Memory: 8217}:  {},
+				common.RuntimeSpecification{Runtime: 18, Memory: 9940}:  {},
+				common.RuntimeSpecification{Runtime: 67, Memory: 7490}:  {},
+				common.RuntimeSpecification{Runtime: 50, Memory: 1222}:  {},
+				common.RuntimeSpecification{Runtime: 90, Memory: 193}:   {},
+				common.RuntimeSpecification{Runtime: 85, Memory: 7836}:  {},
+				common.RuntimeSpecification{Runtime: 24, Memory: 4875}:  {},
+				common.RuntimeSpecification{Runtime: 42, Memory: 5785}:  {},
+				common.RuntimeSpecification{Runtime: 82, Memory: 6819}:  {},
+				common.RuntimeSpecification{Runtime: 22, Memory: 9838}:  {},
+				common.RuntimeSpecification{Runtime: 11, Memory: 2223}:  {},
+				common.RuntimeSpecification{Runtime: 81, Memory: 2832}:  {},
+				common.RuntimeSpecification{Runtime: 99, Memory: 5305}:  {},
+				common.RuntimeSpecification{Runtime: 99, Memory: 6582}:  {},
+				common.RuntimeSpecification{Runtime: 58, Memory: 4581}:  {},
+				common.RuntimeSpecification{Runtime: 25, Memory: 1813}:  {},
+				common.RuntimeSpecification{Runtime: 79, Memory: 9819}:  {},
+				common.RuntimeSpecification{Runtime: 2, Memory: 1660}:   {},
+				common.RuntimeSpecification{Runtime: 98, Memory: 3110}:  {},
+				common.RuntimeSpecification{Runtime: 18, Memory: 6178}:  {},
+				common.RuntimeSpecification{Runtime: 3, Memory: 7770}:   {},
+				common.RuntimeSpecification{Runtime: 100, Memory: 4063}: {},
+				common.RuntimeSpecification{Runtime: 6, Memory: 5022}:   {},
+				common.RuntimeSpecification{Runtime: 35, Memory: 8003}:  {},
+				common.RuntimeSpecification{Runtime: 20, Memory: 3544}:  {},
 			},
 		},
 	}
@@ -376,7 +375,7 @@ func TestGenerateExecutionSpecifications(t *testing.T) {
 		t.Run(test.testName, func(t *testing.T) {
 			sg := NewSpecificationGenerator(seed)
 
-			results := make(map[RuntimeSpecification]struct{})
+			results := make(map[common.RuntimeSpecification]struct{})
 
 			wg := sync.WaitGroup{}
 			mutex := sync.Mutex{}
@@ -393,7 +392,7 @@ func TestGenerateExecutionSpecifications(t *testing.T) {
 					runtime, memory := spec[0][index].Runtime, spec[0][index].Memory
 
 					mutex.Lock()
-					results[RuntimeSpecification{Runtime: runtime, Memory: memory}] = struct{}{}
+					results[common.RuntimeSpecification{Runtime: runtime, Memory: memory}] = struct{}{}
 					mutex.Unlock()
 
 					wg.Done()

@@ -1,10 +1,10 @@
 package test
 
 import (
+	tc "github.com/eth-easl/loader/pkg/common"
 	"testing"
 
 	cmd "github.com/eth-easl/loader/cmd/options"
-	tc "github.com/eth-easl/loader/pkg/trace"
 	"github.com/stretchr/testify/assert"
 )
 

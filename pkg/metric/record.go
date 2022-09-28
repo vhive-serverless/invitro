@@ -1,9 +1,5 @@
 package metric
 
-import (
-	"sync"
-)
-
 type MinuteInvocationRecord struct {
 	Phase           int   `csv:"phase"`
 	Rps             int   `csv:"rps"`
@@ -15,21 +11,22 @@ type MinuteInvocationRecord struct {
 }
 
 type ExecutionRecord struct {
-	*sync.Mutex
+	Phase     int    `csv:"phase"`
+	FuncName  string `csv:"functionName"`
+	StartTime int64  `csv:"startTime"`
 
-	Phase     int   `csv:"phase"`
-	Rps       int   `csv:"rps"`
-	Timestamp int64 `csv:"timestamp"`
-	// FuncName  string `csv:"func_name"`
+	// Measurements in microseconds
+	RequestedDuration uint32 `csv:"requestedDuration"`
+	ResponseTime      int64  `csv:"responseTime"`
+	ActualDuration    uint32 `csv:"actualDuration"`
 
-	//* All time measurements are in microseconds.
-	ResponseTime      int64  `csv:"response_time"` //* End-to-end latency.
-	RequestedDuration uint32 `csv:"requested_duration"`
-	ActualDuration    uint32 `csv:"actual_duration"`
+	ConnectionTimeout bool `csv:"connectionTimeout"`
+	FunctionTimeout   bool `csv:"functionTimeout"`
+
+	// TODO: EVERYTHING BELOW ARE UNTESTED FIELDS
+
 	//* In KiB
 	Memory     uint32  `csv:"memory"`
-	Timeout    bool    `csv:"timeout"`
-	Failed     bool    `csv:"failed"`
 	MemoryLoad float64 `csv:"mem_load"`
 	Interval   int64   `csv:"interval"`
 

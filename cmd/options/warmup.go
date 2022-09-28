@@ -2,13 +2,12 @@ package cmd
 
 import (
 	gen "github.com/eth-easl/loader/pkg/common"
-	driver "github.com/eth-easl/loader/pkg/driver"
+	"github.com/eth-easl/loader/pkg/driver"
 	"math"
 	"runtime"
 	"sort"
 
 	util "github.com/eth-easl/loader/pkg"
-	tc "github.com/eth-easl/loader/pkg/trace"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -25,7 +24,7 @@ const (
  *
  * The calculation is based on the profiled concurrency (see the `trace` package) using Little's law.
  */
-func ComputeFunctionWarmupScales(clusterSize int, functions []tc.Function) []int {
+func ComputeFunctionWarmupScales(clusterSize int, functions []gen.Function) []int {
 	var scales []int
 	totalClusterCapacityMilli := int(float32(runtime.NumCPU()*clusterSize*1000) * (1.0 - SYS_CPU_OVERHEAD_PERCENT))
 	totalCpuRequestMilli := 0
@@ -61,7 +60,7 @@ func ComputeFunctionWarmupScales(clusterSize int, functions []tc.Function) []int
  *
  * For detailed cases, see: `warmup_test.go`.
  */
-func MaxMaxAlloc(totalClusterCapacityMilli int, scales []int, functions []tc.Function) []int {
+func MaxMaxAlloc(totalClusterCapacityMilli int, scales []int, functions []gen.Function) []int {
 	scalePairs := make(util.PairList, len(scales))
 	for i, scale := range scales {
 		scalePairs[i] = util.Pair{Key: i, Value: scale}
@@ -122,8 +121,8 @@ func MaxMaxAlloc(totalClusterCapacityMilli int, scales []int, functions []tc.Fun
 func Warmup(
 	sampleSize int,
 	totalNumPhases int,
-	functions []tc.Function,
-	traces tc.FunctionTraces,
+	functions []gen.Function,
+	traces gen.FunctionTraces,
 	iatDistribution gen.IatDistribution,
 	withTracing bool,
 	seed int64,

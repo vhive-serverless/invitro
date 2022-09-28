@@ -10,7 +10,6 @@ import (
 	"time"
 
 	mc "github.com/eth-easl/loader/pkg/metric"
-	tc "github.com/eth-easl/loader/pkg/trace"
 )
 
 type DriverConfiguration struct {
@@ -21,7 +20,7 @@ type DriverConfiguration struct {
 	PhaseIdx                      int
 	PhaseOffset                   int
 	WithBlocking                  bool
-	Functions                     []tc.Function
+	Functions                     []common.Function
 	InvocationsEachMinute         [][]int
 	TotalNumInvocationsEachMinute []int
 	WithTracing                   bool
@@ -96,12 +95,13 @@ func (d *Driver) CreateKnativeStateUpdateScrapper(interval time.Duration) func()
 // DRIVER LOGIC
 /////////////////////////////////////////
 
-func (d *Driver) invokeFunction(function tc.Function, announceInvocationDone *sync.WaitGroup,
-	runtimeSpecs *generator.RuntimeSpecification, successCount *int64, failedCount *int64) {
+func (d *Driver) invokeFunction(function common.Function, announceInvocationDone *sync.WaitGroup,
+	runtimeSpecs *common.RuntimeSpecification, successCount *int64, failedCount *int64, phase common.ExperimentPhase) {
 
 	defer announceInvocationDone.Done()
 
-	success, _ := fc.Invoke(function, runtimeSpecs, d.Configuration.WithTracing)
+	success, record := fc.Invoke(function, runtimeSpecs, d.Configuration.WithTracing)
+	record.Phase = int(phase)
 
 	if success {
 		atomic.AddInt64(successCount, 1)
@@ -109,23 +109,19 @@ func (d *Driver) invokeFunction(function tc.Function, announceInvocationDone *sy
 		atomic.AddInt64(failedCount, 1)
 	}
 
-	/*execRecord.Phase = phase
-	execRecord.Interval = interval
-	execRecord.Rps = rps
-	if d.Configuration.EnableMetricsCollection {
+	/*if d.Configuration.EnableMetricsCollection {
 		execRecord.ColdStartCount = d.coldStartGauge
 		d.collector.ReportExecution(execRecord, d.clusterUsage, d.knStats)
 	}*/
 }
 
-func (d *Driver) individualFunctionDriver(function tc.Function, announceFunctionDone *sync.WaitGroup,
+func (d *Driver) individualFunctionDriver(function common.Function, announceFunctionDone *sync.WaitGroup,
 	totalSuccessfull *int64, totalFailed *int64) {
 
 	totalTraceDuration := len(d.Configuration.TotalNumInvocationsEachMinute)
 	minuteIndex, invocationIndex := 0, 0
 
-	spec := d.SpecificationGenerator.GenerateInvocationData(function, d.Configuration.IATDistribution)
-	IAT, runtimeSpecification := spec.IAT, spec.RuntimeSpecification
+	IAT, runtimeSpecification := function.Specification.IAT, function.Specification.RuntimeSpecification
 
 	var successfullInvocations int64
 	var failedInvocations int64
@@ -149,7 +145,8 @@ func (d *Driver) individualFunctionDriver(function tc.Function, announceFunction
 				&waitForInvocations,
 				&runtimeSpecification[minuteIndex][invocationIndex],
 				&successfullInvocations,
-				&failedInvocations)
+				&failedInvocations,
+				common.ExecutionPhase) // TODO: add warmup phase
 
 			sleepFor := time.Duration(IAT[minuteIndex][invocationIndex]) * time.Microsecond
 
@@ -214,9 +211,20 @@ func (d *Driver) GenerateTraceLoads() int {
 	var failedInvocations int64
 	allFunctionsCompleted := sync.WaitGroup{}
 
+	log.Infof("Generating IAT and runtime specifications for all the functions\n")
+	for i, function := range d.Configuration.Functions {
+		spec := d.SpecificationGenerator.GenerateInvocationData(
+			function,
+			d.Configuration.IATDistribution,
+		)
+
+		d.Configuration.Functions[i].Specification = spec
+	}
+
+	log.Infof("Starting function invocation driver\n")
 	for i, function := range d.Configuration.Functions {
 		if i > 0 {
-			break // FOR DEBUGGING CURRENTLY
+			break // TODO: FOR DEBUGGING CURRENTLY - kick out on release
 		}
 
 		allFunctionsCompleted.Add(1)
@@ -225,6 +233,7 @@ func (d *Driver) GenerateTraceLoads() int {
 
 	allFunctionsCompleted.Wait()
 
+	log.Infof("Trace has finished executing function invocation driver\n")
 	log.Infof("Number of successful invocations: %d\n", successfullInvocations)
 	log.Infof("Number of failed invocations: %d\n", failedInvocations)
 

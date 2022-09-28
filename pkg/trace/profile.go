@@ -2,6 +2,7 @@ package trace
 
 import (
 	util "github.com/eth-easl/loader/pkg"
+	"github.com/eth-easl/loader/pkg/common"
 	"github.com/montanaflynn/stats"
 )
 
@@ -14,7 +15,7 @@ const (
 	MIN_MEM_QUOTA_MIB = 128
 )
 
-func ProfileFunction(function Function, duration int) Function {
+func ProfileFunction(function common.Function, duration int) common.Function {
 	function.ConcurrencyStats = profileFunctionConcurrencies(function, duration)
 	function.MemoryRequestMiB = function.MemoryStats.Percentile100
 	function.CpuRequestMilli = ConvertMemoryToCpu(function.MemoryRequestMiB)
@@ -41,9 +42,9 @@ func ConvertMemoryToCpu(memoryRequest int) int {
 	return int(cpuRequest * 1000)
 }
 
-func profileFunctionConcurrencies(function Function, duration int) FunctionConcurrencyStats {
+func profileFunctionConcurrencies(function common.Function, duration int) common.FunctionConcurrencyStats {
 	var concurrencies []float64
-	for _, numInvocationsPerMinute := range function.InvocationStats.data[:duration] {
+	for _, numInvocationsPerMinute := range function.InvocationStats.Data[:duration] {
 		//* Compute arrival rate (unit: 1s).
 		expectedRps := numInvocationsPerMinute / 60
 		//* Compute processing rate (= runtime_in_milli / 1000) assuming it can be process right away upon arrival.
@@ -61,17 +62,17 @@ func profileFunctionConcurrencies(function Function, duration int) FunctionConcu
 	count, _ := stats.Sum(data)
 	average, _ := stats.Mean(data)
 
-	return FunctionConcurrencyStats{
+	return common.FunctionConcurrencyStats{
 		Average: average,
 		Count:   count,
 		Median:  median,
 		Minimum: min,
 		Maximum: max,
-		data:    concurrencies,
+		Data:    concurrencies,
 	}
 }
 
-func ProfileFunctionInvocations(invocations []int) FunctionInvocationStats {
+func ProfileFunctionInvocations(invocations []int) common.FunctionInvocationStats {
 	data := stats.LoadRawData(invocations)
 	median, _ := stats.Median(data)
 	median, _ = stats.Round(median, 0)
@@ -80,12 +81,12 @@ func ProfileFunctionInvocations(invocations []int) FunctionInvocationStats {
 	count, _ := stats.Sum(data)
 	average, _ := stats.Mean(data)
 
-	return FunctionInvocationStats{
+	return common.FunctionInvocationStats{
 		Average: int(average),
 		Count:   int(count),
 		Median:  int(median),
 		Minimum: int(min),
 		Maximum: int(max),
-		data:    invocations,
+		Data:    invocations,
 	}
 }
