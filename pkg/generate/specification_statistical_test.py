@@ -1,8 +1,7 @@
-import sys
-
-import numpy as np
-from scipy import stats
 import matplotlib.pyplot as plt
+import numpy as np
+import sys
+from scipy import stats
 
 distribution = sys.argv[1]
 inputFile = sys.argv[2]
@@ -24,7 +23,7 @@ elif distribution == "exponential":
 
     cdf = stats.expon.cdf
 else:
-    exit(300)
+    exit(2)  # unsupported distribution
 
 test = stats.kstest(f, cdf)
 
@@ -34,6 +33,6 @@ plt.savefig(f"distribution_{distribution}.png")
 print(test)
 
 if test.pvalue > alpha:
-    exit(200)  # the sample satisfies the distribution
+    exit(0)  # the sample satisfies the distribution
 else:
-    exit(400)  # the sample does not satisfy the distribution
+    exit(1)  # the sample does not satisfy the distribution
