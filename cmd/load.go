@@ -4,7 +4,7 @@ import (
 	"flag"
 	"fmt"
 	gen "github.com/eth-easl/loader/pkg/common"
-	driver2 "github.com/eth-easl/loader/pkg/driver"
+	"github.com/eth-easl/loader/pkg/driver"
 	"os"
 	"strconv"
 	"time"
@@ -171,9 +171,9 @@ func runTraceMode(invPath, runPath, memPath string) {
 		log.Warnf("Warmup failed to finish in %d minutes", *duration)
 	}
 
-	log.Infof("Phase 2: Generate real workloads as of Minute[%d]", nextPhaseStart)
+	log.Infof("Phase 2: generate real workloads")
 
-	traceLoadParams := driver2.TraceGeneratorParams{
+	traceLoadParams := &driver.DriverConfiguration{
 		SampleSize:                    *sampleSize,
 		PhaseIdx:                      totalNumPhases,
 		PhaseOffset:                   nextPhaseStart,
@@ -185,13 +185,12 @@ func runTraceMode(invPath, runPath, memPath string) {
 		WithTracing:                   *withTracing,
 		Seed:                          *seed,
 	}
-	driver := driver2.NewDriver()
-	nextPhaseStart = driver.GenerateTraceLoads(traceLoadParams)
+	driver.NewDriver(traceLoadParams).GenerateTraceLoads()
 }
 
 func runStressMode() {
-	functions := []tc.Function{}
-	initialScales := []int{}
+	var functions []tc.Function
+	var initialScales []int
 
 	for i := 0; i < *totalFunctions; i++ {
 		stressFunc := "stress-func-" + strconv.Itoa(i)
@@ -215,7 +214,7 @@ func runStressMode() {
 
 	fc.DeployFunctions(functions, serviceConfigPath, initialScales, *isPartiallyPanic)
 
-	driver2.GenerateStressLoads(*rpsStart, *rpsEnd, *rpsStep, *rpsSlot, functions, iatType, *withTracing, *seed)
+	driver.GenerateStressLoads(*rpsStart, *rpsEnd, *rpsStep, *rpsSlot, functions, iatType, *withTracing, *seed)
 }
 
 func runBurstMode() {
@@ -241,12 +240,12 @@ func runBurstMode() {
 
 	fc.DeployFunctions(functions, serviceConfigPath, initialScales, *isPartiallyPanic)
 
-	driver2.GenerateBurstLoads(*rpsEnd, *burstTarget, *duration, functionTable, iatType, *withTracing, *seed)
+	//driver.GenerateBurstLoads(*rpsEnd, *burstTarget, *duration, functionTable, iatType, *withTracing, *seed)
 }
 
 func runColdStartMode() {
-	coldStartCountFile := "data/coldstarts/200f_30min.csv"
-	coldstartCounts := util.ReadIntArray(coldStartCountFile, ",")
+	//coldStartCountFile := "data/coldstarts/200f_30min.csv"
+	//coldstartCounts := util.ReadIntArray(coldStartCountFile, ",")
 	totalFunctions := 200 - 1
 	functions := []tc.Function{}
 
@@ -267,5 +266,5 @@ func runColdStartMode() {
 
 	fc.DeployFunctions(functions, serviceConfigPath, []int{}, *isPartiallyPanic)
 
-	defer driver2.GenerateColdStartLoads(*rpsStart, *rpsStep, hotFunction, coldstartCounts, iatType, *withTracing, *seed)
+	//defer driver.GenerateColdStartLoads(*rpsStart, *rpsStep, hotFunction, coldstartCounts, iatType, *withTracing, *seed)
 }

@@ -2,16 +2,6 @@ package driver
 
 import (
 	"github.com/eth-easl/loader/pkg/common"
-	"github.com/eth-easl/loader/pkg/generator"
-	"sync"
-	"sync/atomic"
-	"time"
-
-	log "github.com/sirupsen/logrus"
-
-	util "github.com/eth-easl/loader/pkg"
-	fc "github.com/eth-easl/loader/pkg/function"
-	mc "github.com/eth-easl/loader/pkg/metric"
 	tc "github.com/eth-easl/loader/pkg/trace"
 )
 
@@ -25,7 +15,7 @@ func GenerateStressLoads(
 	withTracing bool,
 	seed int64,
 ) {
-	sg := generator.NewSpecificationGenerator(seed)
+	/*sg := generator.NewSpecificationGenerator(seed)
 
 	start := time.Now()
 	wg := sync.WaitGroup{}
@@ -36,66 +26,66 @@ func GenerateStressLoads(
 	runtimeRequested, memoryRequested := sg.GenerateExecutionSpecs(functions[0])
 
 	/** Launch a scraper that updates the cluster usage every 15s (max. interval). */
-	scrape_infra := time.NewTicker(time.Second * 15)
+	/*scrape_infra := time.NewTicker(time.Second * 15)
 	go func() {
 		for {
 			<-scrape_infra.C
 			clusterUsage = mc.ScrapeClusterUsage()
 		}
-	}()
+	}()*/
 
 	/** Launch a scraper that updates Knative states every 15s (max. interval). */
-	scrape_kn := time.NewTicker(time.Second * 15)
+	/*scrape_kn := time.NewTicker(time.Second * 15)
 	go func() {
 		for {
 			<-scrape_kn.C
 			knStats = mc.ScrapeKnStats()
 		}
-	}()
+	}()*/
 
 	/** Launch a scraper for getting cold-start count. */
-	scrape_scales := time.NewTicker(time.Second * 60)
-	go func() {
-		for {
-			<-scrape_scales.C
-			coldStartSlotCount += collector.RecordScalesAndGetColdStartCount()
-		}
-	}()
-
-	rps := rpsStart
-	tolerance := 0
-
-rps_gen:
-	for {
-		var invocations []int
-		for i := 0; i < stressSlotInMinutes; i++ {
-			invocations = append(invocations, rps*60)
-		}
-
-		iats, _ := sg.GenerateIAT(invocations, iatDistribution)
-
-		timeout := time.After(time.Minute * time.Duration(stressSlotInMinutes))
-		interval := time.Duration(iats[0][0]) * time.Microsecond
-		ticker := time.NewTicker(interval)
-		done := make(chan bool, 2)
-		tick := 0
-
-		//* The following counters are for each RPS step slot.
-		var successCountRpsStep int64 = 0
-		var failureCountRpsStep int64 = 0
-		var numFuncInvokedThisSlot int64 = 0
-
-		wg.Add(1)
-		/** Launch a timer. */
+	/*scrape_scales := time.NewTicker(time.Second * 60)
 		go func() {
-			defer wg.Done()
-
-			<-timeout
-			ticker.Stop()
-			done <- true
+			for {
+				<-scrape_scales.C
+				coldStartSlotCount += collector.RecordScalesAndGetColdStartCount()
+			}
 		}()
 
+		rps := rpsStart
+		tolerance := 0
+
+	rps_gen:
 		for {
+			var invocations []int
+			for i := 0; i < stressSlotInMinutes; i++ {
+				invocations = append(invocations, rps*60)
+			}
+
+			iats, _ := sg.GenerateIAT(invocations, iatDistribution)
+
+			timeout := time.After(time.Minute * time.Duration(stressSlotInMinutes))
+			interval := time.Duration(iats[0][0]) * time.Microsecond
+			ticker := time.NewTicker(interval)
+			done := make(chan bool, 2)
+			tick := 0
+
+			//* The following counters are for each RPS step slot.
+			var successCountRpsStep int64 = 0
+			var failureCountRpsStep int64 = 0
+			var numFuncInvokedThisSlot int64 = 0
+
+			wg.Add(1)*/
+	/** Launch a timer. */
+	/*go func() {
+		defer wg.Done()
+
+		<-timeout
+		ticker.Stop()
+		done <- true
+	}()*/
+
+	/*for {
 			select {
 			case <-ticker.C:
 				//* Invoke functions using round robin.
@@ -149,18 +139,18 @@ rps_gen:
 
 	next_rps:
 		if rpsEnd < 0 {
-			if CheckOverload(atomic.LoadInt64(&successCountRpsStep), atomic.LoadInt64(&failureCountRpsStep)) {
-				/** Ending RPS NOT specified -> run until it breaks. */
-				tolerance++
-				if tolerance < common.OVERFLOAD_TOLERANCE {
-					rps -= rpsStep //* Second chance: try the current RPS one more time.
-				} else {
-					break rps_gen
-				}
+			if CheckOverload(atomic.LoadInt64(&successCountRpsStep), atomic.LoadInt64(&failureCountRpsStep)) {*/
+	/** Ending RPS NOT specified -> run until it breaks. */
+	/*tolerance++
+			if tolerance < common.OVERFLOAD_TOLERANCE {
+				rps -= rpsStep //* Second chance: try the current RPS one more time.
+			} else {
+				break rps_gen
 			}
-		} else if rps >= rpsEnd || rpsStep == 0 {
-			/** Ending RPS specified. */
-			break rps_gen
+		}
+	} else if rps >= rpsEnd || rpsStep == 0 {*/
+	/** Ending RPS specified. */
+	/*break rps_gen
 		}
 
 		if rps < 100 {
@@ -180,5 +170,5 @@ rps_gen:
 		log.Info("[No timeout] Total invocation + waiting duration: ", totalDuration, "\n")
 	}
 
-	defer collector.FinishAndSave(0, 0, rps*60)
+	defer collector.FinishAndSave(0, 0, rps*60)*/
 }

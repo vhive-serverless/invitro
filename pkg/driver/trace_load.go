@@ -1,23 +1,19 @@
 package driver
 
 import (
-	"fmt"
 	"github.com/eth-easl/loader/pkg/common"
+	fc "github.com/eth-easl/loader/pkg/function"
 	"github.com/eth-easl/loader/pkg/generator"
-	"math"
-	"os"
+	log "github.com/sirupsen/logrus"
 	"sync"
 	"sync/atomic"
 	"time"
 
-	log "github.com/sirupsen/logrus"
-
-	fc "github.com/eth-easl/loader/pkg/function"
 	mc "github.com/eth-easl/loader/pkg/metric"
 	tc "github.com/eth-easl/loader/pkg/trace"
 )
 
-type TraceGeneratorParams struct {
+type DriverConfiguration struct {
 	EnableMetricsCollection bool
 	IATDistribution         common.IatDistribution
 
@@ -38,11 +34,21 @@ type Driver struct {
 	knStats              mc.KnStats
 	coldStartGauge       int
 	coldStartMinuteCount int // TODO: maybe set to -1 if scraping is not enabled
+
+	Configuration          *DriverConfiguration
+	SpecificationGenerator *generator.SpecificationGenerator
 }
 
-func NewDriver() *Driver {
-	return &Driver{}
+func NewDriver(driverConfig *DriverConfiguration) *Driver {
+	return &Driver{
+		Configuration:          driverConfig,
+		SpecificationGenerator: generator.NewSpecificationGenerator(driverConfig.Seed),
+	}
 }
+
+/////////////////////////////////////////
+// METRICS SCRAPPERS
+/////////////////////////////////////////
 
 // CreateKnativeMetricsScrapper launches a scraper that updates the cluster usage periodically
 func (d *Driver) CreateKnativeMetricsScrapper(interval time.Duration) func() {
@@ -86,177 +92,143 @@ func (d *Driver) CreateKnativeStateUpdateScrapper(interval time.Duration) func()
 	}
 }
 
-func (d *Driver) GenerateTraceLoads(params TraceGeneratorParams) int {
-	sg := generator.NewSpecificationGenerator(params.Seed)
-	// TODO: need assert on trace parsing that the last column with non null is parsed and declared as trace length
-	totalTraceDuration := len(params.TotalNumInvocationsEachMinute)
+/////////////////////////////////////////
+// DRIVER LOGIC
+/////////////////////////////////////////
 
-	if params.EnableMetricsCollection {
+func (d *Driver) invokeFunction(function tc.Function, announceInvocationDone *sync.WaitGroup,
+	runtimeSpecs *generator.RuntimeSpecification, successCount *int64, failedCount *int64) {
+
+	defer announceInvocationDone.Done()
+
+	success, _ := fc.Invoke(function, runtimeSpecs, d.Configuration.WithTracing)
+
+	if success {
+		atomic.AddInt64(successCount, 1)
+	} else {
+		atomic.AddInt64(failedCount, 1)
+	}
+
+	/*execRecord.Phase = phase
+	execRecord.Interval = interval
+	execRecord.Rps = rps
+	if d.Configuration.EnableMetricsCollection {
+		execRecord.ColdStartCount = d.coldStartGauge
+		d.collector.ReportExecution(execRecord, d.clusterUsage, d.knStats)
+	}*/
+}
+
+func (d *Driver) individualFunctionDriver(function tc.Function, announceFunctionDone *sync.WaitGroup,
+	totalSuccessfull *int64, totalFailed *int64) {
+
+	totalTraceDuration := len(d.Configuration.TotalNumInvocationsEachMinute)
+	minuteIndex, invocationIndex := 0, 0
+
+	spec := d.SpecificationGenerator.GenerateInvocationData(function, d.Configuration.IATDistribution)
+	IAT, runtimeSpecification := spec.IAT, spec.RuntimeSpecification
+
+	var successfullInvocations int64
+	var failedInvocations int64
+	waitForInvocations := sync.WaitGroup{}
+
+	for {
+		// Check whether the end of trace has been reached
+		if minuteIndex >= totalTraceDuration {
+			break
+		}
+
+		if function.NumInvocationsPerMinute[minuteIndex] == 0 {
+			minuteIndex++
+			invocationIndex = 0
+
+			time.Sleep(time.Minute)
+		} else {
+			waitForInvocations.Add(1)
+
+			go d.invokeFunction(function,
+				&waitForInvocations,
+				&runtimeSpecification[minuteIndex][invocationIndex],
+				&successfullInvocations,
+				&failedInvocations)
+
+			sleepFor := time.Duration(IAT[minuteIndex][invocationIndex]) * time.Microsecond
+
+			invocationIndex++
+			if function.NumInvocationsPerMinute[minuteIndex] == invocationIndex {
+				minuteIndex++
+				invocationIndex = 0
+
+				if minuteIndex >= totalTraceDuration {
+					break
+				}
+			}
+
+			//fmt.Println(sleepFor)
+			time.Sleep(sleepFor)
+		}
+	}
+
+	waitForInvocations.Wait()
+	announceFunctionDone.Done()
+
+	atomic.AddInt64(totalSuccessfull, successfullInvocations)
+	atomic.AddInt64(totalFailed, failedInvocations)
+}
+
+func (d *Driver) globalTimekeeper(totalTraceDuration int) {
+	ticker := time.NewTicker(time.Minute)
+	globalTimeCounter := 0
+
+	for {
+		<-ticker.C
+
+		if globalTimeCounter != 0 {
+			log.Infof("End of minute %d\n", globalTimeCounter)
+		}
+
+		globalTimeCounter++
+		if globalTimeCounter >= totalTraceDuration {
+			break
+		}
+
+		log.Infof("Start of minute %d\n", globalTimeCounter)
+	}
+
+	ticker.Stop()
+}
+
+func (d *Driver) GenerateTraceLoads() int {
+	// TODO: need assert on trace parsing that the last column with non null is parsed and declared as trace length
+	totalTraceDuration := len(d.Configuration.TotalNumInvocationsEachMinute)
+
+	if d.Configuration.EnableMetricsCollection {
 		// TODO: these following arguments should be configurable
 		go d.CreateKnativeMetricsScrapper(time.Second * 15)
 		go d.CreateKnativeStateUpdateScrapper(time.Second * 15)
 		go d.CreateColdStartCountScrapper(time.Second * 60)
 	}
 
-	/////////////////////////////////////////
-	// REENGINEERING BELOW
-	/////////////////////////////////////////
-	for _, function := range params.Functions {
-		IAT, _ := sg.GenerateIAT(function.NumInvocationsPerMinute, params.IATDistribution)
+	go d.globalTimekeeper(totalTraceDuration)
 
-		fmt.Println(len(IAT))
-	}
+	var successfullInvocations int64
+	var failedInvocations int64
+	allFunctionsCompleted := sync.WaitGroup{}
 
-	/////////////////////////////////////////
-	// OLD CODE
-	/////////////////////////////////////////
-
-	start := time.Now()
-	wg := sync.WaitGroup{}
-
-	//* The following counters are for the whole measurement (we don't stop in the middle).
-	var successCountTotal int64 = 0
-	var failureCountTotal int64 = 0
-
-	var minute int
-trace_gen:
-	for minute = 0; minute < totalTraceDuration; minute++ {
-		var iats [][]float64
-		var numFuncInvokedThisMinute int64 = 0
-
-		rps := int(math.Ceil(float64(params.TotalNumInvocationsEachMinute[minute]) / 60.0))
-
-		//* Bound the #invocations/minute by RPS.
-		numInvocationsThisMinute := params.TotalNumInvocationsEachMinute[minute]
-		if numInvocationsThisMinute < 1 {
-			continue
+	for i, function := range d.Configuration.Functions {
+		if i > 0 {
+			break // FOR DEBUGGING CURRENTLY
 		}
 
-		iats, _ = sg.GenerateIAT([]int{numInvocationsThisMinute}, params.IATDistribution)
-		log.Infof("Minute[%d]\t RPS=%d", minute, rps)
-
-		/** Set up timer to bound the one-minute invocation. */
-		iterStart := time.Now()
-		timeout := time.After(time.Duration(60) * time.Second)
-		interval := time.Duration(iats[0][0]) * time.Microsecond
-		ticker := time.NewTicker(interval)
-		done := make(chan bool, 2) // Two semaphores, one for timer, one for early completion.
-		tick := 0
-
-		wg.Add(1)
-		/** Launch a timer. */
-		go func() {
-			defer wg.Done()
-
-			t := <-timeout
-			log.Warn("(Slot finished)\t", t.Format(time.StampMilli), "\tMinute Nbr. ", minute)
-			ticker.Stop()
-			done <- true
-		}()
-
-	this_minute_gen:
-		for {
-			select {
-			case <-ticker.C:
-
-				wg.Add(1)
-				go func(m int, nxt int, phase int, rps int, interval int64) {
-					defer wg.Done()
-
-					atomic.AddInt64(&numFuncInvokedThisMinute, 1)
-					funcIndx := params.InvocationsEachMinute[m][nxt]
-					function := params.Functions[funcIndx]
-
-					runtimeRequested, memoryRequested := sg.GenerateExecutionSpecs(function)
-					success, execRecord := fc.Invoke(function, runtimeRequested, memoryRequested, params.WithTracing)
-
-					if success {
-						atomic.AddInt64(&successCountTotal, 1)
-					} else {
-						atomic.AddInt64(&failureCountTotal, 1)
-					}
-					execRecord.Phase = phase
-					execRecord.Interval = interval
-					execRecord.Rps = rps
-					if params.EnableMetricsCollection {
-						execRecord.ColdStartCount = d.coldStartGauge
-						d.collector.ReportExecution(execRecord, d.clusterUsage, d.knStats)
-					}
-
-				}(minute, tick, params.PhaseIdx, rps, interval.Milliseconds()) //* Push vars onto the stack to prevent racing.
-
-				tick++
-				if tick >= numInvocationsThisMinute {
-					//* Finished before timeout.
-					log.Info("Finish target invocation early at Minute slot ", minute, " Itr. ", tick)
-					done <- true
-				} else {
-					//* Load the next inter-arrival time.
-					interval = time.Duration(iats[0][tick]) * time.Microsecond
-					ticker = time.NewTicker(interval)
-				}
-
-			case <-done:
-				log.Info("Iteration spent: ", time.Since(iterStart), "\tMinute Nbr. ", minute)
-				log.Info("Target #invocations=", params.TotalNumInvocationsEachMinute[minute], " Fired #functions=", numFuncInvokedThisMinute, "\tMinute Nbr. ", minute)
-				//! No reason to note down the failure rate here since many requests would still be on their way.
-				invRecord := mc.MinuteInvocationRecord{
-					MinuteIdx:       minute + params.PhaseOffset,
-					Phase:           params.PhaseIdx,
-					Rps:             rps,
-					Duration:        time.Since(iterStart).Microseconds(),
-					NumFuncTargeted: params.TotalNumInvocationsEachMinute[minute],
-					NumFuncInvoked:  int(numFuncInvokedThisMinute),
-				}
-
-				if params.EnableMetricsCollection {
-					invRecord.NumColdStarts = d.coldStartMinuteCount
-					d.collector.ReportInvocation(invRecord)
-					d.coldStartMinuteCount = 0
-				}
-
-				/** Warmup phases */
-				stationaryWindow := 1
-				if params.PhaseIdx == 1 && minute+1 >= common.WARMUP_DURATION_MINUTES {
-					if params.EnableMetricsCollection {
-						// TODO: should the coller always be running?
-						if !d.collector.IsLatencyStationary(rps*60*stationaryWindow, common.STATIONARY_P_VALUE) {
-							log.Warnf("Warmup may need longer than %d minutes", common.WARMUP_DURATION_MINUTES)
-						}
-					}
-					minute++
-					break trace_gen
-				}
-
-				break this_minute_gen
-			}
-		}
-	}
-	log.Info("\tFinished invoking all functions.")
-
-	forceTimeoutDuration := time.Duration(common.FORCE_TIMEOUT_MINUTE) * time.Minute
-	if !params.WithBlocking {
-		forceTimeoutDuration = time.Second * 1
+		allFunctionsCompleted.Add(1)
+		go d.individualFunctionDriver(function, &allFunctionsCompleted, &successfullInvocations, &failedInvocations)
 	}
 
-	if wgWaitWithTimeout(&wg, forceTimeoutDuration) {
-		log.Warn("Time out waiting for all invocations to return.")
-	} else {
-		totalDuration := time.Since(start)
-		log.Info("[No timeout] Total invocation + waiting duration: ", totalDuration, "\n")
-	}
+	allFunctionsCompleted.Wait()
 
-	//* Only check overload after the entire Phase 2 to account for all late returns.
-	if params.PhaseIdx == 2 && CheckOverload(atomic.LoadInt64(&successCountTotal), atomic.LoadInt64(&failureCountTotal)) {
-		DumpOverloadFlag()
-	}
+	log.Infof("Number of successful invocations: %d\n", successfullInvocations)
+	log.Infof("Number of failed invocations: %d\n", failedInvocations)
 
-	if params.EnableMetricsCollection {
-		// TODO: do we need defer here? everything above should be blocking and sequential
-		defer d.collector.FinishAndSave(params.SampleSize, params.PhaseIdx, minute)
-	}
-
-	return params.PhaseOffset + minute
+	return 0
 }
 
 /////////////////////////////////////
@@ -267,7 +239,7 @@ trace_gen:
  * This function waits for the waitgroup for the specified max timeout.
  * Returns true if waiting timed out.
  */
-func wgWaitWithTimeout(wg *sync.WaitGroup, timeout time.Duration) bool {
+/*func wgWaitWithTimeout(wg *sync.WaitGroup, timeout time.Duration) bool {
 	log.Info("Start waiting for all requests to return.")
 	c := make(chan struct{})
 	go func() {
@@ -281,9 +253,9 @@ func wgWaitWithTimeout(wg *sync.WaitGroup, timeout time.Duration) bool {
 	case <-time.After(timeout):
 		return true
 	}
-}
+}*/
 
-func CheckOverload(successCount, failureCount int64) bool {
+/*func CheckOverload(successCount, failureCount int64) bool {
 	//* Amongst those returned, how many has failed?
 	failureRate := float64(failureCount) / float64(successCount+failureCount)
 	log.Info("Failure rate=", failureRate)
@@ -296,4 +268,4 @@ func DumpOverloadFlag() {
 	if err != nil {
 		log.Fatal(err)
 	}
-}
+}*/

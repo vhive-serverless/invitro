@@ -1,20 +1,6 @@
 package driver
 
-import (
-	"github.com/eth-easl/loader/pkg/common"
-	"github.com/eth-easl/loader/pkg/generator"
-	"sync"
-	"sync/atomic"
-	"time"
-
-	log "github.com/sirupsen/logrus"
-
-	fc "github.com/eth-easl/loader/pkg/function"
-	mc "github.com/eth-easl/loader/pkg/metric"
-	tc "github.com/eth-easl/loader/pkg/trace"
-)
-
-func GenerateBurstLoads(
+/*func GenerateBurstLoads(
 	rpsTarget int,
 	burstTarget int,
 	burstDurationMinutes int,
@@ -33,25 +19,25 @@ func GenerateBurstLoads(
 	roundrobinFunctions := []string{"steady", "bursty"}
 
 	/** Launch a scraper that updates the cluster usage every 15s (max. interval). */
-	scrape_infra := time.NewTicker(time.Second * 15)
-	go func() {
-		for {
-			<-scrape_infra.C
-			clusterUsage = mc.ScrapeClusterUsage()
-		}
-	}()
+/*scrape_infra := time.NewTicker(time.Second * 15)
+go func() {
+	for {
+		<-scrape_infra.C
+		clusterUsage = mc.ScrapeClusterUsage()
+	}
+}()*/
 
-	/** Launch a scraper that updates Knative states every 15s (max. interval). */
-	scrape_kn := time.NewTicker(time.Second * 15)
-	go func() {
-		for {
-			<-scrape_kn.C
-			knStats = mc.ScrapeKnStats()
-		}
-	}()
+/** Launch a scraper that updates Knative states every 15s (max. interval). */
+/*scrape_kn := time.NewTicker(time.Second * 15)
+go func() {
+	for {
+		<-scrape_kn.C
+		knStats = mc.ScrapeKnStats()
+	}
+}()*/
 
-	/** Launch a scraper for getting cold-start count. */
-	scrape_scales := time.NewTicker(time.Second * 60)
+/** Launch a scraper for getting cold-start count. */
+/*	scrape_scales := time.NewTicker(time.Second * 60)
 	go func() {
 		for {
 			<-scrape_scales.C
@@ -78,15 +64,15 @@ burst_gen:
 		timeout := time.After(time.Duration(durationMinutes) * time.Minute)
 		interval := time.Duration(iats[0][0]) * time.Microsecond
 		ticker := time.NewTicker(interval)
-		done := make(chan bool, 1)
+		done := make(chan bool, 1)*/
 
-		//* The following counters are for each RPS step slot.
-		var invocationCount int64 = 0
+//* The following counters are for each RPS step slot.
+/*		var invocationCount int64 = 0
 		var failureCount int64 = 0
 
-		wg.Add(1)
-		/** Launch a timer. */
-		go func() {
+		wg.Add(1)*/
+/** Launch a timer. */
+/*		go func() {
 			defer wg.Done()
 
 			<-timeout
@@ -102,17 +88,17 @@ burst_gen:
 
 				nap := 0
 				if rps == rpsTarget && tick == rps*60*durationMinutes/2 {
-					log.Info("Burst starts!")
-					/** Creating the burst in the middle of the `burstDurationMinutes`. */
-					burstSize = burstTarget
+					log.Info("Burst starts!")*/
+/** Creating the burst in the middle of the `burstDurationMinutes`. */
+/*				burstSize = burstTarget
 					function = functionsTable["bursty"]
 					nap = 1000 / (burstTarget + 1)
 				}
 
 				for i := 0; i < burstSize+1; i++ {
-					if burstSize == burstTarget && i == burstTarget/2 {
-						/** Invoking the victim function in the middle. */
-						function = functionsTable["victim"]
+					if burstSize == burstTarget && i == burstTarget/2 {*/
+/** Invoking the victim function in the middle. */
+/*						function = functionsTable["victim"]
 					}
 					wg.Add(1)
 					go func(_function tc.Function, rps int, interval int64) {
@@ -175,4 +161,4 @@ burst_gen:
 	}
 
 	defer collector.FinishAndSave(999, 999, rpsTarget+burstDurationMinutes)
-}
+}*/
