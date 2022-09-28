@@ -2,7 +2,7 @@ package cmd
 
 import (
 	gen "github.com/eth-easl/loader/pkg/common"
-	driver2 "github.com/eth-easl/loader/pkg/driver"
+	driver "github.com/eth-easl/loader/pkg/driver"
 	"math"
 	"runtime"
 	"sort"
@@ -133,7 +133,7 @@ func Warmup(
 	for phaseIdx := 1; phaseIdx < totalNumPhases; phaseIdx++ {
 		log.Infof("Enter Phase %d as of Minute[%d]", phaseIdx, nextPhaseStart)
 
-		traceLoadParams := driver2.TraceGeneratorParams{
+		traceLoadParams := &driver.DriverConfiguration{
 			SampleSize:                    sampleSize,
 			PhaseIdx:                      phaseIdx,
 			PhaseOffset:                   nextPhaseStart,
@@ -146,8 +146,7 @@ func Warmup(
 			Seed:                          seed,
 		}
 
-		driver := driver2.NewDriver()
-		nextPhaseStart = driver.GenerateTraceLoads(traceLoadParams)
+		nextPhaseStart = driver.NewDriver(traceLoadParams).GenerateTraceLoads()
 	}
 
 	return nextPhaseStart

@@ -1,20 +1,6 @@
 package driver
 
-import (
-	"github.com/eth-easl/loader/pkg/common"
-	"github.com/eth-easl/loader/pkg/generator"
-	"sync"
-	"sync/atomic"
-	"time"
-
-	log "github.com/sirupsen/logrus"
-
-	fc "github.com/eth-easl/loader/pkg/function"
-	mc "github.com/eth-easl/loader/pkg/metric"
-	tc "github.com/eth-easl/loader/pkg/trace"
-)
-
-func GenerateColdStartLoads(
+/*func GenerateColdStartLoads(
 	rpsStart int,
 	rpsStep int,
 	hotFunction tc.Function,
@@ -29,28 +15,28 @@ func GenerateColdStartLoads(
 	collector := mc.NewCollector()
 	clusterUsage := mc.ClusterUsage{}
 	knStats := mc.KnStats{}
-	coldStartMinuteCount := 0
+	coldStartMinuteCount := 0*/
 
-	/** Launch a scraper that updates the cluster usage every 15s (max. interval). */
-	scrape_infra := time.NewTicker(time.Second * 15)
-	go func() {
-		for {
-			<-scrape_infra.C
-			clusterUsage = mc.ScrapeClusterUsage()
-		}
-	}()
+/** Launch a scraper that updates the cluster usage every 15s (max. interval). */
+/*scrape_infra := time.NewTicker(time.Second * 15)
+go func() {
+	for {
+		<-scrape_infra.C
+		clusterUsage = mc.ScrapeClusterUsage()
+	}
+}()*/
 
-	/** Launch a scraper that updates Knative states every 15s (max. interval). */
-	scrape_kn := time.NewTicker(time.Second * 15)
-	go func() {
-		for {
-			<-scrape_kn.C
-			knStats = mc.ScrapeKnStats()
-		}
-	}()
+/** Launch a scraper that updates Knative states every 15s (max. interval). */
+/*scrape_kn := time.NewTicker(time.Second * 15)
+go func() {
+	for {
+		<-scrape_kn.C
+		knStats = mc.ScrapeKnStats()
+	}
+}()*/
 
-	/** Launch a scraper for getting cold-start count. */
-	scrape_scales := time.NewTicker(time.Second * 60)
+/** Launch a scraper for getting cold-start count. */
+/*scrape_scales := time.NewTicker(time.Second * 60)
 	go func() {
 		for {
 			<-scrape_scales.C
@@ -66,9 +52,9 @@ func GenerateColdStartLoads(
 
 coldstart_generation:
 	for {
-		iats, _ := sg.GenerateIAT([]int{rps * 60}, iatDistribution)
-		//* One minute per step for matching the trace mode.
-		tick := -1
+		iats, _ := sg.GenerateIAT([]int{rps * 60}, iatDistribution)*/
+//* One minute per step for matching the trace mode.
+/*		tick := -1
 		timeout := time.After(1 * time.Minute)
 		interval := time.Duration(iats[0][0]) * time.Microsecond
 		ticker := time.NewTicker(interval)
@@ -84,7 +70,7 @@ coldstart_generation:
 
 		wg.Add(1)
 		/** Launch a timer. */
-		go func() {
+/*go func() {
 			defer wg.Done()
 
 			<-timeout
@@ -162,9 +148,9 @@ coldstart_generation:
 	}
 
 	defer collector.FinishAndSave(0, 0, rps)
-}
+}*/
 
-func generateColdStartTimeIdx(target, totalInvocations int) []int {
+/*func generateColdStartTimeIdx(target, totalInvocations int) []int {
 	indices := []int{}
 	if target == 0 {
 		return indices
@@ -178,4 +164,4 @@ func generateColdStartTimeIdx(target, totalInvocations int) []int {
 		total++
 	}
 	return indices
-}
+}*/
