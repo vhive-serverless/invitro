@@ -171,18 +171,20 @@ func runTraceMode(invPath, runPath, memPath string) {
 	}
 
 	log.Infof("Phase 2: Generate real workloads as of Minute[%d]", nextPhaseStart)
-	gen.GenerateTraceLoads(
-		*sampleSize,
-		totalNumPhases,
-		nextPhaseStart,
-		true,
-		functions,
-		traces.InvocationsEachMinute[nextPhaseStart:nextPhaseStart+*duration],
-		traces.TotalInvocationsPerMinute[nextPhaseStart:nextPhaseStart+*duration],
-		iatType,
-		*withTracing,
-		*seed,
-	)
+
+	traceLoadParams := gen.TraceGeneratorParams{
+		SampleSize:                    *sampleSize,
+		PhaseIdx:                      totalNumPhases,
+		PhaseOffset:                   nextPhaseStart,
+		WithBlocking:                  true,
+		Functions:                     functions,
+		InvocationsEachMinute:         traces.InvocationsEachMinute[nextPhaseStart : nextPhaseStart+*duration],
+		TotalNumInvocationsEachMinute: traces.TotalInvocationsPerMinute[nextPhaseStart : nextPhaseStart+*duration],
+		IatDistribution:               iatType,
+		WithTracing:                   *withTracing,
+		Seed:                          *seed,
+	}
+	gen.GenerateTraceLoads(traceLoadParams)
 }
 
 func runStressMode() {

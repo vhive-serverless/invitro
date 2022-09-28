@@ -59,7 +59,7 @@ func (s *SpecificationGenerator) generateIATForAMinute(numberOfInvocations int, 
 
 		if iat == 0 {
 			// No nanoseconds-level granularity, only microsecond
-			panic("Generated IAT is equal to zero (unsupported). Consider increasing the clock precision.")
+			log.Fatal("Generated IAT is equal to zero (unsupported). Consider increasing the clock precision.")
 		}
 
 		iatResult = append(iatResult, iat)
@@ -70,7 +70,7 @@ func (s *SpecificationGenerator) generateIATForAMinute(numberOfInvocations int, 
 	if iatDistribution == Uniform || iatDistribution == Exponential {
 		// Uniform: 		we need to scale IAT from [0, 1) to [0, 60 seconds)
 		// Exponential: 	we need to scale IAT from [0, +MaxFloat64) to [0, 60 seconds)
-		for i, _ := range iatResult {
+		for i := 0; i < len(iatResult); i++ {
 			// how much does the IAT contributes to the total IAT sum
 			iatResult[i] = iatResult[i] / totalDuration
 			// convert relative contribution to absolute on 60 second interval
@@ -104,8 +104,10 @@ func (s *SpecificationGenerator) GenerateIAT(invocationsPerMinute []int, iatDist
 // Choose a random number in between. Not thread safe.
 func (s *SpecificationGenerator) randIntBetween(min, max int) int {
 	if max < min {
-		panic("Invalid runtime/memory specification.")
-	} else if max == min {
+		log.Fatal("Invalid runtime/memory specification.")
+	}
+
+	if max == min {
 		return min
 	} else {
 		return s.specRand.Intn(max-min) + min
@@ -173,7 +175,7 @@ func (s *SpecificationGenerator) generateMemorySpec(memQtl float64, memStats *tc
 func (s *SpecificationGenerator) GenerateExecutionSpecs(function tc.Function) (int, int) {
 	runStats, memStats := function.RuntimeStats, function.MemoryStats
 	if runStats.Count <= 0 || memStats.Count <= 0 {
-		panic("Invalid duration or memory specification of the function '" + function.Name + "'.")
+		log.Fatal("Invalid duration or memory specification of the function '" + function.Name + "'.")
 	}
 
 	s.specMutex.Lock()
