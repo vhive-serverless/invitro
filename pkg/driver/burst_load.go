@@ -1,6 +1,8 @@
-package generate
+package driver
 
 import (
+	"github.com/eth-easl/loader/pkg/common"
+	"github.com/eth-easl/loader/pkg/generator"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -17,7 +19,7 @@ func GenerateBurstLoads(
 	burstTarget int,
 	burstDurationMinutes int,
 	functionsTable map[string]tc.Function,
-	iatDistribution IatDistribution,
+	iatDistribution common.IatDistribution,
 	withTracing bool,
 	seed int64,
 ) {
@@ -62,7 +64,7 @@ func GenerateBurstLoads(
 	burstSize := 0
 	durationMinutes := 1 // Before the burst period, each RPS step takes a minute.
 
-	sg := NewSpecificationGenerator(seed)
+	sg := generator.NewSpecificationGenerator(seed)
 
 burst_gen:
 	for {
@@ -164,7 +166,7 @@ burst_gen:
 	}
 	log.Info("Finished burst generation with ending RPS=", rps)
 
-	forceTimeoutDuration := FORCE_TIMEOUT_MINUTE * time.Minute
+	forceTimeoutDuration := common.FORCE_TIMEOUT_MINUTE * time.Minute
 	if wgWaitWithTimeout(&wg, forceTimeoutDuration) {
 		log.Warn("Time out waiting for all invocations to return.")
 	} else {

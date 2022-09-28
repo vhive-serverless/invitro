@@ -3,6 +3,8 @@ package main
 import (
 	"flag"
 	"fmt"
+	gen "github.com/eth-easl/loader/pkg/common"
+	driver2 "github.com/eth-easl/loader/pkg/driver"
 	"os"
 	"strconv"
 	"time"
@@ -13,7 +15,6 @@ import (
 	opts "github.com/eth-easl/loader/cmd/options"
 	util "github.com/eth-easl/loader/pkg"
 	fc "github.com/eth-easl/loader/pkg/function"
-	gen "github.com/eth-easl/loader/pkg/generate"
 	tc "github.com/eth-easl/loader/pkg/trace"
 )
 
@@ -172,7 +173,7 @@ func runTraceMode(invPath, runPath, memPath string) {
 
 	log.Infof("Phase 2: Generate real workloads as of Minute[%d]", nextPhaseStart)
 
-	traceLoadParams := gen.TraceGeneratorParams{
+	traceLoadParams := driver2.TraceGeneratorParams{
 		SampleSize:                    *sampleSize,
 		PhaseIdx:                      totalNumPhases,
 		PhaseOffset:                   nextPhaseStart,
@@ -180,11 +181,11 @@ func runTraceMode(invPath, runPath, memPath string) {
 		Functions:                     functions,
 		InvocationsEachMinute:         traces.InvocationsEachMinute[nextPhaseStart : nextPhaseStart+*duration],
 		TotalNumInvocationsEachMinute: traces.TotalInvocationsPerMinute[nextPhaseStart : nextPhaseStart+*duration],
-		IatDistribution:               iatType,
+		IATDistribution:               iatType,
 		WithTracing:                   *withTracing,
 		Seed:                          *seed,
 	}
-	driver := gen.NewDriver()
+	driver := driver2.NewDriver()
 	nextPhaseStart = driver.GenerateTraceLoads(traceLoadParams)
 }
 
@@ -214,7 +215,7 @@ func runStressMode() {
 
 	fc.DeployFunctions(functions, serviceConfigPath, initialScales, *isPartiallyPanic)
 
-	gen.GenerateStressLoads(*rpsStart, *rpsEnd, *rpsStep, *rpsSlot, functions, iatType, *withTracing, *seed)
+	driver2.GenerateStressLoads(*rpsStart, *rpsEnd, *rpsStep, *rpsSlot, functions, iatType, *withTracing, *seed)
 }
 
 func runBurstMode() {
@@ -240,7 +241,7 @@ func runBurstMode() {
 
 	fc.DeployFunctions(functions, serviceConfigPath, initialScales, *isPartiallyPanic)
 
-	gen.GenerateBurstLoads(*rpsEnd, *burstTarget, *duration, functionTable, iatType, *withTracing, *seed)
+	driver2.GenerateBurstLoads(*rpsEnd, *burstTarget, *duration, functionTable, iatType, *withTracing, *seed)
 }
 
 func runColdStartMode() {
@@ -266,5 +267,5 @@ func runColdStartMode() {
 
 	fc.DeployFunctions(functions, serviceConfigPath, []int{}, *isPartiallyPanic)
 
-	defer gen.GenerateColdStartLoads(*rpsStart, *rpsStep, hotFunction, coldstartCounts, iatType, *withTracing, *seed)
+	defer driver2.GenerateColdStartLoads(*rpsStart, *rpsStep, hotFunction, coldstartCounts, iatType, *withTracing, *seed)
 }
