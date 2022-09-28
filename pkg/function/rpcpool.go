@@ -2,10 +2,10 @@ package function
 
 import (
 	"context"
+	tc "github.com/eth-easl/loader/pkg/common"
 	"io"
 	"time"
 
-	tc "github.com/eth-easl/loader/pkg/trace"
 	grpcpool "github.com/processout/grpc-go-pool"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
@@ -33,10 +33,10 @@ func CreateGrpcPool(functions []tc.Function) {
 	pools.callbacks = map[string]context.CancelFunc{}
 
 	for _, function := range functions {
-		dailCxt, cancelDailing := context.WithTimeout(context.Background(), connectionTimeout)
+		dailCxt, cancelDailing := context.WithTimeout(context.Background(), grpcConnectionTimeout)
 		var factory grpcpool.Factory = func() (*grpc.ClientConn, error) {
 			// defer cancelDailing()
-			conn, err := grpc.DialContext(dailCxt, function.Endpoint+port, grpc.WithTransportCredentials(insecure.NewCredentials()))
+			conn, err := grpc.DialContext(dailCxt, function.Endpoint+functionPort, grpc.WithTransportCredentials(insecure.NewCredentials()))
 			if err != nil {
 				log.Fatalf("Failed to start gRPC connection (%s): %v", function.Name, err)
 			}

@@ -1,13 +1,12 @@
 package function
 
 import (
+	tc "github.com/eth-easl/loader/pkg/common"
 	"os/exec"
 	"regexp"
 	"strconv"
 
 	log "github.com/sirupsen/logrus"
-
-	tc "github.com/eth-easl/loader/pkg/trace"
 )
 
 var (
