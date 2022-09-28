@@ -5,8 +5,8 @@ analysis
 tmp
 data/out
 data/traces
-pkg/generate/*.png
-pkg/generate/*.txt
+pkg/generator/*.png
+pkg/generator/*.txt
 
 ### CMake ###
 CMakeLists.txt.user

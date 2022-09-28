@@ -1,11 +1,10 @@
-package generate
+package generator
 
 import (
+	"github.com/eth-easl/loader/pkg/common"
 	log "github.com/sirupsen/logrus"
 	"math/rand"
-	"os"
 	"sync"
-	"time"
 
 	util "github.com/eth-easl/loader/pkg"
 	tc "github.com/eth-easl/loader/pkg/trace"
@@ -34,7 +33,7 @@ func NewSpecificationGenerator(seed int64) *SpecificationGenerator {
 //////////////////////////////////////////////////
 
 // generateIATForAMinute generates IAT for one minute based on given number of invocations and the given distribution
-func (s *SpecificationGenerator) generateIATForAMinute(numberOfInvocations int, iatDistribution IatDistribution) ([]float64, float64) {
+func (s *SpecificationGenerator) generateIATForAMinute(numberOfInvocations int, iatDistribution common.IatDistribution) ([]float64, float64) {
 	// TODO: missing mutex for deterministic creation of IAT for exec specs and IAT
 
 	var iatResult []float64
@@ -45,13 +44,13 @@ func (s *SpecificationGenerator) generateIATForAMinute(numberOfInvocations int, 
 		var iat float64
 
 		switch iatDistribution {
-		case Exponential:
+		case common.Exponential:
 			// NOTE: Serverless in the Wild - pg. 6, paragraph 1
 			iat = s.iatRand.ExpFloat64()
-		case Uniform:
+		case common.Uniform:
 			iat = s.iatRand.Float64()
-		case Equidistant:
-			equalDistance := 60.0 * oneSecondInMicro / float64(numberOfInvocations)
+		case common.Equidistant:
+			equalDistance := 60.0 * common.OneSecondInMicroseconds / float64(numberOfInvocations)
 			iat = equalDistance
 		default:
 			log.Fatal("Unsupported IAT distribution.")
@@ -67,14 +66,14 @@ func (s *SpecificationGenerator) generateIATForAMinute(numberOfInvocations int, 
 	}
 	s.iatMutex.Unlock()
 
-	if iatDistribution == Uniform || iatDistribution == Exponential {
+	if iatDistribution == common.Uniform || iatDistribution == common.Exponential {
 		// Uniform: 		we need to scale IAT from [0, 1) to [0, 60 seconds)
 		// Exponential: 	we need to scale IAT from [0, +MaxFloat64) to [0, 60 seconds)
 		for i := 0; i < len(iatResult); i++ {
 			// how much does the IAT contributes to the total IAT sum
 			iatResult[i] = iatResult[i] / totalDuration
 			// convert relative contribution to absolute on 60 second interval
-			iatResult[i] = iatResult[i] * 60 * oneSecondInMicro
+			iatResult[i] = iatResult[i] * 60 * common.OneSecondInMicroseconds
 		}
 	}
 
@@ -82,7 +81,7 @@ func (s *SpecificationGenerator) generateIATForAMinute(numberOfInvocations int, 
 }
 
 // GenerateIAT generates IAT according to the given distribution. Number of minutes is the length of invocationsPerMinute array
-func (s *SpecificationGenerator) GenerateIAT(invocationsPerMinute []int, iatDistribution IatDistribution) ([][]float64, []float64) {
+func (s *SpecificationGenerator) GenerateIAT(invocationsPerMinute []int, iatDistribution common.IatDistribution) ([][]float64, []float64) {
 	var IAT [][]float64
 	var nonScaledDuration []float64
 
@@ -182,47 +181,8 @@ func (s *SpecificationGenerator) GenerateExecutionSpecs(function tc.Function) (i
 	defer s.specMutex.Unlock()
 
 	runQtl, memQtl := s.determineExecutionSpecSeedQuantiles()
-	runtime := util.MinOf(MAX_EXEC_TIME_MILLI, util.MaxOf(MIN_EXEC_TIME_MILLI, s.generateExecuteSpec(runQtl, &runStats)))
+	runtime := util.MinOf(common.MAX_EXEC_TIME_MILLI, util.MaxOf(common.MIN_EXEC_TIME_MILLI, s.generateExecuteSpec(runQtl, &runStats)))
 	memory := util.MinOf(tc.MAX_MEM_QUOTA_MIB, util.MaxOf(tc.MIN_MEM_QUOTA_MIB, s.generateMemorySpec(memQtl, &memStats)))
 
 	return runtime, memory
-}
-
-/////////////////////////////////////
-// TODO: check and refactor everything below
-/////////////////////////////////////
-
-/**
- * This function waits for the waitgroup for the specified max timeout.
- * Returns true if waiting timed out.
- */
-func wgWaitWithTimeout(wg *sync.WaitGroup, timeout time.Duration) bool {
-	log.Info("Start waiting for all requests to return.")
-	c := make(chan struct{})
-	go func() {
-		defer close(c)
-		wg.Wait()
-	}()
-	select {
-	case <-c:
-		log.Info("Finished waiting for all invocations.")
-		return false
-	case <-time.After(timeout):
-		return true
-	}
-}
-
-func CheckOverload(successCount, failureCount int64) bool {
-	//* Amongst those returned, how many has failed?
-	failureRate := float64(failureCount) / float64(successCount+failureCount)
-	log.Info("Failure rate=", failureRate)
-	return failureRate > OVERFLOAD_THRESHOLD
-}
-
-func DumpOverloadFlag() {
-	// If the file doesn't exist, create it, or append to the file
-	_, err := os.OpenFile("overload.flag", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		log.Fatal(err)
-	}
 }
