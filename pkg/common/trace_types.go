@@ -1,10 +1,9 @@
-package trace
+package common
 
 import (
 	"fmt"
 )
 
-//* A bit of a heck to get around cyclic import.
 type FunctionSpecsGen func(Function) (int, int)
 
 type FunctionConcurrencyStats struct {
@@ -13,7 +12,7 @@ type FunctionConcurrencyStats struct {
 	Median  float64
 	Minimum float64
 	Maximum float64
-	data    []float64
+	Data    []float64
 }
 
 type FunctionInvocationStats struct {
@@ -22,7 +21,7 @@ type FunctionInvocationStats struct {
 	Median  int
 	Minimum int
 	Maximum int
-	data    []int
+	Data    []int
 }
 
 type FunctionRuntimeStats struct {
@@ -71,6 +70,8 @@ type Function struct {
 
 	CpuRequestMilli  int
 	MemoryRequestMiB int
+
+	Specification *FunctionSpecification
 }
 
 type FunctionTraces struct {

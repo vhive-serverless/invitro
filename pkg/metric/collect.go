@@ -3,6 +3,7 @@ package metric
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/eth-easl/loader/pkg/common"
 	"os"
 	"os/exec"
 	"sort"
@@ -37,9 +38,9 @@ func NewCollector() Collector {
 	}
 }
 
-func (collector *Collector) GetOneColdStartFunction() tc.Function {
+func (collector *Collector) GetOneColdStartFunction() common.Function {
 	funcName := collector.scaleRegistry.GetOneColdFunctionName()
-	return tc.Function{
+	return common.Function{
 		Name:     funcName,
 		Endpoint: tc.GetFuncEndpoint(funcName),
 	}
@@ -181,7 +182,7 @@ func (collector *Collector) GetLatenciesInOrder() []float64 {
 func (collector *Collector) sortExecutionRecordsByTime() {
 	sort.Slice(collector.executionRecords,
 		func(i, j int) bool {
-			return collector.executionRecords[i].Timestamp < collector.executionRecords[j].Timestamp
+			return collector.executionRecords[i].StartTime < collector.executionRecords[j].StartTime
 		},
 	)
 }
@@ -282,7 +283,7 @@ func (collector *Collector) CheckOverloadDeprecated(windowSize int) bool {
 
 	failureCounter := 0
 	for _, record := range collector.executionRecords[duration-windowSize:] {
-		if record.Timeout || record.Failed {
+		if record.ConnectionTimeout || record.FunctionTimeout {
 			failureCounter += 1
 		}
 	}

@@ -30,7 +30,7 @@ const (
 	// we only take the last 80% of the measurements.
 	RPS_WARMUP_FRACTION = 0.2
 	// The maximum step size in the early stage of the RPS mode -- we shouldn't take too large a RPS step before reaching
-	// ~100RPS in order to ensure sufficient number of measurements for lower variance (smaller the RPS, the less total data points).
+	// ~100RPS in order to ensure sufficient number of measurements for lower variance (smaller the RPS, the less total Data points).
 	MAX_RPS_STARTUP_STEP = 5
 )
 
@@ -44,4 +44,11 @@ const (
 
 const (
 	OneSecondInMicroseconds = 1_000_000.0
+)
+
+type ExperimentPhase int
+
+const (
+	WarmupPhase    ExperimentPhase = 1
+	ExecutionPhase                 = 2
 )
