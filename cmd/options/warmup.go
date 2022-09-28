@@ -130,21 +130,23 @@ func Warmup(
 	//* Skip the profiling minutes.
 	nextPhaseStart := gen.PROFILING_DURATION_MINUTES
 	for phaseIdx := 1; phaseIdx < totalNumPhases; phaseIdx++ {
-
 		log.Infof("Enter Phase %d as of Minute[%d]", phaseIdx, nextPhaseStart)
-		nextPhaseStart = gen.GenerateTraceLoads(
-			sampleSize,
-			phaseIdx,
-			nextPhaseStart,
-			false, //! Non-blocking: directly go to the next phase.
-			functions,
-			traces.InvocationsEachMinute[nextPhaseStart:],
-			traces.TotalInvocationsPerMinute[nextPhaseStart:],
-			iatDistribution,
-			withTracing,
-			seed,
-		)
+
+		traceLoadParams := gen.TraceGeneratorParams{
+			SampleSize:                    sampleSize,
+			PhaseIdx:                      phaseIdx,
+			PhaseOffset:                   nextPhaseStart,
+			WithBlocking:                  false, //! Non-blocking: directly go to the next phase.
+			Functions:                     functions,
+			InvocationsEachMinute:         traces.InvocationsEachMinute[nextPhaseStart:],
+			TotalNumInvocationsEachMinute: traces.TotalInvocationsPerMinute[nextPhaseStart:],
+			IatDistribution:               iatDistribution,
+			WithTracing:                   withTracing,
+			Seed:                          seed,
+		}
+		nextPhaseStart = gen.GenerateTraceLoads(traceLoadParams)
 	}
+
 	return nextPhaseStart
 }
 

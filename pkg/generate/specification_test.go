@@ -3,6 +3,7 @@ package generate
 import (
 	"fmt"
 	tc "github.com/eth-easl/loader/pkg/trace"
+	log "github.com/sirupsen/logrus"
 	"math"
 	"os"
 	"os/exec"
@@ -195,7 +196,7 @@ func TestSerialGenerateIAT(t *testing.T) {
 				for min := 0; min < len(test.expectedPoints); min++ {
 					for i := 0; i < len(IAT[min]); i++ {
 						if math.Abs(IAT[min][i]-test.expectedPoints[min][i]) > epsilon {
-							fmt.Printf("got: %f, expected: %f\n", IAT[min][i], test.expectedPoints[min][i])
+							log.Debug(fmt.Sprintf("got: %f, expected: %f\n", IAT[min][i], test.expectedPoints[min][i]))
 
 							failed = true
 							// no break statement for debugging purpose
@@ -224,7 +225,7 @@ func hasSpillover(data [][]float64) bool {
 			sum += data[min][i]
 		}
 
-		fmt.Printf("Total execution time: %f μs\n", sum)
+		log.Debug(fmt.Sprintf("Total execution time: %f μs\n", sum))
 		if math.Abs(sum-60*oneSecondInMicro) > epsilon {
 			return true
 		}
@@ -244,7 +245,7 @@ func checkDistribution(data [][]float64, nonScaledDuration []float64, distributi
 	case Exponential:
 		dist = "exponential"
 	default:
-		panic("Unsupported distribution check")
+		log.Fatal("Unsupported distribution check")
 	}
 
 	result := false
@@ -253,32 +254,32 @@ func checkDistribution(data [][]float64, nonScaledDuration []float64, distributi
 		// WRITING DISTRIBUTION TO TEST
 		f, err := os.Create(inputFile)
 		if err != nil {
-			panic("err")
+			log.Fatal("Cannot write data for distribution tests.")
 		}
 
 		defer f.Close()
 
 		for _, iat := range data[min] {
-			f.WriteString(fmt.Sprintf("%f\n", iat))
+			_, _ = f.WriteString(fmt.Sprintf("%f\n", iat))
 		}
 
 		// SETTING UP THE TESTING SCRIPT
 		args := []string{"specification_statistical_test.py", dist, inputFile, fmt.Sprintf("%f", nonScaledDuration[min])}
-		statisticalTest := exec.Command("python3.8", args...)
+		statisticalTest := exec.Command("python3", args...)
 
 		// CALLING THE TESTING SCRIPT AND PROCESSING ITS RESULTS
 		// NOTE: the script generates a histogram in PNG format that can be used as a sanity-check
 		if err := statisticalTest.Wait(); err != nil {
 			output, _ := statisticalTest.Output()
-			fmt.Println(string(output))
+			log.Debug(string(output))
 
 			switch statisticalTest.ProcessState.ExitCode() {
-			case 200:
+			case 0:
 				result = true // distribution satisfied
-			case 300:
-				panic("Unsupported distribution by the statistical test.")
-			case 400:
+			case 1:
 				return false // distribution not satisfied
+			case 2:
+				log.Fatal("Unsupported distribution by the statistical test.")
 			}
 		}
 	}
