@@ -1,6 +1,8 @@
-package generate
+package driver
 
 import (
+	"github.com/eth-easl/loader/pkg/common"
+	"github.com/eth-easl/loader/pkg/generator"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -17,7 +19,7 @@ func GenerateColdStartLoads(
 	rpsStep int,
 	hotFunction tc.Function,
 	coldstartCounts []int,
-	iatDistribution IatDistribution,
+	iatDistribution common.IatDistribution,
 	withTracing bool,
 	seed int64,
 ) {
@@ -60,7 +62,7 @@ func GenerateColdStartLoads(
 	minute := 0
 	tolerance := 0
 
-	sg := NewSpecificationGenerator(seed)
+	sg := generator.NewSpecificationGenerator(seed)
 
 coldstart_generation:
 	for {
@@ -130,7 +132,7 @@ coldstart_generation:
 
 				if CheckOverload(atomic.LoadInt64(&successCountRpsStep), atomic.LoadInt64(&failureCountRpsStep)) {
 					tolerance++
-					if tolerance < OVERFLOAD_TOLERANCE {
+					if tolerance < common.OVERFLOAD_TOLERANCE {
 						rps -= rpsStep //* Stay in the current RPS for one more time.
 						goto next_rps
 					} else {
@@ -151,7 +153,7 @@ coldstart_generation:
 	}
 	log.Info("Finished coldstart generation with ending RPS=", rps)
 
-	forceTimeoutDuration := FORCE_TIMEOUT_MINUTE * time.Minute
+	forceTimeoutDuration := common.FORCE_TIMEOUT_MINUTE * time.Minute
 	if wgWaitWithTimeout(&wg, forceTimeoutDuration) {
 		log.Warn("Time out waiting for all invocations to return.")
 	} else {

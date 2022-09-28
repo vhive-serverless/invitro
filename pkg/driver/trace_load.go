@@ -1,7 +1,11 @@
-package generate
+package driver
 
 import (
+	"fmt"
+	"github.com/eth-easl/loader/pkg/common"
+	"github.com/eth-easl/loader/pkg/generator"
 	"math"
+	"os"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -15,6 +19,7 @@ import (
 
 type TraceGeneratorParams struct {
 	EnableMetricsCollection bool
+	IATDistribution         common.IatDistribution
 
 	SampleSize                    int
 	PhaseIdx                      int
@@ -23,7 +28,6 @@ type TraceGeneratorParams struct {
 	Functions                     []tc.Function
 	InvocationsEachMinute         [][]int
 	TotalNumInvocationsEachMinute []int
-	IatDistribution               IatDistribution
 	WithTracing                   bool
 	Seed                          int64
 }
@@ -83,7 +87,7 @@ func (d *Driver) CreateKnativeStateUpdateScrapper(interval time.Duration) func()
 }
 
 func (d *Driver) GenerateTraceLoads(params TraceGeneratorParams) int {
-	sg := NewSpecificationGenerator(params.Seed)
+	sg := generator.NewSpecificationGenerator(params.Seed)
 	// TODO: need assert on trace parsing that the last column with non null is parsed and declared as trace length
 	totalTraceDuration := len(params.TotalNumInvocationsEachMinute)
 
@@ -93,6 +97,19 @@ func (d *Driver) GenerateTraceLoads(params TraceGeneratorParams) int {
 		go d.CreateKnativeStateUpdateScrapper(time.Second * 15)
 		go d.CreateColdStartCountScrapper(time.Second * 60)
 	}
+
+	/////////////////////////////////////////
+	// REENGINEERING BELOW
+	/////////////////////////////////////////
+	for _, function := range params.Functions {
+		IAT, _ := sg.GenerateIAT(function.NumInvocationsPerMinute, params.IATDistribution)
+
+		fmt.Println(len(IAT))
+	}
+
+	/////////////////////////////////////////
+	// OLD CODE
+	/////////////////////////////////////////
 
 	start := time.Now()
 	wg := sync.WaitGroup{}
@@ -115,7 +132,7 @@ trace_gen:
 			continue
 		}
 
-		iats, _ = sg.GenerateIAT([]int{numInvocationsThisMinute}, params.IatDistribution)
+		iats, _ = sg.GenerateIAT([]int{numInvocationsThisMinute}, params.IATDistribution)
 		log.Infof("Minute[%d]\t RPS=%d", minute, rps)
 
 		/** Set up timer to bound the one-minute invocation. */
@@ -200,11 +217,11 @@ trace_gen:
 
 				/** Warmup phases */
 				stationaryWindow := 1
-				if params.PhaseIdx == 1 && minute+1 >= WARMUP_DURATION_MINUTES {
+				if params.PhaseIdx == 1 && minute+1 >= common.WARMUP_DURATION_MINUTES {
 					if params.EnableMetricsCollection {
 						// TODO: should the coller always be running?
-						if !d.collector.IsLatencyStationary(rps*60*stationaryWindow, STATIONARY_P_VALUE) {
-							log.Warnf("Warmup may need longer than %d minutes", WARMUP_DURATION_MINUTES)
+						if !d.collector.IsLatencyStationary(rps*60*stationaryWindow, common.STATIONARY_P_VALUE) {
+							log.Warnf("Warmup may need longer than %d minutes", common.WARMUP_DURATION_MINUTES)
 						}
 					}
 					minute++
@@ -217,7 +234,7 @@ trace_gen:
 	}
 	log.Info("\tFinished invoking all functions.")
 
-	forceTimeoutDuration := time.Duration(FORCE_TIMEOUT_MINUTE) * time.Minute
+	forceTimeoutDuration := time.Duration(common.FORCE_TIMEOUT_MINUTE) * time.Minute
 	if !params.WithBlocking {
 		forceTimeoutDuration = time.Second * 1
 	}
@@ -240,4 +257,43 @@ trace_gen:
 	}
 
 	return params.PhaseOffset + minute
+}
+
+/////////////////////////////////////
+// TODO: check and refactor everything below
+/////////////////////////////////////
+
+/**
+ * This function waits for the waitgroup for the specified max timeout.
+ * Returns true if waiting timed out.
+ */
+func wgWaitWithTimeout(wg *sync.WaitGroup, timeout time.Duration) bool {
+	log.Info("Start waiting for all requests to return.")
+	c := make(chan struct{})
+	go func() {
+		defer close(c)
+		wg.Wait()
+	}()
+	select {
+	case <-c:
+		log.Info("Finished waiting for all invocations.")
+		return false
+	case <-time.After(timeout):
+		return true
+	}
+}
+
+func CheckOverload(successCount, failureCount int64) bool {
+	//* Amongst those returned, how many has failed?
+	failureRate := float64(failureCount) / float64(successCount+failureCount)
+	log.Info("Failure rate=", failureRate)
+	return failureRate > common.OVERFLOAD_THRESHOLD
+}
+
+func DumpOverloadFlag() {
+	// If the file doesn't exist, create it, or append to the file
+	_, err := os.OpenFile("overload.flag", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		log.Fatal(err)
+	}
 }
