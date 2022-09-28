@@ -10,6 +10,24 @@ import (
 	tc "github.com/eth-easl/loader/pkg/trace"
 )
 
+// IATMatrix - columns are minutes, rows are IATs
+type IATMatrix [][]float64
+
+// ProbabilisticDuration used for testing the exponential distribution
+type ProbabilisticDuration []float64
+
+type RuntimeSpecification struct {
+	Runtime int
+	Memory  int
+}
+type RuntimeSpecificationMatrix [][]RuntimeSpecification
+
+type FunctionSpecification struct {
+	IAT                  IATMatrix
+	RawDuration          ProbabilisticDuration
+	RuntimeSpecification RuntimeSpecificationMatrix
+}
+
 type SpecificationGenerator struct {
 	iatRand  *rand.Rand
 	iatMutex *sync.Mutex
@@ -81,7 +99,7 @@ func (s *SpecificationGenerator) generateIATForAMinute(numberOfInvocations int, 
 }
 
 // GenerateIAT generates IAT according to the given distribution. Number of minutes is the length of invocationsPerMinute array
-func (s *SpecificationGenerator) GenerateIAT(invocationsPerMinute []int, iatDistribution common.IatDistribution) ([][]float64, []float64) {
+func (s *SpecificationGenerator) generateIAT(invocationsPerMinute []int, iatDistribution common.IatDistribution) (IATMatrix, ProbabilisticDuration) {
 	var IAT [][]float64
 	var nonScaledDuration []float64
 
@@ -94,6 +112,31 @@ func (s *SpecificationGenerator) GenerateIAT(invocationsPerMinute []int, iatDist
 	}
 
 	return IAT, nonScaledDuration
+}
+
+func (s *SpecificationGenerator) GenerateInvocationData(function tc.Function, iatDistribution common.IatDistribution) *FunctionSpecification {
+	invocationsPerMinute := function.NumInvocationsPerMinute
+
+	// Generating IAT
+	iat, rawDuration := s.generateIAT(invocationsPerMinute, iatDistribution)
+
+	// Generating runtime specifications
+	var runtimeMatrix RuntimeSpecificationMatrix
+	for i := 0; i < len(invocationsPerMinute); i++ {
+		var row []RuntimeSpecification
+
+		for j := 0; j < invocationsPerMinute[i]; j++ {
+			row = append(row, s.generateExecutionSpecs(function))
+		}
+
+		runtimeMatrix = append(runtimeMatrix, row)
+	}
+
+	return &FunctionSpecification{
+		IAT:                  iat,
+		RawDuration:          rawDuration,
+		RuntimeSpecification: runtimeMatrix,
+	}
 }
 
 //////////////////////////////////////////////////
@@ -171,7 +214,7 @@ func (s *SpecificationGenerator) generateMemorySpec(memQtl float64, memStats *tc
 	return memory
 }
 
-func (s *SpecificationGenerator) GenerateExecutionSpecs(function tc.Function) (int, int) {
+func (s *SpecificationGenerator) generateExecutionSpecs(function tc.Function) RuntimeSpecification {
 	runStats, memStats := function.RuntimeStats, function.MemoryStats
 	if runStats.Count <= 0 || memStats.Count <= 0 {
 		log.Fatal("Invalid duration or memory specification of the function '" + function.Name + "'.")
@@ -184,5 +227,8 @@ func (s *SpecificationGenerator) GenerateExecutionSpecs(function tc.Function) (i
 	runtime := util.MinOf(common.MAX_EXEC_TIME_MILLI, util.MaxOf(common.MIN_EXEC_TIME_MILLI, s.generateExecuteSpec(runQtl, &runStats)))
 	memory := util.MinOf(tc.MAX_MEM_QUOTA_MIB, util.MaxOf(tc.MIN_MEM_QUOTA_MIB, s.generateMemorySpec(memQtl, &memStats)))
 
-	return runtime, memory
+	return RuntimeSpecification{
+		Runtime: runtime,
+		Memory:  memory,
+	}
 }
