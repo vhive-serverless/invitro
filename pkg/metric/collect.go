@@ -193,18 +193,21 @@ func (collector *Collector) FinishAndSave(sampleSize int, phase int, duration in
 	util.Check(err)
 	err = gocsv.MarshalFile(&collector.invocationRecords, invocF)
 	util.Check(err)
+	defer invocF.Close()
 
 	latencyFileName := "data/out/exec_sample-" + strconv.Itoa(sampleSize) + "_phase-" + strconv.Itoa(phase) + "_dur-" + strconv.Itoa(duration) + ".csv"
 	latencyF, err := os.Create(latencyFileName)
 	util.Check(err)
 	err = gocsv.MarshalFile(&collector.executionRecords, latencyF)
 	util.Check(err)
+	defer latencyF.Close()
 
 	scaleFileName := "data/out/scale_sample-" + strconv.Itoa(sampleSize) + "_phase-" + strconv.Itoa(phase) + "_dur-" + strconv.Itoa(duration) + ".csv"
 	scaleF, err := os.Create(scaleFileName)
 	util.Check(err)
 	err = gocsv.MarshalFile(&collector.scaleRecords, scaleF)
 	util.Check(err)
+	defer scaleF.Close()
 }
 
 func (collector *Collector) ReportInvocation(record MinuteInvocationRecord) {

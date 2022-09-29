@@ -1,9 +1,8 @@
-package function
+package driver
 
 import (
 	"context"
 	tc "github.com/eth-easl/loader/pkg/common"
-	"io"
 	"time"
 
 	grpcpool "github.com/processout/grpc-go-pool"
@@ -59,12 +58,14 @@ func CreateGrpcPool(functions []tc.Function) {
 func DestroyGrpcPool() {
 	for endpoint := range pools.pools {
 		pools.callbacks[endpoint]()
-		closeConn(pools.conns[endpoint])
+		gRPCConnectionClose(pools.conns[endpoint])
 	}
 }
 
-func closeConn(c io.Closer) {
-	if err := c.Close(); err != nil {
-		log.Warn("Connection closing error: ", err)
+func gRPCConnectionClose(conn *grpc.ClientConn) {
+	if conn != nil {
+		if err := conn.Close(); err != nil {
+			log.Warnf("Error while closing gRPC connection - %s\n", err)
+		}
 	}
 }
