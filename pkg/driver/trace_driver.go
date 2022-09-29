@@ -47,12 +47,12 @@ func NewDriver(driverConfig *DriverConfiguration) *Driver {
 /////////////////////////////////////////
 
 // CreateKnativeMetricsScrapper launches a scraper that updates the cluster usage periodically
-func (d *Driver) CreateKnativeMetricsScrapper(interval time.Duration, signal *sync.WaitGroup) func() {
+func (d *Driver) CreateKnativeMetricsScrapper(interval time.Duration, signalReady *sync.WaitGroup) func() {
 	timer := time.NewTicker(interval)
 	d.collector = mc.NewCollector()
 
 	return func() {
-		signal.Done()
+		signalReady.Done()
 
 		for {
 			<-timer.C
@@ -62,14 +62,14 @@ func (d *Driver) CreateKnativeMetricsScrapper(interval time.Duration, signal *sy
 }
 
 // CreateColdStartCountScrapper creates cold start count scrapper with the given period
-func (d *Driver) CreateColdStartCountScrapper(interval time.Duration, signal *sync.WaitGroup) func() {
+func (d *Driver) CreateColdStartCountScrapper(interval time.Duration, signalReady *sync.WaitGroup) func() {
 	timer := time.NewTicker(time.Second * 60)
 	d.knStats = mc.KnStats{}
 	d.coldStartGauge = 0
 	d.coldStartMinuteCount = 0
 
 	return func() {
-		signal.Done()
+		signalReady.Done()
 
 		for {
 			<-timer.C
@@ -80,12 +80,12 @@ func (d *Driver) CreateColdStartCountScrapper(interval time.Duration, signal *sy
 }
 
 // CreateKnativeStateUpdateScrapper creates a scraper that updates Knative states periodically
-func (d *Driver) CreateKnativeStateUpdateScrapper(interval time.Duration, signal *sync.WaitGroup) func() {
+func (d *Driver) CreateKnativeStateUpdateScrapper(interval time.Duration, signalReady *sync.WaitGroup) func() {
 	timer := time.NewTicker(interval)
 	d.clusterUsage = mc.ClusterUsage{}
 
 	return func() {
-		signal.Done()
+		signalReady.Done()
 
 		for {
 			<-timer.C
@@ -195,11 +195,11 @@ func (d *Driver) individualFunctionDriver(function common.Function, announceFunc
 	atomic.AddInt64(totalFailed, failedInvocations)
 }
 
-func (d *Driver) globalTimekeeper(totalTraceDuration int, signal *sync.WaitGroup) {
+func (d *Driver) globalTimekeeper(totalTraceDuration int, signalReady *sync.WaitGroup) {
 	ticker := time.NewTicker(time.Minute)
 	globalTimeCounter := 0
 
-	signal.Done()
+	signalReady.Done()
 
 	for {
 		<-ticker.C
@@ -217,12 +217,11 @@ func (d *Driver) globalTimekeeper(totalTraceDuration int, signal *sync.WaitGroup
 	ticker.Stop()
 }
 
-func (d *Driver) createGlobalMetricsCollector(collector chan *mc.ExecutionRecord,
-	signal *sync.WaitGroup, signalEverythingWritten *sync.WaitGroup) {
-
+func (d *Driver) createGlobalMetricsCollector(collector chan *mc.ExecutionRecord, signalReady *sync.WaitGroup, signalEverythingWritten *sync.WaitGroup) {
 	totalNumberOfInvocations := SumIntArray(d.Configuration.TotalNumInvocationsEachMinute)
 	currentlyWritten := 0
 
+	// TODO: will be changed afterward
 	invocationFile, err := os.Create("data/out/test_output.csv")
 	util.Check(err)
 	defer invocationFile.Close()
@@ -235,15 +234,16 @@ func (d *Driver) createGlobalMetricsCollector(collector chan *mc.ExecutionRecord
 			"requestedDuration," +
 			"responseTime," +
 			"actualDuration," +
+			"actualMemoryUsage," +
 			"connectionTimeout," +
 			"functionTimeout\n")
 
-	signal.Done()
+	signalReady.Done()
 
 	for {
 		select {
 		case record := <-collector:
-			invocationFile.WriteString(fmt.Sprintf("%d,%s,%s,%d,%d,%d,%d,%t,%t\n",
+			invocationFile.WriteString(fmt.Sprintf("%d,%s,%s,%d,%d,%d,%d,%d,%t,%t\n",
 				record.Phase,
 				record.FunctionName,
 				record.InvocationID,
@@ -251,11 +251,12 @@ func (d *Driver) createGlobalMetricsCollector(collector chan *mc.ExecutionRecord
 				record.RequestedDuration,
 				record.ResponseTime,
 				record.ActualDuration,
+				record.ActualMemoryUsage,
 				record.ConnectionTimeout,
 				record.FunctionTimeout,
 			))
-			currentlyWritten++
 
+			currentlyWritten++
 			if currentlyWritten == totalNumberOfInvocations {
 				(*signalEverythingWritten).Done()
 
@@ -278,13 +279,14 @@ func (d *Driver) startBackgroundProcesses(allRecordsWritten *sync.WaitGroup) (*s
 		go d.CreateColdStartCountScrapper(time.Second*60, auxiliaryProcessBarrier)
 	}
 
-	globalMetricsCollector := make(chan *mc.ExecutionRecord)
 	auxiliaryProcessBarrier.Add(2)
+
+	globalMetricsCollector := make(chan *mc.ExecutionRecord)
 	go d.createGlobalMetricsCollector(globalMetricsCollector, auxiliaryProcessBarrier, allRecordsWritten)
 
 	// TODO: need assert on trace parsing that the last column with non null is parsed and declared as trace length
-	totalTraceDuration := len(d.Configuration.TotalNumInvocationsEachMinute)
-	go d.globalTimekeeper(totalTraceDuration, auxiliaryProcessBarrier)
+	traceDurationInMinutes := len(d.Configuration.TotalNumInvocationsEachMinute)
+	go d.globalTimekeeper(traceDurationInMinutes, auxiliaryProcessBarrier)
 
 	return auxiliaryProcessBarrier, globalMetricsCollector
 }
@@ -324,6 +326,7 @@ func (d *Driver) RunExperiment() int {
 	log.Infof("Starting function invocation driver\n")
 	for _, function := range d.Configuration.Functions {
 		allFunctionsCompleted.Add(1)
+
 		go d.individualFunctionDriver(
 			function,
 			&allFunctionsCompleted,
