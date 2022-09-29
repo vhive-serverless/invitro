@@ -1,10 +1,9 @@
 package function
 
 import (
+	util "github.com/eth-easl/loader/pkg/common"
 	"sync"
 	"sync/atomic"
-
-	util "github.com/eth-easl/loader/pkg"
 )
 
 var registry = LoadRegistry{}

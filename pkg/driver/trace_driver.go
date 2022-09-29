@@ -2,7 +2,6 @@ package driver
 
 import (
 	"fmt"
-	util "github.com/eth-easl/loader/pkg"
 	"github.com/eth-easl/loader/pkg/common"
 	"github.com/eth-easl/loader/pkg/generator"
 	log "github.com/sirupsen/logrus"
@@ -222,7 +221,7 @@ func (d *Driver) createGlobalMetricsCollector(collector chan *mc.ExecutionRecord
 
 	// TODO: will be changed afterward
 	invocationFile, err := os.Create("data/out/test_output.csv")
-	util.Check(err)
+	common.Check(err)
 	defer invocationFile.Close()
 
 	invocationFile.WriteString(

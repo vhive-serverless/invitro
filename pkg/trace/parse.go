@@ -11,7 +11,6 @@ import (
 	"strings"
 	"time"
 
-	util "github.com/eth-easl/loader/pkg"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -25,12 +24,12 @@ func init() {
 }
 
 var GetFuncEndpoint = func(name string) string {
-	return fmt.Sprintf("%s.%s.%s", name, namespace, bareMetalLbGateway)
+	return fmt.Sprintf("%s.%s.%s:80", name, namespace, bareMetalLbGateway)
 }
 
 func ParseInvocationTrace(traceFile string, traceDuration int) common.FunctionTraces {
 	// Clamp duration to (0, 1440].
-	traceDuration = util.MaxOf(util.MinOf(traceDuration, 1440), 1)
+	traceDuration = common.MaxOf(common.MinOf(traceDuration, 1440), 1)
 
 	log.Infof("Parsing function invocation trace %s (duration: %d min)", traceFile, traceDuration)
 
@@ -92,7 +91,7 @@ func ParseInvocationTrace(traceFile string, traceDuration int) common.FunctionTr
 			for i := invocationColumnIndex; i < invocationColumnIndex+traceDuration; i++ {
 				minute := i - invocationColumnIndex
 				num, err := strconv.Atoi(record[i])
-				util.Check(err)
+				common.Check(err)
 
 				invocations = append(invocations, num)
 
@@ -166,7 +165,7 @@ func ParseDurationTrace(trace *common.FunctionTraces, traceFile string) {
 
 	for i, function := range trace.Functions {
 		if _, existed := funcPosMap[function.HashFunction]; existed {
-			newHash := strconv.Itoa(int(util.Hash(function.Name)))
+			newHash := strconv.Itoa(int(common.Hash(function.Name)))
 			duplicates, added := duplicatedFunctionMap[function.HashFunction]
 			if added {
 				duplicatedFunctionMap[function.HashFunction] = append(duplicates, newHash)
@@ -267,7 +266,7 @@ func ParseMemoryTrace(trace *common.FunctionTraces, traceFile string) {
 	for i, function := range trace.Functions {
 		_, existed := funcPosMap[function.HashApp]
 		if existed {
-			newHash := strconv.Itoa(int(util.Hash(function.Name)))
+			newHash := strconv.Itoa(int(common.Hash(function.Name)))
 			duplicates, added := duplicatedAppMap[function.HashApp]
 			if added {
 				duplicatedAppMap[function.HashApp] = append(duplicates, newHash)
