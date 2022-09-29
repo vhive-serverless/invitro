@@ -3,6 +3,7 @@ package driver
 import (
 	"context"
 	"github.com/eth-easl/loader/pkg/common"
+	"github.com/eth-easl/loader/server"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -13,7 +14,6 @@ import (
 
 	util "github.com/eth-easl/loader/pkg"
 	mc "github.com/eth-easl/loader/pkg/metric"
-	"github.com/eth-easl/loader/server"
 )
 
 const (
@@ -95,9 +95,11 @@ func Invoke(function common.Function, runtimeSpec *common.RuntimeSpecification, 
 }
 
 func gRPCConnectionClose(conn *grpc.ClientConn) {
-	if conn != nil {
-		if err := conn.Close(); err != nil {
-			log.Warnf("Error while closing gRPC connection - %s\n", err)
-		}
+	if conn == nil {
+		return
+	}
+
+	if err := conn.Close(); err != nil {
+		log.Warnf("Error while closing gRPC connection - %s\n", err)
 	}
 }
