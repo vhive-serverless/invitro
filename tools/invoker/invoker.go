@@ -5,7 +5,7 @@ import (
 	"flag"
 	"time"
 
-	rpc "github.com/eth-easl/loader/server"
+	rpc "github.com/eth-easl/loader/pkg/workload/proto"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 )
@@ -54,5 +54,4 @@ func main() {
 
 	log.Infof("(Replied)\t %s: %d[µs], %d[KB]", *name, runtime, memoryUsage)
 	log.Infof("(E2E Latency) %s: %d[µs]\n", *name, responseTime)
-
 }

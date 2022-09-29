@@ -193,7 +193,7 @@ func runTraceMode(invPath, runPath, memPath string) {
 	driver.NewDriver(traceLoadParams).RunExperiment()
 }
 
-func runStressMode() {
+/*func runStressMode() {
 	var functions []common.Function
 	var initialScales []int
 
@@ -220,9 +220,9 @@ func runStressMode() {
 	fc.DeployFunctions(functions, serviceConfigPath, initialScales, *isPartiallyPanic)
 
 	//driver.GenerateStressLoads(*rpsStart, *rpsEnd, *rpsStep, *rpsSlot, functions, iatType, *withTracing, *seed)
-}
+}*/
 
-func runBurstMode() {
+/*func runBurstMode() {
 	var functions []common.Function
 	functionTable := make(map[string]common.Function)
 	initialScales := []int{1, 1, 0}
@@ -246,9 +246,9 @@ func runBurstMode() {
 	fc.DeployFunctions(functions, serviceConfigPath, initialScales, *isPartiallyPanic)
 
 	//driver.GenerateBurstLoads(*rpsEnd, *burstTarget, *duration, functionTable, iatType, *withTracing, *seed)
-}
+}*/
 
-func runColdStartMode() {
+/*func runColdStartMode() {
 	//coldStartCountFile := "data/coldstarts/200f_30min.csv"
 	//coldstartCounts := util.ReadIntArray(coldStartCountFile, ",")
 	totalFunctions := 200 - 1
@@ -272,4 +272,4 @@ func runColdStartMode() {
 	fc.DeployFunctions(functions, serviceConfigPath, []int{}, *isPartiallyPanic)
 
 	//defer driver.GenerateColdStartLoads(*rpsStart, *rpsStep, hotFunction, coldstartCounts, iatType, *withTracing, *seed)
-}
+}*/
