@@ -144,51 +144,50 @@ func (d *Driver) individualFunctionDriver(function common.Function, announceFunc
 	waitForInvocations := sync.WaitGroup{}
 
 	for {
-		// Check whether the end of trace has been reached
 		if minuteIndex >= totalTraceDuration {
+			// Check whether the end of trace has been reached
 			break
-		}
-
-		if function.NumInvocationsPerMinute[minuteIndex] == 0 {
+		} else if function.NumInvocationsPerMinute[minuteIndex] == 0 {
+			// Sleep for a minute if there are no invocations
 			minuteIndex++
 			invocationIndex = 0
 
 			time.Sleep(time.Minute)
-		} else {
-			waitForInvocations.Add(1)
-
-			go d.invokeFunction(&InvocationMetadata{
-				Function:              function,
-				RuntimeSpecifications: &runtimeSpecification[minuteIndex][invocationIndex],
-				Phase:                 common.ExecutionPhase, // TODO: add a warmup phase
-				MinuteIndex:           minuteIndex,
-				InvocationIndex:       invocationIndex,
-				SuccessCount:          &successfullInvocations,
-				FailedCount:           &failedInvocations,
-				RecordOutputChannel:   recordOutputChannel,
-				AnnounceDoneWG:        &waitForInvocations,
-			})
-
-			sleepFor := time.Duration(IAT[minuteIndex][invocationIndex]) * time.Microsecond
-
-			invocationIndex++
-			if function.NumInvocationsPerMinute[minuteIndex] == invocationIndex {
-				minuteIndex++
-				invocationIndex = 0
-
-				if minuteIndex >= totalTraceDuration {
-					break
-				}
-			}
-
-			//fmt.Println(sleepFor)
-			time.Sleep(sleepFor)
+			continue
 		}
+
+		waitForInvocations.Add(1)
+
+		go d.invokeFunction(&InvocationMetadata{
+			Function:              function,
+			RuntimeSpecifications: &runtimeSpecification[minuteIndex][invocationIndex],
+			Phase:                 common.ExecutionPhase, // TODO: add a warmup phase
+			MinuteIndex:           minuteIndex,
+			InvocationIndex:       invocationIndex,
+			SuccessCount:          &successfullInvocations,
+			FailedCount:           &failedInvocations,
+			RecordOutputChannel:   recordOutputChannel,
+			AnnounceDoneWG:        &waitForInvocations,
+		})
+
+		sleepFor := time.Duration(IAT[minuteIndex][invocationIndex]) * time.Microsecond
+
+		invocationIndex++
+		if function.NumInvocationsPerMinute[minuteIndex] == invocationIndex {
+			minuteIndex++
+			invocationIndex = 0
+
+			if minuteIndex >= totalTraceDuration {
+				break
+			}
+		}
+
+		time.Sleep(sleepFor)
 	}
 
 	waitForInvocations.Wait()
 
-	log.Infof("All the invocations for function %s have been completed.\n", function.Name)
+	log.Debugf("All the invocations for function %s have been completed.\n", function.Name)
 	announceFunctionDone.Done()
 
 	atomic.AddInt64(totalSuccessfull, successfullInvocations)
@@ -204,14 +203,14 @@ func (d *Driver) globalTimekeeper(totalTraceDuration int, signalReady *sync.Wait
 	for {
 		<-ticker.C
 
-		log.Infof("End of minute %d\n", globalTimeCounter)
+		log.Debugf("End of minute %d\n", globalTimeCounter)
 
 		globalTimeCounter++
 		if globalTimeCounter >= totalTraceDuration {
 			break
 		}
 
-		log.Infof("Start of minute %d\n", globalTimeCounter)
+		log.Debugf("Start of minute %d\n", globalTimeCounter)
 	}
 
 	ticker.Stop()
@@ -322,6 +321,8 @@ func (d *Driver) RunExperiment() int {
 	}
 
 	backgroundProcessesInitializationBarrier.Wait()
+
+	// TODO: warmup phase comes in here
 
 	log.Infof("Starting function invocation driver\n")
 	for _, function := range d.Configuration.Functions {
