@@ -2,7 +2,7 @@ package driver
 
 import (
 	"context"
-	tc "github.com/eth-easl/loader/pkg/common"
+	"github.com/eth-easl/loader/pkg/common"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -19,14 +19,14 @@ import (
 const (
 	functionPort = ":80"
 
-	// TODO: change the values and make them configurable from outside
+	// TODO: make the following two parameters configurable from outside
 	grpcConnectionTimeout = 5 * time.Second
 	// Function can execute for at most 15 minutes as in AWS Lambda
 	// https://aws.amazon.com/about-aws/whats-new/2018/10/aws-lambda-supports-functions-that-can-run-up-to-15-minutes/
 	functionTimeout = 15 * time.Minute
 )
 
-func Invoke(function tc.Function, runtimeSpec *tc.RuntimeSpecification, withTracing bool) (bool, *mc.ExecutionRecord) {
+func Invoke(function common.Function, runtimeSpec *common.RuntimeSpecification, withTracing bool) (bool, *mc.ExecutionRecord) {
 	log.Tracef("(Invoke)\t %s: %d[ms], %d[MiB]", function.Name, runtimeSpec.Runtime, runtimeSpec.Memory)
 
 	record := &mc.ExecutionRecord{
@@ -65,7 +65,6 @@ func Invoke(function tc.Function, runtimeSpec *tc.RuntimeSpecification, withTrac
 
 	grpcClient := server.NewExecutorClient(conn)
 
-	// Contact the server and print out its response.
 	executionCxt, cancelExecution := context.WithTimeout(context.Background(), functionTimeout)
 	defer cancelExecution()
 
@@ -76,7 +75,7 @@ func Invoke(function tc.Function, runtimeSpec *tc.RuntimeSpecification, withTrac
 	})
 
 	if err != nil {
-		log.Warnf("Failed  in gRPC execution (%s): %v", function.Name, err)
+		log.Warnf("gRPC timeout exceeded for function %s - %s", function.Name, err)
 
 		record.ResponseTime = time.Since(start).Microseconds()
 		record.FunctionTimeout = true
@@ -86,9 +85,10 @@ func Invoke(function tc.Function, runtimeSpec *tc.RuntimeSpecification, withTrac
 
 	record.ResponseTime = time.Since(start).Microseconds()
 	record.ActualDuration = response.DurationInMicroSec
+	record.ActualMemoryUsage = util.Kib2Mib(response.MemoryUsageInKb)
 
 	log.Tracef("(Replied)\t %s: %s, %.2f[ms], %d[MiB]", function.Name, response.Message,
-		float64(response.DurationInMicroSec)/1e3, util.Kib2Mib(0))
+		float64(response.DurationInMicroSec)/1e3, util.Kib2Mib(response.MemoryUsageInKb))
 	log.Tracef("(E2E Latency) %s: %.2f[ms]\n", function.Name, float64(record.ResponseTime)/1e3)
 
 	return true, record

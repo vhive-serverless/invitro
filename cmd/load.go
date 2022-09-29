@@ -57,6 +57,8 @@ var (
 	withTracing      = flag.Bool("trace", false, "Enable tracing in the client")
 )
 
+// TODO: this file has not been yet reviewed
+
 func init() {
 	/** Logging. */
 	flag.Parse()
