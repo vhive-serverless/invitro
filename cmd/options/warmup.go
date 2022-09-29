@@ -145,7 +145,7 @@ func Warmup(
 			Seed:                          seed,
 		}
 
-		nextPhaseStart = driver.NewDriver(traceLoadParams).GenerateTraceLoads()
+		nextPhaseStart = driver.NewDriver(traceLoadParams).RunExperiment()
 	}
 
 	return nextPhaseStart

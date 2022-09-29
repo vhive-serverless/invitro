@@ -3,6 +3,7 @@ package util
 import (
 	"hash/fnv"
 	"io/ioutil"
+	"log"
 	"math/rand"
 	"strconv"
 	"strings"
@@ -101,7 +102,7 @@ func MaxOf(vars ...int) int {
 
 func Check(e error) {
 	if e != nil {
-		panic(e)
+		log.Fatal(e)
 	}
 }
 
