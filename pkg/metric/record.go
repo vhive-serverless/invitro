@@ -20,6 +20,7 @@ type ExecutionRecord struct {
 	RequestedDuration uint32 `csv:"requestedDuration"`
 	ResponseTime      int64  `csv:"responseTime"`
 	ActualDuration    uint32 `csv:"actualDuration"`
+	ActualMemoryUsage uint32 `csv:"actualMemoryUsage"`
 
 	ConnectionTimeout bool `csv:"connectionTimeout"`
 	FunctionTimeout   bool `csv:"functionTimeout"`
