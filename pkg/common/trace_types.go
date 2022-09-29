@@ -4,8 +4,6 @@ import (
 	"fmt"
 )
 
-type FunctionSpecsGen func(Function) (int, int)
-
 type FunctionConcurrencyStats struct {
 	Average float64
 	Count   float64

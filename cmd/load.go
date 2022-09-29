@@ -3,7 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
-	gen "github.com/eth-easl/loader/pkg/common"
+	"github.com/eth-easl/loader/pkg/common"
 	"github.com/eth-easl/loader/pkg/driver"
 	"os"
 	"strconv"
@@ -23,8 +23,8 @@ const (
 )
 
 var (
-	traces  gen.FunctionTraces
-	iatType gen.IatDistribution
+	traces  common.FunctionTraces
+	iatType common.IatDistribution
 
 	serviceConfigPath = ""
 
@@ -105,11 +105,11 @@ func main() {
 
 	switch *iatDistribution {
 	case "exponential":
-		iatType = gen.Exponential
+		iatType = common.Exponential
 	case "uniform":
-		iatType = gen.Uniform
+		iatType = common.Uniform
 	case "equidistant":
-		iatType = gen.Equidistant
+		iatType = common.Equidistant
 	default:
 		log.Fatal("Unsupported IAT distribution.")
 	}
@@ -142,7 +142,7 @@ func runTraceMode(invPath, runPath, memPath string) {
 
 	amendedDuration := *duration
 	if *withWarmup {
-		amendedDuration += gen.WARMUP_DURATION_MINUTES * 2
+		amendedDuration += common.WARMUP_DURATION_MINUTES * 2
 	}
 
 	traces = tc.ParseInvocationTrace(invPath, util.MinOf(1440, amendedDuration))
@@ -160,7 +160,7 @@ func runTraceMode(invPath, runPath, memPath string) {
 	if *withWarmup {
 		for funcIdx := 0; funcIdx < len(traces.Functions); funcIdx++ {
 			function := traces.Functions[funcIdx]
-			traces.Functions[funcIdx] = tc.ProfileFunction(function, gen.PROFILING_DURATION_MINUTES)
+			traces.Functions[funcIdx] = tc.ProfileFunction(function, common.PROFILING_DURATION_MINUTES)
 		}
 		traces.WarmupScales = opts.ComputeFunctionWarmupScales(*cluster, traces.Functions)
 	}
@@ -180,15 +180,10 @@ func runTraceMode(invPath, runPath, memPath string) {
 		log.Warnf("Warmup failed to finish in %d minutes", *duration)
 	}
 
-	log.Infof("Phase 2: generate real workloads")
+	log.Infof("Phase 2 - Generate real workloads")
 
 	traceLoadParams := &driver.DriverConfiguration{
-		SampleSize:                    *sampleSize,
-		PhaseIdx:                      totalNumPhases,
-		PhaseOffset:                   nextPhaseStart,
-		WithBlocking:                  true,
 		Functions:                     functions,
-		InvocationsEachMinute:         traces.InvocationsEachMinute[nextPhaseStart : nextPhaseStart+*duration],
 		TotalNumInvocationsEachMinute: traces.TotalInvocationsPerMinute[nextPhaseStart : nextPhaseStart+*duration],
 		IATDistribution:               iatType,
 		WithTracing:                   *withTracing,
@@ -198,22 +193,22 @@ func runTraceMode(invPath, runPath, memPath string) {
 }
 
 func runStressMode() {
-	var functions []gen.Function
+	var functions []common.Function
 	var initialScales []int
 
 	for i := 0; i < *totalFunctions; i++ {
 		stressFunc := "stress-func-" + strconv.Itoa(i)
-		functions = append(functions, gen.Function{
+		functions = append(functions, common.Function{
 			Name:     stressFunc,
 			Endpoint: tc.GetFuncEndpoint(stressFunc),
 			//! Set best-effort for RPS sweeping.
 			CpuRequestMilli:  0,
 			MemoryRequestMiB: 0,
-			RuntimeStats: gen.FunctionRuntimeStats{
+			RuntimeStats: common.FunctionRuntimeStats{
 				Count:   -1,
 				Average: *funcDuration,
 			},
-			MemoryStats: gen.FunctionMemoryStats{
+			MemoryStats: common.FunctionMemoryStats{
 				Count:   -1,
 				Average: *funcMemory,
 			},
@@ -227,19 +222,19 @@ func runStressMode() {
 }
 
 func runBurstMode() {
-	var functions []gen.Function
-	functionTable := make(map[string]gen.Function)
+	var functions []common.Function
+	functionTable := make(map[string]common.Function)
 	initialScales := []int{1, 1, 0}
 
 	for _, f := range []string{"steady", "bursty", "victim"} {
-		functionTable[f] = gen.Function{
+		functionTable[f] = common.Function{
 			Name:     f + "-func",
 			Endpoint: tc.GetFuncEndpoint(f + "-func"),
-			RuntimeStats: gen.FunctionRuntimeStats{
+			RuntimeStats: common.FunctionRuntimeStats{
 				Average: *funcDuration,
 				Maximum: 0,
 			},
-			MemoryStats: gen.FunctionMemoryStats{
+			MemoryStats: common.FunctionMemoryStats{
 				Average:       *funcMemory,
 				Percentile100: 0,
 			},
@@ -256,10 +251,10 @@ func runColdStartMode() {
 	//coldStartCountFile := "data/coldstarts/200f_30min.csv"
 	//coldstartCounts := util.ReadIntArray(coldStartCountFile, ",")
 	totalFunctions := 200 - 1
-	functions := []gen.Function{}
+	var functions []common.Function
 
 	// Create a single hot function.
-	hotFunction := gen.Function{
+	hotFunction := common.Function{
 		Name:     "hot-func",
 		Endpoint: tc.GetFuncEndpoint("hot-func"),
 	}
@@ -267,7 +262,7 @@ func runColdStartMode() {
 	// Set the rest functions as cold.
 	for i := 0; i < totalFunctions; i++ {
 		coldFunc := "cold-func-" + strconv.Itoa(i)
-		functions = append(functions, gen.Function{
+		functions = append(functions, common.Function{
 			Name:     coldFunc,
 			Endpoint: tc.GetFuncEndpoint(coldFunc),
 		})

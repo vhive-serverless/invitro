@@ -19,7 +19,6 @@ import (
 const (
 	functionPort = ":80"
 
-	// TODO: figure out the meaning of the contexts associated with this
 	// TODO: change the values and make them configurable from outside
 	grpcConnectionTimeout = 5 * time.Second
 	// Function can execute for at most 15 minutes as in AWS Lambda
@@ -93,4 +92,12 @@ func Invoke(function tc.Function, runtimeSpec *tc.RuntimeSpecification, withTrac
 	log.Tracef("(E2E Latency) %s: %.2f[ms]\n", function.Name, float64(record.ResponseTime)/1e3)
 
 	return true, record
+}
+
+func gRPCConnectionClose(conn *grpc.ClientConn) {
+	if conn != nil {
+		if err := conn.Close(); err != nil {
+			log.Warnf("Error while closing gRPC connection - %s\n", err)
+		}
+	}
 }
