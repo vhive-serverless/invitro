@@ -35,7 +35,7 @@ func CreateGrpcPool(functions []common.Function) {
 		dailCxt, cancelDailing := context.WithTimeout(context.Background(), grpcConnectionTimeout)
 		var factory grpcpool.Factory = func() (*grpc.ClientConn, error) {
 			// defer cancelDailing()
-			conn, err := grpc.DialContext(dailCxt, function.Endpoint+functionPort, grpc.WithTransportCredentials(insecure.NewCredentials()))
+			conn, err := grpc.DialContext(dailCxt, function.Endpoint, grpc.WithTransportCredentials(insecure.NewCredentials()))
 			if err != nil {
 				log.Fatalf("Failed to start gRPC connection (%s): %v", function.Name, err)
 			}

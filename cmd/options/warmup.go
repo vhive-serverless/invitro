@@ -7,7 +7,6 @@ import (
 	"runtime"
 	"sort"
 
-	util "github.com/eth-easl/loader/pkg"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -33,7 +32,7 @@ func ComputeFunctionWarmupScales(clusterSize int, functions []common.Function) [
 
 	for _, function := range functions {
 		expectedConcurrency := function.ConcurrencyStats.Average
-		scale := util.MaxOf(MIN_WARMUP_SCALE, int(math.Ceil(expectedConcurrency))) // Round up.
+		scale := common.MaxOf(MIN_WARMUP_SCALE, int(math.Ceil(expectedConcurrency))) // Round up.
 		scales = append(scales, scale)
 		totalCpuRequestMilli += scale * function.CpuRequestMilli
 	}
@@ -63,9 +62,9 @@ func ComputeFunctionWarmupScales(clusterSize int, functions []common.Function) [
  * For detailed cases, see: `warmup_test.go`.
  */
 func MaxMaxAlloc(totalClusterCapacityMilli int, scales []int, functions []common.Function) []int {
-	scalePairs := make(util.PairList, len(scales))
+	scalePairs := make(common.PairList, len(scales))
 	for i, scale := range scales {
-		scalePairs[i] = util.Pair{Key: i, Value: scale}
+		scalePairs[i] = common.Pair{Key: i, Value: scale}
 	}
 	sort.Sort(sort.Reverse(scalePairs))
 
@@ -93,7 +92,7 @@ func MaxMaxAlloc(totalClusterCapacityMilli int, scales []int, functions []common
 		}
 
 		totalPossible := totalClusterCapacityMilli / function.CpuRequestMilli
-		ration := util.MinOf(desiredScale, totalPossible)
+		ration := common.MinOf(desiredScale, totalPossible)
 		if isFirst && carry > 0 {
 			if totalPossible < desiredScale*(carry+1) {
 				ration = totalPossible / (carry + 1)
