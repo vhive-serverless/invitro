@@ -103,7 +103,3 @@ func (f *Function) GetName() string {
 func (f *Function) GetUrl() string {
 	return f.Endpoint
 }
-
-func (f *Function) SetUrl(url string) {
-	f.Endpoint = url
-}

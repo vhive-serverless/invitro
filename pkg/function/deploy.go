@@ -86,6 +86,8 @@ func deploy(function *common.Function, serviceConfigPath string, initScale int, 
 		function.Endpoint = endpoint
 	}
 
+	function.Endpoint += ":80"
+
 	log.Info("Deployed function ", function.Endpoint)
 	return true
 }
