@@ -2,7 +2,7 @@ package driver
 
 import (
 	"context"
-	tc "github.com/eth-easl/loader/pkg/common"
+	"github.com/eth-easl/loader/pkg/common"
 	"time"
 
 	grpcpool "github.com/processout/grpc-go-pool"
@@ -25,7 +25,7 @@ func (ps *RpcPools) GetConn(endpoint string) (*grpcpool.ClientConn, error) {
 	return pool.Get(pools.contexts[endpoint])
 }
 
-func CreateGrpcPool(functions []tc.Function) {
+func CreateGrpcPool(functions []common.Function) {
 	pools.pools = map[string]*grpcpool.Pool{}
 	pools.conns = map[string]*grpc.ClientConn{}
 	pools.contexts = map[string]context.Context{}

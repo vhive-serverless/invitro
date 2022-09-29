@@ -1,7 +1,7 @@
 package function
 
 import (
-	tc "github.com/eth-easl/loader/pkg/common"
+	"github.com/eth-easl/loader/pkg/common"
 	"os/exec"
 	"regexp"
 	"strconv"
@@ -13,19 +13,16 @@ var (
 	regex = regexp.MustCompile("at URL:\nhttp://([^\n]+)")
 )
 
-func DeployFunctions(
-	functions []tc.Function,
-	serviceConfigPath string,
-	initScales []int,
-	isPartiallyPanic bool,
-) []tc.Function {
+// TODO: this file has not been yet reviewed
+
+func DeployFunctions(functions []common.Function, serviceConfigPath string, initScales []int, isPartiallyPanic bool) []common.Function {
 	var urls []string
 	deploymentConcurrency := 1 //* Serialise deployment.
 	sem := make(chan bool, deploymentConcurrency)
 
 	for funcIdx, function := range functions {
 		sem <- true
-		go func(function tc.Function, funcIdx int) {
+		go func(function common.Function, funcIdx int) {
 			defer func() { <-sem }()
 
 			var initScale int
@@ -54,7 +51,7 @@ func DeployFunctions(
 	return functions
 }
 
-func deploy(function *tc.Function, serviceConfigPath string, initScale int, isPartiallyPanic bool) bool {
+func deploy(function *common.Function, serviceConfigPath string, initScale int, isPartiallyPanic bool) bool {
 	panicWindow := "\"10.0\""
 	panicThreshold := "\"200.0\""
 	if isPartiallyPanic {

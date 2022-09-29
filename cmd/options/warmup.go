@@ -11,6 +11,8 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+// TODO: this file has not been yet reviewed
+
 const (
 	// Miminimum warm-up scale.
 	MIN_WARMUP_SCALE = 0
