@@ -13,7 +13,6 @@ import (
 
 	tracer "github.com/ease-lab/vhive/utils/tracing/go"
 	opts "github.com/eth-easl/loader/cmd/options"
-	util "github.com/eth-easl/loader/pkg"
 	fc "github.com/eth-easl/loader/pkg/function"
 	tc "github.com/eth-easl/loader/pkg/trace"
 )
@@ -147,7 +146,7 @@ func runTraceMode(invPath, runPath, memPath string) {
 		amendedDuration += common.WARMUP_DURATION_MINUTES * 2
 	}
 
-	traces = tc.ParseInvocationTrace(invPath, util.MinOf(1440, amendedDuration))
+	traces = tc.ParseInvocationTrace(invPath, common.MinOf(1440, amendedDuration))
 	tc.ParseDurationTrace(&traces, runPath)
 	tc.ParseMemoryTrace(&traces, memPath)
 

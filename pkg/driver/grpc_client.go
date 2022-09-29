@@ -3,7 +3,7 @@ package driver
 import (
 	"context"
 	"github.com/eth-easl/loader/pkg/common"
-	"github.com/eth-easl/loader/server"
+	"github.com/eth-easl/loader/pkg/workload/proto"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -12,13 +12,10 @@ import (
 
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 
-	util "github.com/eth-easl/loader/pkg"
 	mc "github.com/eth-easl/loader/pkg/metric"
 )
 
 const (
-	functionPort = ":80"
-
 	// TODO: make the following two parameters configurable from outside
 	grpcConnectionTimeout = 5 * time.Second
 	// Function can execute for at most 15 minutes as in AWS Lambda
@@ -52,7 +49,7 @@ func Invoke(function common.Function, runtimeSpec *common.RuntimeSpecification, 
 		dialOptions = append(dialOptions, grpc.WithUnaryInterceptor(otelgrpc.UnaryClientInterceptor()))
 	}
 
-	conn, err := grpc.DialContext(dialContext, function.Endpoint+functionPort, dialOptions...)
+	conn, err := grpc.DialContext(dialContext, function.Endpoint, dialOptions...)
 	defer gRPCConnectionClose(conn)
 	if err != nil {
 		log.Warnf("Failed to establish a gRPC connection - %v\n", err)
@@ -63,12 +60,12 @@ func Invoke(function common.Function, runtimeSpec *common.RuntimeSpecification, 
 		return false, record
 	}
 
-	grpcClient := server.NewExecutorClient(conn)
+	grpcClient := proto.NewExecutorClient(conn)
 
 	executionCxt, cancelExecution := context.WithTimeout(context.Background(), functionTimeout)
 	defer cancelExecution()
 
-	response, err := grpcClient.Execute(executionCxt, &server.FaasRequest{
+	response, err := grpcClient.Execute(executionCxt, &proto.FaasRequest{
 		Message:           "nothing",
 		RuntimeInMilliSec: uint32(runtimeSpec.Runtime),
 		MemoryInMebiBytes: uint32(runtimeSpec.Memory),
@@ -85,10 +82,10 @@ func Invoke(function common.Function, runtimeSpec *common.RuntimeSpecification, 
 
 	record.ResponseTime = time.Since(start).Microseconds()
 	record.ActualDuration = response.DurationInMicroSec
-	record.ActualMemoryUsage = util.Kib2Mib(response.MemoryUsageInKb)
+	record.ActualMemoryUsage = common.Kib2Mib(response.MemoryUsageInKb)
 
 	log.Tracef("(Replied)\t %s: %s, %.2f[ms], %d[MiB]", function.Name, response.Message,
-		float64(response.DurationInMicroSec)/1e3, util.Kib2Mib(response.MemoryUsageInKb))
+		float64(response.DurationInMicroSec)/1e3, common.Kib2Mib(response.MemoryUsageInKb))
 	log.Tracef("(E2E Latency) %s: %.2f[ms]\n", function.Name, float64(record.ResponseTime)/1e3)
 
 	return true, record

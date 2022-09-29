@@ -2,7 +2,7 @@
 """Client and server classes corresponding to protobuf-defined services."""
 import grpc
 
-from server import faas_pb2 as server_dot_faas__pb2
+from pkg.workload.proto import faas_pb2 as server_dot_faas__pb2
 
 
 class ExecutorStub(object):
