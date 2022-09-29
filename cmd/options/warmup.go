@@ -1,7 +1,7 @@
 package cmd
 
 import (
-	gen "github.com/eth-easl/loader/pkg/common"
+	"github.com/eth-easl/loader/pkg/common"
 	"github.com/eth-easl/loader/pkg/driver"
 	"math"
 	"runtime"
@@ -24,7 +24,7 @@ const (
  *
  * The calculation is based on the profiled concurrency (see the `trace` package) using Little's law.
  */
-func ComputeFunctionWarmupScales(clusterSize int, functions []gen.Function) []int {
+func ComputeFunctionWarmupScales(clusterSize int, functions []common.Function) []int {
 	var scales []int
 	totalClusterCapacityMilli := int(float32(runtime.NumCPU()*clusterSize*1000) * (1.0 - SYS_CPU_OVERHEAD_PERCENT))
 	totalCpuRequestMilli := 0
@@ -60,7 +60,7 @@ func ComputeFunctionWarmupScales(clusterSize int, functions []gen.Function) []in
  *
  * For detailed cases, see: `warmup_test.go`.
  */
-func MaxMaxAlloc(totalClusterCapacityMilli int, scales []int, functions []gen.Function) []int {
+func MaxMaxAlloc(totalClusterCapacityMilli int, scales []int, functions []common.Function) []int {
 	scalePairs := make(util.PairList, len(scales))
 	for i, scale := range scales {
 		scalePairs[i] = util.Pair{Key: i, Value: scale}
@@ -121,24 +121,19 @@ func MaxMaxAlloc(totalClusterCapacityMilli int, scales []int, functions []gen.Fu
 func Warmup(
 	sampleSize int,
 	totalNumPhases int,
-	functions []gen.Function,
-	traces gen.FunctionTraces,
-	iatDistribution gen.IatDistribution,
+	functions []common.Function,
+	traces common.FunctionTraces,
+	iatDistribution common.IatDistribution,
 	withTracing bool,
 	seed int64,
 ) int {
 	//* Skip the profiling minutes.
-	nextPhaseStart := gen.PROFILING_DURATION_MINUTES
+	nextPhaseStart := common.PROFILING_DURATION_MINUTES
 	for phaseIdx := 1; phaseIdx < totalNumPhases; phaseIdx++ {
 		log.Infof("Enter Phase %d as of Minute[%d]", phaseIdx, nextPhaseStart)
 
 		traceLoadParams := &driver.DriverConfiguration{
-			SampleSize:                    sampleSize,
-			PhaseIdx:                      phaseIdx,
-			PhaseOffset:                   nextPhaseStart,
-			WithBlocking:                  false, //! Non-blocking: directly go to the next phase.
 			Functions:                     functions,
-			InvocationsEachMinute:         traces.InvocationsEachMinute[nextPhaseStart:],
 			TotalNumInvocationsEachMinute: traces.TotalInvocationsPerMinute[nextPhaseStart:],
 			IATDistribution:               iatDistribution,
 			WithTracing:                   withTracing,

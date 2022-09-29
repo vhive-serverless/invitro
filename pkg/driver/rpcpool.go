@@ -61,11 +61,3 @@ func DestroyGrpcPool() {
 		gRPCConnectionClose(pools.conns[endpoint])
 	}
 }
-
-func gRPCConnectionClose(conn *grpc.ClientConn) {
-	if conn != nil {
-		if err := conn.Close(); err != nil {
-			log.Warnf("Error while closing gRPC connection - %s\n", err)
-		}
-	}
-}

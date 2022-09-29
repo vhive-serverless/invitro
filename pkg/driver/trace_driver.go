@@ -18,12 +18,7 @@ type DriverConfiguration struct {
 	EnableMetricsCollection bool
 	IATDistribution         common.IatDistribution
 
-	SampleSize                    int
-	PhaseIdx                      int
-	PhaseOffset                   int
-	WithBlocking                  bool
 	Functions                     []common.Function
-	InvocationsEachMinute         [][]int
 	TotalNumInvocationsEachMinute []int
 	WithTracing                   bool
 	Seed                          int64
@@ -209,9 +204,7 @@ func (d *Driver) globalTimekeeper(totalTraceDuration int, signal *sync.WaitGroup
 	for {
 		<-ticker.C
 
-		if globalTimeCounter != 0 {
-			log.Infof("End of minute %d\n", globalTimeCounter)
-		}
+		log.Infof("End of minute %d\n", globalTimeCounter)
 
 		globalTimeCounter++
 		if globalTimeCounter >= totalTraceDuration {
@@ -279,6 +272,7 @@ func (d *Driver) startBackgroundProcesses(allRecordsWritten *sync.WaitGroup) (*s
 		// TODO: these following arguments should be configurable
 		auxiliaryProcessBarrier.Add(3)
 
+		// TODO: the following three go routines are untested
 		go d.CreateKnativeMetricsScrapper(time.Second*15, auxiliaryProcessBarrier)
 		go d.CreateKnativeStateUpdateScrapper(time.Second*15, auxiliaryProcessBarrier)
 		go d.CreateColdStartCountScrapper(time.Second*60, auxiliaryProcessBarrier)
