@@ -24,7 +24,7 @@ func init() {
 }
 
 var GetFuncEndpoint = func(name string) string {
-	return fmt.Sprintf("%s.%s.%s:80", name, namespace, bareMetalLbGateway)
+	return fmt.Sprintf("%s.%s.%s", name, namespace, bareMetalLbGateway)
 }
 
 func ParseInvocationTrace(traceFile string, traceDuration int) common.FunctionTraces {
