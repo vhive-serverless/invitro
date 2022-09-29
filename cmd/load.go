@@ -122,11 +122,11 @@ func main() {
 
 		runTraceMode(invPath, runPath, memPath)
 	case "stress":
-		runStressMode()
+		//runStressMode()
 	case "burst":
-		runBurstMode()
+		//runBurstMode()
 	case "coldstart":
-		runColdStartMode()
+		//runColdStartMode()
 	default:
 		log.Fatal("Invalid mode: ", *mode)
 	}
@@ -139,7 +139,13 @@ func runTraceMode(invPath, runPath, memPath string) {
 	if *duration < 1 {
 		log.Fatal("Trace duration should be longer than 0 minutes.")
 	}
-	traces = tc.ParseInvocationTrace(invPath, util.MinOf(1440, *duration+gen.WARMUP_DURATION_MINUTES*2))
+
+	amendedDuration := *duration
+	if *withWarmup {
+		amendedDuration += gen.WARMUP_DURATION_MINUTES * 2
+	}
+
+	traces = tc.ParseInvocationTrace(invPath, util.MinOf(1440, amendedDuration))
 	tc.ParseDurationTrace(&traces, runPath)
 	tc.ParseMemoryTrace(&traces, memPath)
 
@@ -188,7 +194,7 @@ func runTraceMode(invPath, runPath, memPath string) {
 		WithTracing:                   *withTracing,
 		Seed:                          *seed,
 	}
-	driver.NewDriver(traceLoadParams).GenerateTraceLoads()
+	driver.NewDriver(traceLoadParams).RunExperiment()
 }
 
 func runStressMode() {
@@ -217,7 +223,7 @@ func runStressMode() {
 
 	fc.DeployFunctions(functions, serviceConfigPath, initialScales, *isPartiallyPanic)
 
-	driver.GenerateStressLoads(*rpsStart, *rpsEnd, *rpsStep, *rpsSlot, functions, iatType, *withTracing, *seed)
+	//driver.GenerateStressLoads(*rpsStart, *rpsEnd, *rpsStep, *rpsSlot, functions, iatType, *withTracing, *seed)
 }
 
 func runBurstMode() {

@@ -1,10 +1,12 @@
 package driver
 
 import (
+	"fmt"
+	util "github.com/eth-easl/loader/pkg"
 	"github.com/eth-easl/loader/pkg/common"
-	fc "github.com/eth-easl/loader/pkg/function"
 	"github.com/eth-easl/loader/pkg/generator"
 	log "github.com/sirupsen/logrus"
+	"os"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -50,11 +52,13 @@ func NewDriver(driverConfig *DriverConfiguration) *Driver {
 /////////////////////////////////////////
 
 // CreateKnativeMetricsScrapper launches a scraper that updates the cluster usage periodically
-func (d *Driver) CreateKnativeMetricsScrapper(interval time.Duration) func() {
+func (d *Driver) CreateKnativeMetricsScrapper(interval time.Duration, signal *sync.WaitGroup) func() {
 	timer := time.NewTicker(interval)
 	d.collector = mc.NewCollector()
 
 	return func() {
+		signal.Done()
+
 		for {
 			<-timer.C
 			d.clusterUsage = mc.ScrapeClusterUsage()
@@ -63,13 +67,15 @@ func (d *Driver) CreateKnativeMetricsScrapper(interval time.Duration) func() {
 }
 
 // CreateColdStartCountScrapper creates cold start count scrapper with the given period
-func (d *Driver) CreateColdStartCountScrapper(interval time.Duration) func() {
+func (d *Driver) CreateColdStartCountScrapper(interval time.Duration, signal *sync.WaitGroup) func() {
 	timer := time.NewTicker(time.Second * 60)
 	d.knStats = mc.KnStats{}
 	d.coldStartGauge = 0
 	d.coldStartMinuteCount = 0
 
 	return func() {
+		signal.Done()
+
 		for {
 			<-timer.C
 			d.coldStartGauge = d.collector.RecordScalesAndGetColdStartCount()
@@ -79,11 +85,13 @@ func (d *Driver) CreateColdStartCountScrapper(interval time.Duration) func() {
 }
 
 // CreateKnativeStateUpdateScrapper creates a scraper that updates Knative states periodically
-func (d *Driver) CreateKnativeStateUpdateScrapper(interval time.Duration) func() {
+func (d *Driver) CreateKnativeStateUpdateScrapper(interval time.Duration, signal *sync.WaitGroup) func() {
 	timer := time.NewTicker(interval)
 	d.clusterUsage = mc.ClusterUsage{}
 
 	return func() {
+		signal.Done()
+
 		for {
 			<-timer.C
 			d.knStats = mc.ScrapeKnStats()
@@ -95,28 +103,40 @@ func (d *Driver) CreateKnativeStateUpdateScrapper(interval time.Duration) func()
 // DRIVER LOGIC
 /////////////////////////////////////////
 
-func (d *Driver) invokeFunction(function common.Function, announceInvocationDone *sync.WaitGroup,
-	runtimeSpecs *common.RuntimeSpecification, successCount *int64, failedCount *int64, phase common.ExperimentPhase) {
+type InvocationMetadata struct {
+	Function              common.Function
+	RuntimeSpecifications *common.RuntimeSpecification
+	Phase                 common.ExperimentPhase
 
-	defer announceInvocationDone.Done()
+	MinuteIndex     int
+	InvocationIndex int
 
-	success, record := fc.Invoke(function, runtimeSpecs, d.Configuration.WithTracing)
-	record.Phase = int(phase)
+	SuccessCount *int64
+	FailedCount  *int64
+
+	RecordOutputChannel chan *mc.ExecutionRecord
+	AnnounceDoneWG      *sync.WaitGroup
+}
+
+func (d *Driver) invokeFunction(metadata *InvocationMetadata) {
+	defer metadata.AnnounceDoneWG.Done()
+
+	success, record := Invoke(metadata.Function, metadata.RuntimeSpecifications, d.Configuration.WithTracing)
+
+	record.Phase = int(metadata.Phase)
+	record.InvocationID = fmt.Sprintf("min%d.inv%d", metadata.MinuteIndex, metadata.InvocationIndex)
 
 	if success {
-		atomic.AddInt64(successCount, 1)
+		atomic.AddInt64(metadata.SuccessCount, 1)
 	} else {
-		atomic.AddInt64(failedCount, 1)
+		atomic.AddInt64(metadata.FailedCount, 1)
 	}
 
-	/*if d.Configuration.EnableMetricsCollection {
-		execRecord.ColdStartCount = d.coldStartGauge
-		d.collector.ReportExecution(execRecord, d.clusterUsage, d.knStats)
-	}*/
+	metadata.RecordOutputChannel <- record
 }
 
 func (d *Driver) individualFunctionDriver(function common.Function, announceFunctionDone *sync.WaitGroup,
-	totalSuccessfull *int64, totalFailed *int64) {
+	totalSuccessfull *int64, totalFailed *int64, recordOutputChannel chan *mc.ExecutionRecord) {
 
 	totalTraceDuration := len(d.Configuration.TotalNumInvocationsEachMinute)
 	minuteIndex, invocationIndex := 0, 0
@@ -125,6 +145,7 @@ func (d *Driver) individualFunctionDriver(function common.Function, announceFunc
 
 	var successfullInvocations int64
 	var failedInvocations int64
+
 	waitForInvocations := sync.WaitGroup{}
 
 	for {
@@ -141,12 +162,17 @@ func (d *Driver) individualFunctionDriver(function common.Function, announceFunc
 		} else {
 			waitForInvocations.Add(1)
 
-			go d.invokeFunction(function,
-				&waitForInvocations,
-				&runtimeSpecification[minuteIndex][invocationIndex],
-				&successfullInvocations,
-				&failedInvocations,
-				common.ExecutionPhase) // TODO: add warmup phase
+			go d.invokeFunction(&InvocationMetadata{
+				Function:              function,
+				RuntimeSpecifications: &runtimeSpecification[minuteIndex][invocationIndex],
+				Phase:                 common.ExecutionPhase, // TODO: add a warmup phase
+				MinuteIndex:           minuteIndex,
+				InvocationIndex:       invocationIndex,
+				SuccessCount:          &successfullInvocations,
+				FailedCount:           &failedInvocations,
+				RecordOutputChannel:   recordOutputChannel,
+				AnnounceDoneWG:        &waitForInvocations,
+			})
 
 			sleepFor := time.Duration(IAT[minuteIndex][invocationIndex]) * time.Microsecond
 
@@ -166,15 +192,19 @@ func (d *Driver) individualFunctionDriver(function common.Function, announceFunc
 	}
 
 	waitForInvocations.Wait()
+
+	log.Infof("All the invocations for function %s have been completed.\n", function.Name)
 	announceFunctionDone.Done()
 
 	atomic.AddInt64(totalSuccessfull, successfullInvocations)
 	atomic.AddInt64(totalFailed, failedInvocations)
 }
 
-func (d *Driver) globalTimekeeper(totalTraceDuration int) {
+func (d *Driver) globalTimekeeper(totalTraceDuration int, signal *sync.WaitGroup) {
 	ticker := time.NewTicker(time.Minute)
 	globalTimeCounter := 0
+
+	signal.Done()
 
 	for {
 		<-ticker.C
@@ -194,22 +224,96 @@ func (d *Driver) globalTimekeeper(totalTraceDuration int) {
 	ticker.Stop()
 }
 
-func (d *Driver) GenerateTraceLoads() int {
-	// TODO: need assert on trace parsing that the last column with non null is parsed and declared as trace length
-	totalTraceDuration := len(d.Configuration.TotalNumInvocationsEachMinute)
+func (d *Driver) createGlobalMetricsCollector(collector chan *mc.ExecutionRecord,
+	signal *sync.WaitGroup, signalEverythingWritten *sync.WaitGroup) {
+
+	totalNumberOfInvocations := SumIntArray(d.Configuration.TotalNumInvocationsEachMinute)
+	currentlyWritten := 0
+
+	invocationFile, err := os.Create("data/out/test_output.csv")
+	util.Check(err)
+	defer invocationFile.Close()
+
+	invocationFile.WriteString(
+		"phase," +
+			"functionName," +
+			"invocationID," +
+			"startTime," +
+			"requestedDuration," +
+			"responseTime," +
+			"actualDuration," +
+			"connectionTimeout," +
+			"functionTimeout\n")
+
+	signal.Done()
+
+	for {
+		select {
+		case record := <-collector:
+			invocationFile.WriteString(fmt.Sprintf("%d,%s,%s,%d,%d,%d,%d,%t,%t\n",
+				record.Phase,
+				record.FunctionName,
+				record.InvocationID,
+				record.StartTime,
+				record.RequestedDuration,
+				record.ResponseTime,
+				record.ActualDuration,
+				record.ConnectionTimeout,
+				record.FunctionTimeout,
+			))
+			currentlyWritten++
+
+			if currentlyWritten == totalNumberOfInvocations {
+				(*signalEverythingWritten).Done()
+
+				break
+			}
+		}
+	}
+}
+
+func (d *Driver) startBackgroundProcesses(allRecordsWritten *sync.WaitGroup) (*sync.WaitGroup, chan *mc.ExecutionRecord) {
+	auxiliaryProcessBarrier := &sync.WaitGroup{}
 
 	if d.Configuration.EnableMetricsCollection {
 		// TODO: these following arguments should be configurable
-		go d.CreateKnativeMetricsScrapper(time.Second * 15)
-		go d.CreateKnativeStateUpdateScrapper(time.Second * 15)
-		go d.CreateColdStartCountScrapper(time.Second * 60)
+		auxiliaryProcessBarrier.Add(3)
+
+		go d.CreateKnativeMetricsScrapper(time.Second*15, auxiliaryProcessBarrier)
+		go d.CreateKnativeStateUpdateScrapper(time.Second*15, auxiliaryProcessBarrier)
+		go d.CreateColdStartCountScrapper(time.Second*60, auxiliaryProcessBarrier)
 	}
 
-	go d.globalTimekeeper(totalTraceDuration)
+	globalMetricsCollector := make(chan *mc.ExecutionRecord)
+	auxiliaryProcessBarrier.Add(2)
+	go d.createGlobalMetricsCollector(globalMetricsCollector, auxiliaryProcessBarrier, allRecordsWritten)
 
+	// TODO: need assert on trace parsing that the last column with non null is parsed and declared as trace length
+	totalTraceDuration := len(d.Configuration.TotalNumInvocationsEachMinute)
+	go d.globalTimekeeper(totalTraceDuration, auxiliaryProcessBarrier)
+
+	return auxiliaryProcessBarrier, globalMetricsCollector
+}
+
+func SumIntArray(x []int) int {
+	result := 0
+
+	for i := 0; i < len(x); i++ {
+		result += x[i]
+	}
+
+	return result
+}
+
+func (d *Driver) RunExperiment() int {
 	var successfullInvocations int64
 	var failedInvocations int64
+
 	allFunctionsCompleted := sync.WaitGroup{}
+	allRecordsWritten := sync.WaitGroup{}
+	allRecordsWritten.Add(1)
+
+	backgroundProcessesInitializationBarrier, globalMetricsCollector := d.startBackgroundProcesses(&allRecordsWritten)
 
 	log.Infof("Generating IAT and runtime specifications for all the functions\n")
 	for i, function := range d.Configuration.Functions {
@@ -221,21 +325,26 @@ func (d *Driver) GenerateTraceLoads() int {
 		d.Configuration.Functions[i].Specification = spec
 	}
 
-	log.Infof("Starting function invocation driver\n")
-	for i, function := range d.Configuration.Functions {
-		if i > 0 {
-			break // TODO: FOR DEBUGGING CURRENTLY - kick out on release
-		}
+	backgroundProcessesInitializationBarrier.Wait()
 
+	log.Infof("Starting function invocation driver\n")
+	for _, function := range d.Configuration.Functions {
 		allFunctionsCompleted.Add(1)
-		go d.individualFunctionDriver(function, &allFunctionsCompleted, &successfullInvocations, &failedInvocations)
+		go d.individualFunctionDriver(
+			function,
+			&allFunctionsCompleted,
+			&successfullInvocations,
+			&failedInvocations,
+			globalMetricsCollector,
+		)
 	}
 
 	allFunctionsCompleted.Wait()
+	allRecordsWritten.Wait()
 
 	log.Infof("Trace has finished executing function invocation driver\n")
-	log.Infof("Number of successful invocations: %d\n", successfullInvocations)
-	log.Infof("Number of failed invocations: %d\n", failedInvocations)
+	log.Infof("Number of successful invocations: \t%d\n", successfullInvocations)
+	log.Infof("Number of failed invocations: \t%d\n", failedInvocations)
 
 	return 0
 }

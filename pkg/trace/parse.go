@@ -32,7 +32,7 @@ func ParseInvocationTrace(traceFile string, traceDuration int) common.FunctionTr
 	// Clamp duration to (0, 1440].
 	traceDuration = util.MaxOf(util.MinOf(traceDuration, 1440), 1)
 
-	log.Infof("Parsing function invocation trace %s (duration: %dmin)", traceFile, traceDuration)
+	log.Infof("Parsing function invocation trace %s (duration: %d min)", traceFile, traceDuration)
 
 	var functions []common.Function
 	// Indices of functions to invoke.

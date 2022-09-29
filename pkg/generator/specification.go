@@ -27,8 +27,6 @@ func NewSpecificationGenerator(seed int64) *SpecificationGenerator {
 
 // generateIATForAMinute generates IAT for one minute based on given number of invocations and the given distribution
 func (s *SpecificationGenerator) generateIATForAMinute(numberOfInvocations int, iatDistribution common.IatDistribution) ([]float64, float64) {
-	// TODO: missing mutex for deterministic creation of IAT for exec specs and IAT
-
 	var iatResult []float64
 	totalDuration := 0.0 // total non-scaled duration
 
