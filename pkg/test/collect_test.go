@@ -15,7 +15,7 @@ func TestCheckOverload(t *testing.T) {
 	collector := mc.NewCollector()
 	collector.ReportExecution(
 		mc.ExecutionRecord{
-			Failed: true,
+			FunctionTimeout: true,
 		},
 		clusterUsage,
 		knStats,
@@ -29,7 +29,7 @@ func TestCheckOverload(t *testing.T) {
 
 	collector.ReportExecution(
 		mc.ExecutionRecord{
-			Failed: true,
+			FunctionTimeout: true,
 		},
 		clusterUsage,
 		knStats,
@@ -41,7 +41,7 @@ func TestCheckOverload(t *testing.T) {
 	)
 	collector.ReportExecution(
 		mc.ExecutionRecord{
-			Timeout: true,
+			ConnectionTimeout: true,
 		},
 		clusterUsage,
 		knStats,

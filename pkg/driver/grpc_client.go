@@ -1,4 +1,4 @@
-package function
+package driver
 
 import (
 	"context"
@@ -21,19 +21,19 @@ const (
 
 	// TODO: figure out the meaning of the contexts associated with this
 	// TODO: change the values and make them configurable from outside
-	grpcConnectionTimeout = 1 * time.Minute
+	grpcConnectionTimeout = 5 * time.Second
 	// Function can execute for at most 15 minutes as in AWS Lambda
 	// https://aws.amazon.com/about-aws/whats-new/2018/10/aws-lambda-supports-functions-that-can-run-up-to-15-minutes/
 	functionTimeout = 15 * time.Minute
 )
 
-func Invoke(function tc.Function, runtimeSpec *tc.RuntimeSpecification, withTracing bool) (bool, mc.ExecutionRecord) {
+func Invoke(function tc.Function, runtimeSpec *tc.RuntimeSpecification, withTracing bool) (bool, *mc.ExecutionRecord) {
 	log.Tracef("(Invoke)\t %s: %d[ms], %d[MiB]", function.Name, runtimeSpec.Runtime, runtimeSpec.Memory)
 
-	var record mc.ExecutionRecord
-
-	record.FuncName = function.Name
-	record.RequestedDuration = uint32(runtimeSpec.Runtime * 1e3)
+	record := &mc.ExecutionRecord{
+		FunctionName:      function.Name,
+		RequestedDuration: uint32(runtimeSpec.Runtime * 1e3),
+	}
 
 	////////////////////////////////////
 	// INVOKE FUNCTION
@@ -47,18 +47,19 @@ func Invoke(function tc.Function, runtimeSpec *tc.RuntimeSpecification, withTrac
 
 	var dialOptions []grpc.DialOption
 	dialOptions = append(dialOptions, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	dialOptions = append(dialOptions, grpc.WithBlock())
 	if withTracing {
 		// NOTE: if enabled it will exclude Istio span from the Zipkin trace
 		dialOptions = append(dialOptions, grpc.WithUnaryInterceptor(otelgrpc.UnaryClientInterceptor()))
 	}
 
 	conn, err := grpc.DialContext(dialContext, function.Endpoint+functionPort, dialOptions...)
-	defer closeConn(conn)
+	defer gRPCConnectionClose(conn)
 	if err != nil {
 		log.Warnf("Failed to establish a gRPC connection - %v\n", err)
 
 		record.ResponseTime = time.Since(start).Microseconds()
-		record.ConnectionTimeout = false
+		record.ConnectionTimeout = true
 
 		return false, record
 	}
