@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	util "github.com/eth-easl/loader/pkg/common"
+	"github.com/eth-easl/loader/pkg/workload/proto"
 	"net"
 	"os"
 	"strconv"
@@ -13,9 +15,6 @@ import (
 	"golang.org/x/sys/unix"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
-
-	util "github.com/eth-easl/loader/pkg"
-	rpc "github.com/eth-easl/loader/server"
 )
 
 //! We don't enforce this limit anymore because no limits have set for the containers themselves
@@ -23,7 +22,7 @@ import (
 // const containerMemoryLimitMib = 512 // Default limit of k8s.
 
 type funcServer struct {
-	rpc.UnimplementedExecutorServer
+	proto.UnimplementedExecutorServer
 }
 
 func busySpin(timeoutSem <-chan time.Time) {
@@ -38,13 +37,13 @@ func busySpin(timeoutSem <-chan time.Time) {
 	}
 }
 
-func (s *funcServer) Execute(ctx context.Context, req *rpc.FaasRequest) (*rpc.FaasReply, error) {
+func (s *funcServer) Execute(ctx context.Context, req *proto.FaasRequest) (*proto.FaasReply, error) {
 	start := time.Now()
 	runtimeRequested := req.RuntimeInMilliSec
 	timeoutSem := time.After(time.Duration(runtimeRequested) * time.Millisecond)
 	if runtimeRequested <= 0 {
 		//* Some of the durations were incorrectly recorded as 0 in the trace.
-		return &rpc.FaasReply{}, errors.New("non-positive execution time")
+		return &proto.FaasReply{}, errors.New("non-positive execution time")
 	}
 
 	//* To avoid unecessary overheads, memory allocation is at the granularity of os pages.
@@ -71,7 +70,7 @@ finish:
 		msg = "Timeout when materialising allocated memory."
 	}
 
-	return &rpc.FaasReply{
+	return &proto.FaasReply{
 		Message:            msg,
 		DurationInMicroSec: uint32(time.Since(start).Microseconds()),
 		MemoryUsageInKb:    util.B2Kib(numPagesRequested * uint32(unix.Getpagesize())),
@@ -93,7 +92,7 @@ func main() {
 	funcServer := &funcServer{}
 	grpcServer := grpc.NewServer()
 	reflection.Register(grpcServer) // gRPC Server Reflection is used by gRPC CLI.
-	rpc.RegisterExecutorServer(grpcServer, funcServer)
+	proto.RegisterExecutorServer(grpcServer, funcServer)
 	err = grpcServer.Serve(lis)
 	util.Check(err)
 }

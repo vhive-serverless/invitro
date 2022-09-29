@@ -1,7 +1,6 @@
 package trace
 
 import (
-	util "github.com/eth-easl/loader/pkg"
 	"github.com/eth-easl/loader/pkg/common"
 	"github.com/montanaflynn/stats"
 )
@@ -24,7 +23,7 @@ func ProfileFunction(function common.Function, duration int) common.Function {
 
 func ConvertMemoryToCpu(memoryRequest int) int {
 	var cpuRequest float32
-	switch memoryRequest = util.MinOf(MAX_MEM_QUOTA_MIB, util.MaxOf(MIN_MEM_QUOTA_MIB, memoryRequest)); {
+	switch memoryRequest = common.MinOf(MAX_MEM_QUOTA_MIB, common.MaxOf(MIN_MEM_QUOTA_MIB, memoryRequest)); {
 	// GCP conversion: https://cloud.google.com/functions/pricing
 	case memoryRequest <= 128:
 		cpuRequest = 0.083

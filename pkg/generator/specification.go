@@ -5,7 +5,6 @@ import (
 	log "github.com/sirupsen/logrus"
 	"math/rand"
 
-	util "github.com/eth-easl/loader/pkg"
 	tc "github.com/eth-easl/loader/pkg/trace"
 )
 
@@ -192,8 +191,8 @@ func (s *SpecificationGenerator) generateExecutionSpecs(function common.Function
 	}
 
 	runQtl, memQtl := s.determineExecutionSpecSeedQuantiles()
-	runtime := util.MinOf(common.MAX_EXEC_TIME_MILLI, util.MaxOf(common.MIN_EXEC_TIME_MILLI, s.generateExecuteSpec(runQtl, &runStats)))
-	memory := util.MinOf(tc.MAX_MEM_QUOTA_MIB, util.MaxOf(tc.MIN_MEM_QUOTA_MIB, s.generateMemorySpec(memQtl, &memStats)))
+	runtime := common.MinOf(common.MAX_EXEC_TIME_MILLI, common.MaxOf(common.MIN_EXEC_TIME_MILLI, s.generateExecuteSpec(runQtl, &runStats)))
+	memory := common.MinOf(tc.MAX_MEM_QUOTA_MIB, common.MaxOf(tc.MIN_MEM_QUOTA_MIB, s.generateMemorySpec(memQtl, &memStats)))
 
 	return common.RuntimeSpecification{
 		Runtime: runtime,

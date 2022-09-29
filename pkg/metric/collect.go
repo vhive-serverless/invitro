@@ -12,7 +12,6 @@ import (
 	"sync"
 	"time"
 
-	util "github.com/eth-easl/loader/pkg"
 	tc "github.com/eth-easl/loader/pkg/trace"
 	"github.com/gocarina/gocsv"
 	log "github.com/sirupsen/logrus"
@@ -190,23 +189,23 @@ func (collector *Collector) sortExecutionRecordsByTime() {
 func (collector *Collector) FinishAndSave(sampleSize int, phase int, duration int) {
 	invocFileName := "data/out/inv_sample-" + strconv.Itoa(sampleSize) + "_phase-" + strconv.Itoa(phase) + "_dur-" + strconv.Itoa(duration) + ".csv"
 	invocF, err := os.Create(invocFileName)
-	util.Check(err)
+	common.Check(err)
 	err = gocsv.MarshalFile(&collector.invocationRecords, invocF)
-	util.Check(err)
+	common.Check(err)
 	defer invocF.Close()
 
 	latencyFileName := "data/out/exec_sample-" + strconv.Itoa(sampleSize) + "_phase-" + strconv.Itoa(phase) + "_dur-" + strconv.Itoa(duration) + ".csv"
 	latencyF, err := os.Create(latencyFileName)
-	util.Check(err)
+	common.Check(err)
 	err = gocsv.MarshalFile(&collector.executionRecords, latencyF)
-	util.Check(err)
+	common.Check(err)
 	defer latencyF.Close()
 
 	scaleFileName := "data/out/scale_sample-" + strconv.Itoa(sampleSize) + "_phase-" + strconv.Itoa(phase) + "_dur-" + strconv.Itoa(duration) + ".csv"
 	scaleF, err := os.Create(scaleFileName)
-	util.Check(err)
+	common.Check(err)
 	err = gocsv.MarshalFile(&collector.scaleRecords, scaleF)
-	util.Check(err)
+	common.Check(err)
 	defer scaleF.Close()
 }
 

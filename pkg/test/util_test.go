@@ -1,9 +1,9 @@
 package test
 
 import (
+	util "github.com/eth-easl/loader/pkg/common"
 	"testing"
 
-	util "github.com/eth-easl/loader/pkg"
 	"github.com/stretchr/testify/assert"
 )
 

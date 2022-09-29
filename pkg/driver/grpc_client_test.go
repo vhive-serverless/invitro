@@ -1,7 +1,9 @@
 package driver
 
 import (
+	"fmt"
 	"github.com/eth-easl/loader/pkg/common"
+	"github.com/eth-easl/loader/pkg/workload/standard"
 	"testing"
 	"time"
 )
@@ -30,7 +32,23 @@ func TestGRPCClientWithServerUnreachable(t *testing.T) {
 }
 
 func TestGRPCClientWithServerReachable(t *testing.T) {
+	address, port := "localhost", 8080
+	testFunction.Endpoint = fmt.Sprintf("%s:%d", address, port)
+
+	go standard.StartGRPCServer(address, port, "")
+
+	// make sure that the gRPC server is running
 	time.Sleep(2 * time.Second)
 
-	Invoke(testFunction, &testRuntimeSpecs, true)
+	success, record := Invoke(testFunction, &testRuntimeSpecs, false)
+
+	if !success ||
+		record.ConnectionTimeout != false ||
+		record.FunctionTimeout != false ||
+		record.ResponseTime == 0 ||
+		record.ActualDuration == 0 ||
+		record.ActualMemoryUsage == 0 {
+
+		t.Error("Failed gRPC invocations.")
+	}
 }
