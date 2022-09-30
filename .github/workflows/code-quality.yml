@@ -27,7 +27,7 @@ jobs:
     needs: resolve-modules
     runs-on: ubuntu-20.04
     strategy:
-      matrix: { dir: ['cmd', 'pkg'] }
+      matrix: { dir: ['cmd', 'pkg', 'tools/trace_synthesizer'] }
       fail-fast: false
     steps:
       - name: Setup Go 1.18

@@ -10,12 +10,7 @@ def load_data(path):
     return pd.read_csv(path)
 
 def save_data(data, path):
-    failed = True
-    while failed:
-        try:
-            data.to_csv(path, index=False)
-            failed = False
-        except:
-            log.warn(f'Failed to save {path}')
-            failed = True 
-
+    try:
+        data.to_csv(path, index=False)
+    except:
+        log.warn(f'Failed to save {path}')
