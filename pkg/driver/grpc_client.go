@@ -23,7 +23,7 @@ const (
 	functionTimeout = 15 * time.Minute
 )
 
-func Invoke(function common.Function, runtimeSpec *common.RuntimeSpecification, withTracing bool) (bool, *mc.ExecutionRecord) {
+func Invoke(function *common.Function, runtimeSpec *common.RuntimeSpecification, withTracing bool) (bool, *mc.ExecutionRecord) {
 	log.Tracef("(Invoke)\t %s: %d[ms], %d[MiB]", function.Name, runtimeSpec.Runtime, runtimeSpec.Memory)
 
 	record := &mc.ExecutionRecord{
@@ -37,7 +37,6 @@ func Invoke(function common.Function, runtimeSpec *common.RuntimeSpecification, 
 	start := time.Now()
 	record.StartTime = start.UnixMicro()
 
-	// TODO: a gRPC pool may come in handy here
 	dialContext, cancelDialing := context.WithTimeout(context.Background(), grpcConnectionTimeout)
 	defer cancelDialing()
 

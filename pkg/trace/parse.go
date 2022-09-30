@@ -25,7 +25,7 @@ func ParseInvocationTrace(traceFile string, traceDuration int) common.FunctionTr
 
 	log.Infof("Parsing function invocation trace %s (duration: %d min)", traceFile, traceDuration)
 
-	var functions []common.Function
+	var functions []*common.Function
 	// Indices of functions to invoke.
 	invocationIndices := make([][]int, traceDuration)
 	totalInvocations := make([]int, traceDuration)
@@ -98,7 +98,7 @@ func ParseInvocationTrace(traceFile string, traceDuration int) common.FunctionTr
 			// Create function profile.
 			funcName := fmt.Sprintf("%s-%d-%d", "trace-func", funcIdx, rand.Uint64())
 
-			function := common.Function{
+			function := &common.Function{
 				Name:                    funcName,
 				HashOwner:               record[hashOwnerIndex],
 				HashApp:                 record[hashAppIndex],

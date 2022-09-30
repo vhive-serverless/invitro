@@ -17,10 +17,11 @@ type DriverConfiguration struct {
 	EnableMetricsCollection bool
 	IATDistribution         common.IatDistribution
 
-	Functions                     []common.Function
-	TotalNumInvocationsEachMinute []int
+	Functions                     []*common.Function
+	TotalNumInvocationsEachMinute []int // TODO: deprecate field
 	WithTracing                   bool
 	Seed                          int64
+	TestMode                      bool
 }
 
 type Driver struct {
@@ -32,12 +33,14 @@ type Driver struct {
 
 	Configuration          *DriverConfiguration
 	SpecificationGenerator *generator.SpecificationGenerator
+	OutputFilename         string
 }
 
 func NewDriver(driverConfig *DriverConfiguration) *Driver {
 	return &Driver{
 		Configuration:          driverConfig,
 		SpecificationGenerator: generator.NewSpecificationGenerator(driverConfig.Seed),
+		OutputFilename:         fmt.Sprintf("data/out/exec_duration_%d", len(driverConfig.TotalNumInvocationsEachMinute)),
 	}
 }
 
@@ -98,7 +101,7 @@ func (d *Driver) CreateKnativeStateUpdateScrapper(interval time.Duration, signal
 /////////////////////////////////////////
 
 type InvocationMetadata struct {
-	Function              common.Function
+	Function              *common.Function
 	RuntimeSpecifications *common.RuntimeSpecification
 	Phase                 common.ExperimentPhase
 
@@ -112,13 +115,17 @@ type InvocationMetadata struct {
 	AnnounceDoneWG      *sync.WaitGroup
 }
 
+func composeInvocationID(minuteIndex int, invocationIndex int) string {
+	return fmt.Sprintf("min%d.inv%d", minuteIndex, invocationIndex)
+}
+
 func (d *Driver) invokeFunction(metadata *InvocationMetadata) {
 	defer metadata.AnnounceDoneWG.Done()
 
 	success, record := Invoke(metadata.Function, metadata.RuntimeSpecifications, d.Configuration.WithTracing)
 
 	record.Phase = int(metadata.Phase)
-	record.InvocationID = fmt.Sprintf("min%d.inv%d", metadata.MinuteIndex, metadata.InvocationIndex)
+	record.InvocationID = composeInvocationID(metadata.MinuteIndex, metadata.InvocationIndex)
 
 	if success {
 		atomic.AddInt64(metadata.SuccessCount, 1)
@@ -129,7 +136,7 @@ func (d *Driver) invokeFunction(metadata *InvocationMetadata) {
 	metadata.RecordOutputChannel <- record
 }
 
-func (d *Driver) individualFunctionDriver(function common.Function, announceFunctionDone *sync.WaitGroup,
+func (d *Driver) individualFunctionDriver(function *common.Function, announceFunctionDone *sync.WaitGroup,
 	totalSuccessfull *int64, totalFailed *int64, recordOutputChannel chan *mc.ExecutionRecord) {
 
 	totalTraceDuration := len(d.Configuration.TotalNumInvocationsEachMinute)
@@ -155,19 +162,31 @@ func (d *Driver) individualFunctionDriver(function common.Function, announceFunc
 			continue
 		}
 
-		waitForInvocations.Add(1)
+		if !d.Configuration.TestMode {
+			waitForInvocations.Add(1)
 
-		go d.invokeFunction(&InvocationMetadata{
-			Function:              function,
-			RuntimeSpecifications: &runtimeSpecification[minuteIndex][invocationIndex],
-			Phase:                 common.ExecutionPhase, // TODO: add a warmup phase
-			MinuteIndex:           minuteIndex,
-			InvocationIndex:       invocationIndex,
-			SuccessCount:          &successfullInvocations,
-			FailedCount:           &failedInvocations,
-			RecordOutputChannel:   recordOutputChannel,
-			AnnounceDoneWG:        &waitForInvocations,
-		})
+			go d.invokeFunction(&InvocationMetadata{
+				Function:              function,
+				RuntimeSpecifications: &runtimeSpecification[minuteIndex][invocationIndex],
+				Phase:                 common.ExecutionPhase, // TODO: add a warmup phase
+				MinuteIndex:           minuteIndex,
+				InvocationIndex:       invocationIndex,
+				SuccessCount:          &successfullInvocations,
+				FailedCount:           &failedInvocations,
+				RecordOutputChannel:   recordOutputChannel,
+				AnnounceDoneWG:        &waitForInvocations,
+			})
+		} else {
+			// To be used from within the Golang testing framework
+			log.Infof("Bogus invocation fired.\n")
+
+			recordOutputChannel <- &mc.ExecutionRecord{
+				StartTime:    time.Now().UnixNano(),
+				InvocationID: composeInvocationID(minuteIndex, invocationIndex),
+			}
+
+			successfullInvocations++
+		}
 
 		sleepFor := time.Duration(IAT[minuteIndex][invocationIndex]) * time.Microsecond
 
@@ -215,12 +234,13 @@ func (d *Driver) globalTimekeeper(totalTraceDuration int, signalReady *sync.Wait
 	ticker.Stop()
 }
 
-func (d *Driver) createGlobalMetricsCollector(collector chan *mc.ExecutionRecord, signalReady *sync.WaitGroup, signalEverythingWritten *sync.WaitGroup) {
-	totalNumberOfInvocations := SumIntArray(d.Configuration.TotalNumInvocationsEachMinute)
+func (d *Driver) createGlobalMetricsCollector(filename string, collector chan *mc.ExecutionRecord,
+	signalReady *sync.WaitGroup, signalEverythingWritten *sync.WaitGroup) {
+
+	totalNumberOfInvocations := common.SumIntArray(d.Configuration.TotalNumInvocationsEachMinute)
 	currentlyWritten := 0
 
-	// TODO: will be changed afterward
-	invocationFile, err := os.Create("data/out/test_output.csv")
+	invocationFile, err := os.Create(filename)
 	common.Check(err)
 	defer invocationFile.Close()
 
@@ -280,23 +300,13 @@ func (d *Driver) startBackgroundProcesses(allRecordsWritten *sync.WaitGroup) (*s
 	auxiliaryProcessBarrier.Add(2)
 
 	globalMetricsCollector := make(chan *mc.ExecutionRecord)
-	go d.createGlobalMetricsCollector(globalMetricsCollector, auxiliaryProcessBarrier, allRecordsWritten)
+	go d.createGlobalMetricsCollector(d.OutputFilename, globalMetricsCollector, auxiliaryProcessBarrier, allRecordsWritten)
 
 	// TODO: need assert on trace parsing that the last column with non null is parsed and declared as trace length
 	traceDurationInMinutes := len(d.Configuration.TotalNumInvocationsEachMinute)
 	go d.globalTimekeeper(traceDurationInMinutes, auxiliaryProcessBarrier)
 
 	return auxiliaryProcessBarrier, globalMetricsCollector
-}
-
-func SumIntArray(x []int) int {
-	result := 0
-
-	for i := 0; i < len(x); i++ {
-		result += x[i]
-	}
-
-	return result
 }
 
 func (d *Driver) RunExperiment() int {
@@ -345,30 +355,6 @@ func (d *Driver) RunExperiment() int {
 
 	return 0
 }
-
-/////////////////////////////////////
-// TODO: check and refactor everything below
-/////////////////////////////////////
-
-/**
- * This function waits for the waitgroup for the specified max timeout.
- * Returns true if waiting timed out.
- */
-/*func wgWaitWithTimeout(wg *sync.WaitGroup, timeout time.Duration) bool {
-	log.Info("Start waiting for all requests to return.")
-	c := make(chan struct{})
-	go func() {
-		defer close(c)
-		wg.Wait()
-	}()
-	select {
-	case <-c:
-		log.Info("Finished waiting for all invocations.")
-		return false
-	case <-time.After(timeout):
-		return true
-	}
-}*/
 
 /*func CheckOverload(successCount, failureCount int64) bool {
 	//* Amongst those returned, how many has failed?

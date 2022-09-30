@@ -28,7 +28,7 @@ type ExecutionRecord struct {
 	// TODO: EVERYTHING BELOW ARE UNTESTED FIELDS
 
 	//* In KiB
-	Memory     uint32  `csv:"memory"`
+	/*Memory     uint32  `csv:"memory"`
 	MemoryLoad float64 `csv:"mem_load"`
 	Interval   int64   `csv:"interval"`
 
@@ -56,7 +56,7 @@ type ExecutionRecord struct {
 	E2ePlacementP99 float64 `csv:"e2e_placement_p99"`
 	E2ePlacementP50 float64 `csv:"e2e_placement_p50"`
 
-	ColdStartCount int `csv:"coldstart_count"`
+	ColdStartCount int `csv:"coldstart_count"`*/
 }
 
 type ScaleRecord struct {
