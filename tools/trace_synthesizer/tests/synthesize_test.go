@@ -8,7 +8,6 @@ import (
     "os"
     "os/exec"
     "strconv"
-    "strings"
     "testing"
 )
 
@@ -22,29 +21,7 @@ func TestSynthesizer(t *testing.T) {
     if err != nil {
         fmt.Println(fmt.Sprint(err) + ": " + string(output))
     }
-    cmd2 := exec.Command("ls")
-    outputTemp, err := cmd2.CombinedOutput()
-    if err != nil {
-        log.Fatalf("List did not work: %s", err)
-    }
-    out := string(outputTemp)
-    if !strings.Contains(out, "test_output") {
-        log.Fatalf("test_output was not created: %s", out)
-    }
-    err = os.Chdir("test_output")
-    if err != nil {
-        log.Fatalf("Couldn't change to test_output directory: %s", err)
-    }
-    cmd3 := exec.Command("ls")
-    output2, err := cmd3.CombinedOutput()
-    if err != nil {
-        log.Fatalf("List did not work: %s", err)
-    }
-    out2 := string(output2)
-    if !strings.Contains(out2, "2_inv.csv") {
-        log.Fatalf("invocations csv was not created %s", out2)
-    }
-    rows := readInvocations("2_inv.csv")
+    rows := readInvocations("test_output/2_inv.csv")
     sum := calculate(rows)
     assert.Equal(t, 16200, sum)
 }
