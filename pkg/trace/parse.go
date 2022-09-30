@@ -14,17 +14,9 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-const (
-	bareMetalLbGateway = "10.200.3.4.sslip.io" // Address of the bare-metal load balancer.
-	namespace          = "default"
-)
-
 func init() {
+	// Used for generating unique function names
 	rand.Seed(time.Now().UnixNano())
-}
-
-var GetFuncEndpoint = func(name string) string {
-	return fmt.Sprintf("%s.%s.%s", name, namespace, bareMetalLbGateway)
 }
 
 func ParseInvocationTrace(traceFile string, traceDuration int) common.FunctionTraces {
@@ -108,7 +100,6 @@ func ParseInvocationTrace(traceFile string, traceDuration int) common.FunctionTr
 
 			function := common.Function{
 				Name:                    funcName,
-				Endpoint:                GetFuncEndpoint(funcName),
 				HashOwner:               record[hashOwnerIndex],
 				HashApp:                 record[hashAppIndex],
 				HashFunction:            record[hashFunctionIndex],
