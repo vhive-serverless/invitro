@@ -160,19 +160,18 @@ func runTraceMode(invPath, runPath, memPath string) {
 	/* Profiling */
 	if *withWarmup {
 		for funcIdx := 0; funcIdx < len(traces.Functions); funcIdx++ {
-			function := traces.Functions[funcIdx]
-			traces.Functions[funcIdx] = tc.ProfileFunction(function, common.PROFILING_DURATION_MINUTES)
+			tc.ProfileFunction(traces.Functions[funcIdx], common.PROFILING_DURATION_MINUTES)
 		}
 		traces.WarmupScales = opts.ComputeFunctionWarmupScales(*cluster, traces.Functions)
 	}
 
 	/** Deployment */
-	functions := driver.DeployFunctions(traces.Functions, serviceConfigPath, traces.WarmupScales, *isPartiallyPanic, *endpointPort)
+	driver.DeployFunctions(traces.Functions, serviceConfigPath, traces.WarmupScales, *isPartiallyPanic, *endpointPort)
 
 	/** Warmup (Phase 1) */
 	nextPhaseStart := 0
 	if *withWarmup {
-		nextPhaseStart = opts.Warmup(*sampleSize, totalNumPhases, functions, traces, iatType, *withTracing, *seed)
+		nextPhaseStart = opts.Warmup(*sampleSize, totalNumPhases, traces.Functions, traces, iatType, *withTracing, *seed)
 	}
 
 	/** Measurement (Phase 2) */
@@ -184,7 +183,7 @@ func runTraceMode(invPath, runPath, memPath string) {
 	log.Infof("Phase 2 - Generate real workloads")
 
 	traceLoadParams := &driver.DriverConfiguration{
-		Functions:                     functions,
+		Functions:                     traces.Functions,
 		TotalNumInvocationsEachMinute: traces.TotalInvocationsPerMinute[nextPhaseStart : nextPhaseStart+*duration],
 		IATDistribution:               iatType,
 		WithTracing:                   *withTracing,

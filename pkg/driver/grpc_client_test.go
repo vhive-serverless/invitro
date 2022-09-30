@@ -18,7 +18,7 @@ var testRuntimeSpecs = common.RuntimeSpecification{
 }
 
 func TestGRPCClientWithServerUnreachable(t *testing.T) {
-	success, record := Invoke(testFunction, &testRuntimeSpecs, true)
+	success, record := Invoke(&testFunction, &testRuntimeSpecs, true)
 
 	if record.FunctionName != "test-function" ||
 		record.RequestedDuration != uint32(testRuntimeSpecs.Runtime*1000) ||
@@ -40,7 +40,7 @@ func TestGRPCClientWithServerReachable(t *testing.T) {
 	// make sure that the gRPC server is running
 	time.Sleep(2 * time.Second)
 
-	success, record := Invoke(testFunction, &testRuntimeSpecs, false)
+	success, record := Invoke(&testFunction, &testRuntimeSpecs, false)
 
 	if !success ||
 		record.ConnectionTimeout != false ||

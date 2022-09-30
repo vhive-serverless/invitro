@@ -84,7 +84,7 @@ func (s *SpecificationGenerator) generateIAT(invocationsPerMinute []int, iatDist
 	return IAT, nonScaledDuration
 }
 
-func (s *SpecificationGenerator) GenerateInvocationData(function common.Function, iatDistribution common.IatDistribution) *common.FunctionSpecification {
+func (s *SpecificationGenerator) GenerateInvocationData(function *common.Function, iatDistribution common.IatDistribution) *common.FunctionSpecification {
 	invocationsPerMinute := function.NumInvocationsPerMinute
 
 	// Generating IAT
@@ -184,7 +184,7 @@ func (s *SpecificationGenerator) generateMemorySpec(memQtl float64, memStats *co
 	return memory
 }
 
-func (s *SpecificationGenerator) generateExecutionSpecs(function common.Function) common.RuntimeSpecification {
+func (s *SpecificationGenerator) generateExecutionSpecs(function *common.Function) common.RuntimeSpecification {
 	runStats, memStats := function.RuntimeStats, function.MemoryStats
 	if runStats.Count <= 0 || memStats.Count <= 0 {
 		log.Fatal("Invalid duration or memory specification of the function '" + function.Name + "'.")
