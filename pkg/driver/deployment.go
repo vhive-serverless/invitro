@@ -10,19 +10,24 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+const (
+	bareMetalLbGateway = "10.200.3.4.sslip.io" // Address of the bare-metal load balancer.
+	namespace          = "default"
+)
+
 var (
 	urlRegex = regexp.MustCompile("at URL:\nhttp://([^\n]+)")
 )
 
 func DeployFunctions(functions []common.Function, yamlPath string, initScales []int, isPartiallyPanic bool, endpointPort int) []common.Function {
-	for i, function := range functions {
+	for i := 0; i < len(functions); i++ {
 		var initScale int
 		if initScales != nil {
 			// warmup phase has profiled initial scales
 			initScale = initScales[i]
 		}
 
-		deployOne(&function, yamlPath, initScale, isPartiallyPanic, endpointPort)
+		deployOne(&functions[i], yamlPath, initScale, isPartiallyPanic, endpointPort)
 	}
 
 	return functions
@@ -61,9 +66,11 @@ func deployOne(function *common.Function, yamlPath string, initScale int, isPart
 	if endpoint := urlRegex.FindStringSubmatch(string(stdoutStderr))[1]; endpoint != function.Endpoint {
 		log.Warnf("Update function endpoint to %s\n", endpoint)
 		function.Endpoint = endpoint
+	} else {
+		function.Endpoint = fmt.Sprintf("%s.%s.%s", function.Name, namespace, bareMetalLbGateway)
 	}
 
-	function.Endpoint += fmt.Sprintf(":%d", endpointPort)
+	function.Endpoint = fmt.Sprintf("%s:%d", function.Endpoint, endpointPort)
 
 	log.Info("Deployed function ", function.Endpoint)
 	return true

@@ -12,7 +12,6 @@ import (
 	"sync"
 	"time"
 
-	tc "github.com/eth-easl/loader/pkg/trace"
 	"github.com/gocarina/gocsv"
 	log "github.com/sirupsen/logrus"
 )
@@ -37,13 +36,13 @@ func NewCollector() Collector {
 	}
 }
 
-func (collector *Collector) GetOneColdStartFunction() common.Function {
+/*func (collector *Collector) GetOneColdStartFunction() common.Function {
 	funcName := collector.scaleRegistry.GetOneColdFunctionName()
 	return common.Function{
 		Name:     funcName,
 		Endpoint: tc.GetFuncEndpoint(funcName),
 	}
-}
+}*/
 
 func (collector *Collector) RecordScalesAndGetColdStartCount() int {
 	scales := ScrapeDeploymentScales()
