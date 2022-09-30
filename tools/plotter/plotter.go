@@ -154,7 +154,6 @@ func getSlowdown(filePath string) (float64, int) {
 		log.Fatal(err)
 	}
 
-	var latencies []LatencyRecord
 	var slowdownList []float64
 	var failedInvocationNum int
 
@@ -180,13 +179,12 @@ func getSlowdown(filePath string) (float64, int) {
 					continue
 				}
 			}
-			if rec.failed == true {
+			if rec.failed {
 				log.Warn("Skipping zero response time, file=", filePath)
 				continue
 			}
 			rec.slowdown = float64(rec.responseTime) / float64(rec.requestedDuration)
 			log.Debug("Parsed values: ", rec)
-			latencies = append(latencies, rec)
 			slowdownList = append(slowdownList, rec.slowdown)
 		}
 
