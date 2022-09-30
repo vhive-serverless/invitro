@@ -1,9 +1,5 @@
 package common
 
-import (
-	"fmt"
-)
-
 type FunctionConcurrencyStats struct {
 	Average float64
 	Count   float64
@@ -78,28 +74,4 @@ type FunctionTraces struct {
 	WarmupScales              []int
 	InvocationsEachMinute     [][]int
 	TotalInvocationsPerMinute []int
-}
-
-func (f *Function) SetHash(hash int) {
-	f.HashFunction = fmt.Sprintf("%015d", hash)
-}
-
-func (f *Function) SetName(name string) {
-	f.Name = name
-}
-
-func (f *Function) SetStatus(b bool) {
-	f.Deployed = b
-}
-
-func (f *Function) GetStatus() bool {
-	return f.Deployed
-}
-
-func (f *Function) GetName() string {
-	return f.Name
-}
-
-func (f *Function) GetUrl() string {
-	return f.Endpoint
 }

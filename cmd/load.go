@@ -13,7 +13,6 @@ import (
 
 	tracer "github.com/ease-lab/vhive/utils/tracing/go"
 	opts "github.com/eth-easl/loader/cmd/options"
-	fc "github.com/eth-easl/loader/pkg/function"
 	tc "github.com/eth-easl/loader/pkg/trace"
 )
 
@@ -27,9 +26,10 @@ var (
 
 	serviceConfigPath = ""
 
-	mode      = flag.String("mode", "trace", "Choose a mode from [trace, stress, burst, coldstart]")
-	server    = flag.String("server", "trace", "Choose a function server from [wimpy, trace]")
-	tracePath = flag.String("tracePath", "data/traces/", "Path to trace")
+	mode         = flag.String("mode", "trace", "Choose a mode from [trace, stress, burst, coldstart]")
+	server       = flag.String("server", "trace", "Choose a function server from [wimpy, trace]")
+	tracePath    = flag.String("tracePath", "data/traces/", "Path to trace")
+	endpointPort = flag.Int("endpointPort", 80, "Port to append to endpoint URL")
 
 	cluster    = flag.Int("cluster", 1, "Size of the cluster measured by #workers")
 	duration   = flag.Int("duration", 3, "Duration of the experiment in minutes")
@@ -152,7 +152,7 @@ func runTraceMode(invPath, runPath, memPath string) {
 
 	log.Info("Traces contain the following: ", len(traces.Functions), " functions")
 	for _, function := range traces.Functions {
-		fmt.Println("\t" + function.GetName())
+		fmt.Println("\t" + function.Name)
 	}
 
 	totalNumPhases := 2
@@ -167,7 +167,7 @@ func runTraceMode(invPath, runPath, memPath string) {
 	}
 
 	/** Deployment */
-	functions := fc.DeployFunctions(traces.Functions, serviceConfigPath, traces.WarmupScales, *isPartiallyPanic)
+	functions := driver.DeployFunctions(traces.Functions, serviceConfigPath, traces.WarmupScales, *isPartiallyPanic, *endpointPort)
 
 	/** Warmup (Phase 1) */
 	nextPhaseStart := 0
