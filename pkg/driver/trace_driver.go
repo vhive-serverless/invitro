@@ -288,10 +288,10 @@ func (d *Driver) startBackgroundProcesses(allRecordsWritten *sync.WaitGroup) (*s
 	auxiliaryProcessBarrier := &sync.WaitGroup{}
 
 	if d.Configuration.EnableMetricsCollection {
-		// TODO: these following arguments should be configurable
 		auxiliaryProcessBarrier.Add(3)
 
 		// TODO: the following three go routines are untested
+		// TODO: the following arguments should be configurable
 		go d.CreateKnativeMetricsScrapper(time.Second*15, auxiliaryProcessBarrier)
 		go d.CreateKnativeStateUpdateScrapper(time.Second*15, auxiliaryProcessBarrier)
 		go d.CreateColdStartCountScrapper(time.Second*60, auxiliaryProcessBarrier)

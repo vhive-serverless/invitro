@@ -57,12 +57,15 @@ func deployOne(function *common.Function, yamlPath string, initScale int, isPart
 	log.Debug("CMD response: ", string(stdoutStderr))
 
 	if err != nil {
+		// TODO: there should be a toggle to turn off deployment because if this is fatal then we cannot test the thing locally
 		log.Warnf("Failed to deploy function %s: %v\n%s\n", function.Name, err, stdoutStderr)
+
 		return false
 	}
 
 	if endpoint := urlRegex.FindStringSubmatch(string(stdoutStderr))[1]; endpoint != function.Endpoint {
-		log.Warnf("Update function endpoint to %s\n", endpoint)
+		// TODO: check when this situation happens
+		log.Debugf("Update function endpoint to %s\n", endpoint)
 		function.Endpoint = endpoint
 	} else {
 		function.Endpoint = fmt.Sprintf("%s.%s.%s", function.Name, namespace, bareMetalLbGateway)
@@ -71,6 +74,6 @@ func deployOne(function *common.Function, yamlPath string, initScale int, isPart
 	// adding port to the endpoint
 	function.Endpoint = fmt.Sprintf("%s:%d", function.Endpoint, endpointPort)
 
-	log.Info("Deployed function ", function.Endpoint)
+	log.Debugf("Deployed function on %s\n", function.Endpoint)
 	return true
 }
