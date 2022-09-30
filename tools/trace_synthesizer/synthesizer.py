@@ -21,7 +21,12 @@ def generate(functions, beginning, target, step, duration, execution, memory, ou
     hashApp = []
 
     lenHashes = 64
-    sampleC = 10000  # doesn't matter for synthetic traces
+    sampleCount = -1
+    # https://github.com/eth-easl/loader/blob/315b35b39d381f852d46ee278034e3b819252997/pkg/trace/parse.go#L241
+    # https://github.com/eth-easl/loader/blob/315b35b39d381f852d46ee278034e3b819252997/pkg/generate/atom.go#L191
+    # GenerateExecutionSpecs function in atom.go just takes the average runtime and memory usage if
+    # the sample count is smaller than 0, so we set it to -1, because we want the runtime and memory usage
+    # to be the average, rather than picked from a distribution
     for i in range(functions):
         hashFunction.append(hash_generator(lenHashes))
         hashOwner.append(hash_generator(lenHashes))
@@ -38,10 +43,10 @@ def generate(functions, beginning, target, step, duration, execution, memory, ou
     ipm = np.pad(ipm, (0, 1440 - len(ipm)), 'constant')
 
     for i in range(functions):
-        memArr = [hashApp[i], hashOwner[i], sampleC]
+        memArr = [hashApp[i], hashOwner[i], sampleCount]
         memArr.extend(mem)
         mem_df.loc[len(mem_df)] = memArr
-        runArr = [hashFunction[i], hashOwner[i], hashApp[i], execution, sampleC]
+        runArr = [hashFunction[i], hashOwner[i], hashApp[i], execution, sampleCount]
         runArr.extend(run)
         run_df.loc[len(run_df)] = runArr 
         invArr = [hashApp[i], hashFunction[i], hashOwner[i]]
