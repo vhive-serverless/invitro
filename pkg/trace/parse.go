@@ -122,10 +122,10 @@ func ParseInvocationTrace(traceFile string, traceDuration int) common.FunctionTr
 	}
 
 	return common.FunctionTraces{
+		Path:                      traceFile,
 		Functions:                 functions,
 		InvocationsEachMinute:     invocationIndices,
 		TotalInvocationsPerMinute: totalInvocations,
-		Path:                      traceFile,
 	}
 }
 
