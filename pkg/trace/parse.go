@@ -147,7 +147,7 @@ func parseToInt(text string) int {
 }
 
 func ParseDurationTrace(trace *common.FunctionTraces, traceFile string) {
-	log.Infof("Parsing function duration trace: %s", traceFile)
+	log.Debugf("Parsing function duration trace: %s\n", traceFile)
 
 	// Create a mapping from function hash to function position in `FunctionTraces`.
 	funcPosMap := make(map[string]int)
