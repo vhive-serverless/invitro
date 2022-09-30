@@ -14,11 +14,10 @@ const (
 	MIN_MEM_QUOTA_MIB = 128
 )
 
-func ProfileFunction(function common.Function, duration int) common.Function {
+func ProfileFunction(function *common.Function, duration int) {
 	function.ConcurrencyStats = profileFunctionConcurrencies(function, duration)
 	function.MemoryRequestMiB = function.MemoryStats.Percentile100
 	function.CpuRequestMilli = ConvertMemoryToCpu(function.MemoryRequestMiB)
-	return function
 }
 
 func ConvertMemoryToCpu(memoryRequest int) int {
@@ -41,7 +40,7 @@ func ConvertMemoryToCpu(memoryRequest int) int {
 	return int(cpuRequest * 1000)
 }
 
-func profileFunctionConcurrencies(function common.Function, duration int) common.FunctionConcurrencyStats {
+func profileFunctionConcurrencies(function *common.Function, duration int) common.FunctionConcurrencyStats {
 	var concurrencies []float64
 	for _, numInvocationsPerMinute := range function.InvocationStats.Data[:duration] {
 		//* Compute arrival rate (unit: 1s).

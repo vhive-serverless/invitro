@@ -208,7 +208,7 @@ func TestSerialGenerateIAT(t *testing.T) {
 			sg := NewSpecificationGenerator(seed)
 
 			testFunction.NumInvocationsPerMinute = test.invocations
-			spec := sg.GenerateInvocationData(testFunction, test.iatDistribution)
+			spec := sg.GenerateInvocationData(&testFunction, test.iatDistribution)
 			IAT, nonScaledDuration := spec.IAT, spec.RawDuration
 
 			failed := false
@@ -382,7 +382,7 @@ func TestGenerateExecutionSpecifications(t *testing.T) {
 
 			testFunction.NumInvocationsPerMinute = []int{test.iterations}
 			// distribution is irrelevant here
-			spec := sg.GenerateInvocationData(testFunction, common.Equidistant).RuntimeSpecification
+			spec := sg.GenerateInvocationData(&testFunction, common.Equidistant).RuntimeSpecification
 
 			for i := 0; i < test.iterations; i++ {
 				wg.Add(1)

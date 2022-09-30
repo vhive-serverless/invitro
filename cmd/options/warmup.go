@@ -25,7 +25,7 @@ const (
  *
  * The calculation is based on the profiled concurrency (see the `trace` package) using Little's law.
  */
-func ComputeFunctionWarmupScales(clusterSize int, functions []common.Function) []int {
+func ComputeFunctionWarmupScales(clusterSize int, functions []*common.Function) []int {
 	var scales []int
 	totalClusterCapacityMilli := int(float32(runtime.NumCPU()*clusterSize*1000) * (1.0 - SYS_CPU_OVERHEAD_PERCENT))
 	totalCpuRequestMilli := 0
@@ -61,7 +61,7 @@ func ComputeFunctionWarmupScales(clusterSize int, functions []common.Function) [
  *
  * For detailed cases, see: `warmup_test.go`.
  */
-func MaxMaxAlloc(totalClusterCapacityMilli int, scales []int, functions []common.Function) []int {
+func MaxMaxAlloc(totalClusterCapacityMilli int, scales []int, functions []*common.Function) []int {
 	scalePairs := make(common.PairList, len(scales))
 	for i, scale := range scales {
 		scalePairs[i] = common.Pair{Key: i, Value: scale}
@@ -122,7 +122,7 @@ func MaxMaxAlloc(totalClusterCapacityMilli int, scales []int, functions []common
 func Warmup(
 	sampleSize int,
 	totalNumPhases int,
-	functions []common.Function,
+	functions []*common.Function,
 	traces common.FunctionTraces,
 	iatDistribution common.IatDistribution,
 	withTracing bool,

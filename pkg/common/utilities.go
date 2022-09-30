@@ -111,3 +111,13 @@ func Hash(s string) uint64 {
 	h.Write([]byte(s))
 	return h.Sum64()
 }
+
+func SumIntArray(x []int) int {
+	result := 0
+
+	for i := 0; i < len(x); i++ {
+		result += x[i]
+	}
+
+	return result
+}
