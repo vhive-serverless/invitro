@@ -13,8 +13,7 @@ def run(args):
             raise RuntimeError(f"Failed to create the output folder: {e}")
 
     if args.cmd == 'generate':
-        inv_df, mem_df, run_df = generate(args.functions, args.beginning, args.target, args.step,
-                args.duration, args.execution, args.memory, args.output, True)
+        inv_df, mem_df, run_df = generate(args)
 
     return
 
@@ -49,7 +48,7 @@ def main():
         required=True,
         type=int,
         metavar='integer',
-        help='Target RPS value that is achieved in the last RPS slot'
+        help='Maximum'
     )
 
     gen_parser.add_argument(

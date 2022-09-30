@@ -4,6 +4,7 @@ import pandas as pd
 import numpy as np
 import string
 import random
+import logging
 
 
 def hash_generator(size):
@@ -11,7 +12,16 @@ def hash_generator(size):
     return ''.join(random.choice(chars) for _ in range(size))
 
 
-def generate(functions, beginning, target, step, duration, execution, memory, output_path, save):
+def generate(args):
+    functions = args.functions
+    beginning = args.beginning
+    target = args.target
+    step = args.step
+    duration = args.duration
+    execution = args.execution
+    memory = args.memory
+    output_path = args.output
+    logging.basicConfig(filename='synthesizer.log', level=logging.DEBUG, force=True)
     inv_df = load_data("base_traces/inv.csv")
     mem_df = load_data("base_traces/mem.csv")
     run_df = load_data("base_traces/run.csv")
@@ -54,9 +64,15 @@ def generate(functions, beginning, target, step, duration, execution, memory, ou
         inv_df.loc[len(inv_df)] = invArr
     
 
-    if save:
-        save_data(inv_df, f"{output_path}/{functions}_inv.csv")
-        save_data(mem_df, f"{output_path}/{functions}_mem.csv")
-        save_data(run_df, f"{output_path}/{functions}_run.csv")
+
+    p1 = f"{output_path}/{functions}_inv.csv"
+    save_data(inv_df, p1)
+    logging.info(f"saved invocations to {p1}")
+    p2 = f"{output_path}/{functions}_mem.csv"
+    save_data(mem_df, p2)
+    logging.info(f"saved invocations to {p2}")
+    p3 = f"{output_path}/{functions}_run.csv"
+    save_data(run_df, p3)
+    logging.info(f"saved invocations to {p3}")
 
     return inv_df, mem_df, run_df

@@ -1,57 +1,88 @@
 package main
 
 import (
-    "bufio"
+    "encoding/csv"
     "fmt"
-    "io"
-    "os/exec"
     log "github.com/sirupsen/logrus"
-    "testing"
-    "os"
     "github.com/stretchr/testify/assert"
+    "os"
+    "os/exec"
     "strconv"
+    "strings"
+    "testing"
 )
 
 func TestSynthesizer(t *testing.T) {
-    os.Chdir("..")
-    // cmd := exec.Command("python3 -m unittest", "trace_synthesizer/tests/generate_test.py")
-    // cmd := exec.Command("python3", "trace_synthesizer/tests/generate_test.py")
+    err := os.Chdir("..")
+    if err != nil {
+        log.Fatalf("Couldn't change directory: %s", err)
+    }
     cmd := exec.Command("python3", "generate_test.py")
-    stdout, err := cmd.StdoutPipe()
+    output, err := cmd.CombinedOutput()
     if err != nil {
-	log.Fatal(err)
+        fmt.Println(fmt.Sprint(err) + ": " + string(output))
     }
-    stderr, err := cmd.StderrPipe()
+    cmd2 := exec.Command("ls")
+    outputTemp, err := cmd2.CombinedOutput()
     if err != nil {
-	log.Fatal(err)
+        log.Fatalf("List did not work: %s", err)
     }
-    err = cmd.Start()
+    out := string(outputTemp)
+    if !strings.Contains(out, "test_output") {
+        log.Fatalf("test_output was not created: %s", out)
+    }
+    err = os.Chdir("test_output")
     if err != nil {
-	log.Fatal(err)
+        log.Fatalf("Couldn't change to test_output directory: %s", err)
     }
-    // fmt.Println(out)
-    // fmt.Println(string(out))
-    a := copyOutputV2(stdout)
-    b, _ := strconv.Atoi(a)
-    assert.Equal(t, 0, b)
-
-    go copyOutput(stdout)
-	go copyOutput(stderr)
-    cmd.Wait()
+    cmd3 := exec.Command("ls")
+    output2, err := cmd3.CombinedOutput()
+    if err != nil {
+        log.Fatalf("List did not work: %s", err)
+    }
+    out2 := string(output2)
+    if !strings.Contains(out2, "2_inv.csv") {
+        log.Fatalf("invocations csv was not created %s", out2)
+    }
+    rows := readInvocations("2_inv.csv")
+    sum := calculate(rows)
+    assert.Equal(t, 16200, sum)
 }
 
-func copyOutput(r io.Reader) {
-    scanner := bufio.NewScanner(r)
-    for scanner.Scan() {
-        fmt.Println(scanner.Text())
+func readInvocations(name string) [][]string {
+    f, err := os.Open(name)
+    if err != nil {
+        log.Fatal("Cannot open test output")
     }
+
+    defer f.Close()
+    r := csv.NewReader(f)
+    rows, err := r.ReadAll()
+    if err != nil {
+        log.Fatal("Cannot read CSV data:", err.Error())
+    }
+
+    return rows
 }
 
-func copyOutputV2(r io.Reader) string {
-    scanner := bufio.NewScanner(r)
-    for scanner.Scan() {
-        fmt.Println(scanner.Text())
-	return scanner.Text()
+func calculate(rows [][]string) int {
+    sum := 0
+    for i := range rows {
+        if i == 0 {
+            continue
+        }
+        for j := range rows[i] {
+            if j == 0 || j == 1 || j == 2 {
+                continue
+            }
+            v, err := strconv.Atoi(rows[i][j])
+            if err != nil {
+                log.Fatalf("Couldn't convert to integer: %s", err)
+            }
+            sum += v
+
+        }
     }
-    return " "
+
+    return sum
 }
