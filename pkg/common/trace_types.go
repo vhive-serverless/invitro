@@ -70,7 +70,7 @@ type Function struct {
 
 type FunctionTraces struct {
 	Path                      string
-	Functions                 []Function
+	Functions                 []*Function
 	WarmupScales              []int
 	InvocationsEachMinute     [][]int
 	TotalInvocationsPerMinute []int

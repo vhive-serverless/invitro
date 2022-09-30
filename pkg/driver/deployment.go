@@ -19,7 +19,7 @@ var (
 	urlRegex = regexp.MustCompile("at URL:\nhttp://([^\n]+)")
 )
 
-func DeployFunctions(functions []common.Function, yamlPath string, initScales []int, isPartiallyPanic bool, endpointPort int) []common.Function {
+func DeployFunctions(functions []*common.Function, yamlPath string, initScales []int, isPartiallyPanic bool, endpointPort int) {
 	for i := 0; i < len(functions); i++ {
 		var initScale int
 		if initScales != nil {
@@ -27,10 +27,8 @@ func DeployFunctions(functions []common.Function, yamlPath string, initScales []
 			initScale = initScales[i]
 		}
 
-		deployOne(&functions[i], yamlPath, initScale, isPartiallyPanic, endpointPort)
+		deployOne(functions[i], yamlPath, initScale, isPartiallyPanic, endpointPort)
 	}
-
-	return functions
 }
 
 func deployOne(function *common.Function, yamlPath string, initScale int, isPartiallyPanic bool, endpointPort int) bool {
@@ -70,6 +68,7 @@ func deployOne(function *common.Function, yamlPath string, initScale int, isPart
 		function.Endpoint = fmt.Sprintf("%s.%s.%s", function.Name, namespace, bareMetalLbGateway)
 	}
 
+	// adding port to the endpoint
 	function.Endpoint = fmt.Sprintf("%s:%d", function.Endpoint, endpointPort)
 
 	log.Info("Deployed function ", function.Endpoint)

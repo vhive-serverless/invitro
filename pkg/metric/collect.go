@@ -223,7 +223,7 @@ func (collector *Collector) ReportExecution(record ExecutionRecord, clusterUsage
 	collector.mutex.Lock()
 	defer collector.mutex.Unlock()
 
-	record.MasterCpu = clusterUsage.MasterCpuPct
+	/*record.MasterCpu = clusterUsage.MasterCpuPct
 	record.MasterMem = clusterUsage.MasterMemoryPct
 	record.WorkerCpuAvg = clusterUsage.CpuPctAvg
 	record.WorkerCpuActiveAvg = clusterUsage.CpuPctActiveAvg
@@ -260,7 +260,7 @@ func (collector *Collector) ReportExecution(record ExecutionRecord, clusterUsage
 		record.E2ePlacementP99 = prevE2ePlacementP99
 	} else {
 		prevE2ePlacementP99 = record.E2ePlacementP99
-	}
+	}*/
 
 	collector.executionRecords = append(collector.executionRecords, record)
 }
