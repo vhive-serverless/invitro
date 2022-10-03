@@ -5,11 +5,7 @@ from tqdm import tqdm
 from glob import glob
 import numpy as np
 import seaborn as sns
-
-# # Put sampler in the following dir.
-# sys.path.insert(0, '../../../sampler/sampler/')
-# from util import *
-# from sampler import *
+import matplotlib.pyplot as plt
 
 def percentile(n):
     def percentile_(x):
@@ -19,10 +15,11 @@ def percentile(n):
 
 p2 = pd.DataFrame()
 dirs = ['rollup1','rollup2','rollup3','rollup4','rollup5','rollup6','rollup7','rollup8','rollup9','rollup10']
+# dirs = [ '/Users/ustiugov/repos/loader2/results_loader/2w-hytrace-no-assertion-1/out', ]
 for sample_size in range(10, 210, 10):
     for d in tqdm(dirs):
-        f = glob(f"../../data/sweep/{d}/exec*sample-{sample_size}_*phase-2*.csv")
-        if not f: 
+        f = glob(f"sweep/{d}/exec*sample-{sample_size}_*phase-2*.csv")
+        if not f:
             continue
         else:
             f = f[0]
@@ -33,7 +30,7 @@ for sample_size in range(10, 210, 10):
         ## Aglin timestamps
         df.sort_values(by='timestamp', inplace=True)
         offset = df.timestamp.values[0]
-        df['timestamp'] -= offset    
+        df['timestamp'] -= offset
         df['timestamp'] = pd.to_datetime(df['timestamp'], unit='us')
 
         df['latency'] = (df.response_time - df.actual_duration)/1e6
@@ -44,6 +41,7 @@ for sample_size in range(10, 210, 10):
 
 p2.reset_index(drop=True, inplace=True)
 print(p2.shape, p2.columns, set(p2.phase), len(set(p2.sample_size)))
+
 p2_full = p2.copy()
 p2 = p2[(p2['response_time'] > 0) & (p2['actual_duration'] > 0)] ## Filter out failure values
 
@@ -53,7 +51,7 @@ dirs = ['random1','random2','random3','random4','random5','random6','random7','r
 for sample_size in range(10, 1000, 10):
     for d in tqdm(dirs):
         f = glob(f"../../data/sweep/{d}/exec*sample-{sample_size}_*phase-2*.csv")
-        if not f: 
+        if not f:
             continue
         else:
             f = f[0]
@@ -63,19 +61,18 @@ for sample_size in range(10, 1000, 10):
         ## Aglin timestamps
         df.sort_values(by='timestamp', inplace=True)
         offset = df.timestamp.values[0]
-        df['timestamp'] -= offset 
+        df['timestamp'] -= offset
         df['timestamp'] = pd.to_datetime(df['timestamp'], unit='us')
 
         df['latency'] = (df.response_time - df.actual_duration)/1e6
         # df['slowdown'] = df.response_time / df.actual_duration
         df['slowdown'] = df.response_time / df.requested_duration
-    
+
     rand=rand.append(df)
 
 rand.reset_index(drop=True, inplace=True)
 rand_full = rand.copy()
 rand = rand[(rand['response_time'] > 0) & (rand['actual_duration'] > 0)] ## Filter out failure values
 
-ax=sns.lineplot(data=p2[p2['sample_size'] < 210], x='sample_size', y='slowdown', marker='^', label='Roll-Up', lw=2, alpha=1, color='b', ci=None)
-sns.lineplot(ax=ax, data=rand[rand['sample_size'] < 210], x='sample_size', y='slowdown',label='Unif. Rand', marker='v', lw=2, alpha=1, color='r', ci=None)
-sns.show()
+ax=sns.lineplot(data=p2[p2['sample_size'] < 210], x='sample_size', y='slowdown', marker='^', label='Roll-Up', lw=2, alpha=1, color='b')
+plt.show()  
