@@ -1,6 +1,7 @@
 package driver
 
 import (
+	"errors"
 	"fmt"
 	"github.com/eth-easl/loader/pkg/common"
 	"github.com/eth-easl/loader/pkg/generator"
@@ -149,14 +150,14 @@ func (d *Driver) individualFunctionDriver(function *common.Function, announceFun
 
 	waitForInvocations := sync.WaitGroup{}
 
+	startOfMinute := time.Now()
 	for {
 		if minuteIndex >= totalTraceDuration {
 			// Check whether the end of trace has been reached
 			break
 		} else if function.NumInvocationsPerMinute[minuteIndex] == 0 {
 			// Sleep for a minute if there are no invocations
-			minuteIndex++
-			invocationIndex = 0
+			prepareForNextMinute(&minuteIndex, &invocationIndex, &startOfMinute)
 
 			time.Sleep(time.Minute)
 			continue
@@ -189,18 +190,23 @@ func (d *Driver) individualFunctionDriver(function *common.Function, announceFun
 		}
 
 		sleepFor := time.Duration(IAT[minuteIndex][invocationIndex]) * time.Microsecond
+		time.Sleep(sleepFor)
 
 		invocationIndex++
 		if function.NumInvocationsPerMinute[minuteIndex] == invocationIndex {
-			minuteIndex++
-			invocationIndex = 0
+			prepareForNextMinute(&minuteIndex, &invocationIndex, &startOfMinute)
+		} else if hasMinuteExpired(startOfMinute) {
+			congestion, err := assertRequestedVsIssued(function.NumInvocationsPerMinute[minuteIndex], invocationIndex)
+			if err != nil {
+				log.Fatalf(err.Error())
+			}
 
-			if minuteIndex >= totalTraceDuration {
+			if congestion {
 				break
 			}
-		}
 
-		time.Sleep(sleepFor)
+			prepareForNextMinute(&minuteIndex, &invocationIndex, &startOfMinute)
+		}
 	}
 
 	waitForInvocations.Wait()
@@ -210,6 +216,38 @@ func (d *Driver) individualFunctionDriver(function *common.Function, announceFun
 
 	atomic.AddInt64(totalSuccessfull, successfullInvocations)
 	atomic.AddInt64(totalFailed, failedInvocations)
+}
+
+func prepareForNextMinute(minuteIndex *int, invocationIndex *int, startOfMinute *time.Time) {
+	*minuteIndex++
+	*invocationIndex = 0
+	*startOfMinute = time.Now()
+}
+
+func assertRequestedVsIssued(requested int, issued int) (bool, error) {
+	ratio := float64(requested-issued) / float64(requested)
+
+	if ratio < 0 || ratio > 1 {
+		return true, errors.New("Invalid requsted/issued arguments.")
+	} else if ratio >= 0 && ratio < 0.1 {
+		return false, nil
+	} else if ratio >= 0.1 && ratio < 0.2 {
+		log.Warnf("Requested vs. issued invocations divergence is %.2f.\n", ratio)
+
+		return false, nil
+	} else {
+		log.Warnf("Requested vs. issued invocations divergence is %.2f. Terminating experiment!\n", ratio)
+
+		return true, nil
+	}
+}
+
+func hasMinuteExpired(t1 time.Time) bool {
+	if time.Now().Sub(t1) > time.Minute {
+		return true
+	} else {
+		return false
+	}
 }
 
 func (d *Driver) globalTimekeeper(totalTraceDuration int, signalReady *sync.WaitGroup) {

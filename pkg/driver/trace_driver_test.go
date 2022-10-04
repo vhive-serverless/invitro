@@ -15,7 +15,7 @@ import (
 func createTestDriver() *Driver {
 	driver := NewDriver(&DriverConfiguration{
 		EnableMetricsCollection: false,
-		IATDistribution:         common.Uniform,
+		IATDistribution:         common.Equidistant,
 
 		Functions: []*common.Function{
 			{
@@ -253,5 +253,37 @@ func TestDriverCompletely(t *testing.T) {
 
 	if !(successfulInvocation == 5 && failedInvocations == 0) {
 		t.Error("Number of successful and failed invocations do not match.")
+	}
+}
+
+func TestHasMinuteExpired(t *testing.T) {
+	if !hasMinuteExpired(time.Now().Add(-2 * time.Minute)) {
+		t.Error("Time should have expired.")
+	}
+
+	if hasMinuteExpired(time.Now().Add(-30 * time.Second)) {
+		t.Error("Time shouldn't have expired.")
+	}
+}
+
+func TestRequestedVsIssued(t *testing.T) {
+	if _, err := assertRequestedVsIssued(100, -10); err == nil {
+		t.Error("Unexpected value received.")
+	}
+
+	if _, err := assertRequestedVsIssued(0, 10); err == nil {
+		t.Error("Unexpected value received.")
+	}
+
+	if ok, _ := assertRequestedVsIssued(100, 95); ok {
+		t.Error("Unexpected value received.")
+	}
+
+	if ok, _ := assertRequestedVsIssued(100, 85); ok {
+		t.Error("Unexpected value received.")
+	}
+
+	if ok, _ := assertRequestedVsIssued(100, 75); !ok {
+		t.Error("Unexpected value received.")
 	}
 }
