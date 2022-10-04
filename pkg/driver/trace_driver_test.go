@@ -16,6 +16,7 @@ func createTestDriver() *Driver {
 	driver := NewDriver(&DriverConfiguration{
 		EnableMetricsCollection: false,
 		IATDistribution:         common.Equidistant,
+		TraceDuration:           1,
 
 		Functions: []*common.Function{
 			{
@@ -221,7 +222,7 @@ func TestDriverBackgroundProcesses(t *testing.T) {
 
 func TestDriverCompletely(t *testing.T) {
 	driver := createTestDriver()
-	driver.internalRun()
+	driver.RunExperiment()
 
 	f, err := os.Open(driver.OutputFilename)
 	if err != nil {
