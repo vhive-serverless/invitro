@@ -345,7 +345,6 @@ func (d *Driver) startBackgroundProcesses(allRecordsWritten *sync.WaitGroup) (*s
 	globalMetricsCollector := make(chan *mc.ExecutionRecord)
 	go d.createGlobalMetricsCollector(d.OutputFilename, globalMetricsCollector, auxiliaryProcessBarrier, allRecordsWritten)
 
-	// TODO: need assert on trace parsing that the last column with non null is parsed and declared as trace length
 	traceDurationInMinutes := d.Configuration.TraceDuration
 	go d.globalTimekeeper(traceDurationInMinutes, auxiliaryProcessBarrier)
 
@@ -390,7 +389,9 @@ func (d *Driver) internalRun() {
 	}
 
 	allFunctionsCompleted.Wait()
-	allRecordsWritten.Wait()
+	if successfullInvocations+failedInvocations != 0 {
+		allRecordsWritten.Wait()
+	}
 
 	log.Infof("Trace has finished executing function invocation driver\n")
 	log.Infof("Number of successful invocations: \t%d\n", successfullInvocations)
