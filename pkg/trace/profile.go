@@ -1,28 +1,19 @@
 package trace
 
-import (
-	"github.com/eth-easl/loader/pkg/common"
-	"github.com/montanaflynn/stats"
-)
-
 const (
 	MAX_CONCURRENCY = 50
 	MIN_CONCURRENCY = 2
-
-	// https://docs.aws.amazon.com/lambda/latest/dg/configuration-function-common.html#configuration-memory-console
-	MAX_MEM_QUOTA_MIB = 10_240
-	MIN_MEM_QUOTA_MIB = 128
 )
 
-func ProfileFunction(function *common.Function, duration int) {
+/*func ProfileFunction(function *common.Function, duration int) {
 	function.ConcurrencyStats = profileFunctionConcurrencies(function, duration)
-	function.MemoryRequestMiB = function.MemoryStats.Percentile100
+	function.MemoryRequestMiB = int(function.MemoryStats.Percentile100)
 	function.CpuRequestMilli = ConvertMemoryToCpu(function.MemoryRequestMiB)
 }
 
 func ConvertMemoryToCpu(memoryRequest int) int {
 	var cpuRequest float32
-	switch memoryRequest = common.MinOf(MAX_MEM_QUOTA_MIB, common.MaxOf(MIN_MEM_QUOTA_MIB, memoryRequest)); {
+	switch memoryRequest = common.MinOf(common.MAX_MEM_QUOTA_MIB, common.MaxOf(common.MIN_MEM_QUOTA_MIB, memoryRequest)); {
 	// GCP conversion: https://cloud.google.com/functions/pricing
 	case memoryRequest <= 128:
 		cpuRequest = 0.083
@@ -87,4 +78,4 @@ func ProfileFunctionInvocations(invocations []int) common.FunctionInvocationStat
 		Maximum: int(max),
 		Data:    invocations,
 	}
-}
+}*/
