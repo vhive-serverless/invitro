@@ -1,8 +1,7 @@
-package cmd
+package driver
 
 import (
 	"github.com/eth-easl/loader/pkg/common"
-	"github.com/eth-easl/loader/pkg/driver"
 	"math"
 	"runtime"
 	"sort"
@@ -120,7 +119,6 @@ func MaxMaxAlloc(totalClusterCapacityMilli int, scales []int, functions []*commo
  * Carries out the warm-up process.
  */
 func Warmup(
-	sampleSize int,
 	totalNumPhases int,
 	functions []*common.Function,
 	traces common.FunctionTraces,
@@ -133,7 +131,7 @@ func Warmup(
 	for phaseIdx := 1; phaseIdx < totalNumPhases; phaseIdx++ {
 		log.Infof("Enter Phase %d as of Minute[%d]", phaseIdx, nextPhaseStart)
 
-		traceLoadParams := &driver.DriverConfiguration{
+		traceLoadParams := &DriverConfiguration{
 			Functions:                     functions,
 			TotalNumInvocationsEachMinute: traces.TotalInvocationsPerMinute[nextPhaseStart:],
 			IATDistribution:               iatDistribution,
@@ -141,7 +139,7 @@ func Warmup(
 			Seed:                          seed,
 		}
 
-		nextPhaseStart = driver.NewDriver(traceLoadParams).RunExperiment()
+		nextPhaseStart = NewDriver(traceLoadParams).RunExperiment()
 	}
 
 	return nextPhaseStart

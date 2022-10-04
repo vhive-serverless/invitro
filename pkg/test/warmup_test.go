@@ -2,9 +2,9 @@ package test
 
 import (
 	tc "github.com/eth-easl/loader/pkg/common"
+	cmd "github.com/eth-easl/loader/pkg/driver"
 	"testing"
 
-	cmd "github.com/eth-easl/loader/cmd/options"
 	"github.com/stretchr/testify/assert"
 )
 
