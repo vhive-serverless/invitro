@@ -54,6 +54,8 @@ var (
 	isPartiallyPanic = flag.Bool("partiallyPanic", false, "Enable partially panic")
 	withWarmup       = flag.Bool("warmup", false, "Enable warmup")
 	withTracing      = flag.Bool("trace", false, "Enable tracing in the client")
+
+	metricsScrapingPeriod = flag.Int("scrapePeriod", 15, "Period (seconds) between scraping infrastructure metrics")
 )
 
 // TODO: this file has not been yet reviewed
@@ -188,6 +190,7 @@ func runTraceMode(invPath, runPath, memPath string) {
 		IATDistribution:               iatType,
 		WithTracing:                   *withTracing,
 		Seed:                          *seed,
+		MetricsScrapingPeriod: 		   *metricsScrapingPeriod,
 	}
 	driver.NewDriver(traceLoadParams).RunExperiment()
 }

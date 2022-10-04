@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/eth-easl/loader/pkg/common"
 	"github.com/eth-easl/loader/pkg/generator"
+	"github.com/gocarina/gocsv"
 	log "github.com/sirupsen/logrus"
 	"os"
 	"sync"
@@ -21,13 +22,13 @@ type DriverConfiguration struct {
 	TotalNumInvocationsEachMinute []int // TODO: deprecate field
 	WithTracing                   bool
 	Seed                          int64
+	MetricsScrapingPeriod		  int
 	TestMode                      bool
 }
 
 type Driver struct {
-	collector            mc.Collector
-	clusterUsage         mc.ClusterUsage
-	knStats              mc.KnStats
+	clusterUsageRecords  [] mc.ClusterUsage
+	knStatRecords        [] mc.KnStats
 	coldStartGauge       int
 	coldStartMinuteCount int // TODO: maybe set to -1 if scraping is not enabled
 
@@ -49,52 +50,76 @@ func NewDriver(driverConfig *DriverConfiguration) *Driver {
 /////////////////////////////////////////
 
 // CreateKnativeMetricsScrapper launches a scraper that updates the cluster usage periodically
-func (d *Driver) CreateKnativeMetricsScrapper(interval time.Duration, signalReady *sync.WaitGroup) func() {
+func (d *Driver) CreateMetricsScrapper(interval time.Duration,
+	signalReady *sync.WaitGroup, finishCh chan int, allRecordsWritten *sync.WaitGroup) func() {
+
 	timer := time.NewTicker(interval)
-	d.collector = mc.NewCollector()
 
 	return func() {
 		signalReady.Done()
 
 		for {
-			<-timer.C
-			d.clusterUsage = mc.ScrapeClusterUsage()
+			select {
+			case <-timer.C:
+				recCluster := mc.ScrapeClusterUsage()
+				recCluster.Timestamp = time.Now().UnixMicro()
+				d.clusterUsageRecords = append(d.clusterUsageRecords, recCluster)
+
+				recKnative := mc.ScrapeKnStats()
+				recKnative.Timestamp = time.Now().UnixMicro()
+				d.knStatRecords = append(d.knStatRecords, recKnative)
+			case <-finishCh:
+				fileClusterUsage, err := os.Create("cluster_usage.csv")
+				common.Check(err)
+				defer fileClusterUsage.Close()
+
+				err = gocsv.Marshal(d.clusterUsageRecords, fileClusterUsage)
+				common.Check(err)
+
+				fileKnStats, err := os.Create("knative_stats.csv")
+				common.Check(err)
+				defer fileKnStats.Close()
+
+				err = gocsv.Marshal(d.clusterUsageRecords, fileKnStats)
+				common.Check(err)
+				allRecordsWritten.Done()
+
+				return
+			}
 		}
 	}
 }
 
-// CreateColdStartCountScrapper creates cold start count scrapper with the given period
-func (d *Driver) CreateColdStartCountScrapper(interval time.Duration, signalReady *sync.WaitGroup) func() {
-	timer := time.NewTicker(time.Second * 60)
-	d.knStats = mc.KnStats{}
-	d.coldStartGauge = 0
-	d.coldStartMinuteCount = 0
 
-	return func() {
-		signalReady.Done()
-
-		for {
-			<-timer.C
-			d.coldStartGauge = d.collector.RecordScalesAndGetColdStartCount()
-			d.coldStartMinuteCount += d.coldStartGauge
-		}
-	}
-}
-
-// CreateKnativeStateUpdateScrapper creates a scraper that updates Knative states periodically
-func (d *Driver) CreateKnativeStateUpdateScrapper(interval time.Duration, signalReady *sync.WaitGroup) func() {
-	timer := time.NewTicker(interval)
-	d.clusterUsage = mc.ClusterUsage{}
-
-	return func() {
-		signalReady.Done()
-
-		for {
-			<-timer.C
-			d.knStats = mc.ScrapeKnStats()
-		}
-	}
-}
+//// CreateColdStartCountScrapper creates cold start count scrapper with the given period
+//func (d *Driver) CreateColdStartCountScrapper(interval time.Duration, signalReady *sync.WaitGroup, finish chan int) func() {
+//	timer := time.NewTicker(time.Second * 60)
+//	d.knStats = mc.KnStats{}
+//	d.coldStartGauge = 0
+//	d.coldStartMinuteCount = 0
+//
+//	return func() {
+//		signalReady.Done()
+//
+//		for {
+//			select {
+//			case <-timer.C:
+//				rec.Timestamp = time.Now().UnixMicro()
+//				d.coldStartGauge = d.collector.RecordScalesAndGetColdStartCount()
+//				d.coldStartMinuteCount += d.coldStartGauge
+//			case <-finish:
+//				file, err := os.Create("cluster_usage.csv")
+//				common.Check(err)
+//				defer file.Close()
+//
+//				err = gocsv.Marshal(d.clusterUsageRecords, file)
+//				common.Check(err)
+//
+//				return
+//			}
+//		}
+//	}
+//}
 
 /////////////////////////////////////////
 // DRIVER LOGIC
@@ -124,6 +149,7 @@ func (d *Driver) invokeFunction(metadata *InvocationMetadata) {
 
 	success, record := Invoke(metadata.Function, metadata.RuntimeSpecifications, d.Configuration.WithTracing)
 
+	record.FunctionName = metadata.Function.Name
 	record.Phase = int(metadata.Phase)
 	record.InvocationID = composeInvocationID(metadata.MinuteIndex, metadata.InvocationIndex)
 
@@ -277,39 +303,18 @@ func (d *Driver) createGlobalMetricsCollector(filename string, collector chan *m
 	totalNumberOfInvocations := common.SumIntArray(d.Configuration.TotalNumInvocationsEachMinute)
 	currentlyWritten := 0
 
-	invocationFile, err := os.Create(filename)
+	file, err := os.Create(filename)
 	common.Check(err)
-	defer invocationFile.Close()
-
-	invocationFile.WriteString(
-		"phase," +
-			"functionName," +
-			"invocationID," +
-			"startTime," +
-			"requestedDuration," +
-			"responseTime," +
-			"actualDuration," +
-			"actualMemoryUsage," +
-			"connectionTimeout," +
-			"functionTimeout\n")
+	defer file.Close()
 
 	signalReady.Done()
+
+	var records []mc.ExecutionRecord
 
 	for {
 		select {
 		case record := <-collector:
-			invocationFile.WriteString(fmt.Sprintf("%d,%s,%s,%d,%d,%d,%d,%d,%t,%t\n",
-				record.Phase,
-				record.FunctionName,
-				record.InvocationID,
-				record.StartTime,
-				record.RequestedDuration,
-				record.ResponseTime,
-				record.ActualDuration,
-				record.ActualMemoryUsage,
-				record.ConnectionTimeout,
-				record.FunctionTimeout,
-			))
+			records = append(records, *record)
 
 			currentlyWritten++
 			if currentlyWritten == totalNumberOfInvocations {
@@ -319,19 +324,25 @@ func (d *Driver) createGlobalMetricsCollector(filename string, collector chan *m
 			}
 		}
 	}
+
+	err = gocsv.Marshal(records, file)
+	common.Check(err)
 }
 
-func (d *Driver) startBackgroundProcesses(allRecordsWritten *sync.WaitGroup) (*sync.WaitGroup, chan *mc.ExecutionRecord) {
+func (d *Driver) startBackgroundProcesses(allRecordsWritten *sync.WaitGroup) (*sync.WaitGroup, chan *mc.ExecutionRecord, chan int) {
 	auxiliaryProcessBarrier := &sync.WaitGroup{}
 
 	if d.Configuration.EnableMetricsCollection {
 		auxiliaryProcessBarrier.Add(3)
 
 		// TODO: the following three go routines are untested
-		// TODO: the following arguments should be configurable
-		go d.CreateKnativeMetricsScrapper(time.Second*15, auxiliaryProcessBarrier)
-		go d.CreateKnativeStateUpdateScrapper(time.Second*15, auxiliaryProcessBarrier)
-		go d.CreateColdStartCountScrapper(time.Second*60, auxiliaryProcessBarrier)
+		finishCh := make(chan int)
+		allRecordsWritten.Add(1)
+		go d.CreateMetricsScrapper(time.Second * time.Duration(d.Configuration.MetricsScrapingPeriod), auxiliaryProcessBarrier, finishCh, allRecordsWritten)
+		//go d.CreateKnativeMetricsScrapper(time.Second * time.Duration(d.Configuration.MetricsScrapingPeriod), auxiliaryProcessBarrier)
+		//go d.CreateKnativeStateUpdateScrapper(time.Second * time.Duration(d.Configuration.MetricsScrapingPeriod), auxiliaryProcessBarrier)
+		// TODO: Check if cold starts need to be scraped less frequently
+		//go d.CreateColdStartCountScrapper(time.Second * time.Duration(d.Configuration.MetricsScrapingPeriod) * 4, auxiliaryProcessBarrier)
 	}
 
 	auxiliaryProcessBarrier.Add(2)
@@ -354,7 +365,7 @@ func (d *Driver) RunExperiment() int {
 	allRecordsWritten := sync.WaitGroup{}
 	allRecordsWritten.Add(1)
 
-	backgroundProcessesInitializationBarrier, globalMetricsCollector := d.startBackgroundProcesses(&allRecordsWritten)
+	backgroundProcessesInitializationBarrier, globalMetricsCollector, scraperFinishCh := d.startBackgroundProcesses(&allRecordsWritten)
 
 	log.Infof("Generating IAT and runtime specifications for all the functions\n")
 	for i, function := range d.Configuration.Functions {
@@ -385,6 +396,7 @@ func (d *Driver) RunExperiment() int {
 
 	allFunctionsCompleted.Wait()
 	allRecordsWritten.Wait()
+	scraperFinishCh <- 0 // Ask the scraper to finish metrics collection
 
 	log.Infof("Trace has finished executing function invocation driver\n")
 	log.Infof("Number of successful invocations: \t%d\n", successfullInvocations)
