@@ -19,9 +19,11 @@ func createTestDriver() *Driver {
 
 		Functions: []*common.Function{
 			{
-				Name:                    "test-function",
-				NumInvocationsPerMinute: []int{5},
-				RuntimeStats: common.FunctionRuntimeStats{
+				Name: "test-function",
+				InvocationStats: &common.FunctionInvocationStats{
+					Invocations: []int{5},
+				},
+				RuntimeStats: &common.FunctionRuntimeStats{
 					Average:       50,
 					Count:         100,
 					Minimum:       0,
@@ -34,7 +36,7 @@ func createTestDriver() *Driver {
 					Percentile99:  99,
 					Percentile100: 100,
 				},
-				MemoryStats: common.FunctionMemoryStats{
+				MemoryStats: &common.FunctionMemoryStats{
 					Average:       5000,
 					Count:         100,
 					Percentile1:   100,
@@ -48,10 +50,9 @@ func createTestDriver() *Driver {
 				},
 			},
 		},
-		TotalNumInvocationsEachMinute: []int{5},
-		WithTracing:                   false,
-		Seed:                          123456789,
-		TestMode:                      true,
+		WithTracing: false,
+		Seed:        123456789,
+		TestMode:    true,
 	})
 
 	driver.OutputFilename = "../../data/out/trace_driver_test.csv"
@@ -165,7 +166,7 @@ func TestGlobalMetricsCollector(t *testing.T) {
 		FunctionTimeout:   true,
 	}
 
-	for i := 0; i < driver.Configuration.TotalNumInvocationsEachMinute[0]; i++ {
+	for i := 0; i < driver.Configuration.Functions[0].InvocationStats.Invocations[0]; i++ {
 		inputChannel <- bogusRecord
 	}
 
@@ -179,7 +180,7 @@ func TestGlobalMetricsCollector(t *testing.T) {
 	var record []metric.ExecutionRecord
 	gocsv.UnmarshalFile(f, &record)
 
-	for i := 0; i < driver.Configuration.TotalNumInvocationsEachMinute[0]; i++ {
+	for i := 0; i < driver.Configuration.Functions[0].InvocationStats.Invocations[0]; i++ {
 		if record[i] != *bogusRecord {
 			t.Error("Failed due to unexpected data received.")
 		}
@@ -220,7 +221,7 @@ func TestDriverBackgroundProcesses(t *testing.T) {
 
 func TestDriverCompletely(t *testing.T) {
 	driver := createTestDriver()
-	driver.RunExperiment()
+	driver.internalRun()
 
 	f, err := os.Open(driver.OutputFilename)
 	if err != nil {

@@ -1,0 +1,2 @@
+HashOwner,HashApp,SampleCount,AverageAllocatedMb,AverageAllocatedMb_pct1,AverageAllocatedMb_pct5,AverageAllocatedMb_pct25,AverageAllocatedMb_pct50,AverageAllocatedMb_pct75,AverageAllocatedMb_pct95,AverageAllocatedMb_pct99,AverageAllocatedMb_pct100
+c455703077a17a9b8d0fc655d939fcc6d24d819fa9a1066b74f710c35a43cbc8,68baea05aa0c3619b6feb78c80a07e27e4e68f921d714b8125f916c3b3370bf2,19342.0,120.0,95.0,96.0,97.0,98.0,99.0,100.0,101.0,102.0
