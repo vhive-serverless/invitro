@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/eth-easl/loader/pkg/common"
 	"github.com/eth-easl/loader/pkg/generator"
+	"github.com/eth-easl/loader/pkg/trace"
 	log "github.com/sirupsen/logrus"
 	"os"
 	"sync"
@@ -23,9 +24,11 @@ type DriverConfiguration struct {
 	IsPartiallyPanic bool
 	EndpointPort     int
 
-	WithTracing bool
-	Seed        int64
-	TestMode    bool
+	WithTracing         bool
+	WithWarmup          bool
+	NumberOfWorkerNodes int
+	Seed                int64
+	TestMode            bool
 
 	Functions []*common.Function
 }
@@ -152,8 +155,15 @@ func (d *Driver) individualFunctionDriver(function *common.Function, announceFun
 
 	var successfullInvocations int64
 	var failedInvocations int64
+	var currentPhase common.ExperimentPhase = common.ExecutionPhase
 
 	waitForInvocations := sync.WaitGroup{}
+
+	if d.Configuration.WithWarmup {
+		currentPhase = common.WarmupPhase
+		// skip the first minute because of profiling
+		minuteIndex = 1
+	}
 
 	startOfMinute := time.Now()
 	for {
@@ -162,7 +172,7 @@ func (d *Driver) individualFunctionDriver(function *common.Function, announceFun
 			break
 		} else if function.InvocationStats.Invocations[minuteIndex] == 0 {
 			// Sleep for a minute if there are no invocations
-			prepareForNextMinute(&minuteIndex, &invocationIndex, &startOfMinute, true)
+			d.prepareForNextMinute(&minuteIndex, &invocationIndex, &startOfMinute, true, &currentPhase)
 
 			time.Sleep(time.Minute)
 			continue
@@ -174,7 +184,7 @@ func (d *Driver) individualFunctionDriver(function *common.Function, announceFun
 			go d.invokeFunction(&InvocationMetadata{
 				Function:              function,
 				RuntimeSpecifications: &runtimeSpecification[minuteIndex][invocationIndex],
-				Phase:                 common.ExecutionPhase, // TODO: add a warmup phase
+				Phase:                 currentPhase,
 				MinuteIndex:           minuteIndex,
 				InvocationIndex:       invocationIndex,
 				SuccessCount:          &successfullInvocations,
@@ -199,7 +209,7 @@ func (d *Driver) individualFunctionDriver(function *common.Function, announceFun
 
 		invocationIndex++
 		if function.InvocationStats.Invocations[minuteIndex] == invocationIndex {
-			prepareForNextMinute(&minuteIndex, &invocationIndex, &startOfMinute, false)
+			d.prepareForNextMinute(&minuteIndex, &invocationIndex, &startOfMinute, false, &currentPhase)
 		} else if hasMinuteExpired(startOfMinute) {
 			if !isRequestTargetAchieved(function.InvocationStats.Invocations[minuteIndex], invocationIndex) {
 				// Not fatal because we want to keep the measurements to be written to the output file
@@ -208,7 +218,7 @@ func (d *Driver) individualFunctionDriver(function *common.Function, announceFun
 				break
 			}
 
-			prepareForNextMinute(&minuteIndex, &invocationIndex, &startOfMinute, false)
+			d.prepareForNextMinute(&minuteIndex, &invocationIndex, &startOfMinute, false, &currentPhase)
 		}
 	}
 
@@ -221,13 +231,17 @@ func (d *Driver) individualFunctionDriver(function *common.Function, announceFun
 	atomic.AddInt64(totalFailed, failedInvocations)
 }
 
-func prepareForNextMinute(minuteIndex *int, invocationIndex *int, startOfMinute *time.Time, skipMinute bool) {
+func (d *Driver) prepareForNextMinute(minuteIndex *int, invocationIndex *int, startOfMinute *time.Time, skipMinute bool, currentPhase *common.ExperimentPhase) {
 	*minuteIndex++
 	*invocationIndex = 0
 	if !skipMinute {
 		*startOfMinute = time.Now()
 	} else {
 		*startOfMinute = time.Now().Add(time.Minute)
+	}
+
+	if d.Configuration.WithWarmup && *minuteIndex == (common.WARMUP_DURATION_MINUTES+1) {
+		*currentPhase = common.ExecutionPhase
 	}
 }
 
@@ -373,8 +387,6 @@ func (d *Driver) internalRun() {
 
 	backgroundProcessesInitializationBarrier.Wait()
 
-	// TODO: warmup phase comes in here
-
 	log.Infof("Starting function invocation driver\n")
 	for _, function := range d.Configuration.Functions {
 		allFunctionsCompleted.Add(1)
@@ -399,23 +411,27 @@ func (d *Driver) internalRun() {
 }
 
 func (d *Driver) RunExperiment() {
-	/*totalNumPhases := 2
-
-	if *enableWarmupAndProfiling {
-		for funcIdx := 0; funcIdx < len(traces.Functions); funcIdx++ {
-			tc.ProfileFunction(traces.Functions[funcIdx], common.PROFILING_DURATION_MINUTES)
+	var warmupScale []int
+	if d.Configuration.WithWarmup {
+		for i := 0; i < len(d.Configuration.Functions); i++ {
+			trace.DoStaticFunctionProfiling(d.Configuration.Functions[i])
 		}
-		traces.WarmupScales = driver.ComputeFunctionWarmupScales(*cluster, traces.Functions)
-	}*/
+		warmupScale = ComputeFunctionWarmupScales(d.Configuration.NumberOfWorkerNodes, d.Configuration.Functions)
 
-	DeployFunctions(d.Configuration.Functions, d.Configuration.YAMLPath, nil, d.Configuration.IsPartiallyPanic, d.Configuration.EndpointPort)
-
-	/*nextPhaseStart := 0
-	if *enableWarmupAndProfiling {
-		nextPhaseStart = driver.Warmup(totalNumPhases, traces.Functions, traces, iatType, *enableTracing, *seed)
+		fmt.Println(len(warmupScale))
 	}
 
-	if nextPhaseStart == *duration {
+	DeployFunctions(d.Configuration.Functions,
+		d.Configuration.YAMLPath,
+		nil,
+		d.Configuration.IsPartiallyPanic,
+		d.Configuration.EndpointPort)
+
+	/*if *enableWarmupAndProfiling {
+		nextPhaseStart = driver.Warmup(totalNumPhases, traces.Functions, traces, iatType, *enableTracing, *seed)
+	}*/
+
+	/*if nextPhaseStart == *duration {
 		log.Warnf("Warmup failed to finish in %d minutes", *duration)
 	}*/
 

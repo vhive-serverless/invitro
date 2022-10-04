@@ -71,8 +71,8 @@ type Function struct {
 
 	Deployed bool
 
-	// From the profiler
-	ConcurrencyStats *FunctionConcurrencyStats
+	// From the static trace profiler
+	StaticProfilingConcurrency float64
 	// From the trace
 	InvocationStats *FunctionInvocationStats
 	RuntimeStats    *FunctionRuntimeStats
