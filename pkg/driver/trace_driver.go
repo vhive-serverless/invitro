@@ -1,7 +1,6 @@
 package driver
 
 import (
-	"errors"
 	"fmt"
 	"github.com/eth-easl/loader/pkg/common"
 	"github.com/eth-easl/loader/pkg/generator"
@@ -157,7 +156,7 @@ func (d *Driver) individualFunctionDriver(function *common.Function, announceFun
 			break
 		} else if function.NumInvocationsPerMinute[minuteIndex] == 0 {
 			// Sleep for a minute if there are no invocations
-			prepareForNextMinute(&minuteIndex, &invocationIndex, &startOfMinute)
+			prepareForNextMinute(&minuteIndex, &invocationIndex, &startOfMinute, true)
 
 			time.Sleep(time.Minute)
 			continue
@@ -179,7 +178,7 @@ func (d *Driver) individualFunctionDriver(function *common.Function, announceFun
 			})
 		} else {
 			// To be used from within the Golang testing framework
-			log.Infof("Bogus invocation fired.\n")
+			log.Debugf("Bogus invocation fired.\n")
 
 			recordOutputChannel <- &mc.ExecutionRecord{
 				StartTime:    time.Now().UnixNano(),
@@ -194,18 +193,16 @@ func (d *Driver) individualFunctionDriver(function *common.Function, announceFun
 
 		invocationIndex++
 		if function.NumInvocationsPerMinute[minuteIndex] == invocationIndex {
-			prepareForNextMinute(&minuteIndex, &invocationIndex, &startOfMinute)
+			prepareForNextMinute(&minuteIndex, &invocationIndex, &startOfMinute, false)
 		} else if hasMinuteExpired(startOfMinute) {
-			congestion, err := assertRequestedVsIssued(function.NumInvocationsPerMinute[minuteIndex], invocationIndex)
-			if err != nil {
-				log.Fatalf(err.Error())
-			}
+			if !isRequestTargetAchieved(function.NumInvocationsPerMinute[minuteIndex], invocationIndex) {
+				// Not fatal because we want to keep the measurements to be written to the output file
+				log.Infof("Requested vs. issued invocations divergence is greater than 20%%. Terminating experiment!\n")
 
-			if congestion {
 				break
 			}
 
-			prepareForNextMinute(&minuteIndex, &invocationIndex, &startOfMinute)
+			prepareForNextMinute(&minuteIndex, &invocationIndex, &startOfMinute, false)
 		}
 	}
 
@@ -218,28 +215,30 @@ func (d *Driver) individualFunctionDriver(function *common.Function, announceFun
 	atomic.AddInt64(totalFailed, failedInvocations)
 }
 
-func prepareForNextMinute(minuteIndex *int, invocationIndex *int, startOfMinute *time.Time) {
+func prepareForNextMinute(minuteIndex *int, invocationIndex *int, startOfMinute *time.Time, skipMinute bool) {
 	*minuteIndex++
 	*invocationIndex = 0
-	*startOfMinute = time.Now()
+	if !skipMinute {
+		*startOfMinute = time.Now()
+	} else {
+		*startOfMinute = time.Now().Add(time.Minute)
+	}
 }
 
-func assertRequestedVsIssued(requested int, issued int) (bool, error) {
+func isRequestTargetAchieved(requested int, issued int) bool {
 	ratio := float64(requested-issued) / float64(requested)
 
 	if ratio < 0 || ratio > 1 {
-		return true, errors.New("Invalid requsted/issued arguments.")
-	} else if ratio >= 0 && ratio < 0.1 {
-		return false, nil
-	} else if ratio >= 0.1 && ratio < 0.2 {
-		log.Warnf("Requested vs. issued invocations divergence is %.2f.\n", ratio)
-
-		return false, nil
-	} else {
-		log.Warnf("Requested vs. issued invocations divergence is %.2f. Terminating experiment!\n", ratio)
-
-		return true, nil
+		log.Fatalf("Invalid requsted/issued arguments.\n")
+	} else if ratio >= 0.2 {
+		return false
 	}
+
+	if ratio >= 0.1 && ratio < 0.2 {
+		log.Warnf("Requested vs. issued invocations divergence is %.2f.\n", ratio)
+	}
+
+	return true
 }
 
 func hasMinuteExpired(t1 time.Time) bool {
