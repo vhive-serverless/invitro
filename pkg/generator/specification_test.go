@@ -12,7 +12,7 @@ import (
 )
 
 var testFunction = common.Function{
-	RuntimeStats: common.FunctionRuntimeStats{
+	RuntimeStats: &common.FunctionRuntimeStats{
 		Average:       50,
 		Count:         100,
 		Minimum:       0,
@@ -25,7 +25,7 @@ var testFunction = common.Function{
 		Percentile99:  99,
 		Percentile100: 100,
 	},
-	MemoryStats: common.FunctionMemoryStats{
+	MemoryStats: &common.FunctionMemoryStats{
 		Average:       5000,
 		Count:         100,
 		Percentile1:   100,
@@ -207,7 +207,7 @@ func TestSerialGenerateIAT(t *testing.T) {
 		t.Run(test.testName, func(t *testing.T) {
 			sg := NewSpecificationGenerator(seed)
 
-			testFunction.NumInvocationsPerMinute = test.invocations
+			testFunction.InvocationStats = &common.FunctionInvocationStats{Invocations: test.invocations}
 			spec := sg.GenerateInvocationData(&testFunction, test.iatDistribution)
 			IAT, nonScaledDuration := spec.IAT, spec.RawDuration
 
@@ -380,7 +380,9 @@ func TestGenerateExecutionSpecifications(t *testing.T) {
 			wg := sync.WaitGroup{}
 			mutex := sync.Mutex{}
 
-			testFunction.NumInvocationsPerMinute = []int{test.iterations}
+			testFunction.InvocationStats = &common.FunctionInvocationStats{
+				Invocations: []int{test.iterations},
+			}
 			// distribution is irrelevant here
 			spec := sg.GenerateInvocationData(&testFunction, common.Equidistant).RuntimeSpecification
 

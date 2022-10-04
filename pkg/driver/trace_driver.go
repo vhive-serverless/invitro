@@ -16,12 +16,18 @@ import (
 type DriverConfiguration struct {
 	EnableMetricsCollection bool
 	IATDistribution         common.IatDistribution
+	PathToTrace             string
+	TraceDuration           int
 
-	Functions                     []*common.Function
-	TotalNumInvocationsEachMinute []int // TODO: deprecate field
-	WithTracing                   bool
-	Seed                          int64
-	TestMode                      bool
+	YAMLPath         string
+	IsPartiallyPanic bool
+	EndpointPort     int
+
+	WithTracing bool
+	Seed        int64
+	TestMode    bool
+
+	Functions []*common.Function
 }
 
 type Driver struct {
@@ -40,7 +46,7 @@ func NewDriver(driverConfig *DriverConfiguration) *Driver {
 	return &Driver{
 		Configuration:          driverConfig,
 		SpecificationGenerator: generator.NewSpecificationGenerator(driverConfig.Seed),
-		OutputFilename:         fmt.Sprintf("data/out/exec_duration_%d.csv", len(driverConfig.TotalNumInvocationsEachMinute)),
+		OutputFilename:         fmt.Sprintf("data/out/exec_duration_%d.csv", driverConfig.TraceDuration),
 	}
 }
 
@@ -139,7 +145,7 @@ func (d *Driver) invokeFunction(metadata *InvocationMetadata) {
 func (d *Driver) individualFunctionDriver(function *common.Function, announceFunctionDone *sync.WaitGroup,
 	totalSuccessfull *int64, totalFailed *int64, recordOutputChannel chan *mc.ExecutionRecord) {
 
-	totalTraceDuration := len(d.Configuration.TotalNumInvocationsEachMinute)
+	totalTraceDuration := d.Configuration.TraceDuration
 	minuteIndex, invocationIndex := 0, 0
 
 	IAT, runtimeSpecification := function.Specification.IAT, function.Specification.RuntimeSpecification
@@ -154,7 +160,7 @@ func (d *Driver) individualFunctionDriver(function *common.Function, announceFun
 		if minuteIndex >= totalTraceDuration {
 			// Check whether the end of trace has been reached
 			break
-		} else if function.NumInvocationsPerMinute[minuteIndex] == 0 {
+		} else if function.InvocationStats.Invocations[minuteIndex] == 0 {
 			// Sleep for a minute if there are no invocations
 			prepareForNextMinute(&minuteIndex, &invocationIndex, &startOfMinute, true)
 
@@ -192,10 +198,10 @@ func (d *Driver) individualFunctionDriver(function *common.Function, announceFun
 		time.Sleep(sleepFor)
 
 		invocationIndex++
-		if function.NumInvocationsPerMinute[minuteIndex] == invocationIndex {
+		if function.InvocationStats.Invocations[minuteIndex] == invocationIndex {
 			prepareForNextMinute(&minuteIndex, &invocationIndex, &startOfMinute, false)
 		} else if hasMinuteExpired(startOfMinute) {
-			if !isRequestTargetAchieved(function.NumInvocationsPerMinute[minuteIndex], invocationIndex) {
+			if !isRequestTargetAchieved(function.InvocationStats.Invocations[minuteIndex], invocationIndex) {
 				// Not fatal because we want to keep the measurements to be written to the output file
 				log.Warnf("Requested vs. issued invocations divergence is greater than 20%%. Terminating experiment!\n")
 
@@ -274,7 +280,7 @@ func (d *Driver) globalTimekeeper(totalTraceDuration int, signalReady *sync.Wait
 func (d *Driver) createGlobalMetricsCollector(filename string, collector chan *mc.ExecutionRecord,
 	signalReady *sync.WaitGroup, signalEverythingWritten *sync.WaitGroup) {
 
-	totalNumberOfInvocations := common.SumIntArray(d.Configuration.TotalNumInvocationsEachMinute)
+	totalNumberOfInvocations := common.SumNumberOfInvocations(d.Configuration.Functions)
 	currentlyWritten := 0
 
 	invocationFile, err := os.Create(filename)
@@ -340,13 +346,13 @@ func (d *Driver) startBackgroundProcesses(allRecordsWritten *sync.WaitGroup) (*s
 	go d.createGlobalMetricsCollector(d.OutputFilename, globalMetricsCollector, auxiliaryProcessBarrier, allRecordsWritten)
 
 	// TODO: need assert on trace parsing that the last column with non null is parsed and declared as trace length
-	traceDurationInMinutes := len(d.Configuration.TotalNumInvocationsEachMinute)
+	traceDurationInMinutes := d.Configuration.TraceDuration
 	go d.globalTimekeeper(traceDurationInMinutes, auxiliaryProcessBarrier)
 
 	return auxiliaryProcessBarrier, globalMetricsCollector
 }
 
-func (d *Driver) RunExperiment() int {
+func (d *Driver) internalRun() {
 	var successfullInvocations int64
 	var failedInvocations int64
 
@@ -389,6 +395,30 @@ func (d *Driver) RunExperiment() int {
 	log.Infof("Trace has finished executing function invocation driver\n")
 	log.Infof("Number of successful invocations: \t%d\n", successfullInvocations)
 	log.Infof("Number of failed invocations: \t%d\n", failedInvocations)
+}
 
-	return 0
+func (d *Driver) RunExperiment() {
+	/*totalNumPhases := 2
+
+	if *enableWarmupAndProfiling {
+		for funcIdx := 0; funcIdx < len(traces.Functions); funcIdx++ {
+			tc.ProfileFunction(traces.Functions[funcIdx], common.PROFILING_DURATION_MINUTES)
+		}
+		traces.WarmupScales = driver.ComputeFunctionWarmupScales(*cluster, traces.Functions)
+	}*/
+
+	DeployFunctions(d.Configuration.Functions, d.Configuration.YAMLPath, nil, d.Configuration.IsPartiallyPanic, d.Configuration.EndpointPort)
+
+	/*nextPhaseStart := 0
+	if *enableWarmupAndProfiling {
+		nextPhaseStart = driver.Warmup(totalNumPhases, traces.Functions, traces, iatType, *enableTracing, *seed)
+	}
+
+	if nextPhaseStart == *duration {
+		log.Warnf("Warmup failed to finish in %d minutes", *duration)
+	}*/
+
+	log.Infof("Phase 2 - Generate real workloads")
+
+	d.internalRun()
 }

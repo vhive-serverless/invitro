@@ -4,8 +4,6 @@ import (
 	"github.com/eth-easl/loader/pkg/common"
 	log "github.com/sirupsen/logrus"
 	"math/rand"
-
-	tc "github.com/eth-easl/loader/pkg/trace"
 )
 
 type SpecificationGenerator struct {
@@ -85,7 +83,7 @@ func (s *SpecificationGenerator) generateIAT(invocationsPerMinute []int, iatDist
 }
 
 func (s *SpecificationGenerator) GenerateInvocationData(function *common.Function, iatDistribution common.IatDistribution) *common.FunctionSpecification {
-	invocationsPerMinute := function.NumInvocationsPerMinute
+	invocationsPerMinute := function.InvocationStats.Invocations
 
 	// Generating IAT
 	iat, rawDuration := s.generateIAT(invocationsPerMinute, iatDistribution)
@@ -114,15 +112,17 @@ func (s *SpecificationGenerator) GenerateInvocationData(function *common.Functio
 //////////////////////////////////////////////////
 
 // Choose a random number in between. Not thread safe.
-func (s *SpecificationGenerator) randIntBetween(min, max int) int {
-	if max < min {
+func (s *SpecificationGenerator) randIntBetween(min, max float64) int {
+	intMin, intMax := int(min), int(max)
+
+	if intMax < intMin {
 		log.Fatal("Invalid runtime/memory specification.")
 	}
 
-	if max == min {
-		return min
+	if intMax == intMin {
+		return intMin
 	} else {
-		return s.specRand.Intn(max-min) + min
+		return s.specRand.Intn(intMax-intMin) + intMin
 	}
 }
 
@@ -139,7 +139,7 @@ func (s *SpecificationGenerator) determineExecutionSpecSeedQuantiles() (float64,
 func (s *SpecificationGenerator) generateExecuteSpec(runQtl float64, runStats *common.FunctionRuntimeStats) (runtime int) {
 	switch {
 	case runQtl == 0:
-		runtime = runStats.Percentile0
+		runtime = int(runStats.Percentile0)
 	case runQtl <= 0.01:
 		runtime = s.randIntBetween(runStats.Percentile0, runStats.Percentile1)
 	case runQtl <= 0.25:
@@ -154,7 +154,7 @@ func (s *SpecificationGenerator) generateExecuteSpec(runQtl float64, runStats *c
 		runtime = s.randIntBetween(runStats.Percentile99, runStats.Percentile100)
 	case runQtl < 1:
 		// NOTE: 100th percentile is smaller from the max. somehow.
-		runtime = runStats.Percentile100
+		runtime = int(runStats.Percentile100)
 	}
 
 	return runtime
@@ -164,7 +164,7 @@ func (s *SpecificationGenerator) generateExecuteSpec(runQtl float64, runStats *c
 func (s *SpecificationGenerator) generateMemorySpec(memQtl float64, memStats *common.FunctionMemoryStats) (memory int) {
 	switch {
 	case memQtl <= 0.01:
-		memory = memStats.Percentile1
+		memory = int(memStats.Percentile1)
 	case memQtl <= 0.05:
 		memory = s.randIntBetween(memStats.Percentile1, memStats.Percentile5)
 	case memQtl <= 0.25:
@@ -191,8 +191,8 @@ func (s *SpecificationGenerator) generateExecutionSpecs(function *common.Functio
 	}
 
 	runQtl, memQtl := s.determineExecutionSpecSeedQuantiles()
-	runtime := common.MinOf(common.MAX_EXEC_TIME_MILLI, common.MaxOf(common.MIN_EXEC_TIME_MILLI, s.generateExecuteSpec(runQtl, &runStats)))
-	memory := common.MinOf(tc.MAX_MEM_QUOTA_MIB, common.MaxOf(tc.MIN_MEM_QUOTA_MIB, s.generateMemorySpec(memQtl, &memStats)))
+	runtime := common.MinOf(common.MAX_EXEC_TIME_MILLI, common.MaxOf(common.MIN_EXEC_TIME_MILLI, s.generateExecuteSpec(runQtl, runStats)))
+	memory := common.MinOf(common.MAX_MEM_QUOTA_MIB, common.MaxOf(common.MIN_MEM_QUOTA_MIB, s.generateMemorySpec(memQtl, memStats)))
 
 	return common.RuntimeSpecification{
 		Runtime: runtime,
