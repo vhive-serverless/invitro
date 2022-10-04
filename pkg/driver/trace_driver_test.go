@@ -258,6 +258,8 @@ func TestDriverCompletely(t *testing.T) {
 	}
 }
 
+// TODO: test with warmup and checking for phase transition
+
 func TestHasMinuteExpired(t *testing.T) {
 	if !hasMinuteExpired(time.Now().Add(-2 * time.Minute)) {
 		t.Error("Time should have expired.")

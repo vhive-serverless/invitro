@@ -31,8 +31,8 @@ var (
 	iatDistribution = flag.String("iatDistribution", "exponential", "Choose IAT distribution from [exponential, uniform, equidistant]")
 	tracePath       = flag.String("tracePath", "data/traces/", "Path to folder where the trace is located")
 
-	cluster  = flag.Int("cluster", 1, "Size of the cluster measured by #workers")
-	duration = flag.Int("duration", 1, "Duration of the experiment in minutes")
+	workerPoolSize = flag.Int("workerPoolSize", 1, "Number of worker nodes in the cluster")
+	duration       = flag.Int("duration", 1, "Duration of the experiment in minutes")
 
 	isPartiallyPanic         = flag.Bool("partiallyPanic", false, "Enable partially panic mode in Knative")
 	enableWarmupAndProfiling = flag.Bool("warmupAndProfiling", false, "Enable trace profiling and warmup")
@@ -125,7 +125,7 @@ func runTraceMode() {
 		fmt.Printf("\t%s\n", function.Name)
 	}
 
-	driver := driver.NewDriver(&driver.DriverConfiguration{
+	experimentDriver := driver.NewDriver(&driver.DriverConfiguration{
 		EnableMetricsCollection: *enableMetrics,
 		IATDistribution:         iatType,
 		PathToTrace:             *tracePath,
@@ -135,12 +135,14 @@ func runTraceMode() {
 		IsPartiallyPanic: *isPartiallyPanic,
 		EndpointPort:     *endpointPort,
 
-		WithTracing: *enableTracing,
-		Seed:        *seed,
-		TestMode:    false,
+		WithTracing:         *enableTracing,
+		WithWarmup:          *enableWarmupAndProfiling,
+		NumberOfWorkerNodes: *workerPoolSize,
+		Seed:                *seed,
+		TestMode:            false,
 
 		Functions: functions,
 	})
 
-	driver.RunExperiment()
+	experimentDriver.RunExperiment()
 }
