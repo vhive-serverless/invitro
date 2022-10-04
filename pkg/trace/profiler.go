@@ -1,12 +1,14 @@
 package trace
 
-const (
-	MAX_CONCURRENCY = 50
-	MIN_CONCURRENCY = 2
+import (
+	"github.com/eth-easl/loader/pkg/common"
 )
 
-/*func ProfileFunction(function *common.Function, duration int) {
-	function.ConcurrencyStats = profileFunctionConcurrencies(function, duration)
+func DoStaticFunctionProfiling(function *common.Function) {
+	function.StaticProfilingConcurrency = profileFunctionConcurrency(function)
+	// TODO: convert requests to limits
+	// TODO: requests = N / 10
+	// TODO: these bound should be set for non-warmup mode as well
 	function.MemoryRequestMiB = int(function.MemoryStats.Percentile100)
 	function.CpuRequestMilli = ConvertMemoryToCpu(function.MemoryRequestMiB)
 }
@@ -31,37 +33,20 @@ func ConvertMemoryToCpu(memoryRequest int) int {
 	return int(cpuRequest * 1000)
 }
 
-func profileFunctionConcurrencies(function *common.Function, duration int) common.FunctionConcurrencyStats {
-	var concurrencies []float64
-	for _, numInvocationsPerMinute := range function.InvocationStats.Data[:duration] {
-		//* Compute arrival rate (unit: 1s).
-		expectedRps := numInvocationsPerMinute / 60
-		//* Compute processing rate (= runtime_in_milli / 1000) assuming it can be process right away upon arrival.
-		expectedProcessingRatePerSec := float64(function.RuntimeStats.Average) / 1000
-		//* Expected concurrency == the inventory (total #jobs in the system) of Little's law.
-		expectedConcurrency := float64(expectedRps) * expectedProcessingRatePerSec
-		concurrencies = append(concurrencies, expectedConcurrency)
-	}
+func profileFunctionConcurrency(function *common.Function) float64 {
+	IPM := function.InvocationStats.Invocations[0]
 
-	data := stats.LoadRawData(concurrencies)
-	median, _ := stats.Median(data)
-	median, _ = stats.Round(median, 0)
-	max, _ := stats.Max(data)
-	min, _ := stats.Min(data)
-	count, _ := stats.Sum(data)
-	average, _ := stats.Mean(data)
+	// Arrival rate - unit 1 s
+	rps := float64(IPM) / 60.0
+	// Processing rate = runtime_in_milli / 1000, assuming it can be process right away upon arrival.
+	processingRate := float64(function.RuntimeStats.Average) / 1000.0
+	// Expected concurrency == the inventory (total #jobs in the system) of Little's law.
+	concurrency := rps * processingRate
 
-	return common.FunctionConcurrencyStats{
-		Average: average,
-		Count:   count,
-		Median:  median,
-		Minimum: min,
-		Maximum: max,
-		Data:    concurrencies,
-	}
+	return concurrency
 }
 
-func ProfileFunctionInvocations(invocations []int) common.FunctionInvocationStats {
+/*func ProfileFunctionInvocations(invocations []int) common.FunctionInvocationStats {
 	data := stats.LoadRawData(invocations)
 	median, _ := stats.Median(data)
 	median, _ = stats.Round(median, 0)
