@@ -197,7 +197,7 @@ func (d *Driver) individualFunctionDriver(function *common.Function, announceFun
 		} else if hasMinuteExpired(startOfMinute) {
 			if !isRequestTargetAchieved(function.NumInvocationsPerMinute[minuteIndex], invocationIndex) {
 				// Not fatal because we want to keep the measurements to be written to the output file
-				log.Infof("Requested vs. issued invocations divergence is greater than 20%%. Terminating experiment!\n")
+				log.Warnf("Requested vs. issued invocations divergence is greater than 20%%. Terminating experiment!\n")
 
 				break
 			}
@@ -244,9 +244,9 @@ func isRequestTargetAchieved(requested int, issued int) bool {
 func hasMinuteExpired(t1 time.Time) bool {
 	if time.Now().Sub(t1) > time.Minute {
 		return true
-	} else {
-		return false
 	}
+
+	return false
 }
 
 func (d *Driver) globalTimekeeper(totalTraceDuration int, signalReady *sync.WaitGroup) {
