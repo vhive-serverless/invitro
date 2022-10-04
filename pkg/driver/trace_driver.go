@@ -392,18 +392,3 @@ func (d *Driver) RunExperiment() int {
 
 	return 0
 }
-
-/*func CheckOverload(successCount, failureCount int64) bool {
-	//* Amongst those returned, how many has failed?
-	failureRate := float64(failureCount) / float64(successCount+failureCount)
-	log.Info("Failure rate=", failureRate)
-	return failureRate > common.OVERFLOAD_THRESHOLD
-}
-
-func DumpOverloadFlag() {
-	// If the file doesn't exist, create it, or append to the file
-	_, err := os.OpenFile("overload.flag", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		log.Fatal(err)
-	}
-}*/
