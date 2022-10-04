@@ -267,23 +267,15 @@ func TestHasMinuteExpired(t *testing.T) {
 }
 
 func TestRequestedVsIssued(t *testing.T) {
-	if _, err := assertRequestedVsIssued(100, -10); err == nil {
+	if !isRequestTargetAchieved(100, 95) {
 		t.Error("Unexpected value received.")
 	}
 
-	if _, err := assertRequestedVsIssued(0, 10); err == nil {
+	if !isRequestTargetAchieved(100, 85) {
 		t.Error("Unexpected value received.")
 	}
 
-	if ok, _ := assertRequestedVsIssued(100, 95); ok {
-		t.Error("Unexpected value received.")
-	}
-
-	if ok, _ := assertRequestedVsIssued(100, 85); ok {
-		t.Error("Unexpected value received.")
-	}
-
-	if ok, _ := assertRequestedVsIssued(100, 75); !ok {
+	if isRequestTargetAchieved(100, 75) {
 		t.Error("Unexpected value received.")
 	}
 }
