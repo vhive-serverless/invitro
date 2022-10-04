@@ -118,10 +118,10 @@ func MaxMaxAlloc(totalClusterCapacityMilli int, scales []int, functions []*commo
 /**
  * Carries out the warm-up process.
  */
-func Warmup(
+/*func Warmup(
 	totalNumPhases int,
 	functions []*common.Function,
-	traces common.FunctionTraces,
+	traces common.AzureTrace,
 	iatDistribution common.IatDistribution,
 	withTracing bool,
 	seed int64,
@@ -143,7 +143,7 @@ func Warmup(
 	}
 
 	return nextPhaseStart
-}
+}*/
 
 /**
  * The following functions are commented out, because they are not in use

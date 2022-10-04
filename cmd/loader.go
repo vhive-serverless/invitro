@@ -5,13 +5,13 @@ import (
 	"fmt"
 	"github.com/eth-easl/loader/pkg/common"
 	"github.com/eth-easl/loader/pkg/driver"
+	"github.com/eth-easl/loader/pkg/trace"
 	"os"
 	"time"
 
 	log "github.com/sirupsen/logrus"
 
 	tracer "github.com/ease-lab/vhive/utils/tracing/go"
-	tc "github.com/eth-easl/loader/pkg/trace"
 )
 
 const (
@@ -19,9 +19,7 @@ const (
 )
 
 var (
-	traces  common.FunctionTraces
-	iatType common.IatDistribution
-
+	iatType               common.IatDistribution
 	yamlSpecificationPath = ""
 
 	seed      = flag.Int64("seed", 42, "Random seed for the function specification generator")
@@ -39,6 +37,7 @@ var (
 	isPartiallyPanic         = flag.Bool("partiallyPanic", false, "Enable partially panic mode in Knative")
 	enableWarmupAndProfiling = flag.Bool("warmupAndProfiling", false, "Enable trace profiling and warmup")
 	enableTracing            = flag.Bool("enableTracing", false, "Embed loader spans into Zipkin tracing")
+	enableMetrics            = flag.Bool("enableMetrics", false, "Enable metrics scrapping from the cluster")
 )
 
 func init() {
@@ -53,13 +52,10 @@ func init() {
 	switch *verbosity {
 	case "all":
 		log.SetLevel(log.TraceLevel)
-		log.Debug("All messages will be logged out")
 	case "debug":
 		log.SetLevel(log.DebugLevel)
-		log.Debug("Debug logging has been enabled")
 	case "info":
 		log.SetLevel(log.InfoLevel)
-		log.Debug("Info logging has been enabled")
 	}
 
 	switch *yamlSelector {
@@ -87,6 +83,10 @@ func main() {
 		defer shutdown()
 	}
 
+	if *duration < 1 {
+		log.Fatal("Runtime duration should be longer at least a minute.")
+	}
+
 	switch *iatDistribution {
 	case "exponential":
 		iatType = common.Exponential
@@ -98,66 +98,49 @@ func main() {
 		log.Fatal("Unsupported IAT distribution.")
 	}
 
-	invocationPath := *tracePath + "invocations.csv"
-	runtimePath := *tracePath + "runtime.csv"
-	memoryPath := *tracePath + "memory.csv"
-
-	runTraceMode(invocationPath, runtimePath, memoryPath)
+	runTraceMode()
 }
 
-func runTraceMode(invocationPath, runtimePath, memoryPath string) {
-	/** Trace parsing */
-	if *duration < 1 {
-		log.Fatal("Trace duration should be longer than 0 minutes.")
+func determineDurationToParse(runtimeDuration int, withWarmup bool) int {
+	result := 0
+
+	if withWarmup {
+		result += 1                              // profiling
+		result += common.WARMUP_DURATION_MINUTES // warmup
 	}
 
-	amendedDuration := *duration
-	if *enableWarmupAndProfiling {
-		amendedDuration += common.WARMUP_DURATION_MINUTES * 2
-	}
+	result += runtimeDuration // actual experiment
 
-	traces = tc.ParseInvocationTrace(invocationPath, common.MinOf(1440, amendedDuration))
-	tc.ParseDurationTrace(&traces, runtimePath)
-	tc.ParseMemoryTrace(&traces, memoryPath)
+	return result
+}
 
-	log.Info("Traces contain the following: ", len(traces.Functions), " functions")
-	for _, function := range traces.Functions {
+func runTraceMode() {
+	durationToParse := determineDurationToParse(*duration, *enableWarmupAndProfiling)
+
+	traceParser := trace.NewAzureParser(*tracePath, durationToParse)
+	functions := traceParser.Parse()
+
+	log.Infof("Traces contain the following %d functions:\n", len(functions))
+	for _, function := range functions {
 		fmt.Printf("\t%s\n", function.Name)
 	}
 
-	totalNumPhases := 2
+	driver := driver.NewDriver(&driver.DriverConfiguration{
+		EnableMetricsCollection: *enableMetrics,
+		IATDistribution:         iatType,
+		PathToTrace:             *tracePath,
+		TraceDuration:           durationToParse,
 
-	/* Profiling */
-	if *enableWarmupAndProfiling {
-		for funcIdx := 0; funcIdx < len(traces.Functions); funcIdx++ {
-			tc.ProfileFunction(traces.Functions[funcIdx], common.PROFILING_DURATION_MINUTES)
-		}
-		traces.WarmupScales = driver.ComputeFunctionWarmupScales(*cluster, traces.Functions)
-	}
+		YAMLPath:         yamlSpecificationPath,
+		IsPartiallyPanic: *isPartiallyPanic,
+		EndpointPort:     *endpointPort,
 
-	/** Deployment */
-	driver.DeployFunctions(traces.Functions, yamlSpecificationPath, traces.WarmupScales, *isPartiallyPanic, *endpointPort)
+		WithTracing: *enableTracing,
+		Seed:        *seed,
+		TestMode:    false,
 
-	/** Warmup (Phase 1) */
-	nextPhaseStart := 0
-	if *enableWarmupAndProfiling {
-		nextPhaseStart = driver.Warmup(totalNumPhases, traces.Functions, traces, iatType, *enableTracing, *seed)
-	}
+		Functions: functions,
+	})
 
-	/** Measurement (Phase 2) */
-	if nextPhaseStart == *duration {
-		// gen.DumpOverloadFlag()
-		log.Warnf("Warmup failed to finish in %d minutes", *duration)
-	}
-
-	log.Infof("Phase 2 - Generate real workloads")
-
-	traceLoadParams := &driver.DriverConfiguration{
-		Functions:                     traces.Functions,
-		TotalNumInvocationsEachMinute: traces.TotalInvocationsPerMinute[nextPhaseStart : nextPhaseStart+*duration],
-		IATDistribution:               iatType,
-		WithTracing:                   *enableTracing,
-		Seed:                          *seed,
-	}
-	driver.NewDriver(traceLoadParams).RunExperiment()
+	driver.RunExperiment()
 }

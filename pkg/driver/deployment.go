@@ -23,6 +23,8 @@ func DeployFunctions(functions []*common.Function, yamlPath string, initScales [
 	for i := 0; i < len(functions); i++ {
 		var initScale int
 		if initScales != nil {
+			// TODO: init scale is untested
+
 			// warmup phase has profiled initial scales
 			initScale = initScales[i]
 		}

@@ -32,6 +32,10 @@ const (
 	// The maximum step size in the early stage of the RPS mode -- we shouldn't take too large a RPS step before reaching
 	// ~100RPS in order to ensure sufficient number of measurements for lower variance (smaller the RPS, the less total data points).
 	MAX_RPS_STARTUP_STEP = 5
+
+	// https://docs.aws.amazon.com/lambda/latest/dg/configuration-function-common.html#configuration-memory-console
+	MAX_MEM_QUOTA_MIB = 10_240
+	MIN_MEM_QUOTA_MIB = 128
 )
 
 type IatDistribution int
