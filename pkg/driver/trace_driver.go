@@ -414,6 +414,8 @@ func (d *Driver) RunExperiment() {
 		trace.DoStaticTraceProfiling(d.Configuration.Functions)
 	}
 
+	trace.ApplyResourceLimits(d.Configuration.Functions)
+
 	DeployFunctions(d.Configuration.Functions,
 		d.Configuration.YAMLPath,
 		d.Configuration.IsPartiallyPanic,

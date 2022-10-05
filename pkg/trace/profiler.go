@@ -9,11 +9,15 @@ func DoStaticTraceProfiling(functions []*common.Function) {
 	for i := 0; i < len(functions); i++ {
 		f := functions[i]
 
-		f.InitialScale = int(math.Ceil(profileConcurrency(f)))
+		f.InitialScale = int(math.Ceil(profileConcurrency(functions[i])))
+	}
+}
 
-		cpuShare := ConvertMemoryToCpu(int(f.MemoryStats.Percentile100))
-		f.CPURequestsMilli = cpuShare / common.OVERCOMMITMENT_RATIO
-		f.CPULimitsMilli = cpuShare
+func ApplyResourceLimits(functions []*common.Function) {
+	for i := 0; i < len(functions); i++ {
+		cpuShare := ConvertMemoryToCpu(int(functions[i].MemoryStats.Percentile100))
+		functions[i].CPURequestsMilli = cpuShare / common.OVERCOMMITMENT_RATIO
+		functions[i].CPULimitsMilli = cpuShare
 	}
 }
 
