@@ -8,10 +8,11 @@ const (
 	MAX_EXEC_TIME_MILLI = 60e3
 )
 
-const (
-	// Ten-minute warmup for unifying the starting time when the experiments consists of multiple runs.
+var (
 	WARMUP_DURATION_MINUTES = 10
+)
 
+const (
 	// https://docs.aws.amazon.com/lambda/latest/dg/configuration-function-common.html#configuration-memory-console
 	MAX_MEM_QUOTA_MIB = 10_240
 	MIN_MEM_QUOTA_MIB = 128

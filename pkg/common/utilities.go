@@ -112,11 +112,17 @@ func Hash(s string) uint64 {
 	return h.Sum64()
 }
 
-func SumNumberOfInvocations(functions []*Function) int {
+func SumNumberOfInvocations(withWarmup bool, totalDuration int, functions []*Function) int {
 	result := 0
 
 	for _, f := range functions {
-		for inv := 0; inv < len(f.InvocationStats.Invocations); inv++ {
+		inv := 0
+		if withWarmup {
+			// ignore the first minute of the trace if warmup is enabled
+			inv = 1
+		}
+
+		for ; inv < totalDuration; inv++ {
 			result += f.InvocationStats.Invocations[inv]
 		}
 	}
