@@ -3,8 +3,8 @@
 CONFIG_FILE=$1
 export FUNC_NAME=$2
 
-export MEMORY_REQUEST=$3
-export CPU_REQUEST=$4
+export CPU_REQUEST=$3
+export CPU_LIMITS=$4
 INIT_SCALE=$5
 
 export PANIC_WINDOW=$6
