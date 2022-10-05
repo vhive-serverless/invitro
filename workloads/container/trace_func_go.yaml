@@ -32,6 +32,6 @@ spec:
               value: "false"
           resources:
             limits:
-              cpu: $CPU_REQUEST
-            requests:
               cpu: $CPU_LIMITS
+            requests:
+              cpu: $CPU_REQUEST
