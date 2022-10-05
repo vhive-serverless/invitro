@@ -162,6 +162,8 @@ func (d *Driver) individualFunctionDriver(function *common.Function, announceFun
 		currentPhase = common.WarmupPhase
 		// skip the first minute because of profiling
 		minuteIndex = 1
+
+		log.Infof("Warmup phase has started.")
 	}
 
 	startOfMinute := time.Now()
@@ -193,11 +195,12 @@ func (d *Driver) individualFunctionDriver(function *common.Function, announceFun
 			})
 		} else {
 			// To be used from within the Golang testing framework
-			log.Debugf("Bogus invocation fired.\n")
+			log.Infof("Bogus invocation fired.\n")
 
 			recordOutputChannel <- &mc.ExecutionRecord{
-				StartTime:    time.Now().UnixNano(),
+				Phase:        int(currentPhase),
 				InvocationID: composeInvocationID(minuteIndex, invocationIndex),
+				StartTime:    time.Now().UnixNano(),
 			}
 
 			successfullInvocations++
@@ -241,6 +244,7 @@ func (d *Driver) prepareForNextMinute(minuteIndex *int, invocationIndex *int, st
 
 	if d.Configuration.WithWarmup && *minuteIndex == (common.WARMUP_DURATION_MINUTES+1) {
 		*currentPhase = common.ExecutionPhase
+		log.Infof("Warmup phase has finished. Starting the execution phase.")
 	}
 }
 
