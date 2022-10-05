@@ -2,6 +2,7 @@ package trace
 
 import (
 	"github.com/eth-easl/loader/pkg/common"
+	log "github.com/sirupsen/logrus"
 	"math"
 )
 
@@ -10,6 +11,7 @@ func DoStaticTraceProfiling(functions []*common.Function) {
 		f := functions[i]
 
 		f.InitialScale = int(math.Ceil(profileConcurrency(functions[i])))
+		log.Tracef("Function %s initial scale will be %d.\n", f.Name, f.InitialScale)
 	}
 }
 
