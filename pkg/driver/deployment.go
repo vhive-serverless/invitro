@@ -19,21 +19,13 @@ var (
 	urlRegex = regexp.MustCompile("at URL:\nhttp://([^\n]+)")
 )
 
-func DeployFunctions(functions []*common.Function, yamlPath string, initScales []int, isPartiallyPanic bool, endpointPort int) {
+func DeployFunctions(functions []*common.Function, yamlPath string, isPartiallyPanic bool, endpointPort int) {
 	for i := 0; i < len(functions); i++ {
-		var initScale int
-		if initScales != nil {
-			// TODO: init scale is untested
-
-			// warmup phase has profiled initial scales
-			initScale = initScales[i]
-		}
-
-		deployOne(functions[i], yamlPath, initScale, isPartiallyPanic, endpointPort)
+		deployOne(functions[i], yamlPath, isPartiallyPanic, endpointPort)
 	}
 }
 
-func deployOne(function *common.Function, yamlPath string, initScale int, isPartiallyPanic bool, endpointPort int) bool {
+func deployOne(function *common.Function, yamlPath string, isPartiallyPanic bool, endpointPort int) bool {
 	panicWindow := "\"10.0\""
 	panicThreshold := "\"200.0\""
 	if isPartiallyPanic {
@@ -47,9 +39,9 @@ func deployOne(function *common.Function, yamlPath string, initScale int, isPart
 		yamlPath,
 		function.Name,
 
-		strconv.Itoa(function.MemoryRequestMiB)+"Mi",
-		strconv.Itoa(function.CpuRequestMilli)+"m",
-		strconv.Itoa(initScale),
+		strconv.Itoa(function.CPURequestsMilli)+"m",
+		strconv.Itoa(function.CPULimitsMilli)+"m",
+		strconv.Itoa(function.InitialScale),
 
 		panicWindow,
 		panicThreshold,
