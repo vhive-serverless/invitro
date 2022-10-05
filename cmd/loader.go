@@ -34,7 +34,7 @@ var (
 	duration = flag.Int("duration", 1, "Duration of the experiment in minutes")
 
 	isPartiallyPanic         = flag.Bool("partiallyPanic", false, "Enable partially panic mode in Knative")
-	enableWarmupAndProfiling = flag.Bool("warmupAndProfiling", false, "Enable trace profiling and warmup")
+	enableWarmupAndProfiling = flag.Bool("warmup", false, "Enable trace profiling and warmup")
 	enableTracing            = flag.Bool("enableTracing", false, "Embed loader spans into Zipkin tracing")
 	enableMetrics            = flag.Bool("enableMetrics", false, "Enable metrics scrapping from the cluster")
 )
