@@ -2,38 +2,43 @@ package trace
 
 import (
 	"github.com/eth-easl/loader/pkg/common"
+	"math"
 )
 
-func DoStaticFunctionProfiling(function *common.Function) {
-	function.StaticProfilingConcurrency = profileFunctionConcurrency(function)
-	// TODO: convert requests to limits
-	// TODO: requests = N / 10
-	// TODO: these bound should be set for non-warmup mode as well
-	function.MemoryRequestMiB = int(function.MemoryStats.Percentile100)
-	function.CpuRequestMilli = ConvertMemoryToCpu(function.MemoryRequestMiB)
+func DoStaticTraceProfiling(functions []*common.Function) {
+	for i := 0; i < len(functions); i++ {
+		f := functions[i]
+
+		f.InitialScale = int(math.Ceil(profileConcurrency(f)))
+
+		cpuShare := ConvertMemoryToCpu(int(f.MemoryStats.Percentile100))
+		f.CPURequestsMilli = cpuShare / common.OVERCOMMITMENT_RATIO
+		f.CPULimitsMilli = cpuShare
+	}
 }
 
+// ConvertMemoryToCpu Google Cloud Function conversion table used from https://cloud.google.com/functions/pricing
 func ConvertMemoryToCpu(memoryRequest int) int {
 	var cpuRequest float32
 	switch memoryRequest = common.MinOf(common.MAX_MEM_QUOTA_MIB, common.MaxOf(common.MIN_MEM_QUOTA_MIB, memoryRequest)); {
-	// GCP conversion: https://cloud.google.com/functions/pricing
-	case memoryRequest <= 128:
+	case memoryRequest < 256:
 		cpuRequest = 0.083
-	case memoryRequest <= 256:
+	case memoryRequest < 512:
 		cpuRequest = 0.167
-	case memoryRequest <= 512:
+	case memoryRequest < 1024:
 		cpuRequest = 0.333
-	case memoryRequest <= 1024:
+	case memoryRequest < 2048:
 		cpuRequest = 0.583
-	case memoryRequest <= 2048:
+	case memoryRequest < 4096:
 		cpuRequest = 1
 	default:
 		cpuRequest = 2
 	}
+
 	return int(cpuRequest * 1000)
 }
 
-func profileFunctionConcurrency(function *common.Function) float64 {
+func profileConcurrency(function *common.Function) float64 {
 	IPM := function.InvocationStats.Invocations[0]
 
 	// Arrival rate - unit 1 s
@@ -45,22 +50,3 @@ func profileFunctionConcurrency(function *common.Function) float64 {
 
 	return concurrency
 }
-
-/*func ProfileFunctionInvocations(invocations []int) common.FunctionInvocationStats {
-	data := stats.LoadRawData(invocations)
-	median, _ := stats.Median(data)
-	median, _ = stats.Round(median, 0)
-	max, _ := stats.Max(data)
-	min, _ := stats.Min(data)
-	count, _ := stats.Sum(data)
-	average, _ := stats.Mean(data)
-
-	return common.FunctionInvocationStats{
-		Average: int(average),
-		Count:   int(count),
-		Median:  int(median),
-		Minimum: int(min),
-		Maximum: int(max),
-		Data:    invocations,
-	}
-}*/

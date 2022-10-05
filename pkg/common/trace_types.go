@@ -1,25 +1,5 @@
 package common
 
-type FunctionConcurrencyStats struct {
-	Average float64
-	Count   float64
-	Median  float64
-	Minimum float64
-	Maximum float64
-	Data    []float64
-}
-
-/*type FunctionInvocationStats struct {
-	Average int
-	Count   int
-	Median  int
-	Minimum int
-	Maximum int
-	Data    []int
-}*/
-
-// TODO: everything above untested
-
 type FunctionInvocationStats struct {
 	HashOwner    string
 	HashApp      string
@@ -69,17 +49,15 @@ type Function struct {
 	Name     string
 	Endpoint string
 
-	Deployed bool
-
 	// From the static trace profiler
-	StaticProfilingConcurrency float64
+	InitialScale int
 	// From the trace
 	InvocationStats *FunctionInvocationStats
 	RuntimeStats    *FunctionRuntimeStats
 	MemoryStats     *FunctionMemoryStats
 
-	CpuRequestMilli  int
-	MemoryRequestMiB int
+	CPURequestsMilli int
+	CPULimitsMilli   int
 
 	Specification *FunctionSpecification
 }

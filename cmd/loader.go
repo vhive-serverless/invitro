@@ -31,8 +31,7 @@ var (
 	iatDistribution = flag.String("iatDistribution", "exponential", "Choose IAT distribution from [exponential, uniform, equidistant]")
 	tracePath       = flag.String("tracePath", "data/traces/", "Path to folder where the trace is located")
 
-	workerPoolSize = flag.Int("workerPoolSize", 1, "Number of worker nodes in the cluster")
-	duration       = flag.Int("duration", 1, "Duration of the experiment in minutes")
+	duration = flag.Int("duration", 1, "Duration of the experiment in minutes")
 
 	isPartiallyPanic         = flag.Bool("partiallyPanic", false, "Enable partially panic mode in Knative")
 	enableWarmupAndProfiling = flag.Bool("warmupAndProfiling", false, "Enable trace profiling and warmup")
@@ -135,11 +134,10 @@ func runTraceMode() {
 		IsPartiallyPanic: *isPartiallyPanic,
 		EndpointPort:     *endpointPort,
 
-		WithTracing:         *enableTracing,
-		WithWarmup:          *enableWarmupAndProfiling,
-		NumberOfWorkerNodes: *workerPoolSize,
-		Seed:                *seed,
-		TestMode:            false,
+		WithTracing: *enableTracing,
+		WithWarmup:  *enableWarmupAndProfiling,
+		Seed:        *seed,
+		TestMode:    false,
 
 		Functions: functions,
 	})
