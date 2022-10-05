@@ -301,7 +301,6 @@ func TestDriverCompletely(t *testing.T) {
 			}
 		})
 	}
-
 }
 
 func TestHasMinuteExpired(t *testing.T) {

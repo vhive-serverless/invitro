@@ -167,6 +167,7 @@ func (d *Driver) individualFunctionDriver(function *common.Function, announceFun
 	}
 
 	startOfMinute := time.Now()
+	perInvocationSkew := time.Now()
 	for {
 		if minuteIndex >= totalTraceDuration {
 			// Check whether the end of trace has been reached
@@ -206,8 +207,13 @@ func (d *Driver) individualFunctionDriver(function *common.Function, announceFun
 			successfullInvocations++
 		}
 
+		// TODO: perMinuteDrift
+
 		sleepFor := time.Duration(IAT[minuteIndex][invocationIndex]) * time.Microsecond
-		time.Sleep(sleepFor)
+		perInvocationDrift := sleepFor.Microseconds() - time.Now().Sub(perInvocationSkew).Microseconds()
+		time.Sleep(time.Duration(perInvocationDrift) * time.Microsecond)
+
+		perInvocationSkew = time.Now()
 
 		invocationIndex++
 		if function.InvocationStats.Invocations[minuteIndex] == invocationIndex {
@@ -236,15 +242,16 @@ func (d *Driver) individualFunctionDriver(function *common.Function, announceFun
 func (d *Driver) prepareForNextMinute(minuteIndex *int, invocationIndex *int, startOfMinute *time.Time, skipMinute bool, currentPhase *common.ExperimentPhase) {
 	*minuteIndex++
 	*invocationIndex = 0
-	if !skipMinute {
-		*startOfMinute = time.Now()
-	} else {
-		*startOfMinute = time.Now().Add(time.Minute)
-	}
 
 	if d.Configuration.WithWarmup && *minuteIndex == (common.WARMUP_DURATION_MINUTES+1) {
 		*currentPhase = common.ExecutionPhase
 		log.Infof("Warmup phase has finished. Starting the execution phase.")
+	}
+
+	if !skipMinute {
+		*startOfMinute = time.Now()
+	} else {
+		*startOfMinute = time.Now().Add(time.Minute)
 	}
 }
 
