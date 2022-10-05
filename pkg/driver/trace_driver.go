@@ -195,7 +195,7 @@ func (d *Driver) individualFunctionDriver(function *common.Function, announceFun
 			})
 		} else {
 			// To be used from within the Golang testing framework
-			log.Infof("Bogus invocation fired.\n")
+			log.Debugf("Bogus invocation fired.\n")
 
 			recordOutputChannel <- &mc.ExecutionRecord{
 				Phase:        int(currentPhase),
@@ -297,7 +297,7 @@ func (d *Driver) globalTimekeeper(totalTraceDuration int, signalReady *sync.Wait
 func (d *Driver) createGlobalMetricsCollector(filename string, collector chan *mc.ExecutionRecord,
 	signalReady *sync.WaitGroup, signalEverythingWritten *sync.WaitGroup) {
 
-	totalNumberOfInvocations := common.SumNumberOfInvocations(d.Configuration.Functions)
+	totalNumberOfInvocations := common.SumNumberOfInvocations(d.Configuration.WithWarmup, d.Configuration.TraceDuration, d.Configuration.Functions)
 	currentlyWritten := 0
 
 	invocationFile, err := os.Create(filename)
@@ -342,6 +342,8 @@ func (d *Driver) createGlobalMetricsCollector(filename string, collector chan *m
 			}
 		}
 	}
+
+	log.Debugf("Metrics collector has exited.\n")
 }
 
 func (d *Driver) startBackgroundProcesses(allRecordsWritten *sync.WaitGroup) (*sync.WaitGroup, chan *mc.ExecutionRecord) {
@@ -405,6 +407,7 @@ func (d *Driver) internalRun() {
 
 	allFunctionsCompleted.Wait()
 	if successfullInvocations+failedInvocations != 0 {
+		log.Debugf("Waiting for all the invocations record to be written.\n")
 		allRecordsWritten.Wait()
 	}
 

@@ -6,6 +6,7 @@ import (
 	"github.com/eth-easl/loader/pkg/metric"
 	"github.com/eth-easl/loader/pkg/workload/standard"
 	"github.com/gocarina/gocsv"
+	"github.com/sirupsen/logrus"
 	"os"
 	"sync"
 	"testing"
@@ -22,7 +23,12 @@ func createTestDriver() *Driver {
 			{
 				Name: "test-function",
 				InvocationStats: &common.FunctionInvocationStats{
-					Invocations: []int{5},
+					Invocations: []int{
+						5, 5, 5, 5, 5,
+						5, 5, 5, 5, 5,
+						5, 5, 5, 5, 5,
+						5, 5, 5, 5, 5,
+					},
 				},
 				RuntimeStats: &common.FunctionRuntimeStats{
 					Average:       50,
@@ -221,44 +227,82 @@ func TestDriverBackgroundProcesses(t *testing.T) {
 }
 
 func TestDriverCompletely(t *testing.T) {
-	driver := createTestDriver()
-	driver.RunExperiment()
-
-	f, err := os.Open(driver.OutputFilename)
-	if err != nil {
-		t.Error(err)
+	tests := []struct {
+		testName   string
+		withWarmup bool
+	}{
+		{
+			testName:   "without_warmup",
+			withWarmup: false,
+		},
+		{
+			testName:   "with_warmup",
+			withWarmup: true,
+		},
 	}
 
-	var records []metric.ExecutionRecord
-	gocsv.UnmarshalFile(f, &records)
+	for _, test := range tests {
+		t.Run(test.testName, func(t *testing.T) {
+			logrus.SetLevel(logrus.DebugLevel)
 
-	successfulInvocation, failedInvocations := 0, 0
-	clockTolerance := int64(20_000) // ms
-
-	for i := 0; i < len(records); i++ {
-		record := records[i]
-
-		if !record.ConnectionTimeout && !record.FunctionTimeout {
-			successfulInvocation++
-		} else {
-			failedInvocations++
-		}
-
-		if i < len(records)-1 {
-			diff := (records[i+1].StartTime - records[i].StartTime) / 1_0000_000 // ms
-
-			if diff > clockTolerance {
-				t.Error("Too big clock drift for the test to pass.")
+			driver := createTestDriver()
+			if test.withWarmup {
+				driver.Configuration.WithWarmup = true
+				driver.Configuration.TraceDuration = 3 // 1 profiling - 1 withWarmup - 1 execution
+				common.WARMUP_DURATION_MINUTES = 1
 			}
-		}
+
+			driver.RunExperiment()
+
+			f, err := os.Open(driver.OutputFilename)
+			if err != nil {
+				t.Error(err)
+			}
+
+			var records []metric.ExecutionRecord
+			gocsv.UnmarshalFile(f, &records)
+
+			successfulInvocation, failedInvocations := 0, 0
+			clockTolerance := int64(20_000) // ms
+
+			for i := 0; i < len(records); i++ {
+				record := records[i]
+
+				if test.withWarmup {
+					if i < 5 && record.Phase != int(common.WarmupPhase) {
+						t.Error("Invalid record phase in warmup.")
+					} else if i > 5 && record.Phase != int(common.ExecutionPhase) {
+						t.Error("Invalid record phase in execution phase.")
+					}
+				}
+
+				if !record.ConnectionTimeout && !record.FunctionTimeout {
+					successfulInvocation++
+				} else {
+					failedInvocations++
+				}
+
+				if i < len(records)-1 {
+					diff := (records[i+1].StartTime - records[i].StartTime) / 1_000_000 // ms
+
+					if diff > clockTolerance {
+						t.Error("Too big clock drift for the test to pass.")
+					}
+				}
+			}
+
+			expectedInvocations := 5
+			if test.withWarmup {
+				expectedInvocations = 10
+			}
+
+			if !(successfulInvocation == expectedInvocations && failedInvocations == 0) {
+				t.Error("Number of successful and failed invocations do not match.")
+			}
+		})
 	}
 
-	if !(successfulInvocation == 5 && failedInvocations == 0) {
-		t.Error("Number of successful and failed invocations do not match.")
-	}
 }
-
-// TODO: test with warmup and checking for phase transition
 
 func TestHasMinuteExpired(t *testing.T) {
 	if !hasMinuteExpired(time.Now().Add(-2 * time.Minute)) {
