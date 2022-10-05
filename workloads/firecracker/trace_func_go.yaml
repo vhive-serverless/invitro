@@ -28,6 +28,7 @@ spec:
             - name: GUEST_IMAGE # Container image to use for firecracker-containerd container.
               value: "hyhe/trace-func-firecracker:latest"
           resources:
-            requests:
+            limits:
               cpu: $CPU_REQUEST
-              memory: $MEMORY_REQUEST
+            requests:
+              cpu: $CPU_LIMITS

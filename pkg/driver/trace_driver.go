@@ -24,11 +24,10 @@ type DriverConfiguration struct {
 	IsPartiallyPanic bool
 	EndpointPort     int
 
-	WithTracing         bool
-	WithWarmup          bool
-	NumberOfWorkerNodes int
-	Seed                int64
-	TestMode            bool
+	WithTracing bool
+	WithWarmup  bool
+	Seed        int64
+	TestMode    bool
 
 	Functions []*common.Function
 }
@@ -411,31 +410,14 @@ func (d *Driver) internalRun() {
 }
 
 func (d *Driver) RunExperiment() {
-	var warmupScale []int
 	if d.Configuration.WithWarmup {
-		for i := 0; i < len(d.Configuration.Functions); i++ {
-			trace.DoStaticFunctionProfiling(d.Configuration.Functions[i])
-		}
-		warmupScale = ComputeFunctionWarmupScales(d.Configuration.NumberOfWorkerNodes, d.Configuration.Functions)
-
-		fmt.Println(len(warmupScale))
+		trace.DoStaticTraceProfiling(d.Configuration.Functions)
 	}
 
 	DeployFunctions(d.Configuration.Functions,
 		d.Configuration.YAMLPath,
-		nil,
 		d.Configuration.IsPartiallyPanic,
 		d.Configuration.EndpointPort)
-
-	/*if *enableWarmupAndProfiling {
-		nextPhaseStart = driver.Warmup(totalNumPhases, traces.Functions, traces, iatType, *enableTracing, *seed)
-	}*/
-
-	/*if nextPhaseStart == *duration {
-		log.Warnf("Warmup failed to finish in %d minutes", *duration)
-	}*/
-
-	log.Infof("Phase 2 - Generate real workloads")
 
 	d.internalRun()
 }
