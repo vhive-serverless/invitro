@@ -18,16 +18,16 @@ type DriverConfiguration struct {
 	EnableMetricsCollection bool
 	IATDistribution         common.IatDistribution
 	PathToTrace             string
-	TraceDuration           int
+	TraceDuration           int // in minutes
 
 	YAMLPath         string
 	IsPartiallyPanic bool
 	EndpointPort     int
 
-	WithTracing bool
-	WithWarmup  bool
-	Seed        int64
-	TestMode    bool
+	WithTracing    bool
+	WarmupDuration int
+	Seed           int64
+	TestMode       bool
 
 	Functions []*common.Function
 }
@@ -49,6 +49,14 @@ func NewDriver(driverConfig *DriverConfiguration) *Driver {
 		Configuration:          driverConfig,
 		SpecificationGenerator: generator.NewSpecificationGenerator(driverConfig.Seed),
 		OutputFilename:         fmt.Sprintf("data/out/exec_duration_%d.csv", driverConfig.TraceDuration),
+	}
+}
+
+func (c *DriverConfiguration) WithWarmup() bool {
+	if c.WarmupDuration > 0 {
+		return true
+	} else {
+		return false
 	}
 }
 
@@ -158,7 +166,7 @@ func (d *Driver) individualFunctionDriver(function *common.Function, announceFun
 
 	waitForInvocations := sync.WaitGroup{}
 
-	if d.Configuration.WithWarmup {
+	if d.Configuration.WithWarmup() {
 		currentPhase = common.WarmupPhase
 		// skip the first minute because of profiling
 		minuteIndex = 1
@@ -167,7 +175,7 @@ func (d *Driver) individualFunctionDriver(function *common.Function, announceFun
 	}
 
 	startOfMinute := time.Now()
-	perInvocationSkew := time.Now()
+	currentInvocationStart := time.Now()
 	for {
 		if minuteIndex >= totalTraceDuration {
 			// Check whether the end of trace has been reached
@@ -210,10 +218,10 @@ func (d *Driver) individualFunctionDriver(function *common.Function, announceFun
 		// TODO: perMinuteDrift
 
 		sleepFor := time.Duration(IAT[minuteIndex][invocationIndex]) * time.Microsecond
-		perInvocationDrift := sleepFor.Microseconds() - time.Now().Sub(perInvocationSkew).Microseconds()
+		perInvocationDrift := sleepFor.Microseconds() - time.Now().Sub(currentInvocationStart).Microseconds()
 		time.Sleep(time.Duration(perInvocationDrift) * time.Microsecond)
 
-		perInvocationSkew = time.Now()
+		currentInvocationStart = time.Now()
 
 		invocationIndex++
 		if function.InvocationStats.Invocations[minuteIndex] == invocationIndex {
@@ -243,7 +251,7 @@ func (d *Driver) prepareForNextMinute(minuteIndex *int, invocationIndex *int, st
 	*minuteIndex++
 	*invocationIndex = 0
 
-	if d.Configuration.WithWarmup && *minuteIndex == (common.WARMUP_DURATION_MINUTES+1) {
+	if d.Configuration.WithWarmup() && *minuteIndex == (d.Configuration.WarmupDuration+1) {
 		*currentPhase = common.ExecutionPhase
 		log.Infof("Warmup phase has finished. Starting the execution phase.")
 	}
@@ -304,7 +312,7 @@ func (d *Driver) globalTimekeeper(totalTraceDuration int, signalReady *sync.Wait
 func (d *Driver) createGlobalMetricsCollector(filename string, collector chan *mc.ExecutionRecord,
 	signalReady *sync.WaitGroup, signalEverythingWritten *sync.WaitGroup) {
 
-	totalNumberOfInvocations := common.SumNumberOfInvocations(d.Configuration.WithWarmup, d.Configuration.TraceDuration, d.Configuration.Functions)
+	totalNumberOfInvocations := common.SumNumberOfInvocations(d.Configuration.WithWarmup(), d.Configuration.TraceDuration, d.Configuration.Functions)
 	currentlyWritten := 0
 
 	invocationFile, err := os.Create(filename)
@@ -424,7 +432,7 @@ func (d *Driver) internalRun() {
 }
 
 func (d *Driver) RunExperiment() {
-	if d.Configuration.WithWarmup {
+	if d.Configuration.WithWarmup() {
 		trace.DoStaticTraceProfiling(d.Configuration.Functions)
 	}
 

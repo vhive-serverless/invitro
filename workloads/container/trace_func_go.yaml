@@ -35,3 +35,4 @@ spec:
               cpu: $CPU_LIMITS
             requests:
               cpu: $CPU_REQUEST
+              memory: $MEMORY_REQUESTS

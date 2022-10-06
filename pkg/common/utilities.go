@@ -116,14 +116,14 @@ func SumNumberOfInvocations(withWarmup bool, totalDuration int, functions []*Fun
 	result := 0
 
 	for _, f := range functions {
-		inv := 0
+		minuteIndex := 0
 		if withWarmup {
 			// ignore the first minute of the trace if warmup is enabled
-			inv = 1
+			minuteIndex = 1
 		}
 
-		for ; inv < totalDuration; inv++ {
-			result += f.InvocationStats.Invocations[inv]
+		for ; minuteIndex < totalDuration; minuteIndex++ {
+			result += f.InvocationStats.Invocations[minuteIndex]
 		}
 	}
 

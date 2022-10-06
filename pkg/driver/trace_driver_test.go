@@ -247,9 +247,8 @@ func TestDriverCompletely(t *testing.T) {
 
 			driver := createTestDriver()
 			if test.withWarmup {
-				driver.Configuration.WithWarmup = true
+				driver.Configuration.WarmupDuration = 1
 				driver.Configuration.TraceDuration = 3 // 1 profiling - 1 withWarmup - 1 execution
-				common.WARMUP_DURATION_MINUTES = 1
 			}
 
 			driver.RunExperiment()

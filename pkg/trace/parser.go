@@ -103,7 +103,7 @@ func parseInvocationTrace(traceFile string, traceDuration int) *[]common.Functio
 
 	csvfile, err := os.Open(traceFile)
 	if err != nil {
-		log.Fatal("Failed to invocation CSV file", err)
+		log.Fatal("Failed to open invocation CSV file.", err)
 	}
 
 	reader := csv.NewReader(csvfile)
