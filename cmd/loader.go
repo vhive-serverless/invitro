@@ -23,7 +23,7 @@ var (
 	yamlSpecificationPath = ""
 
 	seed      = flag.Int64("seed", 42, "Random seed for the function specification generator")
-	verbosity = flag.String("verbosity", "all", "Logging verbosity - choose from [all, debug, info]")
+	verbosity = flag.String("verbosity", "info", "Logging verbosity - choose from [info, debug, trace]")
 
 	yamlSelector = flag.String("yaml", "trace", "Choose a function YAML from [wimpy, trace, trace_firecracker]")
 	endpointPort = flag.Int("endpointPort", 80, "Port to append to an endpoint URL")
@@ -49,11 +49,11 @@ func init() {
 	log.SetOutput(os.Stdout)
 
 	switch *verbosity {
-	case "all":
-		log.SetLevel(log.TraceLevel)
 	case "debug":
 		log.SetLevel(log.DebugLevel)
-	case "info":
+	case "trace":
+		log.SetLevel(log.TraceLevel)
+	default:
 		log.SetLevel(log.InfoLevel)
 	}
 
@@ -104,8 +104,8 @@ func determineDurationToParse(runtimeDuration int, withWarmup bool) int {
 	result := 0
 
 	if withWarmup {
-		result += 1                              // profiling
-		result += common.WARMUP_DURATION_MINUTES // warmup
+		result += 1                                      // profiling
+		result += common.DEFAULT_WARMUP_DURATION_MINUTES // warmup
 	}
 
 	result += runtimeDuration // actual experiment
@@ -124,6 +124,11 @@ func runTraceMode() {
 		fmt.Printf("\t%s\n", function.Name)
 	}
 
+	warmupDuration := 0
+	if *enableWarmupAndProfiling {
+		warmupDuration = common.DEFAULT_WARMUP_DURATION_MINUTES
+	}
+
 	experimentDriver := driver.NewDriver(&driver.DriverConfiguration{
 		EnableMetricsCollection: *enableMetrics,
 		IATDistribution:         iatType,
@@ -134,10 +139,10 @@ func runTraceMode() {
 		IsPartiallyPanic: *isPartiallyPanic,
 		EndpointPort:     *endpointPort,
 
-		WithTracing: *enableTracing,
-		WithWarmup:  *enableWarmupAndProfiling,
-		Seed:        *seed,
-		TestMode:    false,
+		WithTracing:    *enableTracing,
+		WarmupDuration: warmupDuration,
+		Seed:           *seed,
+		TestMode:       false,
 
 		Functions: functions,
 	})

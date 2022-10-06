@@ -62,7 +62,8 @@ func TestStaticTraceProfiling(t *testing.T) {
 
 			if f.InitialScale != test.expectedInitialScale ||
 				f.CPULimitsMilli != test.expectedCPULimits ||
-				f.CPURequestsMilli != f.CPULimitsMilli/common.OVERCOMMITMENT_RATIO {
+				f.CPURequestsMilli != f.CPULimitsMilli/common.OVERCOMMITMENT_RATIO ||
+				f.MemoryRequestsMiB != int(test.memoryMaxPercentile)/common.OVERCOMMITMENT_RATIO {
 
 				t.Error("Wrong static trace profile.")
 			}
