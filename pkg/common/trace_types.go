@@ -56,8 +56,9 @@ type Function struct {
 	RuntimeStats    *FunctionRuntimeStats
 	MemoryStats     *FunctionMemoryStats
 
-	CPURequestsMilli int
-	CPULimitsMilli   int
+	CPURequestsMilli  int
+	MemoryRequestsMiB int
+	CPULimitsMilli    int
 
 	Specification *FunctionSpecification
 }
