@@ -41,6 +41,7 @@ func deployOne(function *common.Function, yamlPath string, isPartiallyPanic bool
 
 		strconv.Itoa(function.CPURequestsMilli)+"m",
 		strconv.Itoa(function.CPULimitsMilli)+"m",
+		strconv.Itoa(function.MemoryRequestsMiB)+"Mi",
 		strconv.Itoa(function.InitialScale),
 
 		panicWindow,

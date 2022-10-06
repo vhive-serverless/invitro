@@ -8,11 +8,9 @@ const (
 	MAX_EXEC_TIME_MILLI = 60e3
 )
 
-var (
-	WARMUP_DURATION_MINUTES = 10
-)
-
 const (
+	DEFAULT_WARMUP_DURATION_MINUTES = 10
+
 	// https://docs.aws.amazon.com/lambda/latest/dg/configuration-function-common.html#configuration-memory-console
 	MAX_MEM_QUOTA_MIB = 10_240
 	MIN_MEM_QUOTA_MIB = 128
