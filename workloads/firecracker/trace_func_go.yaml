@@ -26,7 +26,7 @@ spec:
             - name: GUEST_PORT # Port on which the firecracker-containerd container is accepting requests.
               value: "50051"
             - name: GUEST_IMAGE # Container image to use for firecracker-containerd container.
-              value: "hyhe/trace-func-firecracker:latest"
+              value: "cvetkovic/trace_function_firecracker:latest"
           resources:
             limits:
               cpu: $CPU_LIMITS
