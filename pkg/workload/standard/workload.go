@@ -25,6 +25,10 @@ import "C"
 
 const EXEC_UNIT int = 1e2
 
+var hostname = "Unknown host"
+var warmIteration = 115
+var coldIteration = 90
+
 func takeSqrts() C.double {
 	var tmp C.double //* Circumvent compiler optimisations.
 	for i := 0; i < EXEC_UNIT; i++ {
@@ -40,17 +44,9 @@ type funcServer struct {
 func busySpin(runtimeMilli uint32) {
 	var unitIterations int
 	if runtimeMilli > 1e3 {
-		if _, ok := os.LookupEnv("WARM_ITER_PER_1MS"); ok {
-			unitIterations, _ = strconv.Atoi(os.Getenv("WARM_ITER_PER_1MS"))
-		} else {
-			unitIterations = 115
-		}
+		unitIterations = warmIteration
 	} else {
-		if _, ok := os.LookupEnv("COLD_ITER_PER_1MS"); ok {
-			unitIterations, _ = strconv.Atoi(os.Getenv("COLD_ITER_PER_1MS"))
-		} else {
-			unitIterations = 90
-		}
+		unitIterations = coldIteration
 	}
 	totalIterations := unitIterations * int(runtimeMilli)
 
@@ -72,7 +68,7 @@ func (s *funcServer) Execute(_ context.Context, req *proto.FaasRequest) (*proto.
 	_ = make([]byte, memoryRequestedBytes)
 
 	//* Offset the time spent on allocating memory.
-	msg := "Trace func -- OK"
+	msg := fmt.Sprintf("OK - %s", hostname)
 	if uint32(time.Since(start).Milliseconds()) >= runtimeRequestedMilli {
 		msg = "Trace func -- timeout in memory allocation"
 	} else {
@@ -87,7 +83,29 @@ func (s *funcServer) Execute(_ context.Context, req *proto.FaasRequest) (*proto.
 	}, nil
 }
 
+func readEnvironmentalVariables() {
+	if _, ok := os.LookupEnv("WARM_ITER_PER_1MS"); ok {
+		warmIteration, _ = strconv.Atoi(os.Getenv("WARM_ITER_PER_1MS"))
+	} else {
+		warmIteration = 115
+	}
+
+	if _, ok := os.LookupEnv("COLD_ITER_PER_1MS"); ok {
+		coldIteration, _ = strconv.Atoi(os.Getenv("COLD_ITER_PER_1MS"))
+	} else {
+		coldIteration = 90
+	}
+
+	var err error
+	hostname, err = os.Hostname()
+	if err != nil {
+		log.Info("Failed to get HOSTNAME environmental variable.")
+	}
+}
+
 func StartGRPCServer(serverAddress string, serverPort int, zipkinUrl string) {
+	readEnvironmentalVariables()
+
 	if tracing.IsTracingEnabled() {
 		log.Printf("Start tracing on : %s\n", zipkinUrl)
 		shutdown, err := tracing.InitBasicTracer(zipkinUrl, "")
