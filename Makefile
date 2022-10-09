@@ -52,7 +52,7 @@ test:
 trace-firecracker:
 	docker build --build-arg FUNC_TYPE=TRACE \
 		--build-arg FUNC_PORT=50051 \
-		-f Dockerfile.trace.firecracker \
+		-f Dockerfile.trace \
 		-t cvetkovic/trace_function_firecracker .
 	docker push cvetkovic/trace_function_firecracker:latest
 
@@ -60,7 +60,7 @@ trace-firecracker:
 trace-container:
 	docker build --build-arg FUNC_TYPE=TRACE \
 		--build-arg FUNC_PORT=80 \
-		-f Dockerfile.trace.container \
+		-f Dockerfile.trace \
 		-t cvetkovic/trace_function .
 	docker push cvetkovic/trace_function:latest
 
@@ -68,7 +68,7 @@ trace-container:
 empty-firecracker:
 	docker build --build-arg FUNC_TYPE=EMPTY \
 		--build-arg FUNC_PORT=50051 \
-		-f Dockerfile.trace.firecracker \
+		-f Dockerfile.trace \
 		-t cvetkovic/empty_function_firecracker .
 	docker push cvetkovic/empty_function_firecracker:latest
 
@@ -76,7 +76,7 @@ empty-firecracker:
 empty-container:
 	docker build --build-arg FUNC_TYPE=EMPTY \
 		--build-arg FUNC_PORT=80 \
-		-f Dockerfile.trace.container \
+		-f Dockerfile.trace \
 		-t cvetkovic/empty_function .
 	docker push cvetkovic/empty_function:latest
 
