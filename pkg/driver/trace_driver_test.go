@@ -160,7 +160,7 @@ func TestGlobalMetricsCollector(t *testing.T) {
 
 	bogusRecord := &metric.ExecutionRecord{
 		Phase:        common.ExecutionPhase,
-		FunctionName: driver.Configuration.Functions[0].Name,
+		Instance:     "",
 		InvocationID: "min1.inv1",
 		StartTime:    123456789,
 
