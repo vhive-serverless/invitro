@@ -82,7 +82,7 @@ func (s *funcServer) Execute(_ context.Context, req *proto.FaasRequest) (*proto.
 		// Offset the time spent on allocating memory.
 		msg = fmt.Sprintf("OK - %s", hostname)
 		if uint32(time.Since(start).Milliseconds()) >= runtimeRequestedMilli {
-			msg = "Trace func -- timeout in memory allocation"
+			msg = fmt.Sprintf("FAILURE - mem_alloc timeout - %s", hostname)
 		} else {
 			runtimeRequestedMilli -= uint32(time.Since(start).Milliseconds())
 			busySpin(runtimeRequestedMilli)
