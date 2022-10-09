@@ -6,6 +6,7 @@ import (
 	"github.com/eth-easl/loader/pkg/generator"
 	"github.com/eth-easl/loader/pkg/trace"
 	log "github.com/sirupsen/logrus"
+	"math"
 	"os"
 	"sync"
 	"sync/atomic"
@@ -153,7 +154,7 @@ func (d *Driver) invokeFunction(metadata *InvocationMetadata) {
 }
 
 func (d *Driver) individualFunctionDriver(function *common.Function, announceFunctionDone *sync.WaitGroup,
-	totalSuccessfull *int64, totalFailed *int64, recordOutputChannel chan *mc.ExecutionRecord) {
+	totalSuccessfull *int64, totalFailed *int64, totalIssued *int64, recordOutputChannel chan *mc.ExecutionRecord) {
 
 	totalTraceDuration := d.Configuration.TraceDuration
 	minuteIndex, invocationIndex := 0, 0
@@ -162,6 +163,7 @@ func (d *Driver) individualFunctionDriver(function *common.Function, announceFun
 
 	var successfullInvocations int64
 	var failedInvocations int64
+	var numberOfIssuedInvocations int64
 	var currentPhase common.ExperimentPhase = common.ExecutionPhase
 
 	waitForInvocations := sync.WaitGroup{}
@@ -188,6 +190,7 @@ func (d *Driver) individualFunctionDriver(function *common.Function, announceFun
 			continue
 		}
 
+		numberOfIssuedInvocations++
 		if !d.Configuration.TestMode {
 			waitForInvocations.Add(1)
 
@@ -204,7 +207,7 @@ func (d *Driver) individualFunctionDriver(function *common.Function, announceFun
 			})
 		} else {
 			// To be used from within the Golang testing framework
-			log.Debugf("Bogus invocation fired.\n")
+			log.Debugf("Test mode invocation fired.\n")
 
 			recordOutputChannel <- &mc.ExecutionRecord{
 				Phase:        int(currentPhase),
@@ -214,8 +217,6 @@ func (d *Driver) individualFunctionDriver(function *common.Function, announceFun
 
 			successfullInvocations++
 		}
-
-		// TODO: perMinuteDrift
 
 		sleepFor := time.Duration(IAT[minuteIndex][invocationIndex]) * time.Microsecond
 		perInvocationDrift := sleepFor.Microseconds() - time.Now().Sub(currentInvocationStart).Microseconds()
@@ -245,6 +246,7 @@ func (d *Driver) individualFunctionDriver(function *common.Function, announceFun
 
 	atomic.AddInt64(totalSuccessfull, successfullInvocations)
 	atomic.AddInt64(totalFailed, failedInvocations)
+	atomic.AddInt64(totalIssued, numberOfIssuedInvocations)
 }
 
 func (d *Driver) prepareForNextMinute(minuteIndex *int, invocationIndex *int, startOfMinute *time.Time, skipMinute bool, currentPhase *common.ExperimentPhase) {
@@ -310,10 +312,10 @@ func (d *Driver) globalTimekeeper(totalTraceDuration int, signalReady *sync.Wait
 }
 
 func (d *Driver) createGlobalMetricsCollector(filename string, collector chan *mc.ExecutionRecord,
-	signalReady *sync.WaitGroup, signalEverythingWritten *sync.WaitGroup) {
+	signalReady *sync.WaitGroup, signalEverythingWritten *sync.WaitGroup, totalIssuedChannel chan int64) {
 
-	totalNumberOfInvocations := common.SumNumberOfInvocations(d.Configuration.WithWarmup(), d.Configuration.TraceDuration, d.Configuration.Functions)
-	currentlyWritten := 0
+	var currentlyWritten int64 = 0
+	var totalNumberOfInvocations int64 = math.MaxInt64
 
 	invocationFile, err := os.Create(filename)
 	common.Check(err)
@@ -355,13 +357,20 @@ func (d *Driver) createGlobalMetricsCollector(filename string, collector chan *m
 
 				break
 			}
+		case record := <-totalIssuedChannel:
+			totalNumberOfInvocations = record
+			if currentlyWritten == totalNumberOfInvocations {
+				(*signalEverythingWritten).Done()
+
+				break
+			}
 		}
 	}
 
 	log.Debugf("Metrics collector has exited.\n")
 }
 
-func (d *Driver) startBackgroundProcesses(allRecordsWritten *sync.WaitGroup) (*sync.WaitGroup, chan *mc.ExecutionRecord) {
+func (d *Driver) startBackgroundProcesses(allRecordsWritten *sync.WaitGroup) (*sync.WaitGroup, chan *mc.ExecutionRecord, chan int64) {
 	auxiliaryProcessBarrier := &sync.WaitGroup{}
 
 	if d.Configuration.EnableMetricsCollection {
@@ -377,23 +386,25 @@ func (d *Driver) startBackgroundProcesses(allRecordsWritten *sync.WaitGroup) (*s
 	auxiliaryProcessBarrier.Add(2)
 
 	globalMetricsCollector := make(chan *mc.ExecutionRecord)
-	go d.createGlobalMetricsCollector(d.OutputFilename, globalMetricsCollector, auxiliaryProcessBarrier, allRecordsWritten)
+	totalIssuedChannel := make(chan int64)
+	go d.createGlobalMetricsCollector(d.OutputFilename, globalMetricsCollector, auxiliaryProcessBarrier, allRecordsWritten, totalIssuedChannel)
 
 	traceDurationInMinutes := d.Configuration.TraceDuration
 	go d.globalTimekeeper(traceDurationInMinutes, auxiliaryProcessBarrier)
 
-	return auxiliaryProcessBarrier, globalMetricsCollector
+	return auxiliaryProcessBarrier, globalMetricsCollector, totalIssuedChannel
 }
 
 func (d *Driver) internalRun() {
 	var successfullInvocations int64
 	var failedInvocations int64
+	var invocationsIssued int64
 
-	allFunctionsCompleted := sync.WaitGroup{}
+	allIndividualDriversCompleted := sync.WaitGroup{}
 	allRecordsWritten := sync.WaitGroup{}
 	allRecordsWritten.Add(1)
 
-	backgroundProcessesInitializationBarrier, globalMetricsCollector := d.startBackgroundProcesses(&allRecordsWritten)
+	backgroundProcessesInitializationBarrier, globalMetricsCollector, totalIssuedChannel := d.startBackgroundProcesses(&allRecordsWritten)
 
 	log.Infof("Generating IAT and runtime specifications for all the functions\n")
 	for i, function := range d.Configuration.Functions {
@@ -409,20 +420,22 @@ func (d *Driver) internalRun() {
 
 	log.Infof("Starting function invocation driver\n")
 	for _, function := range d.Configuration.Functions {
-		allFunctionsCompleted.Add(1)
+		allIndividualDriversCompleted.Add(1)
 
 		go d.individualFunctionDriver(
 			function,
-			&allFunctionsCompleted,
+			&allIndividualDriversCompleted,
 			&successfullInvocations,
 			&failedInvocations,
+			&invocationsIssued,
 			globalMetricsCollector,
 		)
 	}
 
-	allFunctionsCompleted.Wait()
+	allIndividualDriversCompleted.Wait()
 	if successfullInvocations+failedInvocations != 0 {
 		log.Debugf("Waiting for all the invocations record to be written.\n")
+		totalIssuedChannel <- invocationsIssued
 		allRecordsWritten.Wait()
 	}
 

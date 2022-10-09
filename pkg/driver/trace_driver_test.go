@@ -150,12 +150,13 @@ func TestGlobalMetricsCollector(t *testing.T) {
 	driver := createTestDriver()
 
 	inputChannel := make(chan *metric.ExecutionRecord)
+	totalIssuedChannel := make(chan int64)
 	collectorReady, collectorFinished := &sync.WaitGroup{}, &sync.WaitGroup{}
 
 	collectorReady.Add(1)
 	collectorFinished.Add(1)
 
-	go driver.createGlobalMetricsCollector(driver.OutputFilename, inputChannel, collectorReady, collectorFinished)
+	go driver.createGlobalMetricsCollector(driver.OutputFilename, inputChannel, collectorReady, collectorFinished, totalIssuedChannel)
 	collectorReady.Wait()
 
 	bogusRecord := &metric.ExecutionRecord{
@@ -177,6 +178,7 @@ func TestGlobalMetricsCollector(t *testing.T) {
 		inputChannel <- bogusRecord
 	}
 
+	totalIssuedChannel <- int64(driver.Configuration.Functions[0].InvocationStats.Invocations[0])
 	collectorFinished.Wait()
 
 	f, err := os.Open(driver.OutputFilename)
@@ -219,7 +221,7 @@ func TestDriverBackgroundProcesses(t *testing.T) {
 			driver := createTestDriver()
 			globalCollectorAnnounceDone := &sync.WaitGroup{}
 
-			completed, _ := driver.startBackgroundProcesses(globalCollectorAnnounceDone)
+			completed, _, _ := driver.startBackgroundProcesses(globalCollectorAnnounceDone)
 
 			completed.Wait()
 		})
