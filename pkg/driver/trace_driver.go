@@ -321,7 +321,7 @@ func (d *Driver) createGlobalMetricsCollector(filename string, collector chan *m
 
 	invocationFile.WriteString(
 		"phase," +
-			"functionName," +
+			"instance," +
 			"invocationID," +
 			"startTime," +
 			"requestedDuration," +
@@ -338,7 +338,7 @@ func (d *Driver) createGlobalMetricsCollector(filename string, collector chan *m
 		case record := <-collector:
 			invocationFile.WriteString(fmt.Sprintf("%d,%s,%s,%d,%d,%d,%d,%d,%t,%t\n",
 				record.Phase,
-				record.FunctionName,
+				record.Instance,
 				record.InvocationID,
 				record.StartTime,
 				record.RequestedDuration,

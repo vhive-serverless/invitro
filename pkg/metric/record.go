@@ -12,7 +12,7 @@ type MinuteInvocationRecord struct {
 
 type ExecutionRecord struct {
 	Phase        int    `csv:"phase"`
-	FunctionName string `csv:"functionName"`
+	Instance     string `csv:"instance"`
 	InvocationID string `csv:"invocationID"`
 	StartTime    int64  `csv:"startTime"`
 
