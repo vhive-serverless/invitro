@@ -93,9 +93,12 @@ func Invoke(function *common.Function, runtimeSpec *common.RuntimeSpecification,
 }
 
 func extractInstanceName(data string) string {
-	indexOfHyphen := strings.LastIndex(data, "-")
+	indexOfHyphen := strings.LastIndex(data, common.FunctionNamePrefix)
+	if indexOfHyphen == -1 {
+		return data
+	}
 
-	return data[indexOfHyphen+2:]
+	return data[indexOfHyphen:]
 }
 
 func gRPCConnectionClose(conn *grpc.ClientConn) {

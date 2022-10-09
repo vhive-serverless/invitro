@@ -1,6 +1,10 @@
 package common
 
 const (
+	FunctionNamePrefix = "trace-func"
+)
+
+const (
 	// 1ms (min. billing unit of AWS)
 	MIN_EXEC_TIME_MILLI = 1
 
