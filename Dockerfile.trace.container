@@ -25,13 +25,13 @@ WORKDIR /app/server/trace-func-go
 RUN CGO_ENABLED=1 GOARCH=amd64 GOGCCFLAGS=-m64 GOOS=linux go build -mod=readonly -v -o server
 
 # Stage 1: Run #
-# Use Debain slim, which turns out to be smaller.
 FROM debian:stable-slim
-# Add the following if Alpine is used 
-# RUN apk add --no-cache libc6-compat 
+
+ARG FUNCTYPE
+ENV FUNCTYPE_ENV=${FUNCTYPE}
 
 # Copy the binary to the production image from the BUILDER stage.
 COPY --from=BUILDER /app/server/trace-func-go/server /server
 
 # Run the web service on container startup.
-CMD ["/server", "80"]
+CMD /server 80 ${FUNCTYPE_ENV}
