@@ -99,7 +99,7 @@ func TestInvokeFunctionFromDriver(t *testing.T) {
 				address, port := "localhost", test.port
 				testDriver.Configuration.Functions[0].Endpoint = fmt.Sprintf("%s:%d", address, port)
 
-				go standard.StartGRPCServer(address, port, "")
+				go standard.StartGRPCServer(address, port, standard.TraceFunction, "")
 
 				// make sure that the gRPC server is running
 				time.Sleep(2 * time.Second)
