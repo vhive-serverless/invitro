@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/eth-easl/loader/pkg/common"
 	"github.com/eth-easl/loader/pkg/workload/proto"
+	"strings"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -79,6 +80,7 @@ func Invoke(function *common.Function, runtimeSpec *common.RuntimeSpecification,
 		return false, record
 	}
 
+	record.FunctionName = extractInstanceName(response.GetMessage())
 	record.ResponseTime = time.Since(start).Microseconds()
 	record.ActualDuration = response.DurationInMicroSec
 	record.ActualMemoryUsage = common.Kib2Mib(response.MemoryUsageInKb)
@@ -88,6 +90,12 @@ func Invoke(function *common.Function, runtimeSpec *common.RuntimeSpecification,
 	log.Tracef("(E2E Latency) %s: %.2f[ms]\n", function.Name, float64(record.ResponseTime)/1e3)
 
 	return true, record
+}
+
+func extractInstanceName(data string) string {
+	indexOfHyphen := strings.LastIndex(data, "-")
+
+	return data[indexOfHyphen+2:]
 }
 
 func gRPCConnectionClose(conn *grpc.ClientConn) {
