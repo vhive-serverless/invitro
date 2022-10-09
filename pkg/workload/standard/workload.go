@@ -28,6 +28,14 @@ const EXEC_UNIT int = 1e2
 var hostname = "Unknown host"
 var warmIteration = 115
 var coldIteration = 90
+var serversideCode FunctionType
+
+type FunctionType int
+
+const (
+	TraceFunction FunctionType = 0
+	EmptyFunction FunctionType = 1
+)
 
 func takeSqrts() C.double {
 	var tmp C.double //* Circumvent compiler optimisations.
@@ -56,24 +64,31 @@ func busySpin(runtimeMilli uint32) {
 }
 
 func (s *funcServer) Execute(_ context.Context, req *proto.FaasRequest) (*proto.FaasReply, error) {
+	var msg string
+	var memoryRequestedBytes uint32
 	start := time.Now()
-	runtimeRequestedMilli := req.RuntimeInMilliSec
-	if runtimeRequestedMilli <= 0 {
-		//* Some of the durations were incorrectly recorded as 0 in the trace.
-		return &proto.FaasReply{}, errors.New("non-positive execution time")
-	}
 
-	memoryRequestedBytes := util.Mib2b(req.MemoryInMebiBytes)
-	//* `make()` gets a piece of initialised memory. No need to touch it.
-	_ = make([]byte, memoryRequestedBytes)
+	if serversideCode == TraceFunction {
+		runtimeRequestedMilli := req.RuntimeInMilliSec
+		if runtimeRequestedMilli <= 0 {
+			// Some durations were incorrectly recorded as 0 in the trace.
+			return &proto.FaasReply{}, errors.New("non-positive execution time")
+		}
 
-	//* Offset the time spent on allocating memory.
-	msg := fmt.Sprintf("OK - %s", hostname)
-	if uint32(time.Since(start).Milliseconds()) >= runtimeRequestedMilli {
-		msg = "Trace func -- timeout in memory allocation"
+		memoryRequestedBytes = util.Mib2b(req.MemoryInMebiBytes)
+		// `make()` gets a piece of initialised memory. No need to touch it.
+		_ = make([]byte, memoryRequestedBytes)
+
+		// Offset the time spent on allocating memory.
+		msg = fmt.Sprintf("OK - %s", hostname)
+		if uint32(time.Since(start).Milliseconds()) >= runtimeRequestedMilli {
+			msg = "Trace func -- timeout in memory allocation"
+		} else {
+			runtimeRequestedMilli -= uint32(time.Since(start).Milliseconds())
+			busySpin(runtimeRequestedMilli)
+		}
 	} else {
-		runtimeRequestedMilli -= uint32(time.Since(start).Milliseconds())
-		busySpin(runtimeRequestedMilli)
+		msg = fmt.Sprintf("EMPTY OK - %s", hostname)
 	}
 
 	return &proto.FaasReply{
@@ -103,8 +118,9 @@ func readEnvironmentalVariables() {
 	}
 }
 
-func StartGRPCServer(serverAddress string, serverPort int, zipkinUrl string) {
+func StartGRPCServer(serverAddress string, serverPort int, functionType FunctionType, zipkinUrl string) {
 	readEnvironmentalVariables()
+	serversideCode = functionType
 
 	if tracing.IsTracingEnabled() {
 		log.Printf("Start tracing on : %s\n", zipkinUrl)
@@ -120,7 +136,6 @@ func StartGRPCServer(serverAddress string, serverPort int, zipkinUrl string) {
 		log.Fatalf("failed to listen: %v", err)
 	}
 
-	funcServer := &funcServer{}
 	var grpcServer *grpc.Server
 	if tracing.IsTracingEnabled() {
 		grpcServer = tracing.GetGRPCServerWithUnaryInterceptor()
@@ -128,7 +143,7 @@ func StartGRPCServer(serverAddress string, serverPort int, zipkinUrl string) {
 		grpcServer = grpc.NewServer()
 	}
 	reflection.Register(grpcServer) // gRPC Server Reflection is used by gRPC CLI.
-	proto.RegisterExecutorServer(grpcServer, funcServer)
+	proto.RegisterExecutorServer(grpcServer, &funcServer{})
 	err = grpcServer.Serve(lis)
 	util.Check(err)
 }
