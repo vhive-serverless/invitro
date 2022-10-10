@@ -1,7 +1,8 @@
 package common
 
 const (
-	FunctionNamePrefix = "trace-func"
+	FunctionNamePrefix      = "trace-func"
+	OneSecondInMicroseconds = 1_000_000.0
 )
 
 const (
@@ -29,10 +30,6 @@ const (
 	Exponential IatDistribution = iota
 	Uniform     IatDistribution = iota
 	Equidistant IatDistribution = iota
-)
-
-const (
-	OneSecondInMicroseconds = 1_000_000.0
 )
 
 type ExperimentPhase int
