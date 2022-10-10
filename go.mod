@@ -1,6 +1,6 @@
 module github.com/eth-easl/loader
 
-go 1.17
+go 1.19
 
 require (
 	github.com/ease-lab/vhive/utils/tracing/go v0.0.0-20211206145412-3a4607297428

@@ -274,6 +274,7 @@ func isRequestTargetAchieved(requested int, issued int) bool {
 		return false
 	}
 
+	// TODO: unsure if this is the best approach - program can issued new go ruites but they may not be scheduler at all
 	if ratio >= 0.1 && ratio < 0.2 {
 		log.Warnf("Requested vs. issued invocations divergence is %.2f.\n", ratio)
 	}
@@ -314,8 +315,12 @@ func (d *Driver) globalTimekeeper(totalTraceDuration int, signalReady *sync.Wait
 func (d *Driver) createGlobalMetricsCollector(filename string, collector chan *mc.ExecutionRecord,
 	signalReady *sync.WaitGroup, signalEverythingWritten *sync.WaitGroup, totalIssuedChannel chan int64) {
 
-	var currentlyWritten int64 = 0
+	// NOTE: totalNumberOfInvocations is initialized to MaxInt64 not to allow collector to complete before
+	// the end signal is received on totalIssuedChannel, which deliver the total number of issued invocations.
+	// This number is known once all the individual function drivers finish issuing invocations and
+	// when all the invocations return
 	var totalNumberOfInvocations int64 = math.MaxInt64
+	var currentlyWritten int64
 
 	invocationFile, err := os.Create(filename)
 	common.Check(err)
