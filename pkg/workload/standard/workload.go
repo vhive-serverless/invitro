@@ -25,10 +25,9 @@ import "C"
 
 const EXEC_UNIT int = 1e2
 
-var hostname = "Unknown host"
-var warmIteration = 115
-var coldIteration = 90
-var serversideCode FunctionType
+var hostname string
+var iterationsMultiplier int
+var serverSideCode FunctionType
 
 type FunctionType int
 
@@ -38,7 +37,7 @@ const (
 )
 
 func takeSqrts() C.double {
-	var tmp C.double //* Circumvent compiler optimisations.
+	var tmp C.double // Circumvent compiler optimizations
 	for i := 0; i < EXEC_UNIT; i++ {
 		tmp = C.SQRTSD(C.double(10))
 	}
@@ -50,13 +49,7 @@ type funcServer struct {
 }
 
 func busySpin(runtimeMilli uint32) {
-	var unitIterations int
-	if runtimeMilli > 1e3 {
-		unitIterations = warmIteration
-	} else {
-		unitIterations = coldIteration
-	}
-	totalIterations := unitIterations * int(runtimeMilli)
+	totalIterations := iterationsMultiplier * int(runtimeMilli)
 
 	for i := 0; i < totalIterations; i++ {
 		takeSqrts()
@@ -68,7 +61,7 @@ func (s *funcServer) Execute(_ context.Context, req *proto.FaasRequest) (*proto.
 	var memoryRequestedBytes uint32
 	start := time.Now()
 
-	if serversideCode == TraceFunction {
+	if serverSideCode == TraceFunction {
 		runtimeRequestedMilli := req.RuntimeInMilliSec
 		if runtimeRequestedMilli <= 0 {
 			// Some durations were incorrectly recorded as 0 in the trace.
@@ -99,28 +92,24 @@ func (s *funcServer) Execute(_ context.Context, req *proto.FaasRequest) (*proto.
 }
 
 func readEnvironmentalVariables() {
-	if _, ok := os.LookupEnv("WARM_ITER_PER_1MS"); ok {
-		warmIteration, _ = strconv.Atoi(os.Getenv("WARM_ITER_PER_1MS"))
+	if _, ok := os.LookupEnv("ITERATIONS_MULTIPLIER"); ok {
+		iterationsMultiplier, _ = strconv.Atoi(os.Getenv("ITERATIONS_MULTIPLIER"))
 	} else {
-		warmIteration = 115
-	}
-
-	if _, ok := os.LookupEnv("COLD_ITER_PER_1MS"); ok {
-		coldIteration, _ = strconv.Atoi(os.Getenv("COLD_ITER_PER_1MS"))
-	} else {
-		coldIteration = 90
+		// Cloudlab xl170 benchmark @ 1 second function execution time
+		iterationsMultiplier = 102
 	}
 
 	var err error
 	hostname, err = os.Hostname()
 	if err != nil {
-		log.Info("Failed to get HOSTNAME environmental variable.")
+		log.Warn("Failed to get HOSTNAME environmental variable.")
+		hostname = "Unknown host"
 	}
 }
 
 func StartGRPCServer(serverAddress string, serverPort int, functionType FunctionType, zipkinUrl string) {
 	readEnvironmentalVariables()
-	serversideCode = functionType
+	serverSideCode = functionType
 
 	if tracing.IsTracingEnabled() {
 		log.Printf("Start tracing on : %s\n", zipkinUrl)
@@ -142,7 +131,7 @@ func StartGRPCServer(serverAddress string, serverPort int, functionType Function
 	} else {
 		grpcServer = grpc.NewServer()
 	}
-	reflection.Register(grpcServer) // gRPC Server Reflection is used by gRPC CLI.
+	reflection.Register(grpcServer) // gRPC Server Reflection is used by gRPC CLI
 	proto.RegisterExecutorServer(grpcServer, &funcServer{})
 	err = grpcServer.Serve(lis)
 	util.Check(err)
