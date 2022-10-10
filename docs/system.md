@@ -15,53 +15,51 @@
 │   ├── kn_configmap_warmup_reset_patch.yaml    # Patch for resetting warm-up (global keys)
 │   ├── kn_serving_core.yaml    # Backup of control plane quotas for experiments (in the `hy` branch of vhive )
 │   ├── kpa_reset_patch.yaml    # Patch for resetting warm-up (local KPA)
-│   ├── kubeadm_init.yaml
+│   ├── kubeadm_init.yaml  # Restart k8s upon boosting
 │   ├── kubeadm_init_large.yaml
-│   ├── metrics_cluster_role.yaml
-│   ├── metrics_server_components.yaml
-│   ├── otel_kn.yaml
-│   ├── prometh_kn.yaml
+│   ├── metrics_cluster_role.yaml  # Grant security for prometheus stack
+│   ├── metrics_server_components.yaml  # All components needed for metric server to work
+│   ├── otel_kn.yaml  # OpenT Not used.
+│   ├── prometh_kn.yaml  # Knative config in promethues
 │   ├── prometh_stack_values.yaml
 │   ├── prometh_values_kn.yaml
-│   ├── requirements.txt
+│   ├── requirements.txt  # Dependencies for metric collectors (py)
 │   ├── requirements_dev.txt
-│   └── vhive
+│   └── vhive  # Backup yamls integrated in vhive `hy` branch
 │       ├── loader_istio_controller.yaml
 │       └── loader_serving_core.yaml
 ├── data
-│   ├── coldstarts
+│   ├── coldstarts  # Cold start experiment data
 │   ├── logs
 │   ├── out
-│   ├── samples
-│   └── traces
+│   ├── samples  # Different kinds of trace samples
+│   └── traces   # Authantic sample traces used in experiments
 │
 ├── docs
-│   ├── experiments.md
-│   ├── parameters.md
-│   └── system.md
 ├── go.mod
 ├── go.sum
+│
 ├── pkg
 │   ├── function
-│   │   ├── deploy.go
-│   │   ├── deploy.sh
-│   │   ├── invoke.go
-│   │   ├── registry.go
-│   │   └── rpcpool.go
+│   │   ├── deploy.go  # Deploys functions
+│   │   ├── deploy.sh  # Pipes funciton definitions based on the trace
+│   │   ├── invoke.go  # Invokes individual functions
+│   │   ├── registry.go  # Gauges memory load 
+│   │   └── rpcpool.go  # Pools RPC connections (not used anymore)
 │   ├── generate
-│   │   ├── atom.go
-│   │   ├── burst_load.go
-│   │   ├── coldstart_load.go
-│   │   ├── rps_load.go
-│   │   └── trace_load.go
+│   │   ├── atom.go  # Common functions and parameters
+│   │   ├── burst_load.go  # Generates bursts
+│   │   ├── coldstart_load.go  # Generates cold-start load
+│   │   ├── rps_load.go  # Generates synthetic RPS sweeps
+│   │   └── trace_load.go  # Generates real workloads from traces
 │   ├── metric
-│   │   ├── collect.go
-│   │   ├── record.go
-│   │   ├── run_adf.py
-│   │   ├── scale_registry.go
-│   │   ├── scrape_infra.py
-│   │   ├── scrape_kn.py
-│   │   └── scrape_scales.py
+│   │   ├── collect.go  # Collects and exports all metrics
+│   │   ├── record.go  # Defines data models for metric records
+│   │   ├── run_adf.py  # Invokes the ADF stationarity test
+│   │   ├── scale_registry.go  # Gauges function scales
+│   │   ├── scrape_infra.py  # Scrapes infra related metrics, e.g., CPU, mem from **k8s**
+│   │   ├── scrape_kn.py  # Scrapes relevant metrics from **kn**
+│   │   └── scrape_scales.py  # Collects scales for **each** function
 │   ├── test
 │   │   ├── collect_test.go
 │   │   ├── generate_test.go
@@ -73,34 +71,29 @@
 │   │   ├── util_test.go
 │   │   └── warmup_test.go
 │   ├── trace
-│   │   ├── model.go
-│   │   ├── parse.go
-│   │   └── profile.go
+│   │   ├── model.go  # Defines the data model of the trace records
+│   │   ├── parse.go  # Reads and preprocesses trace
+│   │   └── profile.go  # Profiles function concurrencies
 │   └── util.go
 ├── scripts
 │   ├── experiments
-│   │   ├── drive_trace_mode.py
-│   │   ├── feed_prior_works.py
-│   │   ├── feed_same_size.py
-│   │   ├── run_burst_mode.sh
-│   │   ├── run_coldstart_mode.sh
-│   │   ├── run_convergence.sh
-│   │   ├── run_prior_works.sh
-│   │   ├── run_rps_mode.sh
-│   │   └── run_trace_mode.sh
+│   │   ├── drive_trace_mode.py  # Trace mode script
+│   │   ├── feed_prior_works.py  # Feeds the loader with workloads from prior workds
+│   │   ├── feed_same_size.py  # Loads many traces of the same size for convergence experiments
+│   │   ├── run_burst_mode.sh  # Burst mode script
+│   │   ├── run_coldstart_mode.sh  # Cold-start mode script
+│   │   ├── run_convergence.sh  # Wrapper of the convergence experiment
+│   │   ├── run_prior_works.sh  # Wrapper for comparing prior workds
+│   │   ├── run_rps_mode.sh  # RPS mode script
+│   │   └── run_trace_mode.sh  # Wrapper for trace mode
 │   ├── isolation
-│   │   ├── cgexec.sh
-│   │   └── define_cgroup.sh
+│   │   ├── cgexec.sh  # Runs loader with cgroup
+│   │   └── define_cgroup.sh  # Defines cgroup SPECIFICALLY for **d430 machine on cloud lab**
 │   ├── metrics
-│   │   ├── get_loader_cpu_pct.sh
-│   │   ├── get_node_stats_abs.sh
-│   │   └── get_node_stats_percent.sh
+│   │   ├── get_loader_cpu_pct.sh  # Scrapes node CPU in percentages
+│   │   ├── get_node_stats_abs.sh  # Scrapes CPU and memory in absolute values
+│   │   └── get_node_stats_percent.sh  # Scrapes node infra metrics in percentages
 │   ├── plot
-│   │   ├── converge.py
-│   │   ├── load_comp.py
-│   │   ├── trace_sweep.py
-│   │   ├── variation.py
-│   │   └── workload_models.py
 │   ├── setup
 │   │   ├── create_multinode_container.sh
 │   │   ├── create_multinode_container_large.sh
@@ -114,7 +107,7 @@
 │   │   ├── stretch_cluster_capacity.sh
 │   │   ├── taint.sh
 │   │   └── turbo_boost.sh
-│   ├── util
+│   ├── util  # See README
 │   │   ├── check_node_capacity.sh
 │   │   ├── check_pod_count.sh
 │   │   ├── get_pod_cidr.sh
@@ -125,7 +118,7 @@
 │       ├── patch_activator.sh
 │       └── reset_kn_global.sh
 ├── server
-│   ├── benchmark
+│   ├── benchmark  # Benchmarks function timing (see README)
 │   │   ├── Dockerfile.timing
 │   │   ├── drive_benchmark.py
 │   │   ├── go.mod
@@ -138,45 +131,45 @@
 │   ├── faas_grpc.pb.go
 │   ├── faas_pb2.py
 │   ├── faas_pb2_grpc.py
-│   ├── helloworld
+│   ├── helloworld  # Unused 
 │   │   ├── Dockerfile
 │   │   ├── go.mod
 │   │   └── helloworld.go
-│   ├── test
+│   ├── test  # Tests whether the nodes are properly saturated with specific number of containers
 │   │   ├── Dockerfile.testing
 │   │   ├── go.mod
 │   │   ├── test_func.go
 │   │   └── test_func.yaml
-│   ├── timed
+│   ├── timed  # Unused 
 │   │   └── timed.go
-│   ├── trace-func-go
+│   ├── trace-func-go  # Used function
 │   │   ├── trace_func.go
 │   │   └── trace_func_test.go
-│   ├── trace-func-py
+│   ├── trace-func-py  # Unused 
 │   │   ├── Dockerfile
 │   │   ├── faas.proto
 │   │   ├── faas_pb2.py
 │   │   ├── faas_pb2_grpc.py
 │   │   └── trace_func.py
-│   └── wimpy
+│   └── wimpy  # Demo of implementation pitfalls
 │       └── wimpy.go
 ├── tools
 │   ├── bin
-│   │   ├── grpcurl
-│   │   ├── invoker
-│   │   └── promql
-│   └── invoker
+│   │   ├── grpcurl  # Unused 
+│   │   ├── invoker  # Stand-alone invoker binary for testing (needs to recompiled if protobuf changes)
+│   │   └── promql  # Executes prometheus queries on cmd directly (very useful tool, old version since new ones are not compatible)
+│   └── invoker  # For the stand-alone invoker binary
 │       ├── go.mod
 │       └── invoker.go
 └── workloads
-    ├── container
+    ├── container  # Container function definitions
     │   ├── trace_func_go.yaml
     │   ├── trace_func_py.yaml
     │   └── wimpy.yaml
-    ├── firecracker
+    ├── firecracker  # uVM function definitions (haven't been tested for a while)
     │   ├── timed.yaml
     │   └── trace_func_go.yaml
-    └── other
+    └── other  # Unused 
         ├── helloworld.yaml
         └── producer.yaml
 ```

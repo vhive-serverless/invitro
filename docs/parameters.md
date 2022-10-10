@@ -41,4 +41,18 @@ autoscaling.knative.dev/min-scale: "0"  # This parameter only has a per-revision
 autoscaling.knative.dev/target-utilization-percentage: "100"  # Enforce container concurrency at any time.
 autoscaling.knative.dev/target-burst-capacity: "-1"  # Put activator always in the path explicitly.
 autoscaling.knative.dev/max-scale: "200"  # Maximum instances limit of Azure.
+
+env:  
+    - name: COLD_ITER_PER_1MS  # Cold execution cycles/1ms (currently for <1s)
+        value: "95"
+    - name: WARM_ITER_PER_1MS  # Warm execution cycles/1ms
+        value: "115"
+    - name: ENABLE_TRACING
+        value: "true"
+
+env:  # `wimpy`: Demo of wrong impl. of the function 
+    - name: DO_SLEEP  # Do idle-waiting
+        value: "true"
+    - name: ALLOC_VIRTUAL_MEM  # Do virtual memory allocation
+        value: "true"
 ```
