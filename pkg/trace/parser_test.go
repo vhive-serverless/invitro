@@ -44,7 +44,7 @@ func TestParseInvocationTrace(t *testing.T) {
 }
 
 func TestParseRuntimeTrace(t *testing.T) {
-	runtimeTrace := *parseRuntimeTrace("test_data/runtime.csv")
+	runtimeTrace := *parseRuntimeTrace("test_data/durations.csv")
 
 	if len(runtimeTrace) != 1 {
 		t.Error("Invalid runtime trace provided.")
