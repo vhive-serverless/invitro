@@ -65,7 +65,7 @@ func (p *AzureTraceParser) extractFunctions(invocations *[]common.FunctionInvoca
 		invocationStats := (*invocations)[i]
 
 		function := &common.Function{
-			Name: fmt.Sprintf("%s-%d-%d", common.FunctionNamePrefix, i, rand.Uint64()),
+			Name: fmt.Sprintf("%s-%d-%d", common.FunctionNamePrefix, i, p.functionNameGenerator.Uint64()),
 
 			InvocationStats: &invocationStats,
 			RuntimeStats:    runtimeByHashFunction[invocationStats.HashFunction],
