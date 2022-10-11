@@ -43,6 +43,7 @@ func TestGRPCClientWithServerReachable(t *testing.T) {
 	success, record := Invoke(&testFunction, &testRuntimeSpecs, false)
 
 	if !success ||
+		record.MemoryAllocationTimeout != false ||
 		record.ConnectionTimeout != false ||
 		record.FunctionTimeout != false ||
 		record.ResponseTime == 0 ||

@@ -67,22 +67,23 @@ func (s *funcServer) Execute(_ context.Context, req *proto.FaasRequest) (*proto.
 		// make is equivalent to `calloc` in C. The memory gets allocated
 		// and zero is written to every byte, i.e. each page should be touched at least once
 		mem := make([]byte, util.Mib2b(req.MemoryInMebiBytes))
-		// Compilers do not optimize function calls with pointers and operations on pointers
-		// because the address can only be determined at runtime
-		log.Debug(len(mem))
 
-		// Offset the time spent on allocating memory.
-		msg = fmt.Sprintf("OK - %s", hostname)
 		if uint32(time.Since(start).Milliseconds()) >= runtimeRequestedMilli {
+			// Compilers do not optimize function calls with pointers and operations on pointers
+			// because the address can only be determined at runtime
+			log.Debug(len(mem))
+
 			msg = fmt.Sprintf("FAILURE - mem_alloc timeout - %s", hostname)
 		} else {
 			runtimeRequestedMilli -= uint32(time.Since(start).Milliseconds())
 			if runtimeRequestedMilli > 0 {
 				busySpin(runtimeRequestedMilli)
 			}
+
+			msg = fmt.Sprintf("OK - %s", hostname)
 		}
 	} else {
-		msg = fmt.Sprintf("EMPTY OK - %s", hostname)
+		msg = fmt.Sprintf("OK - EMPTY - %s", hostname)
 	}
 
 	return &proto.FaasReply{
