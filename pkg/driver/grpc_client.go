@@ -28,7 +28,6 @@ func Invoke(function *common.Function, runtimeSpec *common.RuntimeSpecification,
 	log.Tracef("(Invoke)\t %s: %d[ms], %d[MiB]", function.Name, runtimeSpec.Runtime, runtimeSpec.Memory)
 
 	record := &mc.ExecutionRecord{
-		Instance:          function.Name,
 		RequestedDuration: uint32(runtimeSpec.Runtime * 1e3),
 	}
 
