@@ -80,7 +80,7 @@ func (p *AzureTraceParser) extractFunctions(invocations *[]common.FunctionInvoca
 
 func (p *AzureTraceParser) Parse() []*common.Function {
 	invocationPath := p.DirectoryPath + "/invocations.csv"
-	runtimePath := p.DirectoryPath + "/runtime.csv"
+	runtimePath := p.DirectoryPath + "/durations.csv"
 	memoryPath := p.DirectoryPath + "/memory.csv"
 
 	invocationTrace := parseInvocationTrace(invocationPath, p.duration)

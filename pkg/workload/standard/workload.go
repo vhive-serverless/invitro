@@ -2,7 +2,6 @@ package standard
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	tracing "github.com/ease-lab/vhive/utils/tracing/go"
 	util "github.com/eth-easl/loader/pkg/common"
@@ -58,19 +57,19 @@ func busySpin(runtimeMilli uint32) {
 
 func (s *funcServer) Execute(_ context.Context, req *proto.FaasRequest) (*proto.FaasReply, error) {
 	var msg string
-	var memoryRequestedBytes uint32
 	start := time.Now()
 
 	if serverSideCode == TraceFunction {
+		// Minimum execution time is AWS billing granularity - 1ms,
+		// as defined in SpecificationGenerator::generateExecutionSpecs
 		runtimeRequestedMilli := req.RuntimeInMilliSec
-		if runtimeRequestedMilli <= 0 {
-			// Some durations were incorrectly recorded as 0 in the trace.
-			return &proto.FaasReply{}, errors.New("non-positive execution time")
-		}
 
-		memoryRequestedBytes = util.Mib2b(req.MemoryInMebiBytes)
-		// `make()` gets a piece of initialised memory. No need to touch it.
-		_ = make([]byte, memoryRequestedBytes)
+		// make is equivalent to `calloc` in C. The memory gets allocated
+		// and zero is written to every byte, i.e. each page should be touched at least once
+		mem := make([]byte, util.Mib2b(req.MemoryInMebiBytes))
+		// Compilers do not optimize function calls with pointers and operations on pointers
+		// because the address can only be determined at runtime
+		log.Debug(len(mem))
 
 		// Offset the time spent on allocating memory.
 		msg = fmt.Sprintf("OK - %s", hostname)
@@ -78,7 +77,9 @@ func (s *funcServer) Execute(_ context.Context, req *proto.FaasRequest) (*proto.
 			msg = fmt.Sprintf("FAILURE - mem_alloc timeout - %s", hostname)
 		} else {
 			runtimeRequestedMilli -= uint32(time.Since(start).Milliseconds())
-			busySpin(runtimeRequestedMilli)
+			if runtimeRequestedMilli > 0 {
+				busySpin(runtimeRequestedMilli)
+			}
 		}
 	} else {
 		msg = fmt.Sprintf("EMPTY OK - %s", hostname)
@@ -87,7 +88,7 @@ func (s *funcServer) Execute(_ context.Context, req *proto.FaasRequest) (*proto.
 	return &proto.FaasReply{
 		Message:            msg,
 		DurationInMicroSec: uint32(time.Since(start).Microseconds()),
-		MemoryUsageInKb:    util.B2Kib(memoryRequestedBytes),
+		MemoryUsageInKb:    req.MemoryInMebiBytes * 1024,
 	}, nil
 }
 
@@ -112,7 +113,7 @@ func StartGRPCServer(serverAddress string, serverPort int, functionType Function
 	serverSideCode = functionType
 
 	if tracing.IsTracingEnabled() {
-		log.Printf("Start tracing on : %s\n", zipkinUrl)
+		log.Infof("Zipkin URL: %s\n", zipkinUrl)
 		shutdown, err := tracing.InitBasicTracer(zipkinUrl, "")
 		if err != nil {
 			log.Warn(err)
