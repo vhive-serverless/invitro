@@ -22,8 +22,9 @@ type ExecutionRecord struct {
 	ActualDuration    uint32 `csv:"actualDuration"`
 	ActualMemoryUsage uint32 `csv:"actualMemoryUsage"`
 
-	ConnectionTimeout bool `csv:"connectionTimeout"`
-	FunctionTimeout   bool `csv:"functionTimeout"`
+	MemoryAllocationTimeout bool `csv:"memoryAllocationTimeout"`
+	ConnectionTimeout       bool `csv:"connectionTimeout"`
+	FunctionTimeout         bool `csv:"functionTimeout"`
 
 	// TODO: EVERYTHING BELOW ARE UNTESTED FIELDS
 
