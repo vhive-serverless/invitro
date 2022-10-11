@@ -20,14 +20,14 @@ var testRuntimeSpecs = common.RuntimeSpecification{
 func TestGRPCClientWithServerUnreachable(t *testing.T) {
 	success, record := Invoke(&testFunction, &testRuntimeSpecs, true)
 
-	if record.Instance != "test-function" ||
+	if record.Instance != "" ||
 		record.RequestedDuration != uint32(testRuntimeSpecs.Runtime*1000) ||
 		record.StartTime == 0 ||
 		record.ResponseTime == 0 ||
 		success != false ||
 		record.ConnectionTimeout != true {
 
-		t.Error("Error in testing an unreachable server.")
+		t.Error("Error while testing an unreachable server.")
 	}
 }
 

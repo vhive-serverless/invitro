@@ -39,7 +39,7 @@ common_init() {
     server_exec $1 'tmux new -s containerd -d'
     server_exec $1 'tmux send -t containerd "sudo containerd 2>&1 | tee ~/containerd_log.txt" ENTER'
     # install precise NTP clock synchronizer
-    server_exec $1 'sudo apt-get update && sudo apt-get install -y chrony'
+    server_exec $1 'sudo apt-get update && sudo apt-get install -y chrony htop'
     # synchronize clock across nodes
     server_exec $1 "sudo chronyd -q \"server ops.emulab.net iburst\""
     # dump clock info
@@ -177,12 +177,12 @@ function extend_CIDR() {
     echo "Master node $MASTER_NODE finalised."
 
     #* Setup github authentication.
-    ACCESS_TOKEH="$(cat $GITHUB_TOKEN)"
+    ACCESS_TOKEN="$(cat $GITHUB_TOKEN)"
 
     server_exec $MASTER_NODE 'echo -en "\n\n" | ssh-keygen -t rsa'
     server_exec $MASTER_NODE 'ssh-keyscan -t rsa github.com >> ~/.ssh/known_hosts'
 
-    server_exec $MASTER_NODE 'curl -H "Authorization: token '"$ACCESS_TOKEH"'" --data "{\"title\":\"'"key:\$(hostname)"'\",\"key\":\"'"\$(cat ~/.ssh/id_rsa.pub)"'\"}" https://api.github.com/user/keys'
+    server_exec $MASTER_NODE 'curl -H "Authorization: token '"$ACCESS_TOKEN"'" --data "{\"title\":\"'"key:\$(hostname)"'\",\"key\":\"'"\$(cat ~/.ssh/id_rsa.pub)"'\"}" https://api.github.com/user/keys'
 
     #* Get loader and dependencies.
     server_exec $MASTER_NODE "git clone --branch=$LOADER_BRANCH git@github.com:eth-easl/loader.git"
