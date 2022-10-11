@@ -82,7 +82,12 @@ func Invoke(function *common.Function, runtimeSpec *common.RuntimeSpecification,
 	record.Instance = extractInstanceName(response.GetMessage())
 	record.ResponseTime = time.Since(start).Microseconds()
 	record.ActualDuration = response.DurationInMicroSec
-	record.ActualMemoryUsage = common.Kib2Mib(response.MemoryUsageInKb)
+
+	if strings.HasPrefix(response.GetMessage(), "FAILURE - mem_alloc") {
+		record.MemoryAllocationTimeout = true
+	} else {
+		record.ActualMemoryUsage = common.Kib2Mib(response.MemoryUsageInKb)
+	}
 
 	log.Tracef("(Replied)\t %s: %s, %.2f[ms], %d[MiB]", function.Name, response.Message,
 		float64(response.DurationInMicroSec)/1e3, common.Kib2Mib(response.MemoryUsageInKb))

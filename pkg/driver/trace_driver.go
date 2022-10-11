@@ -335,6 +335,7 @@ func (d *Driver) createGlobalMetricsCollector(filename string, collector chan *m
 			"responseTime," +
 			"actualDuration," +
 			"actualMemoryUsage," +
+			"memoryAllocationTimeout," +
 			"connectionTimeout," +
 			"functionTimeout\n")
 
@@ -343,7 +344,7 @@ func (d *Driver) createGlobalMetricsCollector(filename string, collector chan *m
 	for {
 		select {
 		case record := <-collector:
-			invocationFile.WriteString(fmt.Sprintf("%d,%s,%s,%d,%d,%d,%d,%d,%t,%t\n",
+			invocationFile.WriteString(fmt.Sprintf("%d,%s,%s,%d,%d,%d,%d,%d,%t,%t,%t\n",
 				record.Phase,
 				record.Instance,
 				record.InvocationID,
@@ -352,6 +353,7 @@ func (d *Driver) createGlobalMetricsCollector(filename string, collector chan *m
 				record.ResponseTime,
 				record.ActualDuration,
 				record.ActualMemoryUsage,
+				record.MemoryAllocationTimeout,
 				record.ConnectionTimeout,
 				record.FunctionTimeout,
 			))

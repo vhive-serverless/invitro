@@ -6,11 +6,11 @@ proto:
 		--go_opt=paths=source_relative \
 		--go-grpc_out=. \
 		--go-grpc_opt=paths=source_relative \
-		server/faas.proto 
+		pkg/workload/proto/faas.proto
 	/usr/bin/python3 -m grpc_tools.protoc -I=. \
 		--python_out=. \
 		--grpc_python_out=. \
-		server/faas.proto
+		pkg/workload/proto/faas.proto
 
 # make -i clean
 clean: 
