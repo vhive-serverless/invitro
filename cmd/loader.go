@@ -34,7 +34,8 @@ var (
 	duration = flag.Int("duration", 1, "Duration of the experiment in minutes")
 
 	isPartiallyPanic         = flag.Bool("partiallyPanic", false, "Enable partially panic mode in Knative")
-	enableWarmupAndProfiling = flag.Bool("warmup", false, "Enable trace profiling and warmup")
+	enableWarmupAndProfiling = flag.Bool("warmup", false, "Enable 1-min trace profiling and warmup [10 minutes by default]")
+	warmupDuration           = flag.Int("warmupDuration", common.DEFAULT_WARMUP_DURATION_MINUTES, "Warmup duration (10 minutes by default)")
 	enableTracing            = flag.Bool("enableTracing", false, "Embed loader spans into Zipkin tracing")
 	enableMetrics            = flag.Bool("enableMetrics", false, "Enable metrics scrapping from the cluster")
 )
@@ -104,8 +105,8 @@ func determineDurationToParse(runtimeDuration int, withWarmup bool) int {
 	result := 0
 
 	if withWarmup {
-		result += 1                                      // profiling
-		result += common.DEFAULT_WARMUP_DURATION_MINUTES // warmup
+		result += 1               // profiling
+		result += *warmupDuration // warmup
 	}
 
 	result += runtimeDuration // actual experiment
@@ -124,9 +125,9 @@ func runTraceMode() {
 		fmt.Printf("\t%s\n", function.Name)
 	}
 
-	warmupDuration := 0
+	argWarmupLength := 0
 	if *enableWarmupAndProfiling {
-		warmupDuration = common.DEFAULT_WARMUP_DURATION_MINUTES
+		argWarmupLength = *warmupDuration
 	}
 
 	experimentDriver := driver.NewDriver(&driver.DriverConfiguration{
@@ -140,7 +141,7 @@ func runTraceMode() {
 		EndpointPort:     *endpointPort,
 
 		WithTracing:    *enableTracing,
-		WarmupDuration: warmupDuration,
+		WarmupDuration: argWarmupLength,
 		Seed:           *seed,
 		TestMode:       false,
 
