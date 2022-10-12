@@ -38,3 +38,18 @@ const (
 	WarmupPhase    ExperimentPhase = 1
 	ExecutionPhase                 = 2
 )
+
+const (
+	RequestedVsIssuedWarnThreshold      = 0.1
+	RequestedVsIssuedTerminateThreshold = 0.2
+
+	FailedWarnThreshold      = 0.3
+	FailedTerminateThreshold = 0.5
+)
+
+type RuntimeAssertType int
+
+const (
+	RequestedVsIssued RuntimeAssertType = 0
+	IssuedVsFailed    RuntimeAssertType = 1
+)
