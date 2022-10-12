@@ -125,8 +125,9 @@ type InvocationMetadata struct {
 	MinuteIndex     int
 	InvocationIndex int
 
-	SuccessCount *int64
-	FailedCount  *int64
+	SuccessCount           *int64
+	FailedCount            *int64
+	ApproximateFailedCount *int32
 
 	RecordOutputChannel chan *mc.ExecutionRecord
 	AnnounceDoneWG      *sync.WaitGroup
@@ -148,6 +149,7 @@ func (d *Driver) invokeFunction(metadata *InvocationMetadata) {
 		atomic.AddInt64(metadata.SuccessCount, 1)
 	} else {
 		atomic.AddInt64(metadata.FailedCount, 1)
+		atomic.AddInt32(metadata.ApproximateFailedCount, 1)
 	}
 
 	metadata.RecordOutputChannel <- record
@@ -177,8 +179,8 @@ func (d *Driver) individualFunctionDriver(function *common.Function, announceFun
 	}
 
 	startOfMinute := time.Now()
-	//currentInvocationStart := time.Now()
 	var idealExpected int64
+	var approximateFailedCount int32
 
 	for {
 		if minuteIndex >= totalTraceDuration {
@@ -188,6 +190,7 @@ func (d *Driver) individualFunctionDriver(function *common.Function, announceFun
 			// Sleep for a minute if there are no invocations
 			d.prepareForNextMinute(&minuteIndex, &invocationIndex, &startOfMinute, true, &currentPhase)
 			idealExpected = 0
+			atomic.StoreInt32(&approximateFailedCount, 0)
 
 			time.Sleep(time.Minute)
 			continue
@@ -198,15 +201,16 @@ func (d *Driver) individualFunctionDriver(function *common.Function, announceFun
 			waitForInvocations.Add(1)
 
 			go d.invokeFunction(&InvocationMetadata{
-				Function:              function,
-				RuntimeSpecifications: &runtimeSpecification[minuteIndex][invocationIndex],
-				Phase:                 currentPhase,
-				MinuteIndex:           minuteIndex,
-				InvocationIndex:       invocationIndex,
-				SuccessCount:          &successfullInvocations,
-				FailedCount:           &failedInvocations,
-				RecordOutputChannel:   recordOutputChannel,
-				AnnounceDoneWG:        &waitForInvocations,
+				Function:               function,
+				RuntimeSpecifications:  &runtimeSpecification[minuteIndex][invocationIndex],
+				Phase:                  currentPhase,
+				MinuteIndex:            minuteIndex,
+				InvocationIndex:        invocationIndex,
+				SuccessCount:           &successfullInvocations,
+				FailedCount:            &failedInvocations,
+				ApproximateFailedCount: &approximateFailedCount,
+				RecordOutputChannel:    recordOutputChannel,
+				AnnounceDoneWG:         &waitForInvocations,
 			})
 		} else {
 			// To be used from within the Golang testing framework
@@ -224,30 +228,44 @@ func (d *Driver) individualFunctionDriver(function *common.Function, announceFun
 		iat := time.Duration(IAT[minuteIndex][invocationIndex]) * time.Microsecond
 
 		currentTime := time.Now()
-		//invokerCodeOverhead := currentTime.Sub(currentInvocationStart).Microseconds()
 		schedulingDelay := currentTime.Sub(startOfMinute).Microseconds() - idealExpected
 		sleepFor := iat.Microseconds() - schedulingDelay
 		/////////////////////////////////////////
 		time.Sleep(time.Duration(sleepFor) * time.Microsecond)
-		//currentInvocationStart = time.Now() // do not reorder
 		/////////////////////////////////////////
-		fmt.Println(sleepFor)
 		idealExpected += iat.Microseconds()
 
 		invocationIndex++
 		if function.InvocationStats.Invocations[minuteIndex] == invocationIndex {
 			d.prepareForNextMinute(&minuteIndex, &invocationIndex, &startOfMinute, false, &currentPhase)
 			idealExpected = 0
+			atomic.StoreInt32(&approximateFailedCount, 0)
 		} else if hasMinuteExpired(startOfMinute) {
-			if !isRequestTargetAchieved(function.InvocationStats.Invocations[minuteIndex], invocationIndex) {
+			if !isRequestTargetAchieved(function.InvocationStats.Invocations[minuteIndex], invocationIndex, common.RequestedVsIssued) {
 				// Not fatal because we want to keep the measurements to be written to the output file
-				log.Warnf("Requested vs. issued invocations divergence is greater than 20%%. Terminating experiment!\n")
+				log.Warnf("Relative difference between requested and issued number of invocations is greater than %.2f%%. Terminating experiment!\n", common.RequestedVsIssuedTerminateThreshold*100)
+
+				break
+			}
+
+			notFailed := function.InvocationStats.Invocations[minuteIndex] - int(approximateFailedCount)
+			if !isRequestTargetAchieved(function.InvocationStats.Invocations[minuteIndex], notFailed, common.IssuedVsFailed) {
+				// Not fatal because we want to keep the measurements to be written to the output file
+				log.Warnf("Percentage of failed request is greater than %.2f%%. Terminating experiment!\n", common.FailedTerminateThreshold*100)
+
+				// NOTE: approximateFailedCount is the number of requests that experienced connection timeout or
+				// function timeout. If an invocation is invoked after 55th second of the minute, the connection
+				// timeout will happen in the next minute, or in case of function timeout, will happen after 15
+				// minutes. Hence, this metrics shows how much invocations failed in the current minute. It will
+				// eventually start to grow and after the relative difference between invoked and faild goes above
+				// 20% the experiment will be terminated.
 
 				break
 			}
 
 			d.prepareForNextMinute(&minuteIndex, &invocationIndex, &startOfMinute, false, &currentPhase)
 			idealExpected = 0
+			atomic.StoreInt32(&approximateFailedCount, 0)
 		}
 	}
 
@@ -277,18 +295,34 @@ func (d *Driver) prepareForNextMinute(minuteIndex *int, invocationIndex *int, st
 	}
 }
 
-func isRequestTargetAchieved(requested int, issued int) bool {
-	ratio := float64(requested-issued) / float64(requested)
+func isRequestTargetAchieved(ideal int, real int, assertType common.RuntimeAssertType) bool {
+	ratio := float64(ideal-real) / float64(ideal)
+
+	var warnBound float64
+	var terminationBound float64
+	var warnMessage string
+
+	switch assertType {
+	case common.RequestedVsIssued:
+		warnBound = common.RequestedVsIssuedWarnThreshold
+		terminationBound = common.RequestedVsIssuedTerminateThreshold
+		warnMessage = fmt.Sprintf("Relative difference between requested and issued number of invocations has reached %.2f.", ratio)
+	case common.IssuedVsFailed:
+		warnBound = common.FailedWarnThreshold
+		terminationBound = common.FailedTerminateThreshold
+		warnMessage = fmt.Sprintf("Percentage of failed invocations within a minute has reached %.2f.", ratio)
+	default:
+		log.Fatal("Invalid type of assertion at runtime.")
+	}
 
 	if ratio < 0 || ratio > 1 {
-		log.Fatalf("Invalid requsted/issued arguments.\n")
-	} else if ratio >= 0.2 {
+		log.Fatalf("Invalid arguments provided to runtime assertion.\n")
+	} else if ratio >= terminationBound {
 		return false
 	}
 
-	// TODO: unsure if this is the best approach - program can issued new go ruites but they may not be scheduler at all
-	if ratio >= 0.1 && ratio < 0.2 {
-		log.Warnf("Requested vs. issued invocations divergence is %.2f.\n", ratio)
+	if ratio >= warnBound && ratio < terminationBound {
+		log.Warn(warnMessage)
 	}
 
 	return true
