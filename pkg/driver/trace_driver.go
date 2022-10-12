@@ -177,7 +177,9 @@ func (d *Driver) individualFunctionDriver(function *common.Function, announceFun
 	}
 
 	startOfMinute := time.Now()
-	currentInvocationStart := time.Now()
+	//currentInvocationStart := time.Now()
+	var idealExpected int64
+
 	for {
 		if minuteIndex >= totalTraceDuration {
 			// Check whether the end of trace has been reached
@@ -185,6 +187,7 @@ func (d *Driver) individualFunctionDriver(function *common.Function, announceFun
 		} else if function.InvocationStats.Invocations[minuteIndex] == 0 {
 			// Sleep for a minute if there are no invocations
 			d.prepareForNextMinute(&minuteIndex, &invocationIndex, &startOfMinute, true, &currentPhase)
+			idealExpected = 0
 
 			time.Sleep(time.Minute)
 			continue
@@ -218,15 +221,23 @@ func (d *Driver) individualFunctionDriver(function *common.Function, announceFun
 			successfullInvocations++
 		}
 
-		sleepFor := time.Duration(IAT[minuteIndex][invocationIndex]) * time.Microsecond
-		perInvocationDrift := sleepFor.Microseconds() - time.Now().Sub(currentInvocationStart).Microseconds()
-		time.Sleep(time.Duration(perInvocationDrift) * time.Microsecond)
+		iat := time.Duration(IAT[minuteIndex][invocationIndex]) * time.Microsecond
 
-		currentInvocationStart = time.Now()
+		currentTime := time.Now()
+		//invokerCodeOverhead := currentTime.Sub(currentInvocationStart).Microseconds()
+		schedulingDelay := currentTime.Sub(startOfMinute).Microseconds() - idealExpected
+		sleepFor := iat.Microseconds() - schedulingDelay
+		/////////////////////////////////////////
+		time.Sleep(time.Duration(sleepFor) * time.Microsecond)
+		//currentInvocationStart = time.Now() // do not reorder
+		/////////////////////////////////////////
+		fmt.Println(sleepFor)
+		idealExpected += iat.Microseconds()
 
 		invocationIndex++
 		if function.InvocationStats.Invocations[minuteIndex] == invocationIndex {
 			d.prepareForNextMinute(&minuteIndex, &invocationIndex, &startOfMinute, false, &currentPhase)
+			idealExpected = 0
 		} else if hasMinuteExpired(startOfMinute) {
 			if !isRequestTargetAchieved(function.InvocationStats.Invocations[minuteIndex], invocationIndex) {
 				// Not fatal because we want to keep the measurements to be written to the output file
@@ -236,6 +247,7 @@ func (d *Driver) individualFunctionDriver(function *common.Function, announceFun
 			}
 
 			d.prepareForNextMinute(&minuteIndex, &invocationIndex, &startOfMinute, false, &currentPhase)
+			idealExpected = 0
 		}
 	}
 
