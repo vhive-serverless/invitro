@@ -66,12 +66,13 @@ func (s *funcServer) Execute(_ context.Context, req *proto.FaasRequest) (*proto.
 
 		// make is equivalent to `calloc` in C. The memory gets allocated
 		// and zero is written to every byte, i.e. each page should be touched at least once
-		mem := make([]byte, util.Mib2b(req.MemoryInMebiBytes))
+		//_ = make([]byte, util.Mib2b(req.MemoryInMebiBytes))
 
 		if uint32(time.Since(start).Milliseconds()) >= runtimeRequestedMilli {
 			// Compilers do not optimize function calls with pointers and operations on pointers
 			// because the address can only be determined at runtime
-			log.Debug(len(mem))
+			//log.Debug(len(mem))
+			// TODO: check this memory allocation stuff - subtract base image size
 
 			msg = fmt.Sprintf("FAILURE - mem_alloc timeout - %s", hostname)
 		} else {
