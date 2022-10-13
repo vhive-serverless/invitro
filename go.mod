@@ -11,6 +11,7 @@ require (
 	gonum.org/v1/gonum v0.12.0
 	gonum.org/v1/plot v0.12.0
 	google.golang.org/grpc v1.48.0
+	github.com/sfreiberg/simplessh v0.0.0-20220719182921-185eafd40485
 )
 
 require github.com/stretchr/testify v1.8.0

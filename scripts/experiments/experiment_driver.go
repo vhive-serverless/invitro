@@ -1,31 +1,87 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"github.com/sfreiberg/simplessh"
 	log "github.com/sirupsen/logrus"
+	"io/ioutil"
 	"os"
 	"strconv"
 	"sync"
 )
 
+type LoaderConfiguration struct {
+	Seed int64 `json:"Seed"`
+
+	YAMLSelector string `json:"YAMLSelector"`
+	EndpointPort int    `json:"EndpointPort"`
+
+	TracePath          string `json:"TracePath"`
+	OutputPathPrefix   string `json:"OutputPathPrefix"`
+	IATDistribution    string `json:"IATDistribution"`
+	ExperimentDuration int    `json:"ExperimentDuration"`
+	WarmupDuration     int    `json:"WarmupDuration"`
+
+	IsPartiallyPanic       bool `json:"IsPartiallyPanic"`
+	EnableZipkinTracing    bool `json:"EnableZipkinTracing"`
+	EnableMetricsScrapping bool `json:"EnableMetricsScrapping"`
+
+	GRPCConnectionTimeoutSeconds int `json:"GRPCConnectionTimeoutSeconds"`
+	GRPCFunctionTimeoutSeconds   int `json:"GRPCFunctionTimeoutSeconds"`
+}
+
+type loaderConfig struct {
+	configPath          string // path to JSON config file which loader uses
+	loaderConfiguration LoaderConfiguration
+	functions           int
+}
+
+type Driver struct {
+	Username           string   `json:"username"`
+	ExperimentName     string   `json:"experimentName"`
+	LoaderAddresses    []string `json:"loaderAddresses"`
+	clients            []*simplessh.Client
+	BeginningFuncNum   int    `json:"beginningFuncNum"`
+	StepSizeFunc       int    `json:"stepSizeFunc"`
+	MaxFuncNum         int    `json:"maxFuncNum"`
+	ExperimentDuration int    `json:"experimentDuration"`
+	WorkerNodeNum      int    `json:"workerNodeNum"`
+	LocalTracePath     string `json:"localTracePath"`
+	OutputDir          string `json:"outputDir"`
+	loaderConfig       loaderConfig
+}
+
+func NewDriver(configFile string) *[]Driver {
+	driverConfig, _ := ioutil.ReadFile(configFile)
+	var d Driver
+	var drivers []Driver
+	err := json.Unmarshal(driverConfig, &d)
+	if err != nil {
+		log.Fatalf("Failed tu unmarshal driver config file: %s", err)
+	}
+	var loaderConfigs []loaderConfig
+	idx := 0
+	for i := d.BeginningFuncNum; i <= d.MaxFuncNum; i += d.StepSizeFunc {
+		loaderConfigs = append(loaderConfigs, d.createLoaderConfig(i))
+		drivers = append(drivers, d)
+		drivers[idx].loaderConfig = loaderConfigs[idx]
+		idx++
+	}
+	return &drivers
+}
+
+const (
+	loaderTracePath = "loader/data/traces/"
+)
+
 func main() {
 	var (
-		name      = flag.String("n", "sweep", "Name of the experiment")
-		outputDir = flag.String("o", "raw_measurements", "Path to the directory for output files")
-		tracePath = flag.String("t", "traces", "Path to the directory with trace files")
-		loaderAdr = flag.String("l", "155.98.36.75", "IP address of the loader node")
-		beginning = flag.Int("b", 10, "Starting number of functions")
-		step      = flag.Int("s", 10, "Step size for increase in number of functions")
-		max       = flag.Int("m", 100, "Maximum number of functions")
-		duration  = flag.Int("dur", 10, "Duration of measurement phase of experiment")
-		nodes     = flag.Int("nodes", 1, "Number of worker nodes")
-		//https://stackoverflow.com/questions/28322997/how-to-get-a-list-of-values-into-a-flag-in-golang
-		debugLevel = flag.String("d", "info", "Debug level: info, debug")
+		driverConfigFile = flag.String("c", "driverConfig.json", "JSON config file for the driver")
+		debugLevel       = flag.String("d", "info", "Debug level: info, debug")
 	)
 	flag.Parse()
 	log.SetOutput(os.Stdout)
-
 	switch *debugLevel {
 	case "info":
 		log.SetLevel(log.InfoLevel)
@@ -33,156 +89,190 @@ func main() {
 		log.SetLevel(log.DebugLevel)
 		log.Debug("Debug mode is enabled")
 	}
-	configs := make([]string, 1)
-	loaderAddresses := make([]string, 1) // TODO: multiple loaderAddresses for each config
-	loaderAddresses = append(loaderAddresses, *loaderAdr)
-	for i := *beginning; i <= *max; i += *step {
-		configFile, err := createConfig(*name, *nodes, *duration, i)
-		if err != nil {
-			log.Fatal(err)
-		}
-		configs = append(configs, configFile)
-	}
-	for _, cfg := range configs {
-		err := SshAndRunExperiment(loaderAddresses, *tracePath, *name, *outputDir, cfg) // TODO: pass addresses of all loaders here
-		if err != nil {
-			log.Fatal(err)
-		}
+	drivers := NewDriver(*driverConfigFile)
+	startExperimentDrivers(drivers)
+}
+
+func startExperimentDrivers(drivers *[]Driver) {
+	for _, d := range *drivers {
+		d.RunSingleExperiment()
 	}
 }
 
-func SshAndRunExperiment(loaderAddresses []string, tracePath string, name string, outputDir string, configFile string) error {
-	var client *simplessh.Client
-	var err error
-	clients := make([]*simplessh.Client, 1)
-
-	for _, v := range loaderAddresses {
-		client, err = connectToLoader(v)
-		if err != nil {
-			return err
-		}
+func (d *Driver) RunSingleExperiment() {
+	d.clients = connectToLoader(d.LoaderAddresses, d.Username)
+	for _, client := range d.clients {
 		defer client.Close()
+	}
+	d.prepareAllLoaders()
+	d.startLoad()
+	d.collectStats()
+	d.aggregateStats()
+	d.clean()
+}
+
+func (d *Driver) createLoaderConfig(functionNumber int) loaderConfig {
+	configFile := "loaderConfig_" + strconv.Itoa(functionNumber) + ".json"
+	var loaderConfig loaderConfig
+	var configuration LoaderConfiguration
+	configuration = LoaderConfiguration{
+		Seed:         42,
+		YAMLSelector: "container",
+		EndpointPort: 80,
+
+		TracePath:          "data/traces/" + d.ExperimentName + "/",
+		OutputPathPrefix:   "data/out/experiment",
+		IATDistribution:    "exponential",
+		ExperimentDuration: d.ExperimentDuration,
+		WarmupDuration:     10,
+
+		IsPartiallyPanic:       false,
+		EnableZipkinTracing:    false,
+		EnableMetricsScrapping: false,
+
+		GRPCConnectionTimeoutSeconds: 60,
+		GRPCFunctionTimeoutSeconds:   900,
+	}
+	file, _ := json.MarshalIndent(configuration, "", " ")
+	err := ioutil.WriteFile(configFile, file, 0644)
+	if err != nil {
+		log.Fatalf("Writing the loader config file failed: %s", err)
+	}
+	loaderConfig.configPath = configFile
+	loaderConfig.functions = functionNumber
+	loaderConfig.loaderConfiguration = configuration
+	return loaderConfig
+}
+
+func connectToLoader(loaderAddresses []string, username string) []*simplessh.Client {
+	clients := make([]*simplessh.Client, len(loaderAddresses))
+	for _, loaderAdr := range loaderAddresses {
+		client, err := simplessh.ConnectWithAgent(loaderAdr, username)
+		if err != nil {
+			log.Fatalf("Connecting to the loader with address %s failed: %s", loaderAdr, err)
+		}
 		clients = append(clients, client)
 	}
+	return clients
+}
 
+func (d *Driver) prepareAllLoaders() {
+	clients := d.clients
 	var wg sync.WaitGroup
 	wg.Add(len(clients))
 	for _, c := range clients {
-		go prepareLoader(c, configFile, tracePath, &wg)
+		go d.prepareLoader(c, &wg)
 	}
 	wg.Wait()
-
-	wg.Add(len(clients))
-	for _, c := range clients {
-		go startLoad(c, configFile, &wg)
-	}
-	wg.Wait()
-
-	for _, c := range clients {
-		err = collectStats(name, c, outputDir, configFile)
-		if err != nil {
-			log.Info("Make sure that the experiment directory exists locally")
-			return err
-		}
-	}
-	err = aggregateStats(name, outputDir, configFile)
-	if err != nil {
-		return err
-	}
-	for _, c := range clients {
-		err = cleanUp(c)
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
 }
 
-func createConfig(experimentName string, numberOfNodes int, dur int, functions int) (string, error) {
-	// TODO: create JSON config file that loader accepts
-	var configFile string
-	var err error
-	return configFile, err
-}
-
-func connectToLoader(loaderAdr string) (*simplessh.Client, error) {
-	client, err := simplessh.ConnectWithAgent(loaderAdr, "Mihajlo")
-	if err != nil {
-		return nil, err
-	}
-	return client, err
-}
-
-func prepareLoader(client *simplessh.Client, configFile string, tracePath string, wg *sync.WaitGroup) {
+func (d *Driver) prepareLoader(client *simplessh.Client, wg *sync.WaitGroup) {
 	defer wg.Done()
-	var functions string
-	// TODO: read out number of functions from configFile
+	functions := strconv.Itoa(d.loaderConfig.functions)
+	tracePath := d.LocalTracePath
+	_, err := os.Stat(tracePath)
+	if err != nil {
+		log.Fatalf("Trace directory %s does not exist: %s", tracePath, err)
+	}
 	traceFiles := [3]string{functions + "_inv.csv", functions + "_mem.csv", functions + "_run.csv"}
 	// TODO: transfer JSON config file
 	for _, i := range traceFiles {
-		err := client.Upload(tracePath+"/"+i, "loader/data/traces/"+i)
+		_, err := os.Stat(tracePath + "/" + i)
 		if err != nil {
-			log.Fatal(err)
+			log.Fatalf("Trace file %s does not exist: %s", tracePath+"/"+i, err)
+		}
+		err = client.Upload(tracePath+"/"+i, loaderTracePath+i)
+		if err != nil {
+			log.Fatalf("Failed to upload the trace files to the loader: %s", err)
 		}
 	}
 	out, err := client.Exec("cd loader; source /etc/profile; make build")
+	log.Debug(string(out))
+	if err != nil {
+		log.Fatalf("Failed to build the loader: %s", err)
+	}
 	// TODO: Run iat generation
+	out, err = client.Exec("cd loader; source /etc/profile;go run cmd/load.go -iatGeneration -config " + d.loaderConfig.configPath)
 	log.Debug(string(out))
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("Failed to generate IATs: %s", err)
 	}
 }
 
-func startLoad(client *simplessh.Client, configFile string, wg *sync.WaitGroup) {
-	defer wg.Done()
+func (d *Driver) startLoad() {
 	// TODO: change command to account for config file
-	var dur string
-	var numberOfNodes string
-	var functions string
-
-	cmd := "go run cmd/load.go -duration " + dur + " -cluster " + numberOfNodes + " -server trace " +
-		"-print info -sample " + functions + " -warmup"
-	log.Info("running command: " + cmd)
-	out, err := client.Exec("cd loader; source /etc/profile;" + cmd)
-	log.Debug(string(out))
-	if err != nil {
-		log.Fatal(err)
+	// var experimentDuration, numberOfNodes, functions string
+	var wg sync.WaitGroup
+	clients := d.clients
+	wg.Add(len(clients))
+	for _, client := range clients {
+		go func() {
+			defer wg.Done()
+			// cmd := "go run cmd/load.go -experimentDuration " + experimentDuration + " -cluster " + numberOfNodes + " -server trace " +
+			// 	"-print info -sample " + functions + " -warmup"
+			cmd := "go run cmd/load.go -config " + d.loaderConfig.configPath
+			log.Debug("running command: " + cmd)
+			out, err := client.Exec("cd loader; source /etc/profile;" + cmd)
+			log.Debug(string(out))
+			if err != nil {
+				log.Fatalf("Failed to run load generation: %s", err)
+			}
+		}()
 	}
+	wg.Wait()
 }
 
-func collectStats(name string, client *simplessh.Client, outputDir string, configFile string) error {
-	var dur string // TODO: read from configFile
-	var functions string
-
-	log.Info("making directory " + name)
-	out, err := client.Exec("mkdir -p " + name)
-	log.Debug(string(out))
-	if err != nil {
-		return err
+func (d *Driver) collectStats() {
+	experiment := d.ExperimentName
+	durationInt := d.ExperimentDuration
+	functions := strconv.Itoa(d.loaderConfig.functions)
+	clients := d.clients
+	var wg sync.WaitGroup
+	wg.Add(len(clients))
+	for _, client := range clients {
+		go func() {
+			defer wg.Done()
+			durationInt = durationInt + 15 // add profiling + + warmup experimentDuration
+			duration := strconv.Itoa(durationInt)
+			fileLocal := "exec_duration_" + duration + ".csv"
+			fileRemote := "loader/data/out/exec_duration_" + duration + ".csv"
+			localPath := d.OutputDir + "/" + experiment
+			log.Debug("making local directory " + localPath)
+			err := os.MkdirAll(localPath, os.ModePerm)
+			if err != nil {
+				log.Fatalf("Creating the local directory %s failed: %s", localPath, err)
+			}
+			log.Debug("downloading " + fileRemote)
+			err = client.Download(fileRemote, localPath+"/"+fileLocal+"_"+functions+"functions")
+			if err != nil {
+				log.Fatalf("Downloading the experiment results failed: %s", err)
+			}
+		}()
 	}
-	durInt, err := strconv.Atoi(dur)
-	if err != nil {
-		return err
-	}
-	durInt = durInt + 15 // add profiling + + warmup duration
-	dur = strconv.Itoa(durInt)
-	fileLocal := "exec_duration_" + dur + ".csv"
-	fileRemote := "loader/data/out/exec_duration_" + dur + ".csv"
-	log.Info("downloading " + fileRemote)
-	err = client.Download(fileRemote, outputDir+"/"+name+"/"+fileLocal+"_"+functions+"functions")
-	return err
+	wg.Wait()
 }
 
-func aggregateStats(name string, outputDir string, configFile string) error {
+func (d *Driver) aggregateStats() {
 	// TODO: concatenate result files that were collected by collectStats()
 	var err error
-	return err
+	if err != nil {
+		log.Fatalf("Failed to aggregate the results from multiple loaders: %s", err)
+	}
 }
 
-func cleanUp(client *simplessh.Client) error {
-	log.Info("cleaning up")
-	out, err := client.Exec("cd loader; source /etc/profile; make clean")
-	log.Debug(string(out))
-	return err
+func (d *Driver) clean() {
+	var wg sync.WaitGroup
+	clients := d.clients
+	wg.Add(len(clients))
+	for _, client := range clients {
+		go func() {
+			defer wg.Done()
+			log.Debug("cleaning up")
+			out, err := client.Exec("cd loader; source /etc/profile; make clean")
+			log.Debug(string(out))
+			if err != nil {
+				log.Fatalf("Failed to clean the loader state after the experiment: %s", err)
+			}
+		}()
+	}
 }
