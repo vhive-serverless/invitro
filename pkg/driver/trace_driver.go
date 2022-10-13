@@ -179,7 +179,7 @@ func (d *Driver) individualFunctionDriver(function *common.Function, announceFun
 	}
 
 	startOfMinute := time.Now()
-	var idealExpected int64
+	var previousIATSum int64
 	var approximateFailedCount int32
 
 	for {
@@ -188,11 +188,13 @@ func (d *Driver) individualFunctionDriver(function *common.Function, announceFun
 			break
 		} else if function.InvocationStats.Invocations[minuteIndex] == 0 {
 			// Sleep for a minute if there are no invocations
-			d.prepareForNextMinute(&minuteIndex, &invocationIndex, &startOfMinute, true, &currentPhase)
-			idealExpected = 0
-			atomic.StoreInt32(&approximateFailedCount, 0)
+			d.proceedToNextMinute(function, &minuteIndex, &invocationIndex,
+				&startOfMinute, true, &currentPhase, &approximateFailedCount, &previousIATSum)
 
+			/////////////////////////////////////////
 			time.Sleep(time.Minute)
+			/////////////////////////////////////////
+
 			continue
 		}
 
@@ -228,44 +230,21 @@ func (d *Driver) individualFunctionDriver(function *common.Function, announceFun
 		iat := time.Duration(IAT[minuteIndex][invocationIndex]) * time.Microsecond
 
 		currentTime := time.Now()
-		schedulingDelay := currentTime.Sub(startOfMinute).Microseconds() - idealExpected
+		schedulingDelay := currentTime.Sub(startOfMinute).Microseconds() - previousIATSum
 		sleepFor := iat.Microseconds() - schedulingDelay
 		/////////////////////////////////////////
 		time.Sleep(time.Duration(sleepFor) * time.Microsecond)
 		/////////////////////////////////////////
-		idealExpected += iat.Microseconds()
+		previousIATSum += iat.Microseconds()
 
 		invocationIndex++
-		if function.InvocationStats.Invocations[minuteIndex] == invocationIndex {
-			d.prepareForNextMinute(&minuteIndex, &invocationIndex, &startOfMinute, false, &currentPhase)
-			idealExpected = 0
-			atomic.StoreInt32(&approximateFailedCount, 0)
-		} else if hasMinuteExpired(startOfMinute) {
-			if !isRequestTargetAchieved(function.InvocationStats.Invocations[minuteIndex], invocationIndex, common.RequestedVsIssued) {
-				// Not fatal because we want to keep the measurements to be written to the output file
-				log.Warnf("Relative difference between requested and issued number of invocations is greater than %.2f%%. Terminating experiment!\n", common.RequestedVsIssuedTerminateThreshold*100)
+		if function.InvocationStats.Invocations[minuteIndex] == invocationIndex || hasMinuteExpired(startOfMinute) {
+			toBreak := d.proceedToNextMinute(function, &minuteIndex, &invocationIndex, &startOfMinute,
+				false, &currentPhase, &approximateFailedCount, &previousIATSum)
 
+			if toBreak {
 				break
 			}
-
-			notFailed := function.InvocationStats.Invocations[minuteIndex] - int(approximateFailedCount)
-			if !isRequestTargetAchieved(function.InvocationStats.Invocations[minuteIndex], notFailed, common.IssuedVsFailed) {
-				// Not fatal because we want to keep the measurements to be written to the output file
-				log.Warnf("Percentage of failed request is greater than %.2f%%. Terminating experiment!\n", common.FailedTerminateThreshold*100)
-
-				// NOTE: approximateFailedCount is the number of requests that experienced connection timeout or
-				// function timeout. If an invocation is invoked after 55th second of the minute, the connection
-				// timeout will happen in the next minute, or in case of function timeout, will happen after 15
-				// minutes. Hence, this metrics shows how much invocations failed in the current minute. It will
-				// eventually start to grow and after the relative difference between invoked and faild goes above
-				// 20% the experiment will be terminated.
-
-				break
-			}
-
-			d.prepareForNextMinute(&minuteIndex, &invocationIndex, &startOfMinute, false, &currentPhase)
-			idealExpected = 0
-			atomic.StoreInt32(&approximateFailedCount, 0)
 		}
 	}
 
@@ -279,9 +258,35 @@ func (d *Driver) individualFunctionDriver(function *common.Function, announceFun
 	atomic.AddInt64(totalIssued, numberOfIssuedInvocations)
 }
 
-func (d *Driver) prepareForNextMinute(minuteIndex *int, invocationIndex *int, startOfMinute *time.Time, skipMinute bool, currentPhase *common.ExperimentPhase) {
+func (d *Driver) proceedToNextMinute(function *common.Function, minuteIndex *int, invocationIndex *int, startOfMinute *time.Time,
+	skipMinute bool, currentPhase *common.ExperimentPhase, approximateFailedCount *int32, previousIATSum *int64) bool {
+
+	if !isRequestTargetAchieved(function.InvocationStats.Invocations[*minuteIndex], *invocationIndex, common.RequestedVsIssued) {
+		// Not fatal because we want to keep the measurements to be written to the output file
+		log.Warnf("Relative difference between requested and issued number of invocations is greater than %.2f%%. Terminating experiment!\n", common.RequestedVsIssuedTerminateThreshold*100)
+
+		return true
+	}
+
+	notFailedCount := function.InvocationStats.Invocations[*minuteIndex] - int(atomic.LoadInt32(approximateFailedCount))
+	if !isRequestTargetAchieved(function.InvocationStats.Invocations[*minuteIndex], notFailedCount, common.IssuedVsFailed) {
+		// Not fatal because we want to keep the measurements to be written to the output file
+		log.Warnf("Percentage of failed request is greater than %.2f%%. Terminating experiment!\n", common.FailedTerminateThreshold*100)
+
+		// NOTE: approximateFailedCount is the number of requests that experienced connection timeout or
+		// function timeout. If an invocation is invoked after 55th second of the minute, the connection
+		// timeout will happen in the next minute, or in case of function timeout, will happen after 15
+		// minutes. Hence, this metrics shows how much invocations failed in the current minute. It will
+		// eventually start to grow and after the relative difference between invoked and faild goes above
+		// 20% the experiment will be terminated.
+
+		return true
+	}
+
 	*minuteIndex++
 	*invocationIndex = 0
+	*previousIATSum = 0
+	atomic.StoreInt32(approximateFailedCount, 0)
 
 	if d.Configuration.WithWarmup() && *minuteIndex == (d.Configuration.WarmupDuration+1) {
 		*currentPhase = common.ExecutionPhase
@@ -293,9 +298,15 @@ func (d *Driver) prepareForNextMinute(minuteIndex *int, invocationIndex *int, st
 	} else {
 		*startOfMinute = time.Now().Add(time.Minute)
 	}
+
+	return false
 }
 
 func isRequestTargetAchieved(ideal int, real int, assertType common.RuntimeAssertType) bool {
+	if ideal == 0 {
+		return true
+	}
+
 	ratio := float64(ideal-real) / float64(ideal)
 
 	var warnBound float64

@@ -45,17 +45,33 @@ var testFunction = common.Function{
 */
 func TestSerialGenerateIAT(t *testing.T) {
 	tests := []struct {
-		testName        string
-		duration        int // s
-		invocations     []int
-		iatDistribution common.IatDistribution
-		expectedPoints  [][]float64 // μs
+		testName         string
+		duration         int // s
+		invocations      []int
+		iatDistribution  common.IatDistribution
+		expectedPoints   [][]float64 // μs
+		testDistribution bool
 	}{
 		{
-			testName:        "no_invocations",
-			invocations:     []int{5},
-			iatDistribution: common.Equidistant,
-			expectedPoints:  [][]float64{},
+			testName:         "no_invocations_equidistant",
+			invocations:      []int{5},
+			iatDistribution:  common.Equidistant,
+			expectedPoints:   [][]float64{},
+			testDistribution: false,
+		},
+		{
+			testName:         "no_invocations_exponential",
+			invocations:      []int{5},
+			iatDistribution:  common.Exponential,
+			expectedPoints:   [][]float64{},
+			testDistribution: false,
+		},
+		{
+			testName:         "one_invocations_exponential",
+			invocations:      []int{1},
+			iatDistribution:  common.Exponential,
+			expectedPoints:   [][]float64{{60_000_000}},
+			testDistribution: false,
 		},
 		{
 			testName:        "1min_5ipm_equidistant",
@@ -70,6 +86,7 @@ func TestSerialGenerateIAT(t *testing.T) {
 					12000000,
 				},
 			},
+			testDistribution: false,
 		},
 		{
 			testName:        "5min_5ipm_equidistant",
@@ -117,6 +134,7 @@ func TestSerialGenerateIAT(t *testing.T) {
 					12000000,
 				},
 			},
+			testDistribution: false,
 		},
 		{
 			testName:        "1min_25ipm_uniform",
@@ -151,12 +169,14 @@ func TestSerialGenerateIAT(t *testing.T) {
 					3591929.298027,
 				},
 			},
+			testDistribution: false,
 		},
 		{
-			testName:        "1min_1000000ipm_uniform",
-			invocations:     []int{1000000},
-			iatDistribution: common.Uniform,
-			expectedPoints:  nil,
+			testName:         "1min_1000000ipm_uniform",
+			invocations:      []int{1000000},
+			iatDistribution:  common.Uniform,
+			expectedPoints:   nil,
+			testDistribution: true,
 		},
 		{
 			testName:        "1min_25ipm_exponential",
@@ -191,12 +211,14 @@ func TestSerialGenerateIAT(t *testing.T) {
 					179575.4708620,
 				},
 			},
+			testDistribution: false,
 		},
 		{
-			testName:        "1min_1000000ipm_exponential",
-			invocations:     []int{1000000},
-			iatDistribution: common.Exponential,
-			expectedPoints:  nil,
+			testName:         "1min_1000000ipm_exponential",
+			invocations:      []int{1000000},
+			iatDistribution:  common.Exponential,
+			expectedPoints:   nil,
+			testDistribution: true,
 		},
 	}
 
@@ -234,7 +256,9 @@ func TestSerialGenerateIAT(t *testing.T) {
 				}
 			}
 
-			if test.iatDistribution != common.Equidistant && !checkDistribution(IAT, nonScaledDuration, test.iatDistribution) {
+			if test.testDistribution && test.iatDistribution != common.Equidistant &&
+				!checkDistribution(IAT, nonScaledDuration, test.iatDistribution) {
+
 				t.Error("The provided sample does not satisfy the given distribution.")
 			}
 		})

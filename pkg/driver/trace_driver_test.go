@@ -89,6 +89,7 @@ func TestInvokeFunctionFromDriver(t *testing.T) {
 		t.Run(test.testName, func(t *testing.T) {
 			var successCount int64 = 0
 			var failureCount int64 = 0
+			var approximateFailureCount int32 = 0
 
 			invocationRecordOutputChannel := make(chan *metric.ExecutionRecord, 1)
 			announceDone := &sync.WaitGroup{}
@@ -111,13 +112,14 @@ func TestInvokeFunctionFromDriver(t *testing.T) {
 					Runtime: 1000,
 					Memory:  128,
 				},
-				Phase:               common.ExecutionPhase,
-				MinuteIndex:         1,
-				InvocationIndex:     2,
-				SuccessCount:        &successCount,
-				FailedCount:         &failureCount,
-				RecordOutputChannel: invocationRecordOutputChannel,
-				AnnounceDoneWG:      announceDone,
+				Phase:                  common.ExecutionPhase,
+				MinuteIndex:            1,
+				InvocationIndex:        2,
+				SuccessCount:           &successCount,
+				FailedCount:            &failureCount,
+				ApproximateFailedCount: &approximateFailureCount,
+				RecordOutputChannel:    invocationRecordOutputChannel,
+				AnnounceDoneWG:         announceDone,
 			}
 
 			announceDone.Add(1)
@@ -315,15 +317,94 @@ func TestHasMinuteExpired(t *testing.T) {
 }
 
 func TestRequestedVsIssued(t *testing.T) {
-	if !isRequestTargetAchieved(100, 95) {
+	if !isRequestTargetAchieved(100, 100*(1-common.RequestedVsIssuedWarnThreshold+0.05), common.RequestedVsIssued) {
 		t.Error("Unexpected value received.")
 	}
 
-	if !isRequestTargetAchieved(100, 85) {
+	if !isRequestTargetAchieved(100, 100*(1-common.RequestedVsIssuedWarnThreshold-0.05), common.RequestedVsIssued) {
 		t.Error("Unexpected value received.")
 	}
 
-	if isRequestTargetAchieved(100, 75) {
+	if isRequestTargetAchieved(100, 100*(1-common.RequestedVsIssuedWarnThreshold-0.15), common.RequestedVsIssued) {
 		t.Error("Unexpected value received.")
+	}
+
+	if isRequestTargetAchieved(100, 100*(common.FailedWarnThreshold-0.1), common.IssuedVsFailed) {
+		t.Error("Unexpected value received.")
+	}
+
+	if isRequestTargetAchieved(100, 100*(common.FailedWarnThreshold+0.05), common.IssuedVsFailed) {
+		t.Error("Unexpected value received.")
+	}
+
+	if isRequestTargetAchieved(100, 100*(common.FailedTerminateThreshold-0.1), common.IssuedVsFailed) {
+		t.Error("Unexpected value received.")
+	}
+}
+
+func TestProceedToNextMinute(t *testing.T) {
+	function := &common.Function{
+		Name: "test-function",
+		InvocationStats: &common.FunctionInvocationStats{
+			Invocations: []int{100, 100, 100, 100, 100},
+		},
+	}
+
+	tests := []struct {
+		testName        string
+		minuteIndex     int
+		invocationIndex int
+		failedCount     int32
+		skipMinute      bool
+		toBreak         bool
+	}{
+		{
+			testName:        "proceed_to_next_minute_no_break_no_fail",
+			minuteIndex:     2,
+			invocationIndex: 95,
+			failedCount:     0,
+			skipMinute:      false,
+			toBreak:         false,
+		},
+		{
+			testName:        "proceed_to_next_minute_break_no_fail",
+			minuteIndex:     3,
+			invocationIndex: 75,
+			failedCount:     0,
+			skipMinute:      false,
+			toBreak:         true,
+		},
+		{
+			testName:        "proceed_to_next_minute_break_with_fail",
+			minuteIndex:     3,
+			invocationIndex: 90,
+			failedCount:     55,
+			skipMinute:      false,
+			toBreak:         true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.testName, func(t *testing.T) {
+			driver := createTestDriver()
+
+			minuteIndex := test.minuteIndex
+			invocationIndex := test.invocationIndex
+			startOfMinute := time.Now()
+			phase := common.ExecutionPhase
+			var approximateFailedCount int32 = test.failedCount
+			var iatSum int64 = 2500
+
+			toBreak := driver.proceedToNextMinute(function, &minuteIndex, &invocationIndex, &startOfMinute,
+				test.skipMinute, (*common.ExperimentPhase)(&phase), &approximateFailedCount, &iatSum)
+
+			if toBreak != test.toBreak {
+				t.Error("Invalid response from minute cleanup procedure.")
+			}
+
+			if !toBreak && ((minuteIndex != test.minuteIndex+1) || (invocationIndex != 0) || (approximateFailedCount != 0) || (iatSum != 0)) {
+				t.Error("Invalid response from minute cleanup procedure.")
+			}
+		})
 	}
 }
