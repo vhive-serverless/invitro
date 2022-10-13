@@ -1,0 +1,16 @@
+{
+  "username": "Mihajlo",
+  "experimentName": "sweep_concurrency_mode",
+  "localTracePath": "data/traces/example",
+  "ExperimentDuration": 1,
+  "loaderAddresses": [
+    "123",
+    "456"
+  ],
+  "beginningFuncNum": 10,
+  "stepSizeFunc": 10,
+  "maxFuncNum": 100,
+  "experimentDuration": 30,
+  "workerNodeNum": 1,
+  "outputDir": "measurements"
+}
