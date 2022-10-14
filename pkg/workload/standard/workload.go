@@ -22,6 +22,10 @@ import (
 // }
 import "C"
 
+const (
+	ContainerImageSizeMB = 15
+)
+
 const EXEC_UNIT int = 1e2
 
 var hostname string
@@ -63,10 +67,14 @@ func (s *funcServer) Execute(_ context.Context, req *proto.FaasRequest) (*proto.
 		// Minimum execution time is AWS billing granularity - 1ms,
 		// as defined in SpecificationGenerator::generateExecutionSpecs
 		runtimeRequestedMilli := req.RuntimeInMilliSec
+		toAllocate := util.Mib2b(req.MemoryInMebiBytes - ContainerImageSizeMB)
+		if toAllocate < 0 {
+			toAllocate = 0
+		}
 
 		// make is equivalent to `calloc` in C. The memory gets allocated
 		// and zero is written to every byte, i.e. each page should be touched at least once
-		//_ = make([]byte, util.Mib2b(req.MemoryInMebiBytes))
+		//_ = make([]byte, toAllocate)
 
 		if uint32(time.Since(start).Milliseconds()) >= runtimeRequestedMilli {
 			// Compilers do not optimize function calls with pointers and operations on pointers
