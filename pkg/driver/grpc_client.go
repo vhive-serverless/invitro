@@ -3,6 +3,7 @@ package driver
 import (
 	"context"
 	"github.com/eth-easl/loader/pkg/common"
+	"github.com/eth-easl/loader/pkg/config"
 	"github.com/eth-easl/loader/pkg/workload/proto"
 	"strings"
 	"time"
@@ -16,15 +17,7 @@ import (
 	mc "github.com/eth-easl/loader/pkg/metric"
 )
 
-const (
-	// TODO: make the following two parameters configurable from outside
-	grpcConnectionTimeout = 60 * time.Second
-	// Function can execute for at most 15 minutes as in AWS Lambda
-	// https://aws.amazon.com/about-aws/whats-new/2018/10/aws-lambda-supports-functions-that-can-run-up-to-15-minutes/
-	functionTimeout = 15 * time.Minute
-)
-
-func Invoke(function *common.Function, runtimeSpec *common.RuntimeSpecification, withTracing bool) (bool, *mc.ExecutionRecord) {
+func Invoke(function *common.Function, runtimeSpec *common.RuntimeSpecification, cfg *config.LoaderConfiguration) (bool, *mc.ExecutionRecord) {
 	log.Tracef("(Invoke)\t %s: %d[ms], %d[MiB]", function.Name, runtimeSpec.Runtime, runtimeSpec.Memory)
 
 	record := &mc.ExecutionRecord{
@@ -37,13 +30,13 @@ func Invoke(function *common.Function, runtimeSpec *common.RuntimeSpecification,
 	start := time.Now()
 	record.StartTime = start.UnixMicro()
 
-	dialContext, cancelDialing := context.WithTimeout(context.Background(), grpcConnectionTimeout)
+	dialContext, cancelDialing := context.WithTimeout(context.Background(), time.Duration(cfg.GRPCConnectionTimeoutSeconds)*time.Second)
 	defer cancelDialing()
 
 	var dialOptions []grpc.DialOption
 	dialOptions = append(dialOptions, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	dialOptions = append(dialOptions, grpc.WithBlock())
-	if withTracing {
+	if cfg.EnableZipkinTracing {
 		// NOTE: if enabled it will exclude Istio span from the Zipkin trace
 		dialOptions = append(dialOptions, grpc.WithUnaryInterceptor(otelgrpc.UnaryClientInterceptor()))
 	}
@@ -51,7 +44,7 @@ func Invoke(function *common.Function, runtimeSpec *common.RuntimeSpecification,
 	conn, err := grpc.DialContext(dialContext, function.Endpoint, dialOptions...)
 	defer gRPCConnectionClose(conn)
 	if err != nil {
-		log.Warnf("Failed to establish a gRPC connection - %v\n", err)
+		log.Debugf("Failed to establish a gRPC connection - %v\n", err)
 
 		record.ResponseTime = time.Since(start).Microseconds()
 		record.ConnectionTimeout = true
@@ -61,7 +54,7 @@ func Invoke(function *common.Function, runtimeSpec *common.RuntimeSpecification,
 
 	grpcClient := proto.NewExecutorClient(conn)
 
-	executionCxt, cancelExecution := context.WithTimeout(context.Background(), functionTimeout)
+	executionCxt, cancelExecution := context.WithTimeout(context.Background(), time.Duration(cfg.GRPCFunctionTimeoutSeconds)*time.Second)
 	defer cancelExecution()
 
 	response, err := grpcClient.Execute(executionCxt, &proto.FaasRequest{
@@ -71,7 +64,7 @@ func Invoke(function *common.Function, runtimeSpec *common.RuntimeSpecification,
 	})
 
 	if err != nil {
-		log.Warnf("gRPC timeout exceeded for function %s - %s", function.Name, err)
+		log.Debugf("gRPC timeout exceeded for function %s - %s", function.Name, err)
 
 		record.ResponseTime = time.Since(start).Microseconds()
 		record.FunctionTimeout = true
