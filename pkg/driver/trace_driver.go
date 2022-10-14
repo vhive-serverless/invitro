@@ -3,6 +3,7 @@ package driver
 import (
 	"fmt"
 	"github.com/eth-easl/loader/pkg/common"
+	"github.com/eth-easl/loader/pkg/config"
 	"github.com/eth-easl/loader/pkg/generator"
 	"github.com/eth-easl/loader/pkg/trace"
 	log "github.com/sirupsen/logrus"
@@ -16,19 +17,12 @@ import (
 )
 
 type DriverConfiguration struct {
-	EnableMetricsCollection bool
-	IATDistribution         common.IatDistribution
-	PathToTrace             string
-	TraceDuration           int // in minutes
+	LoaderConfiguration *config.LoaderConfiguration
+	IATDistribution     common.IatDistribution
+	TraceDuration       int // in minutes
 
-	YAMLPath         string
-	IsPartiallyPanic bool
-	EndpointPort     int
-
-	WithTracing    bool
-	WarmupDuration int
-	Seed           int64
-	TestMode       bool
+	YAMLPath string
+	TestMode bool
 
 	Functions []*common.Function
 }
@@ -48,13 +42,13 @@ type Driver struct {
 func NewDriver(driverConfig *DriverConfiguration) *Driver {
 	return &Driver{
 		Configuration:          driverConfig,
-		SpecificationGenerator: generator.NewSpecificationGenerator(driverConfig.Seed),
+		SpecificationGenerator: generator.NewSpecificationGenerator(driverConfig.LoaderConfiguration.Seed),
 		OutputFilename:         fmt.Sprintf("data/out/exec_duration_%d.csv", driverConfig.TraceDuration),
 	}
 }
 
 func (c *DriverConfiguration) WithWarmup() bool {
-	if c.WarmupDuration > 0 {
+	if c.LoaderConfiguration.WarmupDuration > 0 {
 		return true
 	} else {
 		return false
@@ -140,7 +134,7 @@ func composeInvocationID(minuteIndex int, invocationIndex int) string {
 func (d *Driver) invokeFunction(metadata *InvocationMetadata) {
 	defer metadata.AnnounceDoneWG.Done()
 
-	success, record := Invoke(metadata.Function, metadata.RuntimeSpecifications, d.Configuration.WithTracing)
+	success, record := Invoke(metadata.Function, metadata.RuntimeSpecifications, d.Configuration.LoaderConfiguration)
 
 	record.Phase = int(metadata.Phase)
 	record.InvocationID = composeInvocationID(metadata.MinuteIndex, metadata.InvocationIndex)
@@ -288,7 +282,7 @@ func (d *Driver) proceedToNextMinute(function *common.Function, minuteIndex *int
 	*previousIATSum = 0
 	atomic.StoreInt32(approximateFailedCount, 0)
 
-	if d.Configuration.WithWarmup() && *minuteIndex == (d.Configuration.WarmupDuration+1) {
+	if d.Configuration.WithWarmup() && *minuteIndex == (d.Configuration.LoaderConfiguration.WarmupDuration+1) {
 		*currentPhase = common.ExecutionPhase
 		log.Infof("Warmup phase has finished. Starting the execution phase.")
 	}
@@ -437,7 +431,7 @@ func (d *Driver) createGlobalMetricsCollector(filename string, collector chan *m
 func (d *Driver) startBackgroundProcesses(allRecordsWritten *sync.WaitGroup) (*sync.WaitGroup, chan *mc.ExecutionRecord, chan int64) {
 	auxiliaryProcessBarrier := &sync.WaitGroup{}
 
-	if d.Configuration.EnableMetricsCollection {
+	if d.Configuration.LoaderConfiguration.EnableMetricsScrapping {
 		auxiliaryProcessBarrier.Add(3)
 
 		// TODO: the following three go routines are untested
@@ -517,8 +511,8 @@ func (d *Driver) RunExperiment() {
 
 	DeployFunctions(d.Configuration.Functions,
 		d.Configuration.YAMLPath,
-		d.Configuration.IsPartiallyPanic,
-		d.Configuration.EndpointPort)
+		d.Configuration.LoaderConfiguration.IsPartiallyPanic,
+		d.Configuration.LoaderConfiguration.EndpointPort)
 
 	d.internalRun()
 }
