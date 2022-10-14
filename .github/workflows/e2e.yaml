@@ -1,0 +1,75 @@
+name: End-to-End Tests
+
+on: [push]
+#on:
+#  schedule:
+#    - cron: "0 9 * * 1"
+#  workflow_dispatch:
+#  push:
+#    branches: [main, loader_unit_tests]
+#  pull_request:
+#    branches: [main, loader_unit_tests]
+
+env:
+  GOOS: linux
+  GO111MODULE: on
+
+jobs:
+  test-knative:
+    name: Test Knative Deployment
+    env:
+      KIND_VERSION: v0.14.0
+      K8S_VERSION: v1.23
+      YAML_DIR: workloads/container
+
+    runs-on: ubuntu-20.04
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          [
+            trace_func_go,
+          ]
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          lfs: "true"
+      - name: Checkout LFS objects
+        run: git lfs checkout
+
+      - uses: actions/setup-go@v3
+        with:
+          go-version: 1.19
+
+      - name: Create k8s Kind Cluster
+        run: bash ./scripts/konk-ci/01-kind.sh
+
+      - name: Install Serving
+        run: bash ./scripts/konk-ci/02-serving.sh
+
+      - name: Install Kourier
+        run: bash ./scripts/konk-ci/02-kourier.sh
+
+      - name: Setup domain and autoscaler
+        run: |
+          INGRESS_HOST="127.0.0.1"
+          KNATIVE_DOMAIN=$INGRESS_HOST.sslip.io
+          kubectl patch configmap -n knative-serving config-domain -p "{\"data\": {\"$KNATIVE_DOMAIN\": \"\"}}"
+          kubectl patch configmap -n knative-serving config-autoscaler -p "{\"data\": {\"allow-zero-initial-scale\": \"true\"}}"
+
+      - name: Build and run loader
+        run: go run cmd/loader.go --config cmd/config.json
+
+      - name: Print logs
+        if: ${{ always() }}
+        run: |
+          set -x
+          container_list=$(kubectl get pods -n default -o jsonpath="{.items[*].spec.containers[*].name}")
+          for container_name in $container_list
+          do
+            kubectl logs -n default -c $container_name -l serving.knative.dev/service=${{ matrix.service }}
+          done
+      - name: Down
+        if: ${{ always() }}
+        run: |
+          kn service delete --all
