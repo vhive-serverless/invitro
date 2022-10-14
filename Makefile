@@ -45,9 +45,10 @@ run:
 	go run cmd/load.go $(ARGS)
 
 test:
-	go test -v -cover -race ./pkg/generate/
-	go test -v -cover -race ./pkg/test/
-	go test -v -cover -race ./tools/trace_synthesizer/tests/
+	go test -v -cover -race ./pkg/config/
+	go test -v -cover -race ./pkg/driver/
+	go test -v -cover -race ./pkg/generator/
+	go test -v -cover -race ./pkg/trace/
 
 # Used for replying the trace
 trace-firecracker:

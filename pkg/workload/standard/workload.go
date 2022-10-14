@@ -110,6 +110,8 @@ func readEnvironmentalVariables() {
 		iterationsMultiplier = 102
 	}
 
+	log.Infof("ITERATIONS_MULTIPLIER = %d\n", iterationsMultiplier)
+
 	var err error
 	hostname, err = os.Hostname()
 	if err != nil {
