@@ -18,7 +18,7 @@ import (
 
 const (
 	// TODO: make the following two parameters configurable from outside
-	grpcConnectionTimeout = 5 * time.Second
+	grpcConnectionTimeout = 60 * time.Second
 	// Function can execute for at most 15 minutes as in AWS Lambda
 	// https://aws.amazon.com/about-aws/whats-new/2018/10/aws-lambda-supports-functions-that-can-run-up-to-15-minutes/
 	functionTimeout = 15 * time.Minute
