@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"github.com/eth-easl/loader/pkg/common"
+	"github.com/eth-easl/loader/pkg/config"
 	"github.com/eth-easl/loader/pkg/driver"
 	"github.com/eth-easl/loader/pkg/trace"
 	"os"
@@ -19,25 +20,8 @@ const (
 )
 
 var (
-	iatType               common.IatDistribution
-	yamlSpecificationPath = ""
-
-	seed      = flag.Int64("seed", 42, "Random seed for the function specification generator")
-	verbosity = flag.String("verbosity", "info", "Logging verbosity - choose from [info, debug, trace]")
-
-	yamlSelector = flag.String("yaml", "trace", "Choose a function YAML from [wimpy, trace, trace_firecracker]")
-	endpointPort = flag.Int("endpointPort", 80, "Port to append to an endpoint URL")
-
-	iatDistribution = flag.String("iatDistribution", "exponential", "Choose IAT distribution from [exponential, uniform, equidistant]")
-	tracePath       = flag.String("tracePath", "data/traces/", "Path to folder where the trace is located")
-
-	duration = flag.Int("duration", 1, "Duration of the experiment in minutes")
-
-	isPartiallyPanic         = flag.Bool("partiallyPanic", false, "Enable partially panic mode in Knative")
-	enableWarmupAndProfiling = flag.Bool("warmup", false, "Enable 1-min trace profiling and warmup [10 minutes by default]")
-	warmupDuration           = flag.Int("warmupDuration", common.DEFAULT_WARMUP_DURATION_MINUTES, "Warmup duration (10 minutes by default)")
-	enableTracing            = flag.Bool("enableTracing", false, "Embed loader spans into Zipkin tracing")
-	enableMetrics            = flag.Bool("enableMetrics", false, "Enable metrics scrapping from the cluster")
+	configPath = flag.String("config", "config.json", "Path to loader configuration file")
+	verbosity  = flag.String("verbosity", "info", "Logging verbosity - choose from [info, debug, trace]")
 )
 
 func init() {
@@ -57,21 +41,12 @@ func init() {
 	default:
 		log.SetLevel(log.InfoLevel)
 	}
-
-	switch *yamlSelector {
-	case "wimpy":
-		yamlSpecificationPath = "workloads/container/wimpy.yaml"
-	case "trace":
-		yamlSpecificationPath = "workloads/container/trace_func_go.yaml"
-	case "trace_firecracker":
-		yamlSpecificationPath = "workloads/firecracker/trace_func_go.yaml"
-	}
-
-	log.Infof("Using %s as a service YAML specification file.\n", yamlSpecificationPath)
 }
 
 func main() {
-	if *enableTracing {
+	cfg := config.ReadConfigurationFile(*configPath)
+
+	if cfg.EnableZipkinTracing {
 		// TODO: how not to exclude Zipkin spans here? - file a feature request
 		log.Warnf("Zipkin tracing has been enabled. This will exclude Istio spans from the Zipkin traces.")
 
@@ -83,11 +58,39 @@ func main() {
 		defer shutdown()
 	}
 
-	if *duration < 1 {
+	if cfg.ExperimentDuration < 1 {
 		log.Fatal("Runtime duration should be longer at least a minute.")
 	}
 
-	switch *iatDistribution {
+	runTraceMode(&cfg)
+}
+
+func determineDurationToParse(runtimeDuration int, warmupDuration int) int {
+	result := 0
+
+	if warmupDuration > 0 {
+		result += 1              // profiling
+		result += warmupDuration // warmup
+	}
+
+	result += runtimeDuration // actual experiment
+
+	return result
+}
+
+func runTraceMode(cfg *config.LoaderConfiguration) {
+	durationToParse := determineDurationToParse(cfg.ExperimentDuration, cfg.WarmupDuration)
+
+	traceParser := trace.NewAzureParser(cfg.TracePath, durationToParse)
+	functions := traceParser.Parse()
+
+	log.Infof("Traces contain the following %d functions:\n", len(functions))
+	for _, function := range functions {
+		fmt.Printf("\t%s\n", function.Name)
+	}
+
+	var iatType common.IatDistribution
+	switch cfg.IATDistribution {
 	case "exponential":
 		iatType = common.Exponential
 	case "uniform":
@@ -98,52 +101,25 @@ func main() {
 		log.Fatal("Unsupported IAT distribution.")
 	}
 
-	runTraceMode()
-}
-
-func determineDurationToParse(runtimeDuration int, withWarmup bool) int {
-	result := 0
-
-	if withWarmup {
-		result += 1               // profiling
-		result += *warmupDuration // warmup
+	var yamlSpecificationPath string
+	switch cfg.YAMLSelector {
+	case "wimpy":
+		yamlSpecificationPath = "workloads/container/wimpy.yaml"
+	case "container":
+		yamlSpecificationPath = "workloads/container/trace_func_go.yaml"
+	case "firecracker":
+		yamlSpecificationPath = "workloads/firecracker/trace_func_go.yaml"
 	}
 
-	result += runtimeDuration // actual experiment
-
-	return result
-}
-
-func runTraceMode() {
-	durationToParse := determineDurationToParse(*duration, *enableWarmupAndProfiling)
-
-	traceParser := trace.NewAzureParser(*tracePath, durationToParse)
-	functions := traceParser.Parse()
-
-	log.Infof("Traces contain the following %d functions:\n", len(functions))
-	for _, function := range functions {
-		fmt.Printf("\t%s\n", function.Name)
-	}
-
-	argWarmupLength := 0
-	if *enableWarmupAndProfiling {
-		argWarmupLength = *warmupDuration
-	}
+	log.Infof("Using %s as a service YAML specification file.\n", yamlSpecificationPath)
 
 	experimentDriver := driver.NewDriver(&driver.DriverConfiguration{
-		EnableMetricsCollection: *enableMetrics,
-		IATDistribution:         iatType,
-		PathToTrace:             *tracePath,
-		TraceDuration:           durationToParse,
+		LoaderConfiguration: cfg,
+		IATDistribution:     iatType,
+		TraceDuration:       durationToParse,
 
-		YAMLPath:         yamlSpecificationPath,
-		IsPartiallyPanic: *isPartiallyPanic,
-		EndpointPort:     *endpointPort,
-
-		WithTracing:    *enableTracing,
-		WarmupDuration: argWarmupLength,
-		Seed:           *seed,
-		TestMode:       false,
+		YAMLPath: yamlSpecificationPath,
+		TestMode: false,
 
 		Functions: functions,
 	})

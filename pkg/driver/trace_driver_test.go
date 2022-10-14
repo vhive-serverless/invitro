@@ -14,10 +14,12 @@ import (
 )
 
 func createTestDriver() *Driver {
+	cfg := createFakeLoaderConfiguration()
+
 	driver := NewDriver(&DriverConfiguration{
-		EnableMetricsCollection: false,
-		IATDistribution:         common.Equidistant,
-		TraceDuration:           1,
+		LoaderConfiguration: cfg,
+		IATDistribution:     common.Equidistant,
+		TraceDuration:       1,
 
 		Functions: []*common.Function{
 			{
@@ -57,9 +59,7 @@ func createTestDriver() *Driver {
 				},
 			},
 		},
-		WithTracing: false,
-		Seed:        123456789,
-		TestMode:    true,
+		TestMode: true,
 	})
 
 	driver.OutputFilename = "../../data/out/trace_driver_test.csv"
@@ -251,7 +251,7 @@ func TestDriverCompletely(t *testing.T) {
 
 			driver := createTestDriver()
 			if test.withWarmup {
-				driver.Configuration.WarmupDuration = 1
+				driver.Configuration.LoaderConfiguration.WarmupDuration = 1
 				driver.Configuration.TraceDuration = 3 // 1 profiling - 1 withWarmup - 1 execution
 			}
 
@@ -392,7 +392,7 @@ func TestProceedToNextMinute(t *testing.T) {
 			invocationIndex := test.invocationIndex
 			startOfMinute := time.Now()
 			phase := common.ExecutionPhase
-			var approximateFailedCount int32 = test.failedCount
+			var approximateFailedCount = test.failedCount
 			var iatSum int64 = 2500
 
 			toBreak := driver.proceedToNextMinute(function, &minuteIndex, &invocationIndex, &startOfMinute,
