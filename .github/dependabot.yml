@@ -5,21 +5,33 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    ignore:
+      - dependency-name: "*"
+        update-types: [ "version-update:semver-patch" ]
 
   - package-ecosystem: "gomod"
     directory: "/tools/invoker"
     schedule:
       interval: "weekly"
+    ignore:
+      - dependency-name: "*"
+        update-types: [ "version-update:semver-patch" ]
 
   - package-ecosystem: "gomod"
     directory: "/tools/benchmark/"
     schedule:
       interval: "weekly"
+    ignore:
+      - dependency-name: "*"
+        update-types: [ "version-update:semver-patch" ]
 
   - package-ecosystem: "gomod"
     directory: "/tools/helloworld"
     schedule:
       interval: "weekly"
+    ignore:
+      - dependency-name: "*"
+        update-types: [ "version-update:semver-patch" ]
 
   # Enable version updates for Actions
   - package-ecosystem: "github-actions"
