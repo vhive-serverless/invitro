@@ -6,22 +6,21 @@ const (
 )
 
 const (
-	// 1ms (min. billing unit of AWS)
-	MIN_EXEC_TIME_MILLI = 1
+	// MinExecTimeMilli 1ms (min. billing unit of AWS)
+	MinExecTimeMilli = 1
 
-	// 60s (avg. p96 from Wild)
-	MAX_EXEC_TIME_MILLI = 60e3
+	// MaxExecTimeMilli 60s (avg. p96 from Wild)
+	MaxExecTimeMilli = 60e3
 )
 
 const (
-	DEFAULT_WARMUP_DURATION_MINUTES = 10
-
+	// MaxMemQuotaMib Number taken from AWS Lambda settings
 	// https://docs.aws.amazon.com/lambda/latest/dg/configuration-function-common.html#configuration-memory-console
-	MAX_MEM_QUOTA_MIB = 10_240
-	MIN_MEM_QUOTA_MIB = 128
+	MaxMemQuotaMib = 10_240
+	MinMemQuotaMib = 1
 
-	// Machine overcommitment ratio to provide to CPU requests in YAML specification
-	OVERCOMMITMENT_RATIO = 10
+	// OvercommitmentRatio Machine overcommitment ratio to provide to CPU requests in YAML specification
+	OvercommitmentRatio = 10
 )
 
 type IatDistribution int
@@ -40,10 +39,18 @@ const (
 )
 
 const (
-	RequestedVsIssuedWarnThreshold      = 0.1
+	// RequestedVsIssuedWarnThreshold Print warning on stdout if the relative difference between requested
+	// and issued number of invocations is higher than this threshold
+	RequestedVsIssuedWarnThreshold = 0.1
+	// RequestedVsIssuedTerminateThreshold Terminate experiment if the relative difference between
+	// requested and issued number of invocations is higher than this threshold
 	RequestedVsIssuedTerminateThreshold = 0.2
 
-	FailedWarnThreshold      = 0.3
+	// FailedWarnThreshold Print warning on stdout if the percentage of failed invocations (e.g., connection timeouts,
+	// function timeouts) is greater than this threshold
+	FailedWarnThreshold = 0.3
+	// FailedTerminateThreshold Terminate experiment if the percentage of failed invocations (e.g., connection timeouts,
+	// function timeouts) is greater than this threshold
 	FailedTerminateThreshold = 0.5
 )
 
