@@ -32,24 +32,28 @@ server_exec() {
     ssh -oStrictHostKeyChecking=no -p 22 "$1" "$2";
 }
 
-#* Run initialisation on a node.
 common_init() {
-    server_exec $1 "git clone --branch=$VHIVE_BRANCH https://github.com/ease-lab/vhive"
-    server_exec $1 "cd; ./vhive/scripts/cloudlab/setup_node.sh $OPERATION_MODE"
-    server_exec $1 'tmux new -s containerd -d'
-    server_exec $1 'tmux send -t containerd "sudo containerd 2>&1 | tee ~/containerd_log.txt" ENTER'
-    # install precise NTP clock synchronizer
-    server_exec $1 'sudo apt-get update && sudo apt-get install -y chrony htop'
-    # synchronize clock across nodes
-    server_exec $1 "sudo chronyd -q \"server ops.emulab.net iburst\""
-    # dump clock info
-    server_exec $1 'sudo chronyc tracking'
-    # disable hyper-threading
-    server_exec $1 'echo off | sudo tee /sys/devices/system/cpu/smt/control'
-    # disable turbo boost for better timing
-    server_exec $1 './vhive/scripts/turbo_boost.sh disable'
-    # disable unnecessary kernel features
-    server_exec $1 './vhive/scripts/stabilize.sh disable'
+    internal_init() {
+        server_exec $1 "git clone --branch=$VHIVE_BRANCH https://github.com/ease-lab/vhive"
+        server_exec $1 "cd; ./vhive/scripts/cloudlab/setup_node.sh $OPERATION_MODE"
+        server_exec $1 'tmux new -s containerd -d'
+        server_exec $1 'tmux send -t containerd "sudo containerd 2>&1 | tee ~/containerd_log.txt" ENTER'
+        # install precise NTP clock synchronizer
+        server_exec $1 'sudo apt-get update && sudo apt-get install -y chrony htop'
+        # synchronize clock across nodes
+        server_exec $1 "sudo chronyd -q \"server ops.emulab.net iburst\""
+        # dump clock info
+        server_exec $1 'sudo chronyc tracking'
+        # stabilize the node
+        server_exec $1 './vhive/scripts/stabilize.sh'
+    }
+
+    for node in "$@"
+    do
+        internal_init "$node" &
+    done
+
+    wait
 }
 
 function setup_master() {
@@ -104,8 +108,9 @@ function setup_vhive_firecracker_daemon() {
 }
 
 function setup_workers() {
-    for node in "$@"
-    do
+    internal_setup() {
+        node=$1
+
         echo "Setting up worker node: $node"
         server_exec $node "./vhive/scripts/cluster/setup_worker_kubelet.sh $OPERATION_MODE"
 
@@ -126,7 +131,14 @@ function setup_workers() {
         # Rejoin has to be performed although errors will be thrown. Otherwise, restarting the kubelet will cause the node unreachable for some reason
         server_exec $node "sudo ${LOGIN_TOKEN} > /dev/null 2>&1"
         echo "Worker node $node joined the cluster (again :P)."
+    }
+
+    for node in "$@"
+    do
+        internal_setup "$node" &
     done
+
+    wait
 }
 
 function extend_CIDR() {
@@ -201,13 +213,8 @@ function clone_loader_on_workers() {
 ###############################################
 
 {
-    #* Set up all nodes including the master.
-    for node in "$@"
-    do
-        echo $node
-        common_init "$node" &
-    done
-    wait $!
+    # Set up all nodes including the master
+    common_init "$@"
 
     shift # make argument list only contain worker nodes (drops master node)
 
@@ -228,7 +235,7 @@ function clone_loader_on_workers() {
 
     source $DIR/taint.sh
 
-    # force placement of metrics collectors and instrumentation on the master node
+    # Force placement of metrics collectors and instrumentation on the master node
     taint_workers $MASTER_NODE
     $DIR/expose_infra_metrics.sh $MASTER_NODE
     untaint_workers $MASTER_NODE
