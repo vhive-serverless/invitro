@@ -121,7 +121,7 @@ type InvocationMetadata struct {
 
 	SuccessCount           *int64
 	FailedCount            *int64
-	ApproximateFailedCount *int32
+	ApproximateFailedCount *int64
 
 	RecordOutputChannel chan *mc.ExecutionRecord
 	AnnounceDoneWG      *sync.WaitGroup
@@ -143,7 +143,7 @@ func (d *Driver) invokeFunction(metadata *InvocationMetadata) {
 		atomic.AddInt64(metadata.SuccessCount, 1)
 	} else {
 		atomic.AddInt64(metadata.FailedCount, 1)
-		atomic.AddInt32(metadata.ApproximateFailedCount, 1)
+		atomic.AddInt64(metadata.ApproximateFailedCount, 1)
 	}
 
 	metadata.RecordOutputChannel <- record
@@ -159,6 +159,7 @@ func (d *Driver) individualFunctionDriver(function *common.Function, announceFun
 
 	var successfullInvocations int64
 	var failedInvocations int64
+	var approximateFailedCount int64
 	var numberOfIssuedInvocations int64
 	var currentPhase common.ExperimentPhase = common.ExecutionPhase
 
@@ -174,7 +175,6 @@ func (d *Driver) individualFunctionDriver(function *common.Function, announceFun
 
 	startOfMinute := time.Now()
 	var previousIATSum int64
-	var approximateFailedCount int32
 
 	for {
 		if minuteIndex >= totalTraceDuration {
@@ -185,9 +185,7 @@ func (d *Driver) individualFunctionDriver(function *common.Function, announceFun
 			d.proceedToNextMinute(function, &minuteIndex, &invocationIndex,
 				&startOfMinute, true, &currentPhase, &approximateFailedCount, &previousIATSum)
 
-			/////////////////////////////////////////
 			time.Sleep(time.Minute)
-			/////////////////////////////////////////
 
 			continue
 		}
@@ -226,17 +224,16 @@ func (d *Driver) individualFunctionDriver(function *common.Function, announceFun
 		currentTime := time.Now()
 		schedulingDelay := currentTime.Sub(startOfMinute).Microseconds() - previousIATSum
 		sleepFor := iat.Microseconds() - schedulingDelay
-		/////////////////////////////////////////
 		time.Sleep(time.Duration(sleepFor) * time.Microsecond)
-		/////////////////////////////////////////
+
 		previousIATSum += iat.Microseconds()
 
 		invocationIndex++
 		if function.InvocationStats.Invocations[minuteIndex] == invocationIndex || hasMinuteExpired(startOfMinute) {
-			toBreak := d.proceedToNextMinute(function, &minuteIndex, &invocationIndex, &startOfMinute,
+			readyToBreak := d.proceedToNextMinute(function, &minuteIndex, &invocationIndex, &startOfMinute,
 				false, &currentPhase, &approximateFailedCount, &previousIATSum)
 
-			if toBreak {
+			if readyToBreak {
 				break
 			}
 		}
@@ -253,7 +250,7 @@ func (d *Driver) individualFunctionDriver(function *common.Function, announceFun
 }
 
 func (d *Driver) proceedToNextMinute(function *common.Function, minuteIndex *int, invocationIndex *int, startOfMinute *time.Time,
-	skipMinute bool, currentPhase *common.ExperimentPhase, approximateFailedCount *int32, previousIATSum *int64) bool {
+	skipMinute bool, currentPhase *common.ExperimentPhase, approximateFailedCount *int64, previousIATSum *int64) bool {
 
 	if !isRequestTargetAchieved(function.InvocationStats.Invocations[*minuteIndex], *invocationIndex, common.RequestedVsIssued) {
 		// Not fatal because we want to keep the measurements to be written to the output file
@@ -262,7 +259,7 @@ func (d *Driver) proceedToNextMinute(function *common.Function, minuteIndex *int
 		return true
 	}
 
-	notFailedCount := function.InvocationStats.Invocations[*minuteIndex] - int(atomic.LoadInt32(approximateFailedCount))
+	notFailedCount := function.InvocationStats.Invocations[*minuteIndex] - int(atomic.LoadInt64(approximateFailedCount))
 	if !isRequestTargetAchieved(function.InvocationStats.Invocations[*minuteIndex], notFailedCount, common.IssuedVsFailed) {
 		// Not fatal because we want to keep the measurements to be written to the output file
 		log.Warnf("Percentage of failed request is greater than %.2f%%. Terminating experiment!\n", common.FailedTerminateThreshold*100)
@@ -280,7 +277,7 @@ func (d *Driver) proceedToNextMinute(function *common.Function, minuteIndex *int
 	*minuteIndex++
 	*invocationIndex = 0
 	*previousIATSum = 0
-	atomic.StoreInt32(approximateFailedCount, 0)
+	atomic.StoreInt64(approximateFailedCount, 0)
 
 	if d.Configuration.WithWarmup() && *minuteIndex == (d.Configuration.LoaderConfiguration.WarmupDuration+1) {
 		*currentPhase = common.ExecutionPhase

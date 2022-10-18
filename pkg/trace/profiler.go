@@ -20,8 +20,8 @@ func ApplyResourceLimits(functions []*common.Function) {
 		memoryPct100 := int(functions[i].MemoryStats.Percentile100)
 		cpuShare := ConvertMemoryToCpu(memoryPct100)
 
-		functions[i].CPURequestsMilli = cpuShare / common.OVERCOMMITMENT_RATIO
-		functions[i].MemoryRequestsMiB = memoryPct100 / common.OVERCOMMITMENT_RATIO
+		functions[i].CPURequestsMilli = cpuShare / common.OvercommitmentRatio
+		functions[i].MemoryRequestsMiB = memoryPct100 / common.OvercommitmentRatio
 		functions[i].CPULimitsMilli = cpuShare
 	}
 }
@@ -29,7 +29,7 @@ func ApplyResourceLimits(functions []*common.Function) {
 // ConvertMemoryToCpu Google Cloud Function conversion table used from https://cloud.google.com/functions/pricing
 func ConvertMemoryToCpu(memoryRequest int) int {
 	var cpuRequest float32
-	switch memoryRequest = common.MinOf(common.MAX_MEM_QUOTA_MIB, common.MaxOf(common.MIN_MEM_QUOTA_MIB, memoryRequest)); {
+	switch memoryRequest = common.MinOf(common.MaxMemQuotaMib, common.MaxOf(common.MinMemQuotaMib, memoryRequest)); {
 	case memoryRequest < 256:
 		cpuRequest = 0.083
 	case memoryRequest < 512:
