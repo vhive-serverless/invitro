@@ -23,6 +23,8 @@ import (
 import "C"
 
 const (
+	// ContainerImageSizeMB was chosen as a median of the container physical memory usage.
+	// Allocate this much less memory inside the actual function.
 	ContainerImageSizeMB = 15
 )
 
@@ -66,7 +68,7 @@ func (s *funcServer) Execute(_ context.Context, req *proto.FaasRequest) (*proto.
 	if serverSideCode == TraceFunction {
 		// Minimum execution time is AWS billing granularity - 1ms,
 		// as defined in SpecificationGenerator::generateExecutionSpecs
-		runtimeRequestedMilli := req.RuntimeInMilliSec
+		timeLeftMilliseconds := req.RuntimeInMilliSec
 		toAllocate := util.Mib2b(req.MemoryInMebiBytes - ContainerImageSizeMB)
 		if toAllocate < 0 {
 			toAllocate = 0
@@ -74,19 +76,15 @@ func (s *funcServer) Execute(_ context.Context, req *proto.FaasRequest) (*proto.
 
 		// make is equivalent to `calloc` in C. The memory gets allocated
 		// and zero is written to every byte, i.e. each page should be touched at least once
-		//_ = make([]byte, toAllocate)
+		memory := make([]byte, toAllocate)
+		// NOTE: the following statement to make sure the compiler does not treat the allocation as dead code
+		log.Debugf("Allocated memory size: %d\n", len(memory))
 
-		if uint32(time.Since(start).Milliseconds()) >= runtimeRequestedMilli {
-			// Compilers do not optimize function calls with pointers and operations on pointers
-			// because the address can only be determined at runtime
-			//log.Debug(len(mem))
-			// TODO: check this memory allocation stuff - subtract base image size
-
-			msg = fmt.Sprintf("FAILURE - mem_alloc timeout - %s", hostname)
-		} else {
-			runtimeRequestedMilli -= uint32(time.Since(start).Milliseconds())
-			if runtimeRequestedMilli > 0 {
-				busySpin(runtimeRequestedMilli)
+		timeConsumedMilliseconds := uint32(time.Since(start).Milliseconds())
+		if timeConsumedMilliseconds < timeLeftMilliseconds {
+			timeLeftMilliseconds -= timeConsumedMilliseconds
+			if timeLeftMilliseconds > 0 {
+				busySpin(timeLeftMilliseconds)
 			}
 
 			msg = fmt.Sprintf("OK - %s", hostname)
