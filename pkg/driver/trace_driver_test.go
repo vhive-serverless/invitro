@@ -89,7 +89,7 @@ func TestInvokeFunctionFromDriver(t *testing.T) {
 		t.Run(test.testName, func(t *testing.T) {
 			var successCount int64 = 0
 			var failureCount int64 = 0
-			var approximateFailureCount int32 = 0
+			var approximateFailureCount int64 = 0
 
 			invocationRecordOutputChannel := make(chan *metric.ExecutionRecord, 1)
 			announceDone := &sync.WaitGroup{}
@@ -354,7 +354,7 @@ func TestProceedToNextMinute(t *testing.T) {
 		testName        string
 		minuteIndex     int
 		invocationIndex int
-		failedCount     int32
+		failedCount     int64
 		skipMinute      bool
 		toBreak         bool
 	}{

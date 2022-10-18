@@ -191,8 +191,8 @@ func (s *SpecificationGenerator) generateExecutionSpecs(function *common.Functio
 	}
 
 	runQtl, memQtl := s.determineExecutionSpecSeedQuantiles()
-	runtime := common.MinOf(common.MAX_EXEC_TIME_MILLI, common.MaxOf(common.MIN_EXEC_TIME_MILLI, s.generateExecuteSpec(runQtl, runStats)))
-	memory := common.MinOf(common.MAX_MEM_QUOTA_MIB, common.MaxOf(common.MIN_MEM_QUOTA_MIB, s.generateMemorySpec(memQtl, memStats)))
+	runtime := common.MinOf(common.MaxExecTimeMilli, common.MaxOf(common.MinExecTimeMilli, s.generateExecuteSpec(runQtl, runStats)))
+	memory := common.MinOf(common.MaxMemQuotaMib, common.MaxOf(common.MinMemQuotaMib, s.generateMemorySpec(memQtl, memStats)))
 
 	return common.RuntimeSpecification{
 		Runtime: runtime,
