@@ -7,29 +7,35 @@ A load generator for benchmarking serverless systems.
 The experiments require a server-grade node running Linux (tested on Ubuntu 20, Intel Xeon). On CloudLab, one
 can choose the APT cluster `d430` node.
 
-### Multi-node cluster
-
-The loader should be running on a separate node that is part of the Kubernetes cluster. Do not collocate master and
-worker node components where the loader is located for performance reasons. Make sure you taint the node where loader is
-located prior to running any experiment.
-
-### Single-node cluster
-
-This mode is only for debugging purposes, and there is no guarantees of isolation between the loader and the master-node
-components.
-
 ## Create a cluster
 
 First, configure `script/setup.cfg`. You can specify there which vHive branch to use, loader branch, operation mode
-(sandbox type), maximum number of pods per node, and the Github token. All these configurations are mandatory. Github
-token needs `repo` and `admin:public_key` permissions. We currently support the following modes:
-containerd (`container`), Firecracker (`firecracker`), and Firecracker with snapshots (`firecracker_snapshots`).
+(sandbox type), maximum number of pods per node, and the Github token. All these configurations are mandatory.
+We currently support the following modes: containerd (`container`), Firecracker (`firecracker`), and Firecracker with
+snapshots (`firecracker_snapshots`).
+The token needs `repo` and `admin:public_key` permissions and will be used for adding SSH key to the user's account for
+purpose of cloning Github private repositories.
+Loader will be cloned on every node specified as argument of the cluster create script. The same holds for Kubernetes
+API server certificate.
 
 * To create a multi-node cluster, specify the node addresses as the arguments and run the following command:
 
 ```bash
 $ bash ./scripts/setup/create_multinode.sh <master_node@IP> <worker_node@IP> ...
 ```
+
+The loader should be running on a separate node that is part of the Kubernetes cluster. Do not collocate master and
+worker node components where the loader is located for performance reasons. Make sure you taint the node where loader is
+located prior to running any experiment.
+
+* Single-node cluster (experimental)
+
+```bash
+$ bash ./scripts/setup/create_singlenode_container.sh <node@IP>
+```
+
+This mode is only for debugging purposes, and there is no guarantees of isolation between the loader and the master-node
+components.
 
 ### Check cluster health (on the master node)
 
@@ -86,13 +92,14 @@ needs to run given a required service time.
 $ kubectl apply -f server/benchmark/timing.yaml
 ```
 
-Then, monitor and collect the `cold_iter_per_1ms` from the job logs as follows:
+Then, monitor and collect the `ITERATIONS_MULTIPLIER` from the job logs as follows:
 
 ```bash
 $ watch kubectl logs timing
 ```
 
-Finally, set the `ITERATIONS_MULTIPLIER` in the function template `workloads/$SANDBOX_TYPE/trace_func_go.yaml` to the cold value previously collected.
+Finally, set the `ITERATIONS_MULTIPLIER` in the function template `workloads/$SANDBOX_TYPE/trace_func_go.yaml` to the
+value previously collected.
 
 To account for difference in CPU performance set `ITERATIONS_MULTIPLIER=102` if using
 Cloudlab `xl170` or `d430` machines. (Date of measurement: 18-Oct-2022)
@@ -109,7 +116,8 @@ Additionally, one can specify log verbosity argument as `--verbosity [info, debu
 
 For to configure the workload for load generator, please refer to `docs/configuration.md`.
 
-There are a couple of constants that should not be exposed to the users. They can be examined and changed in `pkg/common/constants.go`.
+There are a couple of constants that should not be exposed to the users. They can be examined and changed
+in `pkg/common/constants.go`.
 
 ## Build the image for a synthetic function
 
