@@ -4,7 +4,7 @@
   "YAMLSelector": "container",
   "EndpointPort": 80,
 
-  "TracePath": "data/traces",
+  "TracePath": "data/traces/example",
   "OutputPathPrefix": "data/out/experiment",
   "IATDistribution": "exponential",
   "ExperimentDuration": 1,
