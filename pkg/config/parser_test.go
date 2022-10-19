@@ -1,27 +1,30 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"strings"
 	"testing"
 )
 
 func TestConfigParser(t *testing.T) {
-	var pathToConfigFile = ""
 	wd, _ := os.Getwd()
 
+	var pathToConfigFile = wd
 	if strings.HasSuffix(wd, "pkg/config") {
-		pathToConfigFile = "../../"
+		pathToConfigFile += "/../../"
 	}
 	pathToConfigFile += "cmd/config.json"
-	
+
+	fmt.Println(pathToConfigFile)
+
 	config := ReadConfigurationFile(pathToConfigFile)
 
 	if config.Seed != 42 ||
 		config.YAMLSelector != "container" ||
 		config.EndpointPort != 80 ||
-		config.TracePath != "data/traces" ||
-		config.OutputPathPrefix != "data/out/experiment" ||
+		!strings.HasPrefix(config.TracePath, "data/traces") ||
+		!strings.HasPrefix(config.OutputPathPrefix, "data/out/experiment") ||
 		config.IATDistribution != "exponential" ||
 		config.ExperimentDuration != 1 ||
 		config.WarmupDuration != 0 ||

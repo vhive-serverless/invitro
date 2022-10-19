@@ -4,7 +4,8 @@ analysis
 .idea
 tmp
 data/out
-data/traces
+data/traces/*
+!data/traces/example/
 pkg/generator/*.png
 pkg/generator/*.txt
 
