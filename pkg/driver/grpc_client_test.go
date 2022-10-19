@@ -72,7 +72,10 @@ func TestGRPCClientWithServerReachable(t *testing.T) {
 
 func TestGRPCClientWithServerBatchWorkload(t *testing.T) {
 	logrus.SetLevel(logrus.TraceLevel)
-	os.Setenv("ITERATIONS_MULTIPLIER", "225")
+	err := os.Setenv("ITERATIONS_MULTIPLIER", "225")
+	if err != nil {
+		t.Error(err)
+	}
 
 	address, port := "localhost", 8081
 	testFunction.Endpoint = fmt.Sprintf("%s:%d", address, port)

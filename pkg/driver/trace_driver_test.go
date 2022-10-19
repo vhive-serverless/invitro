@@ -75,12 +75,12 @@ func TestInvokeFunctionFromDriver(t *testing.T) {
 	}{
 		{
 			testName:  "invoke_failure",
-			port:      8080,
+			port:      8082,
 			forceFail: true,
 		},
 		{
 			testName:  "invoke_success",
-			port:      8081,
+			port:      8083,
 			forceFail: false,
 		},
 	}
