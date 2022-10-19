@@ -30,19 +30,14 @@ clean:
 # 	rm -f *.log
 	go mod tidy
 
-logs:
-	mkdir logs
-	mv *.log *.flag logs
-
 rm-results:
-	rm *.log *.flag data/out/*
+	rm data/out/*.csv
 
 build:
-	go build cmd/load.go
+	go build cmd/loader.go
 
-# make ARGS='--rps X --duration X' run 2>&1 | tee loader.log
 run:
-	go run cmd/load.go $(ARGS)
+	go run cmd/loader.go --config cmd/config.json
 
 test:
 	go test -v -cover -race ./pkg/config/
@@ -85,4 +80,3 @@ empty-container:
 wimpy:
 	docker build -f Dockerfile.wimpy -t hyhe/wimpy .
 	docker push hyhe/wimpy:latest
-

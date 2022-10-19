@@ -1,9 +1,21 @@
 package config
 
-import "testing"
+import (
+	"os"
+	"strings"
+	"testing"
+)
 
 func TestConfigParser(t *testing.T) {
-	config := ReadConfigurationFile("cmd/config.json")
+	var pathToConfigFile = ""
+	wd, _ := os.Getwd()
+
+	if strings.HasSuffix(wd, "pkg/config") {
+		pathToConfigFile = "../../"
+	}
+	pathToConfigFile += "cmd/config.json"
+	
+	config := ReadConfigurationFile(pathToConfigFile)
 
 	if config.Seed != 42 ||
 		config.YAMLSelector != "container" ||

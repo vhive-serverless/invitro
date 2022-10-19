@@ -69,16 +69,16 @@ func (s *funcServer) Execute(_ context.Context, req *proto.FaasRequest) (*proto.
 		// Minimum execution time is AWS billing granularity - 1ms,
 		// as defined in SpecificationGenerator::generateExecutionSpecs
 		timeLeftMilliseconds := req.RuntimeInMilliSec
-		toAllocate := util.Mib2b(req.MemoryInMebiBytes - ContainerImageSizeMB)
+		/*toAllocate := util.Mib2b(req.MemoryInMebiBytes - ContainerImageSizeMB)
 		if toAllocate < 0 {
 			toAllocate = 0
-		}
+		}*/
 
 		// make is equivalent to `calloc` in C. The memory gets allocated
 		// and zero is written to every byte, i.e. each page should be touched at least once
-		memory := make([]byte, toAllocate)
+		//memory := make([]byte, toAllocate)
 		// NOTE: the following statement to make sure the compiler does not treat the allocation as dead code
-		log.Debugf("Allocated memory size: %d\n", len(memory))
+		//log.Debugf("Allocated memory size: %d\n", len(memory))
 
 		timeConsumedMilliseconds := uint32(time.Since(start).Milliseconds())
 		if timeConsumedMilliseconds < timeLeftMilliseconds {
