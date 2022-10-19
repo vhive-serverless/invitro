@@ -43,7 +43,7 @@ func NewDriver(driverConfig *DriverConfiguration) *Driver {
 	return &Driver{
 		Configuration:          driverConfig,
 		SpecificationGenerator: generator.NewSpecificationGenerator(driverConfig.LoaderConfiguration.Seed),
-		OutputFilename:         fmt.Sprintf("data/out/exec_duration_%d.csv", driverConfig.TraceDuration),
+		OutputFilename:         fmt.Sprintf("%s_duration_%d.csv", driverConfig.LoaderConfiguration.OutputPathPrefix, driverConfig.TraceDuration),
 	}
 }
 
