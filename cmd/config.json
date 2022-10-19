@@ -5,6 +5,7 @@
   "EndpointPort": 80,
 
   "TracePath": "data/traces",
+  "OutputPathPrefix": "data/out/experiment",
   "IATDistribution": "exponential",
   "ExperimentDuration": 1,
   "WarmupDuration": 0,

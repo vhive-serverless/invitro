@@ -8,7 +8,8 @@ func TestConfigParser(t *testing.T) {
 	if config.Seed != 42 ||
 		config.YAMLSelector != "container" ||
 		config.EndpointPort != 80 ||
-		config.TracePath != "data/traces/" ||
+		config.TracePath != "data/traces" ||
+		config.OutputPathPrefix != "data/out/experiment" ||
 		config.IATDistribution != "exponential" ||
 		config.ExperimentDuration != 1 ||
 		config.WarmupDuration != 0 ||
