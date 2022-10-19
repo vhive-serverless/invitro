@@ -19,7 +19,8 @@ const (
 	MaxMemQuotaMib = 10_240
 	MinMemQuotaMib = 1
 
-	// OvercommitmentRatio Machine overcommitment ratio to provide to CPU requests in YAML specification
+	// OvercommitmentRatio Machine overcommitment ratio to provide to CPU requests in YAML specification.
+	// Value taken from the Firecracker NSDI'20 paper.
 	OvercommitmentRatio = 10
 )
 
