@@ -150,7 +150,7 @@ func (d *Driver) invokeFunction(metadata *InvocationMetadata) {
 }
 
 func (d *Driver) individualFunctionDriver(function *common.Function, announceFunctionDone *sync.WaitGroup,
-	totalSuccessfull *int64, totalFailed *int64, totalIssued *int64, recordOutputChannel chan *mc.ExecutionRecord) {
+	totalSuccessful *int64, totalFailed *int64, totalIssued *int64, recordOutputChannel chan *mc.ExecutionRecord) {
 
 	totalTraceDuration := d.Configuration.TraceDuration
 	minuteIndex, invocationIndex := 0, 0
@@ -244,7 +244,7 @@ func (d *Driver) individualFunctionDriver(function *common.Function, announceFun
 	log.Debugf("All the invocations for function %s have been completed.\n", function.Name)
 	announceFunctionDone.Done()
 
-	atomic.AddInt64(totalSuccessfull, successfullInvocations)
+	atomic.AddInt64(totalSuccessful, successfullInvocations)
 	atomic.AddInt64(totalFailed, failedInvocations)
 	atomic.AddInt64(totalIssued, numberOfIssuedInvocations)
 }
@@ -451,7 +451,7 @@ func (d *Driver) startBackgroundProcesses(allRecordsWritten *sync.WaitGroup) (*s
 }
 
 func (d *Driver) internalRun() {
-	var successfullInvocations int64
+	var successfulInvocations int64
 	var failedInvocations int64
 	var invocationsIssued int64
 
@@ -480,7 +480,7 @@ func (d *Driver) internalRun() {
 		go d.individualFunctionDriver(
 			function,
 			&allIndividualDriversCompleted,
-			&successfullInvocations,
+			&successfulInvocations,
 			&failedInvocations,
 			&invocationsIssued,
 			globalMetricsCollector,
@@ -488,15 +488,15 @@ func (d *Driver) internalRun() {
 	}
 
 	allIndividualDriversCompleted.Wait()
-	if successfullInvocations+failedInvocations != 0 {
+	if atomic.LoadInt64(&successfulInvocations)+atomic.LoadInt64(&failedInvocations) != 0 {
 		log.Debugf("Waiting for all the invocations record to be written.\n")
-		totalIssuedChannel <- invocationsIssued
+		totalIssuedChannel <- atomic.LoadInt64(&invocationsIssued)
 		allRecordsWritten.Wait()
 	}
 
 	log.Infof("Trace has finished executing function invocation driver\n")
-	log.Infof("Number of successful invocations: \t%d\n", successfullInvocations)
-	log.Infof("Number of failed invocations: \t%d\n", failedInvocations)
+	log.Infof("Number of successful invocations: \t%d\n", atomic.LoadInt64(&successfulInvocations))
+	log.Infof("Number of failed invocations: \t%d\n", atomic.LoadInt64(&failedInvocations))
 }
 
 func (d *Driver) RunExperiment() {
