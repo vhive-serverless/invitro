@@ -1,0 +1,14 @@
+{
+  "username": "",
+  "experimentName": "example",
+  "localTracePath": "trace/example",
+  "loaderAddresses": [
+    "localhost"
+  ],
+  "beginningFuncNum": 1,
+  "stepSizeFunc": 1,
+  "maxFuncNum": 1,
+  "experimentDuration": 2,
+  "workerNodeNum": 1,
+  "outputDir": "measurements/example"
+}
