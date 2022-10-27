@@ -14,7 +14,7 @@ type RuntimeSpecification struct {
 type RuntimeSpecificationMatrix [][]RuntimeSpecification
 
 type FunctionSpecification struct {
-	IAT                  IATMatrix
-	RawDuration          ProbabilisticDuration
-	RuntimeSpecification RuntimeSpecificationMatrix
+	IAT                  IATMatrix                  `json:"IAT"`
+	RawDuration          ProbabilisticDuration      `json:"RawDuration"`
+	RuntimeSpecification RuntimeSpecificationMatrix `json:"RuntimeSpecification"`
 }

@@ -21,8 +21,10 @@ const (
 )
 
 var (
-	configPath = flag.String("config", "config.json", "Path to loader configuration file")
-	verbosity  = flag.String("verbosity", "info", "Logging verbosity - choose from [info, debug, trace]")
+	configPath    = flag.String("config", "config.json", "Path to loader configuration file")
+	verbosity     = flag.String("verbosity", "info", "Logging verbosity - choose from [info, debug, trace]")
+	iatGeneration = flag.Bool("iatGeneration", false, "Generate iats only or run invocations as well")
+	generated     = flag.Bool("generated", false, "True if iats were already generated")
 )
 
 func init() {
@@ -63,7 +65,7 @@ func main() {
 		log.Fatal("Runtime duration should be longer at least a minute.")
 	}
 
-	runTraceMode(&cfg)
+	runTraceMode(&cfg, *iatGeneration, *generated)
 }
 
 func determineDurationToParse(runtimeDuration int, warmupDuration int) int {
@@ -79,7 +81,7 @@ func determineDurationToParse(runtimeDuration int, warmupDuration int) int {
 	return result
 }
 
-func runTraceMode(cfg *config.LoaderConfiguration) {
+func runTraceMode(cfg *config.LoaderConfiguration, iatOnly bool, generated bool) {
 	durationToParse := determineDurationToParse(cfg.ExperimentDuration, cfg.WarmupDuration)
 
 	traceParser := trace.NewAzureParser(cfg.TracePath, durationToParse)
@@ -125,5 +127,5 @@ func runTraceMode(cfg *config.LoaderConfiguration) {
 		Functions: functions,
 	})
 
-	experimentDriver.RunExperiment()
+	experimentDriver.RunExperiment(iatOnly, generated)
 }

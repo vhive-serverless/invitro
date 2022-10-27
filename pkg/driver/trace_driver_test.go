@@ -258,7 +258,7 @@ func TestDriverCompletely(t *testing.T) {
 				driver.Configuration.TraceDuration = 3 // 1 profiling - 1 withWarmup - 1 execution
 			}
 
-			driver.RunExperiment()
+			driver.RunExperiment(false, false)
 
 			f, err := os.Open(driver.outputFilename("duration"))
 			if err != nil {

@@ -1,6 +1,7 @@
 package driver
 
 import (
+	"encoding/json"
 	"encoding/csv"
 	"fmt"
 	"math"
@@ -15,6 +16,13 @@ import (
 	"github.com/eth-easl/loader/pkg/trace"
 	"github.com/gocarina/gocsv"
 	log "github.com/sirupsen/logrus"
+	"io/ioutil"
+	"math"
+	"os"
+	"strconv"
+	"sync"
+	"sync/atomic"
+	"time"
 
 	mc "github.com/eth-easl/loader/pkg/metric"
 )
@@ -423,7 +431,7 @@ func (d *Driver) startBackgroundProcesses(allRecordsWritten *sync.WaitGroup) (*s
 	return auxiliaryProcessBarrier, globalMetricsCollector, totalIssuedChannel, finishCh
 }
 
-func (d *Driver) internalRun() {
+func (d *Driver) internalRun(iatOnly bool, generated bool) {
 	var successfulInvocations int64
 	var failedInvocations int64
 	var invocationsIssued int64
@@ -434,17 +442,31 @@ func (d *Driver) internalRun() {
 
 	backgroundProcessesInitializationBarrier, globalMetricsCollector, totalIssuedChannel, scraperFinishCh := d.startBackgroundProcesses(&allRecordsWritten)
 
-	log.Infof("Generating IAT and runtime specifications for all the functions\n")
-	for i, function := range d.Configuration.Functions {
-		spec := d.SpecificationGenerator.GenerateInvocationData(
-			function,
-			d.Configuration.IATDistribution,
-		)
+	if !iatOnly {
+		log.Infof("Generating IAT and runtime specifications for all the functions\n")
+		for i, function := range d.Configuration.Functions {
+			spec := d.SpecificationGenerator.GenerateInvocationData(
+				function,
+				d.Configuration.IATDistribution,
+			)
 
-		d.Configuration.Functions[i].Specification = spec
+			d.Configuration.Functions[i].Specification = spec
+		}
 	}
 
 	backgroundProcessesInitializationBarrier.Wait()
+
+	if generated {
+		for i, _ := range d.Configuration.Functions {
+			iatFile, _ := ioutil.ReadFile("iat" + strconv.Itoa(i) + ".json")
+			var spec common.FunctionSpecification
+			err := json.Unmarshal(iatFile, &spec)
+			if err != nil {
+				log.Fatalf("Failed tu unmarshal iat file: %s", err)
+			}
+			d.Configuration.Functions[i].Specification = &spec
+		}
+	}
 
 	log.Infof("Starting function invocation driver\n")
 	for _, function := range d.Configuration.Functions {
@@ -473,17 +495,34 @@ func (d *Driver) internalRun() {
 	log.Infof("Number of failed invocations: \t%d\n", atomic.LoadInt64(&failedInvocations))
 }
 
-func (d *Driver) RunExperiment() {
-	if d.Configuration.WithWarmup() {
-		trace.DoStaticTraceProfiling(d.Configuration.Functions)
+func (d *Driver) RunExperiment(iatOnly bool, generated bool) {
+	if iatOnly {
+		log.Infof("Generating IAT and runtime specifications for all the functions\n")
+		for i, function := range d.Configuration.Functions {
+			spec := d.SpecificationGenerator.GenerateInvocationData(
+				function,
+				d.Configuration.IATDistribution,
+			)
+
+			d.Configuration.Functions[i].Specification = spec
+			file, _ := json.MarshalIndent(spec, "", " ")
+			err := os.WriteFile("iat"+strconv.Itoa(i)+".json", file, 0644)
+			if err != nil {
+				log.Fatalf("Writing the loader config file failed: %s", err)
+			}
+		}
+	} else {
+		if d.Configuration.WithWarmup() {
+			trace.DoStaticTraceProfiling(d.Configuration.Functions)
+		}
+
+		trace.ApplyResourceLimits(d.Configuration.Functions)
+
+		DeployFunctions(d.Configuration.Functions,
+			d.Configuration.YAMLPath,
+			d.Configuration.LoaderConfiguration.IsPartiallyPanic,
+			d.Configuration.LoaderConfiguration.EndpointPort)
+
+		d.internalRun(iatOnly, generated)
 	}
-
-	trace.ApplyResourceLimits(d.Configuration.Functions)
-
-	DeployFunctions(d.Configuration.Functions,
-		d.Configuration.YAMLPath,
-		d.Configuration.LoaderConfiguration.IsPartiallyPanic,
-		d.Configuration.LoaderConfiguration.EndpointPort)
-
-	d.internalRun()
 }

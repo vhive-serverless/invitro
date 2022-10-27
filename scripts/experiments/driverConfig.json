@@ -1,11 +1,9 @@
 {
-  "username": "Mihajlo",
+  "username": "",
   "experimentName": "sweep_concurrency_mode",
   "localTracePath": "data/traces/example",
-  "ExperimentDuration": 1,
   "loaderAddresses": [
-    "123",
-    "456"
+    "localhost"
   ],
   "beginningFuncNum": 10,
   "stepSizeFunc": 10,
