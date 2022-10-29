@@ -443,7 +443,7 @@ func (d *Driver) internalRun(iatOnly bool, generated bool) {
 	backgroundProcessesInitializationBarrier, globalMetricsCollector, totalIssuedChannel, scraperFinishCh := d.startBackgroundProcesses(&allRecordsWritten)
 
 	if !iatOnly {
-		log.Infof("Generating IAT and runtime specifications for all the functions\n")
+		log.Info("Generating IAT and runtime specifications for all the functions")
 		for i, function := range d.Configuration.Functions {
 			spec := d.SpecificationGenerator.GenerateInvocationData(
 				function,
@@ -497,7 +497,7 @@ func (d *Driver) internalRun(iatOnly bool, generated bool) {
 
 func (d *Driver) RunExperiment(iatOnly bool, generated bool) {
 	if iatOnly {
-		log.Infof("Generating IAT and runtime specifications for all the functions\n")
+		log.Info("Generating IAT and runtime specifications for all the functions")
 		for i, function := range d.Configuration.Functions {
 			spec := d.SpecificationGenerator.GenerateInvocationData(
 				function,

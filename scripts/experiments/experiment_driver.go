@@ -41,18 +41,27 @@ type loaderConfig struct {
 }
 
 type Driver struct {
-	Username           string   `json:"username"`
-	ExperimentName     string   `json:"experimentName"`
-	LoaderAddresses    []string `json:"loaderAddresses"`
-	clients            []*simplessh.Client
-	BeginningFuncNum   int    `json:"beginningFuncNum"`
-	StepSizeFunc       int    `json:"stepSizeFunc"`
-	MaxFuncNum         int    `json:"maxFuncNum"`
-	ExperimentDuration int    `json:"experimentDuration"`
-	WorkerNodeNum      int    `json:"workerNodeNum"`
-	LocalTracePath     string `json:"localTracePath"`
-	OutputDir          string `json:"outputDir"`
-	loaderConfig       loaderConfig
+	Username               string   `json:"username"`
+	ExperimentName         string   `json:"experimentName"`
+	LoaderAddresses        []string `json:"loaderAddresses"`
+	clients                []*simplessh.Client
+	BeginningFuncNum       int    `json:"beginningFuncNum"`
+	StepSizeFunc           int    `json:"stepSizeFunc"`
+	MaxFuncNum             int    `json:"maxFuncNum"`
+	ExperimentDuration     int    `json:"experimentDuration"`
+	WarmupDuration         int    `json:"warmupDuration"`
+	WorkerNodeNum          int    `json:"workerNodeNum"`
+	LocalTracePath         string `json:"localTracePath"`
+	LoaderTracePath        string `json:"loaderTracePath"`
+	OutputDir              string `json:"outputDir"`
+	YAMLSelector           string `json:"YAMLSelector"`
+	IATDistribution        string `json:"IATDistribution"`
+	LoaderOutputPath       string `json:"loaderOutputPath"`
+	PartiallyPanic         bool   `json:"partiallyPanic"`
+	EnableZipkinTracing    bool   `json:"EnableZipkinTracing"`
+	EnableMetricsScrapping bool   `json:"EnableMetricsScrapping"`
+	SeparateIATGeneration  bool   `json:"separateIATGeneration"`
+	loaderConfig           loaderConfig
 }
 
 func min(x, y int) int {
@@ -64,27 +73,23 @@ func min(x, y int) int {
 
 func NewDriver(configFile string) *[]Driver {
 	driverConfig, _ := ioutil.ReadFile(configFile)
-	var d Driver
+	var driver Driver
 	var drivers []Driver
 	log.Debugf("Unmarshaling config file: %s", configFile)
-	err := json.Unmarshal(driverConfig, &d)
+	err := json.Unmarshal(driverConfig, &driver)
 	if err != nil {
-		log.Fatalf("Failed tu unmarshal driver config file: %s", err)
+		log.Fatalf("Failed to unmarshal the driver config file: %s", err)
 	}
 	var loaderConfigs []loaderConfig
 	idx := 0
-	for i := d.BeginningFuncNum; i <= d.MaxFuncNum; i += d.StepSizeFunc {
-		loaderConfigs = append(loaderConfigs, d.createLoaderConfig(i))
-		drivers = append(drivers, d)
+	for i := driver.BeginningFuncNum; i <= driver.MaxFuncNum; i += driver.StepSizeFunc {
+		loaderConfigs = append(loaderConfigs, driver.createLoaderConfig(i))
+		drivers = append(drivers, driver)
 		drivers[idx].loaderConfig = loaderConfigs[idx]
 		idx++
 	}
 	return &drivers
 }
-
-const (
-	loaderTracePath = "loader/data/traces/"
-)
 
 func main() {
 	var (
@@ -127,22 +132,24 @@ func (d *Driver) RunSingleExperiment() {
 func (d *Driver) createLoaderConfig(functionNumber int) loaderConfig {
 	configFile := "loaderConfig_" + strconv.Itoa(functionNumber) + ".json"
 	log.Debugf("Creating loader config: %s", configFile)
+	loaderTracePath := d.LoaderTracePath
+	loaderTracePath = strings.TrimPrefix(loaderTracePath, "loader/")
 	var loaderConfig loaderConfig
 	var configuration LoaderConfiguration
 	configuration = LoaderConfiguration{
 		Seed:         42,
-		YAMLSelector: "container",
+		YAMLSelector: d.YAMLSelector,
 		EndpointPort: 80,
 
-		TracePath:          "data/traces",
-		OutputPathPrefix:   "data/out/experiment",
-		IATDistribution:    "exponential",
+		TracePath:          loaderTracePath,
+		OutputPathPrefix:   d.LoaderOutputPath,
+		IATDistribution:    d.IATDistribution,
 		ExperimentDuration: d.ExperimentDuration,
-		WarmupDuration:     10,
+		WarmupDuration:     d.WarmupDuration,
 
-		IsPartiallyPanic:       false,
-		EnableZipkinTracing:    false,
-		EnableMetricsScrapping: false,
+		IsPartiallyPanic:       d.PartiallyPanic,
+		EnableZipkinTracing:    d.EnableZipkinTracing,
+		EnableMetricsScrapping: d.EnableMetricsScrapping,
 
 		GRPCConnectionTimeoutSeconds: 60,
 		GRPCFunctionTimeoutSeconds:   900,
@@ -163,7 +170,6 @@ func connectToLoader(loaderAddresses []string, username string) []*simplessh.Cli
 	for idx, loaderAdr := range loaderAddresses {
 		log.Debugf("connecting to loader: %s", loaderAdr)
 		client, err := simplessh.ConnectWithAgent(loaderAdr, username)
-		//client, err := simplessh.ConnectWithKeyFile(loaderAdr, username, "/home/mihajlo/.ssh/id_ed25519")
 		if err != nil {
 			log.Fatalf("Connecting to the loader with address %s failed: %s", loaderAdr, err)
 		}
@@ -201,27 +207,31 @@ func (d *Driver) transferFilesToLoader(client *simplessh.Client, wg *sync.WaitGr
 		functions + "_mem_part_" + strconv.Itoa(idx) + ".csv",
 		functions + "_run_part_" + strconv.Itoa(idx) + ".csv",
 	}
-	for index, i := range traceFiles {
-		_, err := os.Stat(tracePath + "/" + i)
-		if err != nil {
-			log.Fatalf("Trace file %s does not exist: %s", tracePath+"/"+i, err)
-		}
-		var loaderTraceFile string
-		switch index {
-		case 0:
-			loaderTraceFile = "invocations.csv"
-		case 1:
-			loaderTraceFile = "memmory.csv"
-		case 2:
-			loaderTraceFile = "durations.csv"
-
-		}
-		err = client.Upload(tracePath+"/"+i, loaderTracePath+loaderTraceFile)
-		if err != nil {
-			log.Fatalf("Failed to upload the trace files to the loader: %s", err)
-		}
+	_, err := os.Stat(tracePath + "/" + traceFiles[0])
+	if err != nil {
+		log.Fatalf("Trace file %s does not exist: %s", tracePath+"/"+traceFiles[0], err)
 	}
-	_, err := os.Stat(d.loaderConfig.configPath)
+	err = client.Upload(tracePath+"/"+traceFiles[0], d.LoaderTracePath+"invocations.csv")
+	if err != nil {
+		log.Fatalf("Failed to upload the trace files to the loader: %s", err)
+	}
+	_, err = os.Stat(tracePath + "/" + traceFiles[1])
+	if err != nil {
+		log.Fatalf("Trace file %s does not exist: %s", tracePath+"/"+traceFiles[1], err)
+	}
+	err = client.Upload(tracePath+"/"+traceFiles[1], d.LoaderTracePath+"memory.csv")
+	if err != nil {
+		log.Fatalf("Failed to upload the trace files to the loader: %s", err)
+	}
+	_, err = os.Stat(tracePath + "/" + traceFiles[2])
+	if err != nil {
+		log.Fatalf("Trace file %s does not exist: %s", tracePath+"/"+traceFiles[2], err)
+	}
+	err = client.Upload(tracePath+"/"+traceFiles[2], d.LoaderTracePath+"durations.csv")
+	if err != nil {
+		log.Fatalf("Failed to upload the trace files to the loader: %s", err)
+	}
+	_, err = os.Stat(d.loaderConfig.configPath)
 	if err != nil {
 		log.Fatalf("Loader config file %s does not exist: %s", d.loaderConfig.configPath, err)
 	}
@@ -233,9 +243,6 @@ func (d *Driver) transferFilesToLoader(client *simplessh.Client, wg *sync.WaitGr
 
 func (d *Driver) partitionTraceFiles() {
 	functions := strconv.Itoa(d.loaderConfig.functions)
-	functionsPerLoader := float64(d.loaderConfig.functions) / float64(len(d.LoaderAddresses))
-	functionsPerLoader = math.Ceil(functionsPerLoader)
-	functionsPerLoaderInt := int(functionsPerLoader)
 	tracePath := d.LocalTracePath
 	_, err := os.Stat(tracePath)
 	if err != nil {
@@ -248,43 +255,55 @@ func (d *Driver) partitionTraceFiles() {
 	}
 	for _, i := range traceFiles {
 		path := tracePath + "/" + i
-		_, err := os.Stat(path)
-		if err != nil {
-			log.Fatalf("Trace file %s does not exist: %s", path, err)
-		}
-		f, err := os.Open(path)
-		if err != nil {
-			log.Fatalf("Failed to read trace file %s with error: %s", path, err)
-		}
-		defer f.Close()
-
-		reader := csv.NewReader(f)
-		records, err := reader.ReadAll()
-		if err != nil {
-			log.Fatalf("Invalid trace structure for file %s with error: %s", path, err)
-		}
+		records := d.readTraceFile(path)
 		for idx, _ := range d.LoaderAddresses {
-			partPath := strings.TrimSuffix(i, ".csv")
-			partPath = partPath + "_part_" + strconv.Itoa(idx) + ".csv"
-			tracePart, err := os.Create(tracePath + "/" + partPath)
-			if err != nil {
-				log.Fatalf("failed creating trace file %s with error: %s", partPath, err)
-			}
-			defer tracePart.Close()
-			w := csv.NewWriter(tracePart)
-			defer w.Flush()
-			err = w.Write(records[0])
-			if err != nil {
-				log.Fatalf("error writing record to file: %s", err)
-			}
-			startIdx := 1 + idx*functionsPerLoaderInt
-			endIdx := min(startIdx+functionsPerLoaderInt, len(records))
-			for i := startIdx; i < endIdx; i++ {
-				err = w.Write(records[i])
-				if err != nil {
-					log.Fatalf("error writing record to file: %s", err)
-				}
-			}
+			d.writePartialTraceFile(idx, i, records)
+		}
+	}
+}
+
+func (d *Driver) readTraceFile(path string) [][]string {
+	_, err := os.Stat(path)
+	if err != nil {
+		log.Fatalf("Trace file %s does not exist: %s", path, err)
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		log.Fatalf("Failed to read trace file %s with error: %s", path, err)
+	}
+	defer f.Close()
+
+	reader := csv.NewReader(f)
+	records, err := reader.ReadAll()
+	if err != nil {
+		log.Fatalf("Invalid trace structure for file %s with error: %s", path, err)
+	}
+	return records
+}
+
+func (d *Driver) writePartialTraceFile(idx int, file string, records [][]string) {
+	functionsPerLoader := float64(d.loaderConfig.functions) / float64(len(d.LoaderAddresses))
+	functionsPerLoader = math.Ceil(functionsPerLoader)
+	functionsPerLoaderInt := int(functionsPerLoader)
+	partPath := strings.TrimSuffix(file, ".csv")
+	partPath = partPath + "_part_" + strconv.Itoa(idx) + ".csv"
+	tracePart, err := os.Create(d.LocalTracePath + "/" + partPath)
+	if err != nil {
+		log.Fatalf("failed creating trace file %s with error: %s", partPath, err)
+	}
+	defer tracePart.Close()
+	w := csv.NewWriter(tracePart)
+	defer w.Flush()
+	err = w.Write(records[0])
+	if err != nil {
+		log.Fatalf("error writing record to file: %s", err)
+	}
+	startIdx := 1 + idx*functionsPerLoaderInt
+	endIdx := min(startIdx+functionsPerLoaderInt, len(records))
+	for i := startIdx; i < endIdx; i++ {
+		err = w.Write(records[i])
+		if err != nil {
+			log.Fatalf("error writing record to file: %s", err)
 		}
 	}
 }
@@ -296,10 +315,12 @@ func (d *Driver) prepareLoader(client *simplessh.Client, wg *sync.WaitGroup) {
 	if err != nil {
 		log.Fatalf("Failed to build the loader: %s", err)
 	}
-	out, err = client.Exec("cd loader; source /etc/profile;go run cmd/loader.go -iatGeneration=true -config " + "cmd/" + d.loaderConfig.configPath)
-	log.Debug(string(out))
-	if err != nil {
-		log.Fatalf("Failed to generate IATs: %s", err)
+	if d.SeparateIATGeneration {
+		out, err = client.Exec("cd loader; source /etc/profile;go run cmd/loader.go -iatGeneration=true -config " + "cmd/" + d.loaderConfig.configPath)
+		log.Debug(string(out))
+		if err != nil {
+			log.Fatalf("Failed to generate IATs: %s", err)
+		}
 	}
 }
 
@@ -310,7 +331,12 @@ func (d *Driver) startLoad() {
 	for _, client := range clients {
 		go func() {
 			defer wg.Done()
-			cmd := "go run cmd/loader.go -generated=true -config " + "cmd/" + d.loaderConfig.configPath
+			var cmd string
+			if d.SeparateIATGeneration {
+				cmd = "go run cmd/loader.go -generated=true -config " + "cmd/" + d.loaderConfig.configPath
+			} else {
+				cmd = "go run cmd/loader.go -config " + "cmd/" + d.loaderConfig.configPath
+			}
 			log.Debug("running command: " + cmd)
 			out, err := client.Exec("cd loader; source /etc/profile;" + cmd)
 			log.Debug(string(out))
@@ -332,10 +358,10 @@ func (d *Driver) collectStats() {
 	for idx, client := range clients {
 		go func() {
 			defer wg.Done()
-			durationInt = durationInt + 15 // add profiling + + warmup experimentDuration
+			durationInt = durationInt + d.WarmupDuration + 1 // add warmup and profiling duration
 			duration := strconv.Itoa(durationInt)
-			fileLocal := "exec_duration_" + duration + ".csv"
-			fileRemote := "loader/data/out/exec_duration_" + duration + ".csv"
+			fileLocal := "experiment_duration_" + duration
+			fileRemote := "loader/" + d.LoaderOutputPath + "_duration_" + duration + ".csv"
 			localPath := d.OutputDir + "/" + experiment
 			log.Debug("making local directory " + localPath)
 			err := os.MkdirAll(localPath, os.ModePerm)
@@ -353,7 +379,7 @@ func (d *Driver) collectStats() {
 }
 
 func (d *Driver) aggregateStats() {
-	path := d.OutputDir + "/" + d.ExperimentName + "/exec_duration_" + strconv.Itoa(d.ExperimentDuration+15)
+	path := d.OutputDir + "/" + d.ExperimentName + "/experiment_duration_" + strconv.Itoa(d.ExperimentDuration+d.WarmupDuration+1)
 	path = path + "_" + strconv.Itoa(d.loaderConfig.functions) + "functions_part_0.csv"
 	_, err := os.Stat(path)
 	if err != nil {
@@ -383,7 +409,7 @@ func (d *Driver) aggregateStats() {
 		log.Fatalf("error writing record to file: %s", err)
 	}
 	for i := 1; i < len(d.clients); i++ {
-		path = d.OutputDir + "/" + d.ExperimentName + "/exec_duration_" + strconv.Itoa(d.ExperimentDuration+15)
+		path = d.OutputDir + "/" + d.ExperimentName + "/experiment_duration_" + strconv.Itoa(d.ExperimentDuration+d.WarmupDuration+1)
 		path = path + "_" + strconv.Itoa(d.loaderConfig.functions) + "functions_part_" + strconv.Itoa(i) + ".csv"
 		_, err := os.Stat(path)
 		if err != nil {
