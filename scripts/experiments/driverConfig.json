@@ -1,14 +1,23 @@
 {
-  "username": "",
-  "experimentName": "sweep_concurrency_mode",
-  "localTracePath": "data/traces/example",
+  "username": "Mihajlo",
+  "experimentName": "example_3func",
+  "localTracePath": "trace/example_3func",
+  "loaderTracePath": "loader/data/traces",
   "loaderAddresses": [
-    "localhost"
+    "pc784.emulab.net"
   ],
-  "beginningFuncNum": 10,
-  "stepSizeFunc": 10,
-  "maxFuncNum": 100,
-  "experimentDuration": 30,
+  "beginningFuncNum": 3,
+  "stepSizeFunc": 3,
+  "maxFuncNum": 3,
+  "experimentDuration": 1,
+  "warmupDuration": 2,
   "workerNodeNum": 1,
-  "outputDir": "measurements"
+  "outputDir": "measurements",
+  "YAMLSelector": "container",
+  "IATDistribution": "exponential",
+  "loaderOutputPath": "data/out/experiment",
+  "partiallyPanic": false,
+  "EnableZipkinTracing":    false,
+  "EnableMetricsScrapping": false,
+  "separateIATGeneration": false
 }
