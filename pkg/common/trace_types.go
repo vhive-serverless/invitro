@@ -31,6 +31,7 @@ type FunctionRuntimeStats struct {
 type FunctionMemoryStats struct {
 	HashOwner string `csv:"HashOwner"`
 	HashApp   string `csv:"HashApp"`
+	HashFunction   string `csv:"HashFunction"`
 
 	Count   float64 `csv:"SampleCount"`
 	Average float64 `csv:"AverageAllocatedMb"`
