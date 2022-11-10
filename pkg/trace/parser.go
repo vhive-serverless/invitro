@@ -47,7 +47,7 @@ func createMemoryMap(runtime *[]common.FunctionMemoryStats) map[string]*common.F
 	result := make(map[string]*common.FunctionMemoryStats)
 
 	for i := 0; i < len(*runtime); i++ {
-		result[(*runtime)[i].HashApp] = &(*runtime)[i]
+		result[(*runtime)[i].HashFunction] = &(*runtime)[i]
 	}
 
 	return result
@@ -59,7 +59,7 @@ func (p *AzureTraceParser) extractFunctions(invocations *[]common.FunctionInvoca
 	var result []*common.Function
 
 	runtimeByHashFunction := createRuntimeMap(runtime)
-	memoryByHashApp := createMemoryMap(memory)
+	memoryByHashFunction := createMemoryMap(memory)
 
 	for i := 0; i < len(*invocations); i++ {
 		invocationStats := (*invocations)[i]
@@ -69,7 +69,7 @@ func (p *AzureTraceParser) extractFunctions(invocations *[]common.FunctionInvoca
 
 			InvocationStats: &invocationStats,
 			RuntimeStats:    runtimeByHashFunction[invocationStats.HashFunction],
-			MemoryStats:     memoryByHashApp[invocationStats.HashApp],
+			MemoryStats:     memoryByHashFunction[invocationStats.HashFunction],
 		}
 
 		result = append(result, function)

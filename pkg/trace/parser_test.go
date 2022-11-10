@@ -82,6 +82,7 @@ func TestParseMemoryTrace(t *testing.T) {
 
 	if function.HashOwner != "c455703077a17a9b8d0fc655d939fcc6d24d819fa9a1066b74f710c35a43cbc8" ||
 		function.HashApp != "68baea05aa0c3619b6feb78c80a07e27e4e68f921d714b8125f916c3b3370bf2" ||
+		function.HashFunction != "c13acdc7567b225971cef2416a3a2b03c8a4d8d154df48afe75834e2f5c59ddf" ||
 		!floatEqual(function.Count, 19342.0) ||
 		!floatEqual(function.Average, 120.0) ||
 		!floatEqual(function.Percentile1, 95) ||
