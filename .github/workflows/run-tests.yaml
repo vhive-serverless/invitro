@@ -35,12 +35,17 @@ jobs:
       - name: Build loader
         run: make build
 
-      - name: Set up Python
-        uses: actions/setup-python@v4
+      - uses: actions/setup-python@v4
         with:
           python-version: '3.9'
-          cache: 'pip'
-      - run: pip install -r ./tools/trace_synthesizer/requirements.txt
+
+      - uses: actions/cache@v3
+        with:
+          path: ${{ env.pythonLocation }}
+          key: ${{ env.pythonLocation }}-${{ hashFiles('setup.py') }}-${{ hashFiles('tools/trace_synthesizer/requirements.txt') }}
+
+      - name: Install requirements
+        run: pip install -r ./tools/trace_synthesizer/requirements.txt
 
       - name: Run loader tests
         run: make test

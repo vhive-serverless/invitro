@@ -21,7 +21,7 @@ func TestSynthesizer(t *testing.T) {
     if err != nil {
         fmt.Println(fmt.Sprint(err) + ": " + string(output))
     }
-    rows := readInvocations("test_output/2_inv.csv")
+    rows := readInvocations("test_output/invocations.csv")
     sum := calculate(rows)
     assert.Equal(t, 16200, sum)
 }
