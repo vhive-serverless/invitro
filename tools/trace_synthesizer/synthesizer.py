@@ -31,19 +31,16 @@ def generate(args):
     hashApp = []
 
     lenHashes = 64
-    sampleCount = -1
-    # https://github.com/eth-easl/loader/blob/315b35b39d381f852d46ee278034e3b819252997/pkg/trace/parse.go#L241
-    # https://github.com/eth-easl/loader/blob/315b35b39d381f852d46ee278034e3b819252997/pkg/generate/atom.go#L191
-    # GenerateExecutionSpecs function in atom.go just takes the average runtime and memory usage if
-    # the sample count is smaller than 0, so we set it to -1, because we want the runtime and memory usage
-    # to be the average, rather than picked from a distribution
+    sampleCount = 1
+    # needs to be > 0 to work with loader implementation on loader_unit_tests branch
+    # see https://github.com/eth-easl/loader/blob/acdcde214d7a08d3603011ec5c9d28885ab3e986/pkg/generator/specification.go#L189
     for i in range(functions):
         hashFunction.append(hash_generator(lenHashes))
         hashOwner.append(hash_generator(lenHashes))
         hashApp.append(hash_generator(lenHashes))
 
     mem = [memory]
-    mem = np.repeat(mem, len(mem_df.columns) - 3)
+    mem = np.repeat(mem, len(mem_df.columns) - 4)
     run = [execution]
     run = np.repeat(run, len(run_df.columns) - 5)
     rps = [*range(beginning, target+1, step)]
@@ -53,7 +50,7 @@ def generate(args):
     ipm = np.pad(ipm, (0, 1440 - len(ipm)), 'constant')
 
     for i in range(functions):
-        memArr = [hashApp[i], hashOwner[i], sampleCount]
+        memArr = [hashApp[i], hashOwner[i], hashFunction[i], sampleCount]
         memArr.extend(mem)
         mem_df.loc[len(mem_df)] = memArr
         runArr = [hashFunction[i], hashOwner[i], hashApp[i], execution, sampleCount]
@@ -65,13 +62,13 @@ def generate(args):
     
 
 
-    p1 = f"{output_path}/{functions}_inv.csv"
+    p1 = f"{output_path}/invocations.csv"
     save_data(inv_df, p1)
     logging.info(f"saved invocations to {p1}")
-    p2 = f"{output_path}/{functions}_mem.csv"
+    p2 = f"{output_path}/memory.csv"
     save_data(mem_df, p2)
     logging.info(f"saved invocations to {p2}")
-    p3 = f"{output_path}/{functions}_run.csv"
+    p3 = f"{output_path}/durations.csv"
     save_data(run_df, p3)
     logging.info(f"saved invocations to {p3}")
 
