@@ -425,8 +425,6 @@ func (d *Driver) createGlobalMetricsCollector(filename string, collector chan *m
 			}
 		}
 	}
-
-	log.Debugf("Metrics collector has exited.\n")
 }
 
 func (d *Driver) startBackgroundProcesses(allRecordsWritten *sync.WaitGroup) (*sync.WaitGroup, chan *mc.ExecutionRecord, chan int64) {
