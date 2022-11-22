@@ -7,6 +7,7 @@ import (
 	"github.com/eth-easl/loader/pkg/workload/standard"
 	"github.com/gocarina/gocsv"
 	"github.com/sirupsen/logrus"
+	"log"
 	"os"
 	"sync"
 	"testing"
@@ -189,7 +190,10 @@ func TestGlobalMetricsCollector(t *testing.T) {
 	}
 
 	var record []metric.ExecutionRecord
-	gocsv.UnmarshalFile(f, &record)
+	err = gocsv.UnmarshalFile(f, &record)
+	if err != nil {
+		log.Fatalf(err.Error())
+	}
 
 	for i := 0; i < driver.Configuration.Functions[0].InvocationStats.Invocations[0]; i++ {
 		if record[i] != *bogusRecord {
@@ -263,7 +267,10 @@ func TestDriverCompletely(t *testing.T) {
 			}
 
 			var records []metric.ExecutionRecord
-			gocsv.UnmarshalFile(f, &records)
+			err = gocsv.UnmarshalFile(f, &records)
+			if err != nil {
+				log.Fatalf(err.Error())
+			}
 
 			successfulInvocation, failedInvocations := 0, 0
 			clockTolerance := int64(20_000) // ms

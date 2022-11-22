@@ -20,8 +20,6 @@ type AzureTraceParser struct {
 
 	duration              int
 	functionNameGenerator *rand.Rand
-
-	function []*common.Function
 }
 
 func NewAzureParser(directoryPath string, totalDuration int) *AzureTraceParser {

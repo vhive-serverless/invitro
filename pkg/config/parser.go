@@ -3,7 +3,6 @@ package config
 import (
 	"encoding/json"
 	log "github.com/sirupsen/logrus"
-	"io/ioutil"
 	"os"
 )
 
@@ -28,12 +27,7 @@ type LoaderConfiguration struct {
 }
 
 func ReadConfigurationFile(path string) LoaderConfiguration {
-	jsonFile, err := os.Open(path)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	byteValue, err := ioutil.ReadAll(jsonFile)
+	byteValue, err := os.ReadFile(path)
 	if err != nil {
 		log.Fatal(err)
 	}
