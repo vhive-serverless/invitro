@@ -163,7 +163,7 @@ func TestGlobalMetricsCollector(t *testing.T) {
 	collectorReady.Wait()
 
 	bogusRecord := &metric.ExecutionRecord{
-		Phase:        common.ExecutionPhase,
+		Phase:        int(common.ExecutionPhase),
 		Instance:     "",
 		InvocationID: "min1.inv1",
 		StartTime:    123456789,
