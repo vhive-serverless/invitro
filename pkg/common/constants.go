@@ -59,5 +59,5 @@ type RuntimeAssertType int
 
 const (
 	RequestedVsIssued RuntimeAssertType = 0
-	IssuedVsFailed    RuntimeAssertType = 1
+	IssuedVsFailed                      = 1
 )
