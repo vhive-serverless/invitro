@@ -2,7 +2,7 @@
 
 A load generator for benchmarking serverless systems.
 
-## Pre-requisites
+## Prerequisites
 
 The experiments require a server-grade node running Linux (tested on Ubuntu 20, Intel Xeon). On CloudLab, one
 can choose the APT cluster `d430` node.
@@ -49,7 +49,7 @@ might be race conditions where a few nodes are unavailable.
 $ bash ./scripts/util/log_kn_status.sh
 ```
 
-* If you see everything is `Running`, check if the cluster capacity sis stretched to the desired capacity by running the
+* If you see everything is `Running`, check if the cluster capacity is stretched to the desired capacity by running the
   following script:
 
 ```bash

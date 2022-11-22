@@ -8,6 +8,8 @@ data/traces/*
 !data/traces/example/
 pkg/generator/*.png
 pkg/generator/*.txt
+*.log
+tools/*/__pycache__
 
 ### CMake ###
 CMakeLists.txt.user
