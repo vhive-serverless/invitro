@@ -7,11 +7,7 @@ import (
 )
 
 func floatEqual(n, expected float64) bool {
-	if math.Abs(n-expected) < 1e-3 {
-		return true
-	}
-
-	return false
+	return math.Abs(n-expected) < 1e-3
 }
 
 func TestParseInvocationTrace(t *testing.T) {

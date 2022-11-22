@@ -28,8 +28,8 @@ type IatDistribution int
 
 const (
 	Exponential IatDistribution = iota
-	Uniform     IatDistribution = iota
-	Equidistant IatDistribution = iota
+	Uniform
+	Equidistant
 )
 
 type ExperimentPhase int

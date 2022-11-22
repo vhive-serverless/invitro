@@ -331,11 +331,7 @@ func isRequestTargetAchieved(ideal int, real int, assertType common.RuntimeAsser
 }
 
 func hasMinuteExpired(t1 time.Time) bool {
-	if time.Now().Sub(t1) > time.Minute {
-		return true
-	}
-
-	return false
+	return time.Since(t1) > time.Minute
 }
 
 func (d *Driver) globalTimekeeper(totalTraceDuration int, signalReady *sync.WaitGroup) {
@@ -374,7 +370,7 @@ func (d *Driver) createGlobalMetricsCollector(filename string, collector chan *m
 	common.Check(err)
 	defer invocationFile.Close()
 
-	invocationFile.WriteString(
+	_, err = invocationFile.WriteString(
 		"phase," +
 			"instance," +
 			"invocationID," +
@@ -387,12 +383,16 @@ func (d *Driver) createGlobalMetricsCollector(filename string, collector chan *m
 			"connectionTimeout," +
 			"functionTimeout\n")
 
+	if err != nil {
+		log.Fatalf(err.Error())
+	}
+
 	signalReady.Done()
 
 	for {
 		select {
 		case record := <-collector:
-			invocationFile.WriteString(fmt.Sprintf("%d,%s,%s,%d,%d,%d,%d,%d,%t,%t,%t\n",
+			_, err = invocationFile.WriteString(fmt.Sprintf("%d,%s,%s,%d,%d,%d,%d,%d,%t,%t,%t\n",
 				record.Phase,
 				record.Instance,
 				record.InvocationID,
@@ -405,6 +405,10 @@ func (d *Driver) createGlobalMetricsCollector(filename string, collector chan *m
 				record.ConnectionTimeout,
 				record.FunctionTimeout,
 			))
+
+			if err != nil {
+				log.Fatalf(err.Error())
+			}
 
 			currentlyWritten++
 			if currentlyWritten == totalNumberOfInvocations {

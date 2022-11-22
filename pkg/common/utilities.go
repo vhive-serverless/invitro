@@ -2,7 +2,6 @@ package common
 
 import (
 	"hash/fnv"
-	"io/ioutil"
 	"log"
 	"math/rand"
 	"strconv"
@@ -23,23 +22,6 @@ func (p PairList) Swap(i, j int) {
 }
 func (p PairList) Less(i, j int) bool {
 	return p[i].Value < p[j].Value
-}
-
-func ReadIntArray(filePath, delimiter string) []int {
-	content, err := ioutil.ReadFile(filePath)
-	Check(err)
-	lines := strings.Split(string(content), delimiter)
-	return SliceAtoi(lines)
-}
-
-func SliceAtoi(sa []string) []int {
-	si := make([]int, 0, len(sa))
-	for _, a := range sa {
-		i, err := strconv.Atoi(a)
-		Check(err)
-		si = append(si, i)
-	}
-	return si
 }
 
 func Hex2Int(hexStr string) int64 {

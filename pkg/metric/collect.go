@@ -214,10 +214,10 @@ func (collector *Collector) ReportInvocation(record MinuteInvocationRecord) {
 	collector.invocationRecords = append(collector.invocationRecords, record)
 }
 
-var prevSchedulingP50 = 0.0
+/*var prevSchedulingP50 = 0.0
 var prevSchedulingP99 = 0.0
 var prevE2ePlacementP50 = 0.0
-var prevE2ePlacementP99 = 0.0
+var prevE2ePlacementP99 = 0.0*/
 
 func (collector *Collector) ReportExecution(record ExecutionRecord, clusterUsage ClusterUsage, knStats KnStats) {
 	collector.mutex.Lock()
