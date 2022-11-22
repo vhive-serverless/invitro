@@ -48,10 +48,10 @@ jobs:
       - uses: actions/cache@v3
         with:
           path: ${{ env.pythonLocation }}
-          key: ${{ env.pythonLocation }}-${{ hashFiles('setup.py') }}-${{ hashFiles('requirements.txt') }}
+          key: ${{ env.pythonLocation }}-${{ hashFiles('setup.py') }}-${{ hashFiles('tools/trace_synthesizer/requirements.txt') }}
 
       - name: Install requirements
-        run: pip install -r ./requirements.txt
+        run: pip3 install -r ./tools/trace_synthesizer/requirements.txt
 
       - name: Build loader
         run: go build cmd/loader.go
@@ -63,7 +63,7 @@ jobs:
       - uses: actions/cache@v3
         with:
           path: ${{ env.pythonLocation }}
-          key: ${{ env.pythonLocation }}-${{ hashFiles('setup.py') }}-${{ hashFiles('tools/trace_synthesizer/requirements.txt') }}
+          key: ${{ env.pythonLocation }}-${{ hashFiles('setup.py') }}-${{ hashFiles('requirements.txt') }}
 
       - name: Install requirements
         run: pip install -r ./requirements.txt

@@ -36,7 +36,7 @@ type ExperimentPhase int
 
 const (
 	WarmupPhase    ExperimentPhase = 1
-	ExecutionPhase                 = 2
+	ExecutionPhase ExperimentPhase = 2
 )
 
 const (
@@ -59,5 +59,5 @@ type RuntimeAssertType int
 
 const (
 	RequestedVsIssued RuntimeAssertType = 0
-	IssuedVsFailed                      = 1
+	IssuedVsFailed    RuntimeAssertType = 1
 )
