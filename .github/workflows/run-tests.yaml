@@ -51,7 +51,7 @@ jobs:
           key: ${{ env.pythonLocation }}-${{ hashFiles('setup.py') }}-${{ hashFiles('tools/trace_synthesizer/requirements.txt') }}
 
       - name: Install requirements
-        run: pip3 install -r ./tools/trace_synthesizer/requirements.txt
+        run: pip install -r ./tools/trace_synthesizer/requirements.txt
 
       - name: Build loader
         run: go build cmd/loader.go
@@ -69,4 +69,4 @@ jobs:
         run: pip install -r ./requirements.txt
 
       - name: Run loader tests
-        run: go test  -v -cover -race ./pkg/${{ matrix.module }}
+        run: go test -v -cover -race ./pkg/${{ matrix.module }}
