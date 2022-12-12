@@ -94,4 +94,7 @@ Icon
 Network Trash Folder
 Temporary Items
 .apdisk
+
+# Python
 .venv
+.ipynb_checkpoints
