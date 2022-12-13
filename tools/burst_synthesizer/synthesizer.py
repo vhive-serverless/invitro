@@ -41,7 +41,7 @@ def get_num_from_percentile(percentiles, randFloat=None):
         return random.randint(percentiles[6], percentiles[7])
 
 
-def build_invocation(invocations, iats, amplitude, length, duration):
+def build_invocation(invocations, iats, amplitude, length, duration, sync_burst_starts=False):
     randFloat = random.random()
     base_inv = get_num_from_percentile(invocations, randFloat)
     burst_amp = get_num_from_percentile(amplitude, randFloat)
@@ -55,8 +55,10 @@ def build_invocation(invocations, iats, amplitude, length, duration):
     else:
         slope = 0
 
-    # i = random.randint(0, iat)
-    i = 0
+    if sync_burst_starts:
+        i = 0
+    else:
+        i = random.randint(0, iat)
     while i < duration:
         if slope > 1:
             for j in range(burst_length):
@@ -80,6 +82,7 @@ def synthesize(args):
     length = args.length
     memory = args.memory
     execution = args.execution
+    sync_burst_starts = args.sync_burst_starts
 
     dir_path = os.path.dirname(os.path.realpath(__file__))
 
@@ -117,7 +120,7 @@ def synthesize(args):
         runArr.extend(run)
         run_df.loc[len(run_df)] = runArr
         invArr = [hashApp[i], hashFunction[i], hashOwner[i]]
-        invArr.extend(build_invocation(invocations, iat, amplitude, length, duration))
+        invArr.extend(build_invocation(invocations, iat, amplitude, length, duration, sync_burst_starts))
         inv_df.loc[len(inv_df)] = invArr
 
     p1 = f"{args.output}/invocations.csv"

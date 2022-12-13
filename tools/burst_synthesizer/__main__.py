@@ -24,6 +24,16 @@ def parse_args():
     parser = argparse.ArgumentParser()
 
     parser.add_argument(
+        "-s",
+        "--sync_burst_starts",
+        required=False,
+        type=bool,
+        default=False,
+        metavar="boolean",
+        help="If true, the first burst of each function will start at minute 1, otherwise they will start at a random minute between 1 and its burst IAT",
+    )
+
+    parser.add_argument(
         "-f",
         "--functions",
         required=False,
