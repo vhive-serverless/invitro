@@ -3,12 +3,13 @@ package main
 import (
 	"flag"
 	"fmt"
+	"os"
+	"time"
+
 	"github.com/eth-easl/loader/pkg/common"
 	"github.com/eth-easl/loader/pkg/config"
 	"github.com/eth-easl/loader/pkg/driver"
 	"github.com/eth-easl/loader/pkg/trace"
-	"os"
-	"time"
 
 	log "github.com/sirupsen/logrus"
 

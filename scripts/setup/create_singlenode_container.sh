@@ -19,7 +19,7 @@ server_exec() {
     server_exec 'tmux new -d -s containerd'
     server_exec 'tmux new -d -s cluster'
     server_exec 'tmux send-keys -t containerd "sudo containerd" ENTER'
-    sleep 3s
+    sleep 3
     server_exec 'cd vhive; ./scripts/cluster/create_one_node_cluster.sh stock-only'
     server_exec 'tmux send-keys -t cluster "watch -n 0.5 kubectl get pods -A" ENTER'
 

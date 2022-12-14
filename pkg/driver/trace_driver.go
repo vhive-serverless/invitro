@@ -2,16 +2,18 @@ package driver
 
 import (
 	"fmt"
-	"github.com/eth-easl/loader/pkg/common"
-	"github.com/eth-easl/loader/pkg/config"
-	"github.com/eth-easl/loader/pkg/generator"
-	"github.com/eth-easl/loader/pkg/trace"
-	log "github.com/sirupsen/logrus"
 	"math"
 	"os"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/eth-easl/loader/pkg/common"
+	"github.com/eth-easl/loader/pkg/config"
+	"github.com/eth-easl/loader/pkg/generator"
+	"github.com/eth-easl/loader/pkg/trace"
+	"github.com/gocarina/gocsv"
+	log "github.com/sirupsen/logrus"
 
 	mc "github.com/eth-easl/loader/pkg/metric"
 )
@@ -28,9 +30,8 @@ type DriverConfiguration struct {
 }
 
 type Driver struct {
-	collector            mc.Collector
-	clusterUsage         mc.ClusterUsage
-	knStats              mc.KnStats
+	clusterUsageRecords  []mc.ClusterUsage
+	knStatRecords        []mc.KnStats
 	coldStartGauge       int
 	coldStartMinuteCount int // TODO: maybe set to -1 if scraping is not enabled
 
@@ -58,51 +59,42 @@ func (c *DriverConfiguration) WithWarmup() bool {
 /////////////////////////////////////////
 // METRICS SCRAPPERS
 /////////////////////////////////////////
-
-// CreateKnativeMetricsScrapper launches a scraper that updates the cluster usage periodically
-func (d *Driver) CreateKnativeMetricsScrapper(interval time.Duration, signalReady *sync.WaitGroup) func() {
+func (d *Driver) CreateMetricsScrapper(interval time.Duration,
+	signalReady *sync.WaitGroup, finishCh chan int, allRecordsWritten *sync.WaitGroup) func() {
 	timer := time.NewTicker(interval)
-	d.collector = mc.NewCollector()
 
 	return func() {
 		signalReady.Done()
 
 		for {
-			<-timer.C
-			d.clusterUsage = mc.ScrapeClusterUsage()
-		}
-	}
-}
+			select {
+			case <-timer.C:
+				recCluster := mc.ScrapeClusterUsage()
+				recCluster.Timestamp = time.Now().UnixMicro()
+				d.clusterUsageRecords = append(d.clusterUsageRecords, recCluster)
 
-// CreateColdStartCountScrapper creates cold start count scrapper with the given period
-func (d *Driver) CreateColdStartCountScrapper(interval time.Duration, signalReady *sync.WaitGroup) func() {
-	timer := time.NewTicker(time.Second * 60)
-	d.knStats = mc.KnStats{}
-	d.coldStartGauge = 0
-	d.coldStartMinuteCount = 0
+				recKnative := mc.ScrapeKnStats()
+				recKnative.Timestamp = time.Now().UnixMicro()
+				d.knStatRecords = append(d.knStatRecords, recKnative)
+			case <-finishCh:
+				fileClusterUsage, err := os.Create("cluster_usage.csv")
+				common.Check(err)
+				defer fileClusterUsage.Close()
 
-	return func() {
-		signalReady.Done()
+				err = gocsv.Marshal(d.clusterUsageRecords, fileClusterUsage)
+				common.Check(err)
 
-		for {
-			<-timer.C
-			d.coldStartGauge = d.collector.RecordScalesAndGetColdStartCount()
-			d.coldStartMinuteCount += d.coldStartGauge
-		}
-	}
-}
+				fileKnStats, err := os.Create("knative_stats.csv")
+				common.Check(err)
+				defer fileKnStats.Close()
 
-// CreateKnativeStateUpdateScrapper creates a scraper that updates Knative states periodically
-func (d *Driver) CreateKnativeStateUpdateScrapper(interval time.Duration, signalReady *sync.WaitGroup) func() {
-	timer := time.NewTicker(interval)
-	d.clusterUsage = mc.ClusterUsage{}
+				err = gocsv.Marshal(d.knStatRecords, fileKnStats)
+				common.Check(err)
 
-	return func() {
-		signalReady.Done()
+				allRecordsWritten.Done()
 
-		for {
-			<-timer.C
-			d.knStats = mc.ScrapeKnStats()
+				return
+			}
 		}
 	}
 }
@@ -366,78 +358,59 @@ func (d *Driver) createGlobalMetricsCollector(filename string, collector chan *m
 	var totalNumberOfInvocations int64 = math.MaxInt64
 	var currentlyWritten int64
 
-	invocationFile, err := os.Create(filename)
+	file, err := os.Create(filename)
 	common.Check(err)
-	defer invocationFile.Close()
-
-	_, err = invocationFile.WriteString(
-		"phase," +
-			"instance," +
-			"invocationID," +
-			"startTime," +
-			"requestedDuration," +
-			"responseTime," +
-			"actualDuration," +
-			"actualMemoryUsage," +
-			"memoryAllocationTimeout," +
-			"connectionTimeout," +
-			"functionTimeout\n")
-
-	if err != nil {
-		log.Fatalf(err.Error())
-	}
+	defer file.Close()
 
 	signalReady.Done()
+
+	var records []mc.ExecutionRecord
 
 	for {
 		select {
 		case record := <-collector:
-			_, err = invocationFile.WriteString(fmt.Sprintf("%d,%s,%s,%d,%d,%d,%d,%d,%t,%t,%t\n",
-				record.Phase,
-				record.Instance,
-				record.InvocationID,
-				record.StartTime,
-				record.RequestedDuration,
-				record.ResponseTime,
-				record.ActualDuration,
-				record.ActualMemoryUsage,
-				record.MemoryAllocationTimeout,
-				record.ConnectionTimeout,
-				record.FunctionTimeout,
-			))
-
-			if err != nil {
-				log.Fatalf(err.Error())
-			}
+			records = append(records, *record)
 
 			currentlyWritten++
 			if currentlyWritten == totalNumberOfInvocations {
 				(*signalEverythingWritten).Done()
 
-				break
+				err = gocsv.Marshal(records, file)
+				common.Check(err)
+
+				return
 			}
 		case record := <-totalIssuedChannel:
 			totalNumberOfInvocations = record
 			if currentlyWritten == totalNumberOfInvocations {
 				(*signalEverythingWritten).Done()
 
-				break
+				err = gocsv.Marshal(records, file)
+				common.Check(err)
+
+				return
 			}
 		}
 	}
 }
 
-func (d *Driver) startBackgroundProcesses(allRecordsWritten *sync.WaitGroup) (*sync.WaitGroup, chan *mc.ExecutionRecord, chan int64) {
+func (d *Driver) startBackgroundProcesses(allRecordsWritten *sync.WaitGroup) (*sync.WaitGroup, chan *mc.ExecutionRecord, chan int64, chan int) {
 	auxiliaryProcessBarrier := &sync.WaitGroup{}
 
+	finishCh := make(chan int)
+
 	if d.Configuration.LoaderConfiguration.EnableMetricsScrapping {
-		auxiliaryProcessBarrier.Add(3)
+		auxiliaryProcessBarrier.Add(1)
 
 		// TODO: the following three go routines are untested
-		// TODO: the following arguments should be configurable
-		go d.CreateKnativeMetricsScrapper(time.Second*15, auxiliaryProcessBarrier)
-		go d.CreateKnativeStateUpdateScrapper(time.Second*15, auxiliaryProcessBarrier)
-		go d.CreateColdStartCountScrapper(time.Second*60, auxiliaryProcessBarrier)
+		allRecordsWritten.Add(1)
+		metricsScrapper := d.CreateMetricsScrapper(time.Second*time.Duration(d.Configuration.LoaderConfiguration.MetricScrapingPeriod), auxiliaryProcessBarrier, finishCh, allRecordsWritten)
+		go metricsScrapper()
+		//go d.CreateKnativeMetricsScrapper(time.Second * time.Duration(d.Configuration.MetricsScrapingPeriod), auxiliaryProcessBarrier)
+		//go d.CreateKnativeStateUpdateScrapper(time.Second * time.Duration(d.Configuration.MetricsScrapingPeriod), auxiliaryProcessBarrier)
+		// TODO: Check if cold starts need to be scraped less frequently
+		//go d.CreateColdStartCountScrapper(time.Second * time.Duration(d.Configuration.MetricsScrapingPeriod) * 4, auxiliaryProcessBarrier)
+
 	}
 
 	auxiliaryProcessBarrier.Add(2)
@@ -449,7 +422,7 @@ func (d *Driver) startBackgroundProcesses(allRecordsWritten *sync.WaitGroup) (*s
 	traceDurationInMinutes := d.Configuration.TraceDuration
 	go d.globalTimekeeper(traceDurationInMinutes, auxiliaryProcessBarrier)
 
-	return auxiliaryProcessBarrier, globalMetricsCollector, totalIssuedChannel
+	return auxiliaryProcessBarrier, globalMetricsCollector, totalIssuedChannel, finishCh
 }
 
 func (d *Driver) internalRun() {
@@ -461,7 +434,7 @@ func (d *Driver) internalRun() {
 	allRecordsWritten := sync.WaitGroup{}
 	allRecordsWritten.Add(1)
 
-	backgroundProcessesInitializationBarrier, globalMetricsCollector, totalIssuedChannel := d.startBackgroundProcesses(&allRecordsWritten)
+	backgroundProcessesInitializationBarrier, globalMetricsCollector, totalIssuedChannel, scraperFinishCh := d.startBackgroundProcesses(&allRecordsWritten)
 
 	log.Infof("Generating IAT and runtime specifications for all the functions\n")
 	for i, function := range d.Configuration.Functions {
@@ -493,6 +466,7 @@ func (d *Driver) internalRun() {
 	if atomic.LoadInt64(&successfulInvocations)+atomic.LoadInt64(&failedInvocations) != 0 {
 		log.Debugf("Waiting for all the invocations record to be written.\n")
 		totalIssuedChannel <- atomic.LoadInt64(&invocationsIssued)
+		scraperFinishCh <- 0 // Ask the scraper to finish metrics collection
 		allRecordsWritten.Wait()
 	}
 

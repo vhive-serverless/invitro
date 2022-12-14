@@ -82,7 +82,7 @@ function setup_master() {
     # Get the join token from k8s.
     while [ ! "$LOGIN_TOKEN" ]
     do
-        sleep 1s
+        sleep 1
         server_exec "$MASTER_NODE" 'tmux capture-pane -t master -b token'
         LOGIN_TOKEN="$(server_exec "$MASTER_NODE" 'tmux show-buffer -b token | grep -B 3 "All nodes need to be joined"')"
         echo "$LOGIN_TOKEN"
