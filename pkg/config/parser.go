@@ -2,8 +2,9 @@ package config
 
 import (
 	"encoding/json"
-	log "github.com/sirupsen/logrus"
 	"os"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type LoaderConfiguration struct {
@@ -21,6 +22,7 @@ type LoaderConfiguration struct {
 	IsPartiallyPanic       bool `json:"IsPartiallyPanic"`
 	EnableZipkinTracing    bool `json:"EnableZipkinTracing"`
 	EnableMetricsScrapping bool `json:"EnableMetricsScrapping"`
+	MetricScrapingPeriod   int  `json:"MetricScrapingPeriod"`
 
 	GRPCConnectionTimeoutSeconds int `json:"GRPCConnectionTimeoutSeconds"`
 	GRPCFunctionTimeoutSeconds   int `json:"GRPCFunctionTimeoutSeconds"`

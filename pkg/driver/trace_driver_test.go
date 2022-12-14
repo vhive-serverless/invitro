@@ -2,16 +2,17 @@ package driver
 
 import (
 	"fmt"
-	"github.com/eth-easl/loader/pkg/common"
-	"github.com/eth-easl/loader/pkg/metric"
-	"github.com/eth-easl/loader/pkg/workload/standard"
-	"github.com/gocarina/gocsv"
-	"github.com/sirupsen/logrus"
 	"log"
 	"os"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/eth-easl/loader/pkg/common"
+	"github.com/eth-easl/loader/pkg/metric"
+	"github.com/eth-easl/loader/pkg/workload/standard"
+	"github.com/gocarina/gocsv"
+	"github.com/sirupsen/logrus"
 )
 
 func createTestDriver() *Driver {
@@ -227,7 +228,7 @@ func TestDriverBackgroundProcesses(t *testing.T) {
 			driver := createTestDriver()
 			globalCollectorAnnounceDone := &sync.WaitGroup{}
 
-			completed, _, _ := driver.startBackgroundProcesses(globalCollectorAnnounceDone)
+			completed, _, _, _ := driver.startBackgroundProcesses(globalCollectorAnnounceDone)
 
 			completed.Wait()
 		})

@@ -417,7 +417,8 @@ alertmanager:
     ## Image of Alertmanager
     ##
     image:
-      repository: quay.io/prometheus/alertmanager
+      registry: quay.io
+      repository: prometheus/alertmanager
       tag: v0.24.0
       sha: ""
 
@@ -1484,8 +1485,9 @@ prometheusOperator:
     patch:
       enabled: true
       image:
-        repository: k8s.gcr.io/ingress-nginx/kube-webhook-certgen
-        tag: v1.1.1
+        registry: k8s.gcr.io
+        repository: ingress-nginx/kube-webhook-certgen
+        tag: v1.3.0
         sha: ""
         pullPolicy: IfNotPresent
       resources: 
@@ -1715,8 +1717,9 @@ prometheusOperator:
   ## Prometheus-operator image
   ##
   image:
-    repository: quay.io/prometheus-operator/prometheus-operator
-    tag: v0.56.0
+    registry: quay.io
+    repository: prometheus-operator/prometheus-operator
+    tag: v0.61.1
     sha: ""
     pullPolicy: IfNotPresent
 
@@ -1731,10 +1734,10 @@ prometheusOperator:
   ## Prometheus-config-reloader
   ##
   prometheusConfigReloader:
-    # image to use for config and rule reloading
     image:
-      repository: quay.io/prometheus-operator/prometheus-config-reloader
-      tag: v0.56.0
+      registry: quay.io
+      repository: prometheus-operator/prometheus-config-reloader
+      tag: v0.61.1
       sha: ""
 
     # resource config for prometheusConfigReloader
@@ -1749,8 +1752,9 @@ prometheusOperator:
   ## Thanos side-car image when configured
   ##
   thanosImage:
-    repository: quay.io/thanos/thanos
-    tag: v0.25.2
+    registry: quay.io
+    repository: thanos/thanos
+    tag: v0.29.0
     sha: ""
 
   ## Set a Field Selector to filter watched secrets
@@ -2167,8 +2171,9 @@ prometheus:
     ## Image of Prometheus.
     ##
     image:
-      repository: quay.io/prometheus/prometheus
-      tag: v2.35.0
+      registry: quay.io
+      repository: prometheus/prometheus
+      tag: v2.40.5
       sha: ""
 
     ## Tolerations for use with node taints
