@@ -26,7 +26,7 @@ clean:
 # 	kubectl delete --all podautoscalers -n default
 
 	bash scripts/warmup/reset_kn_global.sh
-	rm -f load
+	rm -f loader
 # 	rm -f *.log
 	go mod tidy
 
