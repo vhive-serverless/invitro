@@ -92,7 +92,6 @@ func (d *Driver) CreateMetricsScrapper(interval time.Duration,
 				common.Check(err)
 
 				allRecordsWritten.Done()
-
 				return
 			}
 		}
@@ -336,7 +335,6 @@ func (d *Driver) globalTimekeeper(totalTraceDuration int, signalReady *sync.Wait
 		<-ticker.C
 
 		log.Debugf("End of minute %d\n", globalTimeCounter)
-
 		globalTimeCounter++
 		if globalTimeCounter >= totalTraceDuration {
 			break
@@ -397,20 +395,14 @@ func (d *Driver) createGlobalMetricsCollector(filename string, collector chan *m
 func (d *Driver) startBackgroundProcesses(allRecordsWritten *sync.WaitGroup) (*sync.WaitGroup, chan *mc.ExecutionRecord, chan int64, chan int) {
 	auxiliaryProcessBarrier := &sync.WaitGroup{}
 
-	finishCh := make(chan int)
+	finishCh := make(chan int, 1)
 
 	if d.Configuration.LoaderConfiguration.EnableMetricsScrapping {
 		auxiliaryProcessBarrier.Add(1)
 
-		// TODO: the following three go routines are untested
 		allRecordsWritten.Add(1)
 		metricsScrapper := d.CreateMetricsScrapper(time.Second*time.Duration(d.Configuration.LoaderConfiguration.MetricScrapingPeriod), auxiliaryProcessBarrier, finishCh, allRecordsWritten)
 		go metricsScrapper()
-		//go d.CreateKnativeMetricsScrapper(time.Second * time.Duration(d.Configuration.MetricsScrapingPeriod), auxiliaryProcessBarrier)
-		//go d.CreateKnativeStateUpdateScrapper(time.Second * time.Duration(d.Configuration.MetricsScrapingPeriod), auxiliaryProcessBarrier)
-		// TODO: Check if cold starts need to be scraped less frequently
-		//go d.CreateColdStartCountScrapper(time.Second * time.Duration(d.Configuration.MetricsScrapingPeriod) * 4, auxiliaryProcessBarrier)
-
 	}
 
 	auxiliaryProcessBarrier.Add(2)
