@@ -8,14 +8,6 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-/*func (collector *Collector) GetOneColdStartFunction() common.Function {
-	funcName := collector.scaleRegistry.GetOneColdFunctionName()
-	return common.Function{
-		Name:     funcName,
-		Endpoint: tc.GetFuncEndpoint(funcName),
-	}
-}*/
-
 func ScrapeDeploymentScales() []ScaleRecord {
 	cmd := exec.Command(
 		"python3",

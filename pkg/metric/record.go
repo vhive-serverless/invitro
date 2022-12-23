@@ -75,35 +75,35 @@ type DeploymentScale struct {
 }
 
 type KnStats struct {
-	Timestamp int64 `csv:"timestamp"`
+	Timestamp int64 `csv:"timestamp" json:"timestamp"`
 
-	DesiredPods   int `csv:"desired_pods"`
-	UnreadyPods   int `csv:"unready_pods"`
-	PendingPods   int `csv:"pending_pods"`
-	RequestedPods int `csv:"requested_pods"`
-	RunningPods   int `csv:"running_pods"`
+	DesiredPods   int `csv:"desired_pods" json:"desired_pods"`
+	UnreadyPods   int `csv:"unready_pods" json:"unready_pods"`
+	PendingPods   int `csv:"pending_pods" json:"pending_pods"`
+	RequestedPods int `csv:"requested_pods" json:"requested_pods"`
+	RunningPods   int `csv:"running_pods" json:"running_pods"`
 
-	ActivatorQueue        float64 `csv:"activator_queue"`
-	ActivatorRequestCount int     `csv:"activator_request_count"`
-	AutoscalerStableQueue float64 `csv:"autoscaler_stable_queue"`
-	AutoscalerPanicQueue  float64 `csv:"autoscaler_panic_queue"`
+	ActivatorQueue        float64 `csv:"activator_queue" json:"activator_queue"`
+	ActivatorRequestCount int     `csv:"activator_request_count" json:"activator_request_count"`
+	AutoscalerStableQueue float64 `csv:"autoscaler_stable_queue" json:"autoscaler_stable_queue"`
+	AutoscalerPanicQueue  float64 `csv:"autoscaler_panic_queue" json:"autoscaler_panic_queue"`
 
-	SchedulingP99   float64 `csv:"scheduling_p99"`
-	SchedulingP50   float64 `csv:"scheduling_p50"`
-	E2ePlacementP99 float64 `csv:"e2e_placement_p99"`
-	E2ePlacementP50 float64 `csv:"e2e_placement_p50"`
+	SchedulingP99   float64 `csv:"scheduling_p99" json:"scheduling_p99"`
+	SchedulingP50   float64 `csv:"scheduling_p50" json:"scheduling_p50"`
+	E2ePlacementP99 float64 `csv:"e2e_placement_p99" json:"e2e_placement_p99"`
+	E2ePlacementP50 float64 `csv:"e2e_placement_p50" json:"e2e_placement_p50"`
 }
 
 type ClusterUsage struct {
-	Timestamp       int64    `csv:"timestamp"`
-	MasterCpuPct    float64  `csv:"master_cpu_pct"`
-	MasterMemoryPct float64  `csv:"master_mem_pct"`
-	Cpu             []string `csv:"cpu"`
-	CpuPctAvg       float64  `csv:"cpu_pct_avg"`
-	CpuPctMax       float64  `csv:"cpu_pct_max"`
-	CpuPctActiveAvg float64  `csv:"cpu_pct_active_avg"`
-	Memory          []string `csv:"memory"`
-	MemoryPctAvg    float64  `csv:"memory_pct"`
+	Timestamp       int64    `csv:"timestamp" json:"timestamp"`
+	MasterCpuPct    float64  `csv:"master_cpu_pct" json:"master_cpu_pct"`
+	MasterMemoryPct float64  `csv:"master_mem_pct" json:"master_mem_pct"`
+	Cpu             []string `csv:"cpu" json:"cpu"`
+	CpuPctAvg       float64  `csv:"cpu_pct_avg" json:"cpu_pct_avg"`
+	CpuPctMax       float64  `csv:"cpu_pct_max" json:"cpu_pct_max"`
+	CpuPctActiveAvg float64  `csv:"cpu_pct_active_avg" json:"cpu_pct_active_avg"`
+	Memory          []string `csv:"memory" json:"memory"`
+	MemoryPctAvg    float64  `csv:"memory_pct" json:"memory_pct"`
 }
 
 type AdfResult struct {
