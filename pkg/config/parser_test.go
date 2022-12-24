@@ -31,7 +31,7 @@ func TestConfigParser(t *testing.T) {
 		config.IsPartiallyPanic != false ||
 		config.EnableZipkinTracing != false ||
 		config.EnableMetricsScrapping != true ||
-		config.MetricScrapingPeriod != 15 ||
+		config.MetricScrapingPeriodSeconds != 15 ||
 		config.GRPCConnectionTimeoutSeconds != 60 ||
 		config.GRPCFunctionTimeoutSeconds != 900 {
 

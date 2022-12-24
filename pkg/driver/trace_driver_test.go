@@ -64,8 +64,6 @@ func createTestDriver() *Driver {
 		TestMode: true,
 	})
 
-	driver.OutputFilename = "../../data/out/trace_driver_test.csv"
-
 	return driver
 }
 
@@ -160,7 +158,7 @@ func TestGlobalMetricsCollector(t *testing.T) {
 	collectorReady.Add(1)
 	collectorFinished.Add(1)
 
-	go driver.createGlobalMetricsCollector(driver.OutputFilename, inputChannel, collectorReady, collectorFinished, totalIssuedChannel)
+	go driver.createGlobalMetricsCollector(driver.outputFilename("test"), inputChannel, collectorReady, collectorFinished, totalIssuedChannel)
 	collectorReady.Wait()
 
 	bogusRecord := &metric.ExecutionRecord{
@@ -185,7 +183,7 @@ func TestGlobalMetricsCollector(t *testing.T) {
 	totalIssuedChannel <- int64(driver.Configuration.Functions[0].InvocationStats.Invocations[0])
 	collectorFinished.Wait()
 
-	f, err := os.Open(driver.OutputFilename)
+	f, err := os.Open(driver.outputFilename("test"))
 	if err != nil {
 		t.Error(err)
 	}
@@ -262,7 +260,7 @@ func TestDriverCompletely(t *testing.T) {
 
 			driver.RunExperiment()
 
-			f, err := os.Open(driver.OutputFilename)
+			f, err := os.Open(driver.outputFilename("test"))
 			if err != nil {
 				t.Error(err)
 			}
