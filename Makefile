@@ -40,10 +40,11 @@ run:
 	go run cmd/loader.go --config cmd/config.json
 
 test:
-	go test -v -cover -race ./pkg/config/
-	go test -v -cover -race ./pkg/driver/
-	go test -v -cover -race ./pkg/generator/
-	go test -v -cover -race ./pkg/trace/
+	go test -v -cover -race \
+		./pkg/config/ \
+		./pkg/driver/ \
+		./pkg/generator/ \
+		./pkg/trace/
 
 # Used for replying the trace
 trace-firecracker:

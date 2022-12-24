@@ -13,7 +13,7 @@
   "IsPartiallyPanic": false,
   "EnableZipkinTracing": false,
   "EnableMetricsScrapping": true,
-  "MetricScrapingPeriod": 15,
+  "MetricScrapingPeriodSeconds": 15,
 
   "GRPCConnectionTimeoutSeconds": 60,
   "GRPCFunctionTimeoutSeconds": 900

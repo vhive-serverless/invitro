@@ -1,6 +1,7 @@
 package driver
 
 import (
+	"encoding/csv"
 	"fmt"
 	"math"
 	"os"
@@ -30,21 +31,17 @@ type DriverConfiguration struct {
 }
 
 type Driver struct {
-	clusterUsageRecords  []mc.ClusterUsage
-	knStatRecords        []mc.KnStats
 	coldStartGauge       int
 	coldStartMinuteCount int // TODO: maybe set to -1 if scraping is not enabled
 
 	Configuration          *DriverConfiguration
 	SpecificationGenerator *generator.SpecificationGenerator
-	OutputFilename         string
 }
 
 func NewDriver(driverConfig *DriverConfiguration) *Driver {
 	return &Driver{
 		Configuration:          driverConfig,
 		SpecificationGenerator: generator.NewSpecificationGenerator(driverConfig.LoaderConfiguration.Seed),
-		OutputFilename:         fmt.Sprintf("%s_duration_%d.csv", driverConfig.LoaderConfiguration.OutputPathPrefix, driverConfig.TraceDuration),
 	}
 }
 
@@ -57,6 +54,25 @@ func (c *DriverConfiguration) WithWarmup() bool {
 }
 
 /////////////////////////////////////////
+// HELPER METHODS
+/////////////////////////////////////////
+func (d *Driver) outputFilename(name string) string {
+	return fmt.Sprintf("%s_%s_%d.csv", d.Configuration.LoaderConfiguration.OutputPathPrefix, name, d.Configuration.TraceDuration)
+}
+
+func (d *Driver) runCSVWriter(records chan interface{}, filename string, writerDone *sync.WaitGroup) {
+	log.Debugf("Starting writer for %s", filename)
+	file, err := os.Create(filename)
+	common.Check(err)
+	defer file.Close()
+	writer := gocsv.NewSafeCSVWriter(csv.NewWriter(file))
+	if err := gocsv.MarshalChan(records, writer); err != nil {
+		log.Fatal(err)
+	}
+	writerDone.Done()
+}
+
+/////////////////////////////////////////
 // METRICS SCRAPPERS
 /////////////////////////////////////////
 func (d *Driver) CreateMetricsScrapper(interval time.Duration,
@@ -65,32 +81,30 @@ func (d *Driver) CreateMetricsScrapper(interval time.Duration,
 
 	return func() {
 		signalReady.Done()
+		clusterUsageRecords := make(chan interface{}, 100)
+		knStatRecords := make(chan interface{}, 100)
+		writerDone := sync.WaitGroup{}
+
+		writerDone.Add(1)
+		go d.runCSVWriter(clusterUsageRecords, d.outputFilename("cluster_usage"), &writerDone)
+
+		writerDone.Add(1)
+		go d.runCSVWriter(knStatRecords, d.outputFilename("kn_stats"), &writerDone)
 
 		for {
 			select {
 			case <-timer.C:
 				recCluster := mc.ScrapeClusterUsage()
 				recCluster.Timestamp = time.Now().UnixMicro()
-				d.clusterUsageRecords = append(d.clusterUsageRecords, recCluster)
+				clusterUsageRecords <- recCluster
 
 				recKnative := mc.ScrapeKnStats()
 				recKnative.Timestamp = time.Now().UnixMicro()
-				d.knStatRecords = append(d.knStatRecords, recKnative)
+				knStatRecords <- recKnative
 			case <-finishCh:
-				fileClusterUsage, err := os.Create("cluster_usage.csv")
-				common.Check(err)
-				defer fileClusterUsage.Close()
-
-				err = gocsv.Marshal(d.clusterUsageRecords, fileClusterUsage)
-				common.Check(err)
-
-				fileKnStats, err := os.Create("knative_stats.csv")
-				common.Check(err)
-				defer fileKnStats.Close()
-
-				err = gocsv.Marshal(d.knStatRecords, fileKnStats)
-				common.Check(err)
-
+				close(clusterUsageRecords)
+				close(knStatRecords)
+				writerDone.Wait()
 				allRecordsWritten.Done()
 				return
 			}
@@ -362,32 +376,27 @@ func (d *Driver) createGlobalMetricsCollector(filename string, collector chan *m
 
 	signalReady.Done()
 
-	var records []mc.ExecutionRecord
+	records := make(chan interface{}, 100)
+	writerDone := sync.WaitGroup{}
+	writerDone.Add(1)
+	go d.runCSVWriter(records, filename, &writerDone)
 
 	for {
 		select {
 		case record := <-collector:
-			records = append(records, *record)
+			records <- record
 
 			currentlyWritten++
-			if currentlyWritten == totalNumberOfInvocations {
-				(*signalEverythingWritten).Done()
-
-				err = gocsv.Marshal(records, file)
-				common.Check(err)
-
-				return
-			}
 		case record := <-totalIssuedChannel:
 			totalNumberOfInvocations = record
-			if currentlyWritten == totalNumberOfInvocations {
-				(*signalEverythingWritten).Done()
+		}
 
-				err = gocsv.Marshal(records, file)
-				common.Check(err)
+		if currentlyWritten == totalNumberOfInvocations {
+			close(records)
+			writerDone.Wait()
+			(*signalEverythingWritten).Done()
 
-				return
-			}
+			return
 		}
 	}
 }
@@ -401,7 +410,7 @@ func (d *Driver) startBackgroundProcesses(allRecordsWritten *sync.WaitGroup) (*s
 		auxiliaryProcessBarrier.Add(1)
 
 		allRecordsWritten.Add(1)
-		metricsScrapper := d.CreateMetricsScrapper(time.Second*time.Duration(d.Configuration.LoaderConfiguration.MetricScrapingPeriod), auxiliaryProcessBarrier, finishCh, allRecordsWritten)
+		metricsScrapper := d.CreateMetricsScrapper(time.Second*time.Duration(d.Configuration.LoaderConfiguration.MetricScrapingPeriodSeconds), auxiliaryProcessBarrier, finishCh, allRecordsWritten)
 		go metricsScrapper()
 	}
 
@@ -409,7 +418,7 @@ func (d *Driver) startBackgroundProcesses(allRecordsWritten *sync.WaitGroup) (*s
 
 	globalMetricsCollector := make(chan *mc.ExecutionRecord)
 	totalIssuedChannel := make(chan int64)
-	go d.createGlobalMetricsCollector(d.OutputFilename, globalMetricsCollector, auxiliaryProcessBarrier, allRecordsWritten, totalIssuedChannel)
+	go d.createGlobalMetricsCollector(d.outputFilename("duration"), globalMetricsCollector, auxiliaryProcessBarrier, allRecordsWritten, totalIssuedChannel)
 
 	traceDurationInMinutes := d.Configuration.TraceDuration
 	go d.globalTimekeeper(traceDurationInMinutes, auxiliaryProcessBarrier)

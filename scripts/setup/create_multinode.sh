@@ -59,8 +59,8 @@ common_init() {
 function setup_master() {
     echo "Setting up master node: $MASTER_NODE"
 
-    server_exec "$MASTER_NODE" 'wget -q https://dl.google.com/go/go1.17.linux-amd64.tar.gz >/dev/null'
-    server_exec "$MASTER_NODE" 'sudo rm -rf /usr/local/go && sudo tar -C /usr/local/ -xzf go1.17.linux-amd64.tar.gz >/dev/null'
+    server_exec "$MASTER_NODE" 'wget -q https://go.dev/dl/go1.19.4.linux-amd64.tar.gz >/dev/null'
+    server_exec "$MASTER_NODE" 'sudo rm -rf /usr/local/go && sudo tar -C /usr/local/ -xzf go1.19.4.linux-amd64.tar.gz >/dev/null'
     server_exec "$MASTER_NODE" 'echo "export PATH=$PATH:/usr/local/go/bin" >> .profile'
 
     server_exec "$MASTER_NODE" 'tmux new -s runner -d'
