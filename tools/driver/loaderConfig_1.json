@@ -2,7 +2,7 @@
  "Seed": 42,
  "YAMLSelector": "container",
  "EndpointPort": 80,
- "TracePath": "data/traces/example/",
+ "TracePath": "data/traces",
  "OutputPathPrefix": "data/out/experiment",
  "IATDistribution": "exponential",
  "ExperimentDuration": 2,
