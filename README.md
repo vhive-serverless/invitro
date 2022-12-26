@@ -144,6 +144,18 @@ $ make build <trace-firecracker|trace-container|empty-firecracker|empty-containe
 $ make clean
 ```
 
+## Running the Experiment Driver
+
+Within the tools/driver folder, Configure the driverConfig.json file based on your username on Cloudlab, 
+the address of the loader node that you are running the experiment on and any experiment parameters you'd like to set.
+Note that you need to have the relevant trace files on the machine running the experiment driver, they will then get
+transferred to the loader node.  
+Then run the following command to launch an experiment:
+```bash
+$ go run experiment_driver.go -c driverConfig.json
+```
+For more details take a look at the README in the tools/driver folder.
+
 ---
 
 For more options, please see the `Makefile`.

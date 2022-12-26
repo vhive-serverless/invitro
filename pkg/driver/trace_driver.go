@@ -511,18 +511,18 @@ func (d *Driver) RunExperiment(iatOnly bool, generated bool) {
 				log.Fatalf("Writing the loader config file failed: %s", err)
 			}
 		}
-	} else {
-		if d.Configuration.WithWarmup() {
-			trace.DoStaticTraceProfiling(d.Configuration.Functions)
-		}
-
-		trace.ApplyResourceLimits(d.Configuration.Functions)
-
-		DeployFunctions(d.Configuration.Functions,
-			d.Configuration.YAMLPath,
-			d.Configuration.LoaderConfiguration.IsPartiallyPanic,
-			d.Configuration.LoaderConfiguration.EndpointPort)
-
-		d.internalRun(iatOnly, generated)
+		return
 	}
+	if d.Configuration.WithWarmup() {
+		trace.DoStaticTraceProfiling(d.Configuration.Functions)
+	}
+
+	trace.ApplyResourceLimits(d.Configuration.Functions)
+
+	DeployFunctions(d.Configuration.Functions,
+		d.Configuration.YAMLPath,
+		d.Configuration.LoaderConfiguration.IsPartiallyPanic,
+		d.Configuration.LoaderConfiguration.EndpointPort)
+
+	d.internalRun(iatOnly, generated)
 }
