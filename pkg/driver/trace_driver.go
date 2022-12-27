@@ -1,8 +1,8 @@
 package driver
 
 import (
-	"encoding/json"
 	"encoding/csv"
+	"encoding/json"
 	"fmt"
 	"math"
 	"os"
@@ -13,18 +13,11 @@ import (
 	"github.com/eth-easl/loader/pkg/common"
 	"github.com/eth-easl/loader/pkg/config"
 	"github.com/eth-easl/loader/pkg/generator"
+	mc "github.com/eth-easl/loader/pkg/metric"
 	"github.com/eth-easl/loader/pkg/trace"
 	"github.com/gocarina/gocsv"
 	log "github.com/sirupsen/logrus"
-	"io/ioutil"
-	"math"
-	"os"
 	"strconv"
-	"sync"
-	"sync/atomic"
-	"time"
-
-	mc "github.com/eth-easl/loader/pkg/metric"
 )
 
 type DriverConfiguration struct {
@@ -457,8 +450,8 @@ func (d *Driver) internalRun(iatOnly bool, generated bool) {
 	backgroundProcessesInitializationBarrier.Wait()
 
 	if generated {
-		for i, _ := range d.Configuration.Functions {
-			iatFile, _ := ioutil.ReadFile("iat" + strconv.Itoa(i) + ".json")
+		for i := range d.Configuration.Functions {
+			iatFile, _ := os.ReadFile("iat" + strconv.Itoa(i) + ".json")
 			var spec common.FunctionSpecification
 			err := json.Unmarshal(iatFile, &spec)
 			if err != nil {

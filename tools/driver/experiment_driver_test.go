@@ -290,6 +290,12 @@ func TestDriver_aggregateStats(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.testName, func(t *testing.T) {
 			testDriver.aggregateStats()
+			// aggregateStats() should take the partial result files (which have part in their name)
+			// and create a new file with "aggregated" in its name, containing the header of the first result file
+			// and the content of all the part files combined
+			// with partial result files that have the row counts a, b, c we expect the aggregated file to have the row
+			// count a + (b - 1) + (c - 1), as the headers of two of the three files are discarded, but all other rows
+			// should be kept
 			path := testDriver.OutputDir + "/" + testDriver.ExperimentName + "/experiment_duration_"
 			path = path + strconv.Itoa(testDriver.ExperimentDuration+testDriver.WarmupDuration+1) + "_"
 			path = path + strconv.Itoa(testDriver.loaderConfig.functions) + "functions_aggregated.csv"
@@ -300,6 +306,7 @@ func TestDriver_aggregateStats(t *testing.T) {
 			f, err := os.Open(path)
 			reader := csv.NewReader(f)
 			records, err := reader.ReadAll()
+			// read the aggregated result file
 			if err != nil {
 				t.Errorf("Invalid structure for aggregated result file %s with error: %s", path, err)
 			}
@@ -313,10 +320,14 @@ func TestDriver_aggregateStats(t *testing.T) {
 			filePart, err := os.Open(pathPart)
 			readerPart := csv.NewReader(filePart)
 			recordsPart, err := readerPart.ReadAll()
+			// read the partial result file (here only 1 exists, as there is only 1 loader)
 			if err != nil {
 				t.Errorf("Invalid structure for result file %s with error: %s", pathPart, err)
 			}
 			if len(records) != len(recordsPart) {
+				// check that the number of rows in both files matches
+				// As we are in the 1 loader case here, we expect both the part file and the aggregated file to
+				// have the same contents.
 				t.Errorf("Aggregated result file %s has a different number of rows than the sum of the parts"+
 					" Part file has %d rows, aggregated result file has %d rows.",
 					path, len(recordsPart), len(records))
