@@ -88,9 +88,9 @@ type KnStats struct {
 	AutoscalerStableQueue float64 `csv:"autoscaler_stable_queue" json:"autoscaler_stable_queue"`
 	AutoscalerPanicQueue  float64 `csv:"autoscaler_panic_queue" json:"autoscaler_panic_queue"`
 
-	SchedulingP99   float64 `csv:"scheduling_p99" json:"scheduling_p99"`
+	SchedulingP95   float64 `csv:"scheduling_p99" json:"scheduling_p95"`
 	SchedulingP50   float64 `csv:"scheduling_p50" json:"scheduling_p50"`
-	E2ePlacementP99 float64 `csv:"e2e_placement_p99" json:"e2e_placement_p99"`
+	E2ePlacementP95 float64 `csv:"e2e_placement_p99" json:"e2e_placement_p95"`
 	E2ePlacementP50 float64 `csv:"e2e_placement_p50" json:"e2e_placement_p50"`
 }
 

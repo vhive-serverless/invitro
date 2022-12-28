@@ -23,17 +23,17 @@ if __name__ == "__main__":
         "autoscaler_panic_queue": get_promql_query('avg(autoscaler_panic_request_concurrency)'),
         "activator_queue": get_promql_query('avg(activator_request_concurrency)'),
         
-        # The p99 latency of single scheduling round (algorithm+binding) over a time window of 30s.
-        "scheduling_p99": get_promql_query(
-            'histogram_quantile(0.99, sum by (le) (rate(scheduler_e2e_scheduling_duration_seconds_bucket{job="kube-scheduler"}[30s])))'
+        # The p95 latency of single scheduling round (algorithm+binding) over a time window of 30s.
+        "scheduling_p95": get_promql_query(
+            'histogram_quantile(0.95, sum by (le) (rate(scheduler_e2e_scheduling_duration_seconds_bucket{job="kube-scheduler"}[30s])))'
         ), 
         "scheduling_p50": get_promql_query(
             'histogram_quantile(0.50, sum by (le) (rate(scheduler_e2e_scheduling_duration_seconds_bucket{job="kube-scheduler"}[30s])))'
         ),  
 
-        # The p99 latency of E2E pod placement (potentially multiple scheduling rounds) over a time window of 30s.
-        "e2e_placement_p99": get_promql_query(
-            'histogram_quantile(0.99, sum by (le) (rate(scheduler_pod_scheduling_duration_seconds_bucket{job="kube-scheduler"}[30s])))'
+        # The p95 latency of E2E pod placement (potentially multiple scheduling rounds) over a time window of 30s.
+        "e2e_placement_p95": get_promql_query(
+            'histogram_quantile(0.95, sum by (le) (rate(scheduler_pod_scheduling_duration_seconds_bucket{job="kube-scheduler"}[30s])))'
         ),
         "e2e_placement_p50": get_promql_query(
             'histogram_quantile(0.50, sum by (le) (rate(scheduler_pod_scheduling_duration_seconds_bucket{job="kube-scheduler"}[30s])))'
@@ -52,7 +52,7 @@ if __name__ == "__main__":
 
         if label.endswith('queue'):
             measure = float(measure) if measure else -99
-        elif 'p50' in label or 'p99' in label:
+        elif 'p50' in label or 'p95' in label:
             if measure == 'NaN': 
                 # Not available.
                 measure = -99
