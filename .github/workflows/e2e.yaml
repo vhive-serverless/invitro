@@ -1,14 +1,13 @@
 name: End-to-End Tests
 
-on: [push]
-#on:
-#  schedule:
-#    - cron: "0 9 * * 1"
-#  workflow_dispatch:
-#  push:
-#    branches: [main, loader_unit_tests]
-#  pull_request:
-#    branches: [main, loader_unit_tests]
+on:
+ schedule:
+   - cron: "0 9 * * 1"
+ workflow_dispatch:
+ push:
+   branches: [main]
+ pull_request:
+   branches: [main]
 
 env:
   GOOS: linux
