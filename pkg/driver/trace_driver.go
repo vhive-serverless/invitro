@@ -31,8 +31,8 @@ type DriverConfiguration struct {
 }
 
 type Driver struct {
-	coldStartGauge       int
-	coldStartMinuteCount int // TODO: maybe set to -1 if scraping is not enabled
+	// coldStartGauge       int
+	// coldStartMinuteCount int // TODO: maybe set to -1 if scraping is not enabled
 
 	Configuration          *DriverConfiguration
 	SpecificationGenerator *generator.SpecificationGenerator
@@ -53,9 +53,9 @@ func (c *DriverConfiguration) WithWarmup() bool {
 	}
 }
 
-/////////////////////////////////////////
+// ///////////////////////////////////////
 // HELPER METHODS
-/////////////////////////////////////////
+// ///////////////////////////////////////
 func (d *Driver) outputFilename(name string) string {
 	return fmt.Sprintf("%s_%s_%d.csv", d.Configuration.LoaderConfiguration.OutputPathPrefix, name, d.Configuration.TraceDuration)
 }
@@ -72,9 +72,9 @@ func (d *Driver) runCSVWriter(records chan interface{}, filename string, writerD
 	writerDone.Done()
 }
 
-/////////////////////////////////////////
+// ///////////////////////////////////////
 // METRICS SCRAPPERS
-/////////////////////////////////////////
+// ///////////////////////////////////////
 func (d *Driver) CreateMetricsScrapper(interval time.Duration,
 	signalReady *sync.WaitGroup, finishCh chan int, allRecordsWritten *sync.WaitGroup) func() {
 	timer := time.NewTicker(interval)
