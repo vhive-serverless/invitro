@@ -31,9 +31,6 @@ type DriverConfiguration struct {
 }
 
 type Driver struct {
-	// coldStartGauge       int
-	// coldStartMinuteCount int // TODO: maybe set to -1 if scraping is not enabled
-
 	Configuration          *DriverConfiguration
 	SpecificationGenerator *generator.SpecificationGenerator
 }

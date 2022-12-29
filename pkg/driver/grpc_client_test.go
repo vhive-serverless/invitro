@@ -2,17 +2,19 @@ package driver
 
 import (
 	"fmt"
+	"os"
+	"testing"
+	"time"
+
 	"github.com/eth-easl/loader/pkg/common"
 	"github.com/eth-easl/loader/pkg/config"
 	"github.com/eth-easl/loader/pkg/workload/standard"
 	"github.com/sirupsen/logrus"
-	"os"
-	"testing"
-	"time"
 )
 
 func createFakeLoaderConfiguration() *config.LoaderConfiguration {
 	return &config.LoaderConfiguration{
+		OutputPathPrefix:             "test",
 		EnableZipkinTracing:          true,
 		GRPCConnectionTimeoutSeconds: 5,
 		GRPCFunctionTimeoutSeconds:   15,
