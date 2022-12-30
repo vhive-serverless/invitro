@@ -1,4 +1,4 @@
-MetricsScrapingPeriodSeconds
+MetricScrapingPeriodSeconds
 passwordless
 utah
 OpenTelemetry
