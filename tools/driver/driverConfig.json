@@ -19,5 +19,6 @@
   "partiallyPanic": false,
   "EnableZipkinTracing":    false,
   "EnableMetricsScrapping": false,
+  "MetricScrapingPeriodSeconds": 60,
   "separateIATGeneration": false
 }

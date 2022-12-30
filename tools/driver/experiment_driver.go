@@ -26,9 +26,10 @@ type LoaderConfiguration struct {
 	ExperimentDuration int    `json:"ExperimentDuration"`
 	WarmupDuration     int    `json:"WarmupDuration"`
 
-	IsPartiallyPanic       bool `json:"IsPartiallyPanic"`
-	EnableZipkinTracing    bool `json:"EnableZipkinTracing"`
-	EnableMetricsScrapping bool `json:"EnableMetricsScrapping"`
+	IsPartiallyPanic            bool `json:"IsPartiallyPanic"`
+	EnableZipkinTracing         bool `json:"EnableZipkinTracing"`
+	EnableMetricsScrapping      bool `json:"EnableMetricsScrapping"`
+	MetricScrapingPeriodSeconds int  `json:"MetricScrapingPeriodSeconds"`
 
 	GRPCConnectionTimeoutSeconds int `json:"GRPCConnectionTimeoutSeconds"`
 	GRPCFunctionTimeoutSeconds   int `json:"GRPCFunctionTimeoutSeconds"`
@@ -41,27 +42,28 @@ type loaderConfig struct {
 }
 
 type Driver struct {
-	Username               string   `json:"username"`
-	ExperimentName         string   `json:"experimentName"`
-	LoaderAddresses        []string `json:"loaderAddresses"`
-	clients                []*simplessh.Client
-	BeginningFuncNum       int    `json:"beginningFuncNum"`
-	StepSizeFunc           int    `json:"stepSizeFunc"`
-	MaxFuncNum             int    `json:"maxFuncNum"`
-	ExperimentDuration     int    `json:"experimentDuration"`
-	WarmupDuration         int    `json:"warmupDuration"`
-	WorkerNodeNum          int    `json:"workerNodeNum"`
-	LocalTracePath         string `json:"localTracePath"`
-	LoaderTracePath        string `json:"loaderTracePath"`
-	OutputDir              string `json:"outputDir"`
-	YAMLSelector           string `json:"YAMLSelector"`
-	IATDistribution        string `json:"IATDistribution"`
-	LoaderOutputPath       string `json:"loaderOutputPath"`
-	PartiallyPanic         bool   `json:"partiallyPanic"`
-	EnableZipkinTracing    bool   `json:"EnableZipkinTracing"`
-	EnableMetricsScrapping bool   `json:"EnableMetricsScrapping"`
-	SeparateIATGeneration  bool   `json:"separateIATGeneration"`
-	loaderConfig           loaderConfig
+	Username                    string   `json:"username"`
+	ExperimentName              string   `json:"experimentName"`
+	LoaderAddresses             []string `json:"loaderAddresses"`
+	clients                     []*simplessh.Client
+	BeginningFuncNum            int    `json:"beginningFuncNum"`
+	StepSizeFunc                int    `json:"stepSizeFunc"`
+	MaxFuncNum                  int    `json:"maxFuncNum"`
+	ExperimentDuration          int    `json:"experimentDuration"`
+	WarmupDuration              int    `json:"warmupDuration"`
+	WorkerNodeNum               int    `json:"workerNodeNum"`
+	LocalTracePath              string `json:"localTracePath"`
+	LoaderTracePath             string `json:"loaderTracePath"`
+	OutputDir                   string `json:"outputDir"`
+	YAMLSelector                string `json:"YAMLSelector"`
+	IATDistribution             string `json:"IATDistribution"`
+	LoaderOutputPath            string `json:"loaderOutputPath"`
+	PartiallyPanic              bool   `json:"partiallyPanic"`
+	EnableZipkinTracing         bool   `json:"EnableZipkinTracing"`
+	EnableMetricsScrapping      bool   `json:"EnableMetricsScrapping"`
+	MetricScrapingPeriodSeconds int    `json:"MetricScrapingPeriodSeconds"`
+	SeparateIATGeneration       bool   `json:"separateIATGeneration"`
+	loaderConfig                loaderConfig
 }
 
 func min(x, y int) int {
@@ -154,9 +156,10 @@ func (d *Driver) createLoaderConfig(functionNumber int) loaderConfig {
 		ExperimentDuration: d.ExperimentDuration,
 		WarmupDuration:     d.WarmupDuration,
 
-		IsPartiallyPanic:       d.PartiallyPanic,
-		EnableZipkinTracing:    d.EnableZipkinTracing,
-		EnableMetricsScrapping: d.EnableMetricsScrapping,
+		IsPartiallyPanic:            d.PartiallyPanic,
+		EnableZipkinTracing:         d.EnableZipkinTracing,
+		EnableMetricsScrapping:      d.EnableMetricsScrapping,
+		MetricScrapingPeriodSeconds: d.MetricScrapingPeriodSeconds,
 
 		GRPCConnectionTimeoutSeconds: 60,
 		GRPCFunctionTimeoutSeconds:   900,
@@ -356,18 +359,24 @@ func (d *Driver) collectStats() {
 			defer wg.Done()
 			durationInt = durationInt + d.WarmupDuration + 1 // add warmup and profiling duration
 			duration := strconv.Itoa(durationInt)
-			fileLocal := "experiment_duration_" + duration
-			fileRemote := filepath.Join("loader/", d.LoaderOutputPath+"_duration_"+duration+".csv")
-			localPath := filepath.Join(d.OutputDir, experiment)
-			log.Debug("making local directory " + localPath)
-			err := os.MkdirAll(localPath, os.ModePerm)
-			if err != nil {
-				log.Fatalf("Creating the local directory %s failed: %s", localPath, err)
+			metrics := []string{"duration"}
+			if d.loaderConfig.loaderConfiguration.EnableMetricsScrapping {
+				metrics = append(metrics, "cluster_usage", "kn_stats")
 			}
-			log.Debug("downloading " + fileRemote)
-			err = client.Download(fileRemote, filepath.Join(localPath, fileLocal+"_"+functions+"functions_part_"+strconv.Itoa(idx)+".csv"))
-			if err != nil {
-				log.Fatalf("Downloading the experiment results failed: %s", err)
+			for _, metric := range metrics {
+				fileLocal := "experiment_" + metric + "_" + duration
+				fileRemote := filepath.Join("loader/", d.LoaderOutputPath+"_"+metric+"_"+duration+".csv")
+				localPath := filepath.Join(d.OutputDir, experiment)
+				log.Debug("making local directory " + localPath)
+				err := os.MkdirAll(localPath, os.ModePerm)
+				if err != nil {
+					log.Fatalf("Creating the local directory %s failed: %s", localPath, err)
+				}
+				log.Debug("downloading " + fileRemote)
+				err = client.Download(fileRemote, filepath.Join(localPath, fileLocal+"_"+functions+"functions_part_"+strconv.Itoa(idx)+".csv"))
+				if err != nil {
+					log.Fatalf("Downloading the experiment results failed: %s", err)
+				}
 			}
 		}(client, idx)
 	}

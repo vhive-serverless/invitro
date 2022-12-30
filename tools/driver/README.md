@@ -61,6 +61,7 @@ from the default value of 200.0 to the maximum value of 1000.0.
 [InitBasicTracer](https://github.com/vhive-serverless/vHive/blob/030c56e16a28ca431d3dfe0a21ff63f55912ef5a/utils/tracing/go/tracing.go#L81) 
 to initialise an OpenTelemetry tracer.  
 "EnableMetricsScrapping": Whether to enable Metrics Scraping.  
+"MetricScrapingPeriodSeconds": The interval at which metrics scraping occurs, in seconds.  
 "separateIATGeneration": Whether to generate IATs before running the loader. Leave as false unless you are running
 multiple loader nodes for one experiment (which is currently not supported).
 See issue #88.  
