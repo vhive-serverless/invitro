@@ -6,6 +6,9 @@
         {
             "pattern": "^http://127.0.0.1:*"
         }
+        {
+            "pattern": "^https://github.com/eth-easl/loader/*"
+        }
     ],
     "replacementPatterns": [
         {
