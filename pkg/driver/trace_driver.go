@@ -10,6 +10,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"strconv"
+
 	"github.com/eth-easl/loader/pkg/common"
 	"github.com/eth-easl/loader/pkg/config"
 	"github.com/eth-easl/loader/pkg/generator"
@@ -17,7 +19,6 @@ import (
 	"github.com/eth-easl/loader/pkg/trace"
 	"github.com/gocarina/gocsv"
 	log "github.com/sirupsen/logrus"
-	"strconv"
 )
 
 type DriverConfiguration struct {
@@ -83,8 +84,11 @@ func (d *Driver) CreateMetricsScrapper(interval time.Duration,
 		knStatRecords := make(chan interface{}, 100)
 		writerDone := sync.WaitGroup{}
 
-		writerDone.Add(1)
-		go d.runCSVWriter(clusterUsageRecords, d.outputFilename("cluster_usage"), &writerDone)
+		// writerDone.Add(1)
+		// go d.runCSVWriter(clusterUsageRecords, d.outputFilename("cluster_usage"), &writerDone)
+		clusterUsageFile, err := os.Create(d.outputFilename("cluster_usage"))
+		common.Check(err)
+		defer clusterUsageFile.Close()
 
 		writerDone.Add(1)
 		go d.runCSVWriter(knStatRecords, d.outputFilename("kn_stats"), &writerDone)
@@ -94,7 +98,12 @@ func (d *Driver) CreateMetricsScrapper(interval time.Duration,
 			case <-timer.C:
 				recCluster := mc.ScrapeClusterUsage()
 				recCluster.Timestamp = time.Now().UnixMicro()
-				clusterUsageRecords <- recCluster
+				byteArr, err := json.Marshal(recCluster)
+				common.Check(err)
+				_, err = clusterUsageFile.Write(byteArr)
+				common.Check(err)
+				_, err = clusterUsageFile.WriteString("\n")
+				common.Check(err)
 
 				recKnative := mc.ScrapeKnStats()
 				recKnative.Timestamp = time.Now().UnixMicro()
