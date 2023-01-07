@@ -10,3 +10,5 @@ spec:
           env:
             - name: TARGET
               value: "there!"
+      nodeSelector:
+        nodeType: worker

@@ -18,3 +18,5 @@ spec:
               value: "amohoste/timed:latest"
             - name: MEM_SIZE_MB
               value: "2048"
+      nodeSelector:
+        nodeType: worker

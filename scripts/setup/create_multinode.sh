@@ -237,9 +237,7 @@ function clone_loader_on_workers() {
     source $DIR/taint.sh
 
     # Force placement of metrics collectors and instrumentation on the master node
+    taint_master $MASTER_NODE
     taint_workers $MASTER_NODE
     $DIR/expose_infra_metrics.sh $MASTER_NODE
-    untaint_workers $MASTER_NODE
-
-    taint_master $MASTER_NODE
 }

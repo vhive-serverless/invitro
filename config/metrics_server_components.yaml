@@ -178,6 +178,7 @@ spec:
           name: tmp-dir
       nodeSelector:
         kubernetes.io/os: linux
+        nodeType: master
       priorityClassName: system-cluster-critical
       serviceAccountName: metrics-server
       volumes:

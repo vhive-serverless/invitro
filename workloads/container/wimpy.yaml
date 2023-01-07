@@ -19,3 +19,5 @@ spec:
           ports:
             - name: h2c  # For gRPC support
               containerPort: 80
+      nodeSelector:
+        nodeType: worker

@@ -34,3 +34,5 @@ spec:
             requests:
               cpu: $CPU_REQUEST
               memory: $MEMORY_REQUESTS
+      nodeSelector:
+        nodeType: worker

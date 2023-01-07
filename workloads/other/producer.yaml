@@ -26,3 +26,5 @@ spec:
             - name: h2c
             # Container mode (don't try to call firecracker via 50051 here)
               containerPort: 80
+      nodeSelector:
+        nodeType: worker
