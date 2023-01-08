@@ -15,6 +15,8 @@ spec:
 
         autoscaling.knative.dev/panic-window-percentage: $PANIC_WINDOW
         autoscaling.knative.dev/panic-threshold-percentage: $PANIC_THRESHOLD
+        autoscaling.knative.dev/metric: $AUTOSCALING_METRIC
+        autoscaling.knative.dev/target: $AUTOSCALING_TARGET
     spec:
       containerConcurrency: 1
       containers:

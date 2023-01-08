@@ -10,6 +10,8 @@
  "IsPartiallyPanic": false,
  "EnableZipkinTracing": false,
  "EnableMetricsScrapping": false,
+ "MetricScrapingPeriodSeconds": 0,
+ "AutoscalingMetric": "concurrency",
  "GRPCConnectionTimeoutSeconds": 60,
  "GRPCFunctionTimeoutSeconds": 900
 }

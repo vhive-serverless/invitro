@@ -26,10 +26,11 @@ type LoaderConfiguration struct {
 	ExperimentDuration int    `json:"ExperimentDuration"`
 	WarmupDuration     int    `json:"WarmupDuration"`
 
-	IsPartiallyPanic            bool `json:"IsPartiallyPanic"`
-	EnableZipkinTracing         bool `json:"EnableZipkinTracing"`
-	EnableMetricsScrapping      bool `json:"EnableMetricsScrapping"`
-	MetricScrapingPeriodSeconds int  `json:"MetricScrapingPeriodSeconds"`
+	IsPartiallyPanic            bool   `json:"IsPartiallyPanic"`
+	EnableZipkinTracing         bool   `json:"EnableZipkinTracing"`
+	EnableMetricsScrapping      bool   `json:"EnableMetricsScrapping"`
+	MetricScrapingPeriodSeconds int    `json:"MetricScrapingPeriodSeconds"`
+	AutoscalingMetric           string `json:"AutoscalingMetric"`
 
 	GRPCConnectionTimeoutSeconds int `json:"GRPCConnectionTimeoutSeconds"`
 	GRPCFunctionTimeoutSeconds   int `json:"GRPCFunctionTimeoutSeconds"`
@@ -63,6 +64,7 @@ type Driver struct {
 	EnableMetricsScrapping      bool   `json:"EnableMetricsScrapping"`
 	MetricScrapingPeriodSeconds int    `json:"MetricScrapingPeriodSeconds"`
 	SeparateIATGeneration       bool   `json:"separateIATGeneration"`
+	AutoscalingMetric           string `json:"AutoscalingMetric"`
 	loaderConfig                loaderConfig
 }
 
@@ -160,6 +162,7 @@ func (d *Driver) createLoaderConfig(functionNumber int) loaderConfig {
 		EnableZipkinTracing:         d.EnableZipkinTracing,
 		EnableMetricsScrapping:      d.EnableMetricsScrapping,
 		MetricScrapingPeriodSeconds: d.MetricScrapingPeriodSeconds,
+		AutoscalingMetric:           d.AutoscalingMetric,
 
 		GRPCConnectionTimeoutSeconds: 60,
 		GRPCFunctionTimeoutSeconds:   900,

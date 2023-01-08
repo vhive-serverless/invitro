@@ -65,6 +65,9 @@ to initialise an OpenTelemetry tracer.
 "separateIATGeneration": Whether to generate IATs before running the loader. Leave as false unless you are running
 multiple loader nodes for one experiment (which is currently not supported).
 See issue #88.  
+"AutoscalingMetric": Which autoscaling metric Knative should use. Default is "concurrency", supported values are
+"concurrency" and "rps". See [Knative Doc](https://knative.dev/docs/serving/autoscaling/autoscaling-metrics/) for more 
+details.  
 
 ### Running the Experiment
 
