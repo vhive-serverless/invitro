@@ -19,10 +19,11 @@ type LoaderConfiguration struct {
 	ExperimentDuration int    `json:"ExperimentDuration"`
 	WarmupDuration     int    `json:"WarmupDuration"`
 
-	IsPartiallyPanic            bool `json:"IsPartiallyPanic"`
-	EnableZipkinTracing         bool `json:"EnableZipkinTracing"`
-	EnableMetricsScrapping      bool `json:"EnableMetricsScrapping"`
-	MetricScrapingPeriodSeconds int  `json:"MetricScrapingPeriodSeconds"`
+	IsPartiallyPanic            bool   `json:"IsPartiallyPanic"`
+	EnableZipkinTracing         bool   `json:"EnableZipkinTracing"`
+	EnableMetricsScrapping      bool   `json:"EnableMetricsScrapping"`
+	MetricScrapingPeriodSeconds int    `json:"MetricScrapingPeriodSeconds"`
+	AutoscalingMetric           string `json:"AutoscalingMetric"`
 
 	GRPCConnectionTimeoutSeconds int `json:"GRPCConnectionTimeoutSeconds"`
 	GRPCFunctionTimeoutSeconds   int `json:"GRPCFunctionTimeoutSeconds"`

@@ -3,6 +3,7 @@ package driver
 import (
 	"fmt"
 	"github.com/eth-easl/loader/pkg/common"
+	"math"
 	"os/exec"
 	"regexp"
 	"strconv"
@@ -19,18 +20,26 @@ var (
 	urlRegex = regexp.MustCompile("at URL:\nhttp://([^\n]+)")
 )
 
-func DeployFunctions(functions []*common.Function, yamlPath string, isPartiallyPanic bool, endpointPort int) {
+func DeployFunctions(functions []*common.Function, yamlPath string, isPartiallyPanic bool, endpointPort int,
+	autoscalingMetric string) {
 	for i := 0; i < len(functions); i++ {
-		deployOne(functions[i], yamlPath, isPartiallyPanic, endpointPort)
+		deployOne(functions[i], yamlPath, isPartiallyPanic, endpointPort, autoscalingMetric)
 	}
 }
 
-func deployOne(function *common.Function, yamlPath string, isPartiallyPanic bool, endpointPort int) bool {
+func deployOne(function *common.Function, yamlPath string, isPartiallyPanic bool, endpointPort int,
+	autoscalingMetric string) bool {
 	panicWindow := "\"10.0\""
 	panicThreshold := "\"200.0\""
 	if isPartiallyPanic {
 		panicWindow = "\"100.0\""
 		panicThreshold = "\"1000.0\""
+	}
+	autoscalingTarget := 100 // default for concurrency
+	if autoscalingMetric == "rps" {
+		autoscalingTarget = int(math.Round(1000.0 / function.RuntimeStats.Average))
+		// for rps mode use the average runtime in milliseconds to determine how many requests a pod can process per
+		// second, then round to an integer as that is what the knative config expects
 	}
 
 	cmd := exec.Command(
@@ -46,6 +55,9 @@ func deployOne(function *common.Function, yamlPath string, isPartiallyPanic bool
 
 		panicWindow,
 		panicThreshold,
+
+		"\""+autoscalingMetric+"\"",
+		"\""+strconv.Itoa(autoscalingTarget)+"\"",
 	)
 
 	stdoutStderr, err := cmd.CombinedOutput()

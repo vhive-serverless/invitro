@@ -524,7 +524,8 @@ func (d *Driver) RunExperiment(iatOnly bool, generated bool) {
 	DeployFunctions(d.Configuration.Functions,
 		d.Configuration.YAMLPath,
 		d.Configuration.LoaderConfiguration.IsPartiallyPanic,
-		d.Configuration.LoaderConfiguration.EndpointPort)
+		d.Configuration.LoaderConfiguration.EndpointPort,
+		d.Configuration.LoaderConfiguration.AutoscalingMetric)
 
 	d.internalRun(iatOnly, generated)
 }

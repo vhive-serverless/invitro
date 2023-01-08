@@ -27,6 +27,7 @@ var loaderCfg = loaderConfig{
 		IsPartiallyPanic:       false,
 		EnableZipkinTracing:    false,
 		EnableMetricsScrapping: false,
+		AutoscalingMetric:      "concurrency",
 
 		GRPCConnectionTimeoutSeconds: 60,
 		GRPCFunctionTimeoutSeconds:   900,
@@ -54,6 +55,7 @@ var testDriver = Driver{
 	PartiallyPanic:         false,
 	EnableZipkinTracing:    false,
 	EnableMetricsScrapping: false,
+	AutoscalingMetric:      "concurrency",
 	SeparateIATGeneration:  false,
 	loaderConfig:           loaderCfg,
 }
