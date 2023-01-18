@@ -20,7 +20,8 @@ server_exec() {
 
 	server_exec 'kubectl create namespace monitoring'
 	release_label="prometheus"
-	server_exec "cd loader; helm install -n monitoring $release_label prometheus-community/kube-prometheus-stack -f config/prometh_stack_values.yaml"
+	prometheus_chart_version="43.3.1"
+	server_exec "cd loader; helm install -n monitoring $release_label --version $prometheus_chart_version prometheus-community/kube-prometheus-stack -f config/prometh_stack_values.yaml"
 	#* Apply the ServiceMonitors/PodMonitors to collect metrics from Knative.
 	#* The ports of the control manager and scheduler are mapped in a way that prometheus default installation can find them. 
 	server_exec 'cd loader; kubectl apply -f config/prometh_kn.yaml'
