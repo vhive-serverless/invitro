@@ -39,7 +39,7 @@ common_init() {
         server_exec $1 'tmux new -s containerd -d'
         server_exec $1 'tmux send -t containerd "sudo containerd 2>&1 | tee ~/containerd_log.txt" ENTER'
         # install precise NTP clock synchronizer
-        server_exec $1 'sudo apt-get update && sudo apt-get install -y chrony htop'
+        server_exec $1 'sudo apt-get update && sudo apt-get install -y chrony htop sysstat'
         # synchronize clock across nodes
         server_exec $1 "sudo chronyd -q \"server ops.emulab.net iburst\""
         # dump clock info
