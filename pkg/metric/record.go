@@ -104,8 +104,6 @@ type ClusterUsage struct {
 	CpuPctActiveAvg float64  `csv:"cpu_pct_active_avg" json:"cpu_pct_active_avg"`
 	Memory          []string `csv:"memory" json:"memory"`
 	MemoryPctAvg    float64  `csv:"memory_pct" json:"memory_pct"`
-	PodCpu          []string `csv:"pod_cpu" json:"pod_cpu"`
-	PodMemory       []string `csv:"pod_memory" json:"pod_mem"`
 }
 
 type AdfResult struct {
