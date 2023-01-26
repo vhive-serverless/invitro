@@ -4,14 +4,16 @@ import (
 	"encoding/csv"
 	"encoding/json"
 	"flag"
-	"github.com/sfreiberg/simplessh"
-	log "github.com/sirupsen/logrus"
 	"math"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
+	"time"
+
+	"github.com/sfreiberg/simplessh"
+	log "github.com/sirupsen/logrus"
 )
 
 type LoaderConfiguration struct {
@@ -122,8 +124,10 @@ func main() {
 
 func startExperimentDrivers(drivers *[]Driver) {
 	for _, d := range *drivers {
-		log.Debugf("Starting experiment: %s", d.ExperimentName)
+		log.Infof("Starting experiment: %s", d.ExperimentName)
+		startTime := time.Now()
 		d.RunSingleExperiment()
+		log.Infof("Experiment %s took %s", d.ExperimentName, time.Since(startTime))
 	}
 }
 
@@ -146,8 +150,7 @@ func (d *Driver) createLoaderConfig(functionNumber int) loaderConfig {
 	loaderTracePath := d.LoaderTracePath
 	loaderTracePath = strings.TrimPrefix(loaderTracePath, "loader/")
 	var loaderConfig loaderConfig
-	var configuration LoaderConfiguration
-	configuration = LoaderConfiguration{
+	configuration := LoaderConfiguration{
 		Seed:         42,
 		YAMLSelector: d.YAMLSelector,
 		EndpointPort: 80,
@@ -215,9 +218,9 @@ func (d *Driver) transferFilesToLoader(client *simplessh.Client, wg *sync.WaitGr
 	defer wg.Done()
 	functions := strconv.Itoa(d.loaderConfig.functions)
 	traceFiles := [3]string{
-		functions + "_inv_part_" + strconv.Itoa(idx) + ".csv",
-		functions + "_mem_part_" + strconv.Itoa(idx) + ".csv",
-		functions + "_run_part_" + strconv.Itoa(idx) + ".csv",
+		functions + "/invocations_part_" + strconv.Itoa(idx) + ".csv",
+		functions + "/memory_part_" + strconv.Itoa(idx) + ".csv",
+		functions + "/durations_part_" + strconv.Itoa(idx) + ".csv",
 	}
 	localFilePaths := [4]string{
 		filepath.Join(d.LocalTracePath, traceFiles[0]),
@@ -251,9 +254,9 @@ func (d *Driver) partitionTraceFiles() {
 		log.Fatalf("Trace directory %s does not exist: %s", tracePath, err)
 	}
 	traceFiles := [3]string{
-		functions + "_inv.csv",
-		functions + "_mem.csv",
-		functions + "_run.csv",
+		functions + "/invocations.csv",
+		functions + "/memory.csv",
+		functions + "/durations.csv",
 	}
 	for _, i := range traceFiles {
 		path := tracePath + "/" + i
@@ -343,7 +346,7 @@ func (d *Driver) startLoad() {
 			out, err := client.Exec("cd loader; source /etc/profile;" + cmd)
 			log.Debug(string(out))
 			if err != nil {
-				log.Fatalf("Failed to run load generation: %s", err)
+				log.Warnf("Failed to run load generation: %s", err)
 			}
 		}(client)
 	}

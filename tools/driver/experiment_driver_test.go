@@ -2,13 +2,14 @@ package main
 
 import (
 	"encoding/csv"
-	"github.com/sfreiberg/simplessh"
-	log "github.com/sirupsen/logrus"
 	"os"
 	"reflect"
 	"strconv"
 	"sync"
 	"testing"
+
+	"github.com/sfreiberg/simplessh"
+	log "github.com/sirupsen/logrus"
 )
 
 var loaderCfg = loaderConfig{
@@ -24,10 +25,11 @@ var loaderCfg = loaderConfig{
 		ExperimentDuration: 2,
 		WarmupDuration:     10,
 
-		IsPartiallyPanic:       false,
-		EnableZipkinTracing:    false,
-		EnableMetricsScrapping: false,
-		AutoscalingMetric:      "concurrency",
+		IsPartiallyPanic:            false,
+		EnableZipkinTracing:         false,
+		AutoscalingMetric:           "concurrency",
+		EnableMetricsScrapping:      false,
+		MetricScrapingPeriodSeconds: 60,
 
 		GRPCConnectionTimeoutSeconds: 60,
 		GRPCFunctionTimeoutSeconds:   900,
