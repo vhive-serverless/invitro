@@ -20,5 +20,6 @@
   "EnableZipkinTracing":    false,
   "EnableMetricsScrapping": false,
   "AutoscalingMetric": "concurrency",
+  "MetricScrapingPeriodSeconds": 60,
   "separateIATGeneration": false
 }
