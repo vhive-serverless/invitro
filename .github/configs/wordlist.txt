@@ -65,6 +65,7 @@ auth
 authorizer
 autodetect
 autoscaling
+AutoscalingMetric
 autostart
 avi
 AVI
