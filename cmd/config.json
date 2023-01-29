@@ -4,15 +4,15 @@
   "YAMLSelector": "container",
   "EndpointPort": 80,
 
-  "TracePath": "data/traces/example",
+  "TracePath": "data/traces/cold_start_50",
   "OutputPathPrefix": "data/out/experiment",
-  "IATDistribution": "exponential",
-  "ExperimentDuration": 1,
+  "IATDistribution": "equidistant",
+  "ExperimentDuration": 6,
   "WarmupDuration": 0,
 
   "IsPartiallyPanic": false,
   "EnableZipkinTracing": false,
-  "EnableMetricsScrapping": true,
+  "EnableMetricsScrapping": false,
   "MetricScrapingPeriodSeconds": 15,
   "AutoscalingMetric": "concurrency",
 
