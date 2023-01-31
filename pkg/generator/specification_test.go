@@ -39,7 +39,9 @@ var testFunction = common.Function{
 	},
 }
 
-/* TestSerialGenerateIAT tests the following scenarios:
+/*
+	TestSerialGenerateIAT tests the following scenarios:
+
 - equidistant distribution within 1 minute and 5 minutes
 - uniform distribution - spillover test, distribution test, single point
 */
@@ -49,6 +51,7 @@ func TestSerialGenerateIAT(t *testing.T) {
 		duration         int // s
 		invocations      []int
 		iatDistribution  common.IatDistribution
+		granularity      common.TraceGranularity
 		expectedPoints   [][]float64 // μs
 		testDistribution bool
 	}{
@@ -56,6 +59,7 @@ func TestSerialGenerateIAT(t *testing.T) {
 			testName:         "no_invocations_equidistant",
 			invocations:      []int{5},
 			iatDistribution:  common.Equidistant,
+			granularity:      common.MinuteGranularity,
 			expectedPoints:   [][]float64{},
 			testDistribution: false,
 		},
@@ -63,6 +67,7 @@ func TestSerialGenerateIAT(t *testing.T) {
 			testName:         "no_invocations_exponential",
 			invocations:      []int{5},
 			iatDistribution:  common.Exponential,
+			granularity:      common.MinuteGranularity,
 			expectedPoints:   [][]float64{},
 			testDistribution: false,
 		},
@@ -70,6 +75,7 @@ func TestSerialGenerateIAT(t *testing.T) {
 			testName:         "one_invocations_exponential",
 			invocations:      []int{1},
 			iatDistribution:  common.Exponential,
+			granularity:      common.MinuteGranularity,
 			expectedPoints:   [][]float64{{60_000_000}},
 			testDistribution: false,
 		},
@@ -77,6 +83,7 @@ func TestSerialGenerateIAT(t *testing.T) {
 			testName:        "1min_5ipm_equidistant",
 			invocations:     []int{5},
 			iatDistribution: common.Equidistant,
+			granularity:     common.MinuteGranularity,
 			expectedPoints: [][]float64{
 				{
 					12000000,
@@ -92,6 +99,7 @@ func TestSerialGenerateIAT(t *testing.T) {
 			testName:        "5min_5ipm_equidistant",
 			invocations:     []int{5, 5, 5, 5, 5},
 			iatDistribution: common.Equidistant,
+			granularity:     common.MinuteGranularity,
 			expectedPoints: [][]float64{
 				{
 					// min 1
@@ -140,6 +148,7 @@ func TestSerialGenerateIAT(t *testing.T) {
 			testName:        "1min_25ipm_uniform",
 			invocations:     []int{25},
 			iatDistribution: common.Uniform,
+			granularity:     common.MinuteGranularity,
 			expectedPoints: [][]float64{
 				{
 					3062124.611863,
@@ -175,6 +184,7 @@ func TestSerialGenerateIAT(t *testing.T) {
 			testName:         "1min_1000000ipm_uniform",
 			invocations:      []int{1000000},
 			iatDistribution:  common.Uniform,
+			granularity:      common.MinuteGranularity,
 			expectedPoints:   nil,
 			testDistribution: true,
 		},
@@ -182,6 +192,7 @@ func TestSerialGenerateIAT(t *testing.T) {
 			testName:        "1min_25ipm_exponential",
 			invocations:     []int{25},
 			iatDistribution: common.Exponential,
+			granularity:     common.MinuteGranularity,
 			expectedPoints: [][]float64{
 				{
 					1311929.341329,
@@ -217,6 +228,7 @@ func TestSerialGenerateIAT(t *testing.T) {
 			testName:         "1min_1000000ipm_exponential",
 			invocations:      []int{1000000},
 			iatDistribution:  common.Exponential,
+			granularity:      common.MinuteGranularity,
 			expectedPoints:   nil,
 			testDistribution: true,
 		},
@@ -230,7 +242,7 @@ func TestSerialGenerateIAT(t *testing.T) {
 			sg := NewSpecificationGenerator(seed)
 
 			testFunction.InvocationStats = &common.FunctionInvocationStats{Invocations: test.invocations}
-			spec := sg.GenerateInvocationData(&testFunction, test.iatDistribution)
+			spec := sg.GenerateInvocationData(&testFunction, test.iatDistribution, test.granularity)
 			IAT, nonScaledDuration := spec.IAT, spec.RawDuration
 
 			failed := false
@@ -338,20 +350,23 @@ func checkDistribution(data [][]float64, nonScaledDuration []float64, distributi
 
 func TestGenerateExecutionSpecifications(t *testing.T) {
 	tests := []struct {
-		testName   string
-		iterations int
-		expected   map[common.RuntimeSpecification]struct{}
+		testName    string
+		iterations  int
+		granularity common.TraceGranularity
+		expected    map[common.RuntimeSpecification]struct{}
 	}{
 		{
-			testName:   "exec_spec_run_1",
-			iterations: 1,
+			testName:    "exec_spec_run_1",
+			iterations:  1,
+			granularity: common.MinuteGranularity,
 			expected: map[common.RuntimeSpecification]struct{}{
 				common.RuntimeSpecification{Runtime: 89, Memory: 8217}: {},
 			},
 		},
 		{
-			testName:   "exec_spec_run_5",
-			iterations: 5,
+			testName:    "exec_spec_run_5",
+			iterations:  5,
+			granularity: common.MinuteGranularity,
 			expected: map[common.RuntimeSpecification]struct{}{
 				common.RuntimeSpecification{Runtime: 89, Memory: 8217}: {},
 				common.RuntimeSpecification{Runtime: 18, Memory: 9940}: {},
@@ -361,8 +376,9 @@ func TestGenerateExecutionSpecifications(t *testing.T) {
 			},
 		},
 		{
-			testName:   "exec_spec_run_25",
-			iterations: 25,
+			testName:    "exec_spec_run_25",
+			iterations:  25,
+			granularity: common.MinuteGranularity,
 			expected: map[common.RuntimeSpecification]struct{}{
 				common.RuntimeSpecification{Runtime: 89, Memory: 8217}:  {},
 				common.RuntimeSpecification{Runtime: 18, Memory: 9940}:  {},
@@ -408,7 +424,7 @@ func TestGenerateExecutionSpecifications(t *testing.T) {
 				Invocations: []int{test.iterations},
 			}
 			// distribution is irrelevant here
-			spec := sg.GenerateInvocationData(&testFunction, common.Equidistant).RuntimeSpecification
+			spec := sg.GenerateInvocationData(&testFunction, common.Equidistant, test.granularity).RuntimeSpecification
 
 			for i := 0; i < test.iterations; i++ {
 				wg.Add(1)

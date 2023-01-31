@@ -10,6 +10,8 @@ pkg/generator/*.png
 pkg/generator/*.txt
 *.log
 tools/*/__pycache__
+tools/trace_synthesizer/*.csv
+tools/trace_synthesizer/*/*.csv
 
 ### CMake ###
 CMakeLists.txt.user

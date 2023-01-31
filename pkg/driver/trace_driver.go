@@ -24,6 +24,7 @@ import (
 type DriverConfiguration struct {
 	LoaderConfiguration *config.LoaderConfiguration
 	IATDistribution     common.IatDistribution
+	TraceGranularity    common.TraceGranularity
 	TraceDuration       int // in minutes
 
 	YAMLPath string
@@ -61,19 +62,23 @@ func (d *Driver) outputFilename(name string) string {
 
 func (d *Driver) runCSVWriter(records chan interface{}, filename string, writerDone *sync.WaitGroup) {
 	log.Debugf("Starting writer for %s", filename)
+
 	file, err := os.Create(filename)
 	common.Check(err)
 	defer file.Close()
+
 	writer := gocsv.NewSafeCSVWriter(csv.NewWriter(file))
 	if err := gocsv.MarshalChan(records, writer); err != nil {
 		log.Fatal(err)
 	}
+
 	writerDone.Done()
 }
 
-// ///////////////////////////////////////
+/////////////////////////////////////////
 // METRICS SCRAPPERS
-// ///////////////////////////////////////
+/////////////////////////////////////////
+
 func (d *Driver) CreateMetricsScrapper(interval time.Duration,
 	signalReady *sync.WaitGroup, finishCh chan int, allRecordsWritten *sync.WaitGroup) func() {
 	timer := time.NewTicker(interval)
@@ -84,8 +89,6 @@ func (d *Driver) CreateMetricsScrapper(interval time.Duration,
 		knStatRecords := make(chan interface{}, 100)
 		writerDone := sync.WaitGroup{}
 
-		// writerDone.Add(1)
-		// go d.runCSVWriter(clusterUsageRecords, d.outputFilename("cluster_usage"), &writerDone)
 		clusterUsageFile, err := os.Create(d.outputFilename("cluster_usage"))
 		common.Check(err)
 		defer clusterUsageFile.Close()
@@ -98,10 +101,13 @@ func (d *Driver) CreateMetricsScrapper(interval time.Duration,
 			case <-timer.C:
 				recCluster := mc.ScrapeClusterUsage()
 				recCluster.Timestamp = time.Now().UnixMicro()
+
 				byteArr, err := json.Marshal(recCluster)
 				common.Check(err)
+
 				_, err = clusterUsageFile.Write(byteArr)
 				common.Check(err)
+
 				_, err = clusterUsageFile.WriteString("\n")
 				common.Check(err)
 
@@ -111,8 +117,10 @@ func (d *Driver) CreateMetricsScrapper(interval time.Duration,
 			case <-finishCh:
 				close(clusterUsageRecords)
 				close(knStatRecords)
+
 				writerDone.Wait()
 				allRecordsWritten.Done()
+
 				return
 			}
 		}
@@ -173,7 +181,7 @@ func (d *Driver) individualFunctionDriver(function *common.Function, announceFun
 	var failedInvocations int64
 	var approximateFailedCount int64
 	var numberOfIssuedInvocations int64
-	var currentPhase common.ExperimentPhase = common.ExecutionPhase
+	var currentPhase = common.ExecutionPhase
 
 	waitForInvocations := sync.WaitGroup{}
 
@@ -197,7 +205,14 @@ func (d *Driver) individualFunctionDriver(function *common.Function, announceFun
 			d.proceedToNextMinute(function, &minuteIndex, &invocationIndex,
 				&startOfMinute, true, &currentPhase, &approximateFailedCount, &previousIATSum)
 
-			time.Sleep(time.Minute)
+			switch d.Configuration.TraceGranularity {
+			case common.MinuteGranularity:
+				time.Sleep(time.Minute)
+			case common.SecondGranularity:
+				time.Sleep(time.Second)
+			default:
+				log.Fatal("Unsupported trace granularity.")
+			}
 
 			continue
 		}
@@ -264,26 +279,28 @@ func (d *Driver) individualFunctionDriver(function *common.Function, announceFun
 func (d *Driver) proceedToNextMinute(function *common.Function, minuteIndex *int, invocationIndex *int, startOfMinute *time.Time,
 	skipMinute bool, currentPhase *common.ExperimentPhase, approximateFailedCount *int64, previousIATSum *int64) bool {
 
-	if !isRequestTargetAchieved(function.InvocationStats.Invocations[*minuteIndex], *invocationIndex, common.RequestedVsIssued) {
-		// Not fatal because we want to keep the measurements to be written to the output file
-		log.Warnf("Relative difference between requested and issued number of invocations is greater than %.2f%%. Terminating experiment!\n", common.RequestedVsIssuedTerminateThreshold*100)
+	if d.Configuration.TraceGranularity == common.MinuteGranularity {
+		if !isRequestTargetAchieved(function.InvocationStats.Invocations[*minuteIndex], *invocationIndex, common.RequestedVsIssued) {
+			// Not fatal because we want to keep the measurements to be written to the output file
+			log.Warnf("Relative difference between requested and issued number of invocations is greater than %.2f%%. Terminating experiment!\n", common.RequestedVsIssuedTerminateThreshold*100)
 
-		return true
-	}
+			return true
+		}
 
-	notFailedCount := function.InvocationStats.Invocations[*minuteIndex] - int(atomic.LoadInt64(approximateFailedCount))
-	if !isRequestTargetAchieved(function.InvocationStats.Invocations[*minuteIndex], notFailedCount, common.IssuedVsFailed) {
-		// Not fatal because we want to keep the measurements to be written to the output file
-		log.Warnf("Percentage of failed request is greater than %.2f%%. Terminating experiment!\n", common.FailedTerminateThreshold*100)
+		notFailedCount := function.InvocationStats.Invocations[*minuteIndex] - int(atomic.LoadInt64(approximateFailedCount))
+		if !isRequestTargetAchieved(function.InvocationStats.Invocations[*minuteIndex], notFailedCount, common.IssuedVsFailed) {
+			// Not fatal because we want to keep the measurements to be written to the output file
+			log.Warnf("Percentage of failed request is greater than %.2f%%. Terminating experiment!\n", common.FailedTerminateThreshold*100)
 
-		// NOTE: approximateFailedCount is the number of requests that experienced connection timeout or
-		// function timeout. If an invocation is invoked after 55th second of the minute, the connection
-		// timeout will happen in the next minute, or in case of function timeout, will happen after 15
-		// minutes. Hence, this metrics shows how much invocations failed in the current minute. It will
-		// eventually start to grow and after the relative difference between invoked and faild goes above
-		// 20% the experiment will be terminated.
+			// NOTE: approximateFailedCount is the number of requests that experienced connection timeout or
+			// function timeout. If an invocation is invoked after 55th second of the minute, the connection
+			// timeout will happen in the next minute, or in case of function timeout, will happen after 15
+			// minutes. Hence, this metrics shows how much invocations failed in the current minute. It will
+			// eventually start to grow and after the relative difference between invoked and faild goes above
+			// 20% the experiment will be terminated.
 
-		return true
+			return true
+		}
 	}
 
 	*minuteIndex++
@@ -299,7 +316,14 @@ func (d *Driver) proceedToNextMinute(function *common.Function, minuteIndex *int
 	if !skipMinute {
 		*startOfMinute = time.Now()
 	} else {
-		*startOfMinute = time.Now().Add(time.Minute)
+		switch d.Configuration.TraceGranularity {
+		case common.MinuteGranularity:
+			*startOfMinute = time.Now().Add(time.Minute)
+		case common.SecondGranularity:
+			*startOfMinute = time.Now().Add(time.Second)
+		default:
+			log.Fatal("Unsupported trace granularity.")
+		}
 	}
 
 	return false
@@ -450,6 +474,7 @@ func (d *Driver) internalRun(iatOnly bool, generated bool) {
 			spec := d.SpecificationGenerator.GenerateInvocationData(
 				function,
 				d.Configuration.IATDistribution,
+				d.Configuration.TraceGranularity,
 			)
 
 			d.Configuration.Functions[i].Specification = spec
@@ -504,17 +529,20 @@ func (d *Driver) RunExperiment(iatOnly bool, generated bool) {
 			spec := d.SpecificationGenerator.GenerateInvocationData(
 				function,
 				d.Configuration.IATDistribution,
+				d.Configuration.TraceGranularity,
 			)
-
 			d.Configuration.Functions[i].Specification = spec
+
 			file, _ := json.MarshalIndent(spec, "", " ")
 			err := os.WriteFile("iat"+strconv.Itoa(i)+".json", file, 0644)
 			if err != nil {
 				log.Fatalf("Writing the loader config file failed: %s", err)
 			}
 		}
+
 		return
 	}
+
 	if d.Configuration.WithWarmup() {
 		trace.DoStaticTraceProfiling(d.Configuration.Functions)
 	}
