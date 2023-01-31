@@ -14,6 +14,7 @@ type LoaderConfiguration struct {
 	EndpointPort int    `json:"EndpointPort"`
 
 	TracePath          string `json:"TracePath"`
+	Granularity        string `json:"Granularity"`
 	OutputPathPrefix   string `json:"OutputPathPrefix"`
 	IATDistribution    string `json:"IATDistribution"`
 	ExperimentDuration int    `json:"ExperimentDuration"`

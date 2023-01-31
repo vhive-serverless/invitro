@@ -32,6 +32,13 @@ const (
 	Equidistant
 )
 
+type TraceGranularity int
+
+const (
+	MinuteGranularity TraceGranularity = iota
+	SecondGranularity
+)
+
 type ExperimentPhase int
 
 const (

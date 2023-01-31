@@ -4,10 +4,11 @@
   "YAMLSelector": "container",
   "EndpointPort": 80,
 
-  "TracePath": "data/traces/cold_start_50",
+  "TracePath": "data/traces/example",
+  "Granularity": "minute",
   "OutputPathPrefix": "data/out/experiment",
   "IATDistribution": "equidistant",
-  "ExperimentDuration": 6,
+  "ExperimentDuration": 45,
   "WarmupDuration": 0,
 
   "IsPartiallyPanic": false,

@@ -112,6 +112,18 @@ func runTraceMode(cfg *config.LoaderConfiguration, iatOnly bool, generated bool)
 		yamlSpecificationPath = "workloads/container/trace_func_go.yaml"
 	case "firecracker":
 		yamlSpecificationPath = "workloads/firecracker/trace_func_go.yaml"
+	default:
+		log.Fatal("Invalid 'YAMLSelector' parameter.")
+	}
+
+	var traceGranularity common.TraceGranularity
+	switch cfg.Granularity {
+	case "minute":
+		traceGranularity = common.MinuteGranularity
+	case "second":
+		traceGranularity = common.SecondGranularity
+	default:
+		log.Fatal("Invalid trace granularity parameter.")
 	}
 
 	log.Infof("Using %s as a service YAML specification file.\n", yamlSpecificationPath)
@@ -119,6 +131,7 @@ func runTraceMode(cfg *config.LoaderConfiguration, iatOnly bool, generated bool)
 	experimentDriver := driver.NewDriver(&driver.DriverConfiguration{
 		LoaderConfiguration: cfg,
 		IATDistribution:     iatType,
+		TraceGranularity:    traceGranularity,
 		TraceDuration:       durationToParse,
 
 		YAMLPath: yamlSpecificationPath,
