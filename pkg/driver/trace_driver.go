@@ -147,8 +147,19 @@ type InvocationMetadata struct {
 	AnnounceDoneWG      *sync.WaitGroup
 }
 
-func composeInvocationID(minuteIndex int, invocationIndex int) string {
-	return fmt.Sprintf("min%d.inv%d", minuteIndex, invocationIndex)
+func composeInvocationID(timeGranularity common.TraceGranularity, minuteIndex int, invocationIndex int) string {
+	var timePrefix string
+
+	switch timeGranularity {
+	case common.MinuteGranularity:
+		timePrefix = "min"
+	case common.SecondGranularity:
+		timePrefix = "sec"
+	default:
+		log.Fatal("Invalid trace granularity parameter.")
+	}
+
+	return fmt.Sprintf("%s%d.inv%d", timePrefix, minuteIndex, invocationIndex)
 }
 
 func (d *Driver) invokeFunction(metadata *InvocationMetadata) {
@@ -157,7 +168,7 @@ func (d *Driver) invokeFunction(metadata *InvocationMetadata) {
 	success, record := Invoke(metadata.Function, metadata.RuntimeSpecifications, d.Configuration.LoaderConfiguration)
 
 	record.Phase = int(metadata.Phase)
-	record.InvocationID = composeInvocationID(metadata.MinuteIndex, metadata.InvocationIndex)
+	record.InvocationID = composeInvocationID(d.Configuration.TraceGranularity, metadata.MinuteIndex, metadata.InvocationIndex)
 
 	if success {
 		atomic.AddInt64(metadata.SuccessCount, 1)
@@ -239,7 +250,7 @@ func (d *Driver) individualFunctionDriver(function *common.Function, announceFun
 
 			recordOutputChannel <- &mc.ExecutionRecord{
 				Phase:        int(currentPhase),
-				InvocationID: composeInvocationID(minuteIndex, invocationIndex),
+				InvocationID: composeInvocationID(d.Configuration.TraceGranularity, minuteIndex, invocationIndex),
 				StartTime:    time.Now().UnixNano(),
 			}
 
