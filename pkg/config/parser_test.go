@@ -25,12 +25,13 @@ func TestConfigParser(t *testing.T) {
 		config.EndpointPort != 80 ||
 		!strings.HasPrefix(config.TracePath, "data/traces") ||
 		!strings.HasPrefix(config.OutputPathPrefix, "data/out/experiment") ||
-		config.IATDistribution != "exponential" ||
-		config.ExperimentDuration != 1 ||
+		config.Granularity != "minute" ||
+		config.IATDistribution != "equidistant" ||
+		config.ExperimentDuration != 45 ||
 		config.WarmupDuration != 0 ||
 		config.IsPartiallyPanic != false ||
 		config.EnableZipkinTracing != false ||
-		config.EnableMetricsScrapping != true ||
+		config.EnableMetricsScrapping != false ||
 		config.MetricScrapingPeriodSeconds != 15 ||
 		config.GRPCConnectionTimeoutSeconds != 60 ||
 		config.GRPCFunctionTimeoutSeconds != 900 {
