@@ -8,10 +8,10 @@ require (
 	github.com/golang/protobuf v1.5.2
 	github.com/sfreiberg/simplessh v0.0.0-20220719182921-185eafd40485
 	github.com/sirupsen/logrus v1.9.0
-	golang.org/x/sys v0.0.0-20220722155257-8c9f86f7a55f
+	golang.org/x/sys v0.4.0
 	gonum.org/v1/gonum v0.12.0
 	gonum.org/v1/plot v0.12.0
-	google.golang.org/grpc v1.48.0
+	google.golang.org/grpc v1.53.0
 )
 
 require github.com/stretchr/testify v1.8.0
@@ -43,8 +43,8 @@ require (
 	go.opentelemetry.io/otel/metric v0.20.0 // indirect
 	go.opentelemetry.io/otel/sdk v0.20.0 // indirect
 	go.opentelemetry.io/otel/trace v0.20.0 // indirect
-	golang.org/x/net v0.0.0-20211112202133-69e39bad7dc2 // indirect
-	golang.org/x/text v0.3.7 // indirect
-	google.golang.org/genproto v0.0.0-20211208223120-3a66f561d7aa // indirect
-	google.golang.org/protobuf v1.27.1 // indirect
+	golang.org/x/net v0.5.0 // indirect
+	golang.org/x/text v0.6.0 // indirect
+	google.golang.org/genproto v0.0.0-20230110181048-76db0878b65f // indirect
+	google.golang.org/protobuf v1.28.1 // indirect
 )
