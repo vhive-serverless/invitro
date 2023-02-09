@@ -20,6 +20,8 @@ if __name__ == "__main__":
     query_cpu_req = 'sum(kube_pod_container_resource_requests{resource="cpu"} and on(container, pod) (kube_pod_container_status_running==1) or on(node) (kube_node_info*0)) by (node)'
     query_cpu_lim = 'sum(kube_pod_container_resource_limits{resource="cpu"} and on(container, pod) (kube_pod_container_status_running==1) or on(node) (kube_node_info*0)) by (node)'
     query_pod_count = 'count(kube_pod_info and on(pod) max(kube_pod_container_status_running==1) by (pod)) by(node)'
+    cmd_get_service_pod_vals = ['bash', 'scripts/metrics/get_service_pod_stats.sh']
+    cmd_get_service_pod_nodes = ['bash', 'scripts/metrics/get_service_pod_nodes.sh']
 
     result = {
         "master_cpu_pct": 0,
@@ -44,6 +46,7 @@ if __name__ == "__main__":
         "pods": [],
         "loader_cpu": 0,
         "loader_mem": 0,
+        "service_pod_cpu": []
     }
 
     result["loader_cpu"], result["loader_mem"] = list(
@@ -116,5 +119,16 @@ if __name__ == "__main__":
     else:
         result['cpu'] = ['']
         result['memory'] = ['']
+
+    service_pod = subprocess.check_output(cmd_get_service_pod_vals).decode("utf-8").strip().split()
+    service_pod_node = subprocess.check_output(cmd_get_service_pod_nodes).decode("utf-8").strip().split()
+    nodes = {name: node for name, _, node in (line.partition(',') for line in service_pod_node)}
+    service_pod_cpu = [
+            {"name": name,
+             "cpu": float(cpu[:-1]) / 1000,
+             "node": nodes[name]}
+            for name, _, cpu in (line.partition(',') for line in service_pod)]
+
+    result['service_pod_cpu'] = service_pod_cpu
 
     print(json.dumps(result))

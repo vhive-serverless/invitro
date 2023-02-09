@@ -141,6 +141,13 @@ type ClusterUsage struct {
 	Pods            []int     `csv:"pods" json:"pods"`
 	LoaderCpu       float64   `csv:"loader_cpu" json:"loader_cpu"`
 	LoaderMem       float64   `csv:"loader_mem" json:"loader_mem"`
+	ServicePodCpu   []Pod     `csv:"service_pod_cpu" json:"service_pod_cpu"`
+}
+
+type Pod struct {
+	Name    string  `csv:"name" json:"name"`
+	CpuUtil float64 `csv:"cpu" json:"cpu"`
+	Node    string  `csv:"node" json:"node"`
 }
 
 type AdfResult struct {
