@@ -69,7 +69,7 @@ First, we will setup a serverless cluster. Any hardware setup to support [vHive]
 
 Instead of manually installing [vHive][vhive] and the [Loader][loader] on the cluster, the [Loader][loader] contains a setup script that will automatically install [vHive][vhive] and the [Loader][loader] on the cluster.
 
-Configure the `script/setup.cfg` file to specify the cluster configuration.
+Configure the `scripts/setup/setup.cfg` file to specify the cluster configuration.
 
 ```cfg
 VHIVE_BRANCH='hy'

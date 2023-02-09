@@ -9,7 +9,7 @@ can choose the APT cluster `d430` node.
 
 ## Create a cluster
 
-First, configure `script/setup.cfg`. You can specify there which vHive branch to use, loader branch, operation mode
+First, configure `scripts/setup/setup.cfg`. You can specify there which vHive branch to use, loader branch, operation mode
 (sandbox type), maximum number of pods per node, and the Github token. All these configurations are mandatory.
 We currently support the following modes: containerd (`container`), Firecracker (`firecracker`), and Firecracker with
 snapshots (`firecracker_snapshots`).
