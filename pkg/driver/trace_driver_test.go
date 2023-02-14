@@ -140,7 +140,7 @@ func TestInvokeFunctionFromDriver(t *testing.T) {
 			announceDone.Wait()
 
 			if record.Phase != int(metadata.Phase) ||
-				record.InvocationID != composeInvocationID(metadata.MinuteIndex, metadata.InvocationIndex) {
+				record.InvocationID != composeInvocationID(common.MinuteGranularity, metadata.MinuteIndex, metadata.InvocationIndex) {
 
 				t.Error("Invalid invocation record received.")
 			}
@@ -235,8 +235,9 @@ func TestDriverBackgroundProcesses(t *testing.T) {
 
 func TestDriverCompletely(t *testing.T) {
 	tests := []struct {
-		testName   string
-		withWarmup bool
+		testName          string
+		withWarmup        bool
+		secondGranularity bool
 	}{
 		{
 			testName:   "without_warmup",
@@ -245,6 +246,16 @@ func TestDriverCompletely(t *testing.T) {
 		{
 			testName:   "with_warmup",
 			withWarmup: true,
+		},
+		{
+			testName:          "without_warmup_second_granularity",
+			withWarmup:        false,
+			secondGranularity: true,
+		},
+		{
+			testName:          "with_warmup_second_granularity",
+			withWarmup:        true,
+			secondGranularity: true,
 		},
 	}
 
@@ -256,6 +267,9 @@ func TestDriverCompletely(t *testing.T) {
 			if test.withWarmup {
 				driver.Configuration.LoaderConfiguration.WarmupDuration = 1
 				driver.Configuration.TraceDuration = 3 // 1 profiling - 1 withWarmup - 1 execution
+			}
+			if test.secondGranularity {
+				driver.Configuration.TraceGranularity = common.SecondGranularity
 			}
 
 			driver.RunExperiment(false, false)
@@ -402,7 +416,7 @@ func TestProceedToNextMinute(t *testing.T) {
 			var iatSum int64 = 2500
 
 			toBreak := driver.proceedToNextMinute(function, &minuteIndex, &invocationIndex, &startOfMinute,
-				test.skipMinute, (*common.ExperimentPhase)(&phase), &approximateFailedCount, &iatSum)
+				test.skipMinute, &phase, &approximateFailedCount, &iatSum)
 
 			if toBreak != test.toBreak {
 				t.Error("Invalid response from minute cleanup procedure.")

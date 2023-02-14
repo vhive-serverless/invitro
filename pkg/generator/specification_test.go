@@ -232,6 +232,35 @@ func TestSerialGenerateIAT(t *testing.T) {
 			expectedPoints:   nil,
 			testDistribution: true,
 		},
+		{
+			testName:        "2sec_5qps_equidistant",
+			invocations:     []int{5, 4, 2},
+			iatDistribution: common.Equidistant,
+			granularity:     common.SecondGranularity,
+			expectedPoints: [][]float64{
+				{
+					// second 1
+					200000,
+					200000,
+					200000,
+					200000,
+					200000,
+				},
+				{
+					// second 2
+					250000,
+					250000,
+					250000,
+					250000,
+				},
+				{
+					// second 3
+					500000,
+					500000,
+				},
+			},
+			testDistribution: false,
+		},
 	}
 
 	var seed int64 = 123456789
@@ -247,7 +276,7 @@ func TestSerialGenerateIAT(t *testing.T) {
 
 			failed := false
 
-			if hasSpillover(IAT) {
+			if hasSpillover(IAT, test.granularity) {
 				t.Error("Generated IAT does not fit in the within the minute time window.")
 			}
 
@@ -277,7 +306,7 @@ func TestSerialGenerateIAT(t *testing.T) {
 	}
 }
 
-func hasSpillover(data [][]float64) bool {
+func hasSpillover(data [][]float64, granularity common.TraceGranularity) bool {
 	for min := 0; min < len(data); min++ {
 		sum := 0.0
 		epsilon := 1e-3
@@ -287,7 +316,13 @@ func hasSpillover(data [][]float64) bool {
 		}
 
 		log.Debug(fmt.Sprintf("Total execution time: %f μs\n", sum))
-		if math.Abs(sum-60*common.OneSecondInMicroseconds) > epsilon {
+
+		spilloverThreshold := common.OneSecondInMicroseconds
+		if granularity == common.MinuteGranularity {
+			spilloverThreshold *= 60
+		}
+
+		if math.Abs(sum-spilloverThreshold) > epsilon {
 			return true
 		}
 	}
