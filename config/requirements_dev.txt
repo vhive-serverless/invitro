@@ -4,7 +4,7 @@ chardet==3.0.4
 command-not-found==0.3
 cryptography==39.0.1
 dbus-python==1.2.16
-distro==1.4.0
+distro==1.8.0
 distro-info===0.23ubuntu1
 html5lib==1.0.1
 idna==2.8
