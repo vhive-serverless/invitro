@@ -234,12 +234,14 @@ function clone_loader_on_workers() {
     copy_k8s_certificates "$@"
     clone_loader_on_workers "$@"
 
-    source $DIR/taint.sh
+    if [[ "$DEPLOY_PROMETHEUS" == true ]]; then
+        source $DIR/taint.sh
 
-    # Force placement of metrics collectors and instrumentation on the master node
-    taint_workers $MASTER_NODE
-    $DIR/expose_infra_metrics.sh $MASTER_NODE
-    untaint_workers $MASTER_NODE
+        # Force placement of metrics collectors and instrumentation on the master node
+        taint_workers $MASTER_NODE
+        $DIR/expose_infra_metrics.sh $MASTER_NODE
+        untaint_workers $MASTER_NODE
 
-    taint_master $MASTER_NODE
+        taint_master $MASTER_NODE
+    fi
 }
