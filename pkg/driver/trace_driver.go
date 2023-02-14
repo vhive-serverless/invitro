@@ -188,7 +188,7 @@ func (d *Driver) individualFunctionDriver(function *common.Function, announceFun
 
 	IAT, runtimeSpecification := function.Specification.IAT, function.Specification.RuntimeSpecification
 
-	var successfullInvocations int64
+	var successfulInvocations int64
 	var failedInvocations int64
 	var approximateFailedCount int64
 	var numberOfIssuedInvocations int64
@@ -238,7 +238,7 @@ func (d *Driver) individualFunctionDriver(function *common.Function, announceFun
 				Phase:                  currentPhase,
 				MinuteIndex:            minuteIndex,
 				InvocationIndex:        invocationIndex,
-				SuccessCount:           &successfullInvocations,
+				SuccessCount:           &successfulInvocations,
 				FailedCount:            &failedInvocations,
 				ApproximateFailedCount: &approximateFailedCount,
 				RecordOutputChannel:    recordOutputChannel,
@@ -254,7 +254,7 @@ func (d *Driver) individualFunctionDriver(function *common.Function, announceFun
 				StartTime:    time.Now().UnixNano(),
 			}
 
-			successfullInvocations++
+			successfulInvocations++
 		}
 
 		iat := time.Duration(IAT[minuteIndex][invocationIndex]) * time.Microsecond
@@ -282,7 +282,7 @@ func (d *Driver) individualFunctionDriver(function *common.Function, announceFun
 	log.Debugf("All the invocations for function %s have been completed.\n", function.Name)
 	announceFunctionDone.Done()
 
-	atomic.AddInt64(totalSuccessful, successfullInvocations)
+	atomic.AddInt64(totalSuccessful, successfulInvocations)
 	atomic.AddInt64(totalFailed, failedInvocations)
 	atomic.AddInt64(totalIssued, numberOfIssuedInvocations)
 }
@@ -496,12 +496,14 @@ func (d *Driver) internalRun(iatOnly bool, generated bool) {
 
 	if generated {
 		for i := range d.Configuration.Functions {
-			iatFile, _ := os.ReadFile("iat" + strconv.Itoa(i) + ".json")
 			var spec common.FunctionSpecification
+
+			iatFile, _ := os.ReadFile("iat" + strconv.Itoa(i) + ".json")
 			err := json.Unmarshal(iatFile, &spec)
 			if err != nil {
 				log.Fatalf("Failed tu unmarshal iat file: %s", err)
 			}
+
 			d.Configuration.Functions[i].Specification = &spec
 		}
 	}
@@ -523,8 +525,10 @@ func (d *Driver) internalRun(iatOnly bool, generated bool) {
 	allIndividualDriversCompleted.Wait()
 	if atomic.LoadInt64(&successfulInvocations)+atomic.LoadInt64(&failedInvocations) != 0 {
 		log.Debugf("Waiting for all the invocations record to be written.\n")
+
 		totalIssuedChannel <- atomic.LoadInt64(&invocationsIssued)
 		scraperFinishCh <- 0 // Ask the scraper to finish metrics collection
+
 		allRecordsWritten.Wait()
 	}
 

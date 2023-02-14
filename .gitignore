@@ -8,6 +8,7 @@ data/traces/*
 !data/traces/example/
 pkg/generator/*.png
 pkg/generator/*.txt
+pkg/driver/*.csv
 *.log
 tools/*/__pycache__
 tools/trace_synthesizer/*.csv
