@@ -10,7 +10,6 @@ import (
 	"gonum.org/v1/plot/plotter"
 	"gonum.org/v1/plot/plotutil"
 	"gonum.org/v1/plot/vg"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -18,16 +17,15 @@ import (
 	"strconv"
 )
 
-
 type Record struct {
 	funcCount int
-	slowdown float64
+	slowdown  float64
 }
 
 func main() {
 	var (
-		inputDir = flag.String("i", "raw_results", "Path to the directory with input CSV files")
-		outputDir = flag.String("o", "figs", "Path to the directory for output figures")
+		inputDir   = flag.String("i", "raw_results", "Path to the directory with input CSV files")
+		outputDir  = flag.String("o", "figs", "Path to the directory for output figures")
 		debugLevel = flag.String("d", "info", "Debug level: info, debug")
 	)
 	flag.Parse()
@@ -82,7 +80,7 @@ func plotFig(outputDir string, records []Record) {
 }
 
 func parseFiles(inputDir string) ([]Record, int) {
-	files, err := ioutil.ReadDir(inputDir)
+	files, err := os.ReadDir(inputDir)
 	if err != nil {
 		log.Fatal("Cannot open the input directory:", err)
 	}
@@ -95,7 +93,9 @@ func parseFiles(inputDir string) ([]Record, int) {
 	var recs []Record
 	var totalFailedNum int
 	for _, file := range files {
-		if matched := filePattern.MatchString(file.Name()); !matched  { continue }
+		if matched := filePattern.MatchString(file.Name()); !matched {
+			continue
+		}
 
 		log.Debug("Open file ", file.Name())
 
@@ -133,8 +133,8 @@ func getXY(records []Record) plotter.XYs {
 
 type LatencyRecord struct {
 	responseTime, requestedDuration int
-	slowdown float64
-	failed bool
+	slowdown                        float64
+	failed                          bool
 }
 
 func getSlowdown(filePath string) (float64, int) {

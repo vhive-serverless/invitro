@@ -8,6 +8,7 @@ if __name__ == "__main__":
     cmd_get_loader_pct = ['bash', 'scripts/metrics/get_loader_cpu_pct.sh']
     cmd_get_abs_vals = ['bash', 'scripts/metrics/get_node_stats_abs.sh']
     cmd_get_pcts = ['bash', 'scripts/metrics/get_node_stats_percent.sh']
+    cmd_get_pod_abs_vals = ['bash', 'scripts/metrics/get_pod_stats_abs.sh']
 
     result = {
         "master_cpu_pct": 0,
@@ -18,6 +19,8 @@ if __name__ == "__main__":
         "cpu_pct_max": 0,
         "memory": [],
         "memory_pct": 0,
+        "pod_cpu": [],
+        "pod_mem": [],
     }
 
     loader_cpu_pct, loader_mem_pct = list(
@@ -27,6 +30,7 @@ if __name__ == "__main__":
 
     abs_out = subprocess.check_output(cmd_get_abs_vals).decode("utf-8")[:-1]
     pcts_out = subprocess.check_output(cmd_get_pcts).decode("utf-8")
+    pod_abs_out = subprocess.check_output(cmd_get_pod_abs_vals).decode("utf-8")[:-1]
 
     cpus = []
     mems = []
@@ -49,6 +53,12 @@ if __name__ == "__main__":
         cpus.append(float(cpu_pct_avg))
         result['memory'].append(mem[1:-1])
         mems.append(float(mem_pct))
+    
+
+    for pod_abs_vals in pod_abs_out.split("\n"):
+        pod_cpu, pod_mem = pod_abs_vals.split(' ')
+        result['pod_cpu'].append(pod_cpu)
+        result['pod_mem'].append(pod_mem)
     
     # Prevent div-0 in the case of single-node.
     if counter != 0:

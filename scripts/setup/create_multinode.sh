@@ -32,32 +32,57 @@ server_exec() {
     ssh -oStrictHostKeyChecking=no -p 22 "$1" "$2";
 }
 
-#* Run initialisation on a node.
 common_init() {
-    server_exec $1 "git clone --branch=$VHIVE_BRANCH https://github.com/ease-lab/vhive"
-    server_exec $1 "cd; ./vhive/scripts/cloudlab/setup_node.sh $OPERATION_MODE"
-    server_exec $1 'tmux new -s containerd -d'
-    server_exec $1 'tmux send -t containerd "sudo containerd 2>&1 | tee ~/containerd_log.txt" ENTER'
-    server_exec $1 'sudo ntpdate -s ops.emulab.net' # synchronize clock across nodes
+    internal_init() {
+        server_exec $1 "git clone --branch=$VHIVE_BRANCH https://github.com/ease-lab/vhive"
+        server_exec $1 "cd; ./vhive/scripts/cloudlab/setup_node.sh $OPERATION_MODE"
+        server_exec $1 'tmux new -s containerd -d'
+        server_exec $1 'tmux send -t containerd "sudo containerd 2>&1 | tee ~/containerd_log.txt" ENTER'
+        # install precise NTP clock synchronizer
+        server_exec $1 'sudo apt-get update && sudo apt-get install -y chrony htop sysstat'
+        # synchronize clock across nodes
+        server_exec $1 "sudo chronyd -q \"server ops.emulab.net iburst\""
+        # dump clock info
+        server_exec $1 'sudo chronyc tracking'
+        # stabilize the node
+        server_exec $1 './vhive/scripts/stabilize.sh'
+    }
+
+    for node in "$@"
+    do
+        internal_init "$node" &
+    done
+
+    wait
 }
 
 function setup_master() {
     echo "Setting up master node: $MASTER_NODE"
 
-    server_exec "$MASTER_NODE" 'wget -q https://dl.google.com/go/go1.17.linux-amd64.tar.gz >/dev/null'
-    server_exec "$MASTER_NODE" 'sudo rm -rf /usr/local/go && sudo tar -C /usr/local/ -xzf go1.17.linux-amd64.tar.gz >/dev/null'
+    server_exec "$MASTER_NODE" 'wget -q https://go.dev/dl/go1.19.4.linux-amd64.tar.gz >/dev/null'
+    server_exec "$MASTER_NODE" 'sudo rm -rf /usr/local/go && sudo tar -C /usr/local/ -xzf go1.19.4.linux-amd64.tar.gz >/dev/null'
     server_exec "$MASTER_NODE" 'echo "export PATH=$PATH:/usr/local/go/bin" >> .profile'
 
     server_exec "$MASTER_NODE" 'tmux new -s runner -d'
     server_exec "$MASTER_NODE" 'tmux new -s kwatch -d'
     server_exec "$MASTER_NODE" 'tmux new -s master -d'
+
+    # Setup Github authentication
+    ACCESS_TOKEN="$(cat $GITHUB_TOKEN)"
+
+    server_exec $MASTER_NODE 'echo -en "\n\n" | ssh-keygen -t rsa'
+    server_exec $MASTER_NODE 'ssh-keyscan -t rsa github.com >> ~/.ssh/known_hosts'
+    server_exec $MASTER_NODE 'curl -H "Authorization: token '"$ACCESS_TOKEN"'" --data "{\"title\":\"'"key:\$(hostname)"'\",\"key\":\"'"\$(cat ~/.ssh/id_rsa.pub)"'\"}" https://api.github.com/user/keys'
+
+    clone_loader $MASTER_NODE
+
     MN_CLUSTER="./vhive/scripts/cluster/create_multinode_cluster.sh ${OPERATION_MODE}"
     server_exec "$MASTER_NODE" "tmux send -t master \"$MN_CLUSTER\" ENTER"
 
     # Get the join token from k8s.
     while [ ! "$LOGIN_TOKEN" ]
     do
-        sleep 1s
+        sleep 1
         server_exec "$MASTER_NODE" 'tmux capture-pane -t master -b token'
         LOGIN_TOKEN="$(server_exec "$MASTER_NODE" 'tmux show-buffer -b token | grep -B 3 "All nodes need to be joined"')"
         echo "$LOGIN_TOKEN"
@@ -83,8 +108,9 @@ function setup_vhive_firecracker_daemon() {
 }
 
 function setup_workers() {
-    for node in "$@"
-    do
+    internal_setup() {
+        node=$1
+
         echo "Setting up worker node: $node"
         server_exec $node "./vhive/scripts/cluster/setup_worker_kubelet.sh $OPERATION_MODE"
 
@@ -95,22 +121,25 @@ function setup_workers() {
         server_exec $node "sudo ${LOGIN_TOKEN}"
         echo "Worker node $node has joined the cluster."
 
-        #* Disable worker turbo boost for better timing.
-        server_exec $node './vhive/scripts/turbo_boost.sh disable'
-        #* Disable worker hyperthreading (security).
-        server_exec $node 'echo off | sudo tee /sys/devices/system/cpu/smt/control'
-
-        #* Stretch the capacity of the worker node to 240 (k8s default: 110).
-        #* Empirically, this gives us a max. #pods being 240-40=200.
-        echo "Streching node capacity for $node."
+        # Stretch the capacity of the worker node to 240 (k8s default: 110)
+        # Empirically, this gives us a max. #pods being 240-40=200
+        echo "Stretching node capacity for $node."
         server_exec $node "echo \"maxPods: ${PODS_PER_NODE}\" > >(sudo tee -a /var/lib/kubelet/config.yaml >/dev/null)"
+        server_exec $node "echo \"containerLogMaxSize: 512Mi\" > >(sudo tee -a /var/lib/kubelet/config.yaml >/dev/null)"
         server_exec $node 'sudo systemctl restart kubelet'
         server_exec $node 'sleep 10'
 
-        #* Rejoin has to be performed although errors will be thrown. Otherwise, restarting the kubelet will cause the node unreachable for some reason.
+        # Rejoin has to be performed although errors will be thrown. Otherwise, restarting the kubelet will cause the node unreachable for some reason
         server_exec $node "sudo ${LOGIN_TOKEN} > /dev/null 2>&1"
         echo "Worker node $node joined the cluster (again :P)."
+    }
+
+    for node in "$@"
+    do
+        internal_setup "$node" &
     done
+
+    wait
 }
 
 function extend_CIDR() {
@@ -145,18 +174,48 @@ function extend_CIDR() {
     done
 }
 
+function clone_loader() {
+    server_exec $1 "git clone --branch=$LOADER_BRANCH git@github.com:eth-easl/loader.git"
+    server_exec $1 'echo -en "\n\n" | sudo apt-get install python3-pip python-dev'
+    server_exec $1 'cd; cd loader; pip install -r config/requirements.txt'
+}
+
+function copy_k8s_certificates() {
+    echo $MASTER_NODE
+    rsync $MASTER_NODE:~/.kube/config ./kubeconfig
+
+    for node in "$@"
+    do
+        server_exec $node "mkdir -p ~/.kube"
+        rsync ./kubeconfig $node:~/.kube/config
+    done
+
+    rm ./kubeconfig
+}
+
+function clone_loader_on_workers() {
+    # copying ssh keys first from the master node
+    rsync $MASTER_NODE:~/.ssh/id_rsa* .
+
+    for node in "$@"
+    do
+        rsync ./id_rsa* $node:~/.ssh/
+        server_exec $node "chmod 600 ~/.ssh/id_rsa"
+        server_exec $node 'ssh-keyscan -t rsa github.com >> ~/.ssh/known_hosts'
+
+        clone_loader $node
+    done
+
+    rm ./id_rsa*
+}
+
 ###############################################
 ######## MAIN SETUP PROCEDURE IS BELOW ########
 ###############################################
 
 {
-    #* Set up all nodes including the master.
-    for node in "$@"
-    do
-        echo $node
-        common_init "$node" &
-    done
-    wait $!
+    # Set up all nodes including the master
+    common_init "$@"
 
     shift # make argument list only contain worker nodes (drops master node)
 
@@ -167,36 +226,20 @@ function extend_CIDR() {
         extend_CIDR "$@"
     fi
 
-    #* Notify the master that all nodes have been registered
+    # Notify the master that all nodes have joined the cluster
     server_exec $MASTER_NODE 'tmux send -t master "y" ENTER'
     echo "Master node $MASTER_NODE finalised."
 
-    #* Setup github authentication.
-    ACCESS_TOKEH="$(cat $GITHUB_TOKEN)"
-
-    server_exec $MASTER_NODE 'echo -en "\n\n" | ssh-keygen -t rsa'
-    server_exec $MASTER_NODE 'ssh-keyscan -t rsa github.com >> ~/.ssh/known_hosts'
-
-    server_exec $MASTER_NODE 'curl -H "Authorization: token '"$ACCESS_TOKEH"'" --data "{\"title\":\"'"key:\$(hostname)"'\",\"key\":\"'"\$(cat ~/.ssh/id_rsa.pub)"'\"}" https://api.github.com/user/keys'
-
-    #* Get loader and dependencies.
-    server_exec $MASTER_NODE "git clone --branch=$LOADER_BRANCH git@github.com:eth-easl/loader.git"
-    server_exec $MASTER_NODE 'echo -en "\n\n" | sudo apt-get install python3-pip python-dev'
-    server_exec $MASTER_NODE 'cd; cd loader; pip install -r config/requirements.txt'
+    # Copy API server certificates from master to each worker node
+    copy_k8s_certificates "$@"
+    clone_loader_on_workers "$@"
 
     source $DIR/taint.sh
 
-    # force placement of metrics collectors and instrumentation on the master node
+    # Force placement of metrics collectors and instrumentation on the master node
     taint_workers $MASTER_NODE
     $DIR/expose_infra_metrics.sh $MASTER_NODE
     untaint_workers $MASTER_NODE
-
-    #* Disable master turbo boost.
-    server_exec $MASTER_NODE './vhive/scripts/turbo_boost.sh disable'
-    #* Disable master hyperthreading.
-    server_exec $MASTER_NODE 'echo off | sudo tee /sys/devices/system/cpu/smt/control'
-    #* Create CGroup.
-    server_exec $MASTER_NODE 'sudo bash loader/scripts/isolation/define_cgroup.sh'
 
     taint_master $MASTER_NODE
 }

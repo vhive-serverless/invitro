@@ -1,0 +1,17 @@
+{
+ "Seed": 42,
+ "YAMLSelector": "container",
+ "EndpointPort": 80,
+ "TracePath": "data/traces",
+ "OutputPathPrefix": "data/out/experiment",
+ "IATDistribution": "exponential",
+ "ExperimentDuration": 2,
+ "WarmupDuration": 10,
+ "IsPartiallyPanic": false,
+ "EnableZipkinTracing": false,
+ "EnableMetricsScrapping": false,
+ "AutoscalingMetric": "concurrency",
+ "MetricScrapingPeriodSeconds": 60,
+ "GRPCConnectionTimeoutSeconds": 60,
+ "GRPCFunctionTimeoutSeconds": 900
+}

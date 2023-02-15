@@ -19,7 +19,7 @@ server_exec() {
     server_exec 'tmux new -d -s containerd'
     server_exec 'tmux new -d -s cluster'
     server_exec 'tmux send-keys -t containerd "sudo containerd" ENTER'
-    sleep 3s
+    sleep 3
     server_exec 'cd vhive; ./scripts/cluster/create_one_node_cluster.sh stock-only'
     server_exec 'tmux send-keys -t cluster "watch -n 0.5 kubectl get pods -A" ENTER'
 
@@ -47,13 +47,6 @@ server_exec() {
 
     $DIR/expose_infra_metrics.sh $SERVER
 
-    #* Disable turbo boost.
-    server_exec './vhive/scripts/turbo_boost.sh disable'
-    #* Disable hyperthreading.
-    server_exec 'echo off | sudo tee /sys/devices/system/cpu/smt/control'
-    #* Create CGroup.
-    server_exec 'sudo bash loader/scripts/isolation/define_cgroup.sh'
-
-    echo "Logging in master node $SEVER"
-    exit
+    # Stabilize the node
+    server_exec './vhive/scripts/stabilize.sh'
 }

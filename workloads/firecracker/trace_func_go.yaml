@@ -15,6 +15,8 @@ spec:
 
         autoscaling.knative.dev/panic-window-percentage: $PANIC_WINDOW
         autoscaling.knative.dev/panic-threshold-percentage: $PANIC_THRESHOLD
+        autoscaling.knative.dev/metric: $AUTOSCALING_METRIC
+        autoscaling.knative.dev/target: $AUTOSCALING_TARGET
     spec:
       containerConcurrency: 1
       containers:
@@ -26,8 +28,12 @@ spec:
             - name: GUEST_PORT # Port on which the firecracker-containerd container is accepting requests.
               value: "50051"
             - name: GUEST_IMAGE # Container image to use for firecracker-containerd container.
-              value: "hyhe/trace-func-firecracker:latest"
+              value: "cvetkovic/trace_function_firecracker:latest"
+            - name: ITERATIONS_MULTIPLIER
+              value: "102"
           resources:
+            limits:
+              cpu: $CPU_LIMITS
             requests:
               cpu: $CPU_REQUEST
-              memory: $MEMORY_REQUEST
+              memory: $MEMORY_REQUESTS

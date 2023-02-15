@@ -1,10 +1,15 @@
-load
+loader
 analysis
 .vscode/
 .idea
 tmp
 data/out
-data/traces
+data/traces/*
+!data/traces/example/
+pkg/generator/*.png
+pkg/generator/*.txt
+*.log
+tools/*/__pycache__
 
 ### CMake ###
 CMakeLists.txt.user
@@ -86,3 +91,4 @@ Icon
 Network Trash Folder
 Temporary Items
 .apdisk
+.venv

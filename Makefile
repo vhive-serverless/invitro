@@ -6,11 +6,11 @@ proto:
 		--go_opt=paths=source_relative \
 		--go-grpc_out=. \
 		--go-grpc_opt=paths=source_relative \
-		server/faas.proto 
+		pkg/workload/proto/faas.proto
 	/usr/bin/python3 -m grpc_tools.protoc -I=. \
 		--python_out=. \
 		--grpc_python_out=. \
-		server/faas.proto
+		pkg/workload/proto/faas.proto
 
 # make -i clean
 clean: 
@@ -26,37 +26,58 @@ clean:
 # 	kubectl delete --all podautoscalers -n default
 
 	bash scripts/warmup/reset_kn_global.sh
-	rm -f load
+	rm -f loader
 # 	rm -f *.log
 	go mod tidy
 
-logs:
-	mkdir logs
-	mv *.log *.flag logs
-
 rm-results:
-	rm *.log *.flag data/out/*
+	rm data/out/*.csv
 
 build:
-	go build cmd/load.go
+	go build cmd/loader.go
 
-# make ARGS='--rps X --duration X' run 2>&1 | tee loader.log
 run:
-	go run cmd/load.go $(ARGS)
+	go run cmd/loader.go --config cmd/config.json
 
 test:
-	go test -v -cover -race ./pkg/test/
-	go test -v -cover -race ./tools/trace_synthesizer/tests/
+	go test -v -cover -race \
+		./pkg/config/ \
+		./pkg/driver/ \
+		./pkg/generator/ \
+		./pkg/trace/
 
+# Used for replying the trace
 trace-firecracker:
-	docker build -f Dockerfile.trace.firecracker -t hyhe/trace-func-firecracker .
-	docker push hyhe/trace-func-firecracker:latest
+	docker build --build-arg FUNC_TYPE=TRACE \
+		--build-arg FUNC_PORT=50051 \
+		-f Dockerfile.trace \
+		-t cvetkovic/trace_function_firecracker .
+	docker push cvetkovic/trace_function_firecracker:latest
 
+# Used for replying the trace
 trace-container:
-	docker build -f Dockerfile.trace.container -t hyhe/trace-func-container .
-	docker push hyhe/trace-func-container:latest
+	docker build --build-arg FUNC_TYPE=TRACE \
+		--build-arg FUNC_PORT=80 \
+		-f Dockerfile.trace \
+		-t cvetkovic/trace_function .
+	docker push cvetkovic/trace_function:latest
+
+# Used for measuring cold start latency
+empty-firecracker:
+	docker build --build-arg FUNC_TYPE=EMPTY \
+		--build-arg FUNC_PORT=50051 \
+		-f Dockerfile.trace \
+		-t cvetkovic/empty_function_firecracker .
+	docker push cvetkovic/empty_function_firecracker:latest
+
+# Used for measuring cold start latency
+empty-container:
+	docker build --build-arg FUNC_TYPE=EMPTY \
+		--build-arg FUNC_PORT=80 \
+		-f Dockerfile.trace \
+		-t cvetkovic/empty_function .
+	docker push cvetkovic/empty_function:latest
 
 wimpy:
 	docker build -f Dockerfile.wimpy -t hyhe/wimpy .
 	docker push hyhe/wimpy:latest
-

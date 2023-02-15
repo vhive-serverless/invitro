@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	util "github.com/eth-easl/loader/pkg/common"
+	"github.com/eth-easl/loader/pkg/workload/proto"
 	"net"
 	"time"
 
@@ -11,22 +13,19 @@ import (
 	"golang.org/x/sys/unix"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
-
-	util "github.com/eth-easl/loader/pkg"
-	rpc "github.com/eth-easl/loader/server"
 )
 
 type funcServer struct {
-	rpc.UnimplementedExecutorServer
+	proto.UnimplementedExecutorServer
 }
 
-func (s *funcServer) Execute(ctx context.Context, req *rpc.FaasRequest) (*rpc.FaasReply, error) {
+func (s *funcServer) Execute(ctx context.Context, req *proto.FaasRequest) (*proto.FaasReply, error) {
 	start := time.Now()
 	runtimeRequested := req.RuntimeInMilliSec
 	timeoutSem := time.After(time.Duration(runtimeRequested) * time.Millisecond)
 	if runtimeRequested <= 0 {
 		//* Some of the durations were incorrectly recorded as 0 in the trace.
-		return &rpc.FaasReply{}, errors.New("non-positive execution time")
+		return &proto.FaasReply{}, errors.New("non-positive execution time")
 	}
 
 	pageSize := unix.Getpagesize()
@@ -36,13 +35,13 @@ func (s *funcServer) Execute(ctx context.Context, req *rpc.FaasRequest) (*rpc.Fa
 		unix.PROT_WRITE, unix.MAP_ANON|unix.MAP_PRIVATE)
 	if err != nil {
 		log.Errorf("Failed to allocate requested memory: %v", err)
-		return &rpc.FaasReply{}, err
+		return &proto.FaasReply{}, err
 	}
 	err = unix.Munmap(pages) //* Don't even touch the allocated pages -> let them stay virtaul memory.
 	util.Check(err)
 
 	<-timeoutSem //* Blocking wait.
-	return &rpc.FaasReply{
+	return &proto.FaasReply{
 		Message:            "Wimpy func -- DONE", // Unused
 		DurationInMicroSec: uint32(time.Since(start).Microseconds()),
 		MemoryUsageInKb:    util.B2Kib(numPagesRequested * uint32(pageSize)),
@@ -60,7 +59,7 @@ func main() {
 	funcServer := &funcServer{}
 	grpcServer := grpc.NewServer()
 	reflection.Register(grpcServer) // gRPC Server Reflection is used by gRPC CLI.
-	rpc.RegisterExecutorServer(grpcServer, funcServer)
+	proto.RegisterExecutorServer(grpcServer, funcServer)
 	err = grpcServer.Serve(lis)
 	util.Check(err)
 }

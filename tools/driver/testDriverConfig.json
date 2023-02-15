@@ -1,0 +1,25 @@
+{
+  "username": "",
+  "experimentName": "example",
+  "localTracePath": "trace/example",
+  "loaderTracePath": "loader/data/traces",
+  "loaderAddresses": [
+    "localhost"
+  ],
+  "beginningFuncNum": 1,
+  "stepSizeFunc": 1,
+  "maxFuncNum": 1,
+  "experimentDuration": 2,
+  "warmupDuration": 10,
+  "workerNodeNum": 1,
+  "outputDir": "measurements",
+  "YAMLSelector": "container",
+  "IATDistribution": "exponential",
+  "loaderOutputPath": "data/out/experiment",
+  "partiallyPanic": false,
+  "EnableZipkinTracing":    false,
+  "EnableMetricsScrapping": false,
+  "AutoscalingMetric": "concurrency",
+  "MetricScrapingPeriodSeconds": 60,
+  "separateIATGeneration": false
+}
