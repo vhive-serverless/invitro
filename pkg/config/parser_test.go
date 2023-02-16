@@ -26,7 +26,7 @@ func TestConfigParser(t *testing.T) {
 		!strings.HasPrefix(config.TracePath, "data/traces") ||
 		!strings.HasPrefix(config.OutputPathPrefix, "data/out/experiment") ||
 		config.Granularity != "minute" ||
-		config.IATDistribution != "equidistant" ||
+		config.IATDistribution != "exponential" ||
 		config.ExperimentDuration != 45 ||
 		config.WarmupDuration != 0 ||
 		config.IsPartiallyPanic != false ||
