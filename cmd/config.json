@@ -7,7 +7,7 @@
   "TracePath": "data/traces/example",
   "Granularity": "minute",
   "OutputPathPrefix": "data/out/experiment",
-  "IATDistribution": "equidistant",
+  "IATDistribution": "exponential",
   "ExperimentDuration": 45,
   "WarmupDuration": 0,
 

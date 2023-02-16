@@ -76,7 +76,7 @@ function setup_master() {
 
     clone_loader $MASTER_NODE
 
-    MN_CLUSTER="./vhive/scripts/cluster/create_multinode_cluster.sh ${OPERATION_MODE} ${KNATIVE_NODE_COUNT}"
+    MN_CLUSTER="./vhive/scripts/cluster/create_multinode_cluster.sh ${OPERATION_MODE}"
     server_exec "$MASTER_NODE" "tmux send -t master \"$MN_CLUSTER\" ENTER"
 
     # Get the join token from k8s.
