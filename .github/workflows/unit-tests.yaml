@@ -20,7 +20,7 @@ env:
 jobs:
   unit_tests:
     name: Build and test
-    runs-on: ubuntu-20.04
+    runs-on: self-hosted
     strategy:
       fail-fast: false
       matrix:
