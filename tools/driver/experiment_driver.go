@@ -23,6 +23,7 @@ type LoaderConfiguration struct {
 	EndpointPort int    `json:"EndpointPort"`
 
 	TracePath          string `json:"TracePath"`
+	Granularity        string `json:"Granularity"`
 	OutputPathPrefix   string `json:"OutputPathPrefix"`
 	IATDistribution    string `json:"IATDistribution"`
 	ExperimentDuration int    `json:"ExperimentDuration"`
@@ -67,6 +68,7 @@ type Driver struct {
 	MetricScrapingPeriodSeconds int    `json:"MetricScrapingPeriodSeconds"`
 	SeparateIATGeneration       bool   `json:"separateIATGeneration"`
 	AutoscalingMetric           string `json:"AutoscalingMetric"`
+	Granularity                 string `json:"Granularity"`
 	loaderConfig                loaderConfig
 }
 
@@ -156,6 +158,7 @@ func (d *Driver) createLoaderConfig(functionNumber int) loaderConfig {
 		EndpointPort: 80,
 
 		TracePath:          loaderTracePath,
+		Granularity:        d.Granularity,
 		OutputPathPrefix:   d.LoaderOutputPath,
 		IATDistribution:    d.IATDistribution,
 		ExperimentDuration: d.ExperimentDuration,
