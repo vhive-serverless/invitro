@@ -13,7 +13,7 @@
 
   "IsPartiallyPanic": false,
   "EnableZipkinTracing": false,
-  "EnableMetricsScrapping": false,
+  "EnableMetricsScrapping": true,
   "MetricScrapingPeriodSeconds": 15,
   "AutoscalingMetric": "hybrid",
 
