@@ -467,6 +467,11 @@ func (d *Driver) clean() {
 			if err != nil {
 				log.Fatalf("Failed to clean the loader state after the experiment: %s", err)
 			}
+			out, err = client.Exec("cd vhive; source /etc/profile; kubectl apply -f configs/knative_yamls/serving-core.yaml")
+			log.Debug(string(out))
+			if err != nil {
+				log.Fatalf("Failed to apply yamls after the experiment: %s", err)
+			}
 		}(client)
 	}
 	wg.Wait()
