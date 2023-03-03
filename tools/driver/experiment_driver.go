@@ -366,7 +366,7 @@ func (d *Driver) collectStats() {
 	for idx, client := range clients {
 		go func(client *simplessh.Client, idx int) {
 			defer wg.Done()
-			durationInt = durationInt + d.WarmupDuration + 1 // add warmup and profiling duration
+			durationInt = durationInt + d.WarmupDuration // add warmup
 			duration := strconv.Itoa(durationInt)
 			metrics := []string{"duration"}
 			if d.loaderConfig.loaderConfiguration.EnableMetricsScrapping {
