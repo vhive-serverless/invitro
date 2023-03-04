@@ -367,6 +367,9 @@ func (d *Driver) collectStats() {
 		go func(client *simplessh.Client, idx int) {
 			defer wg.Done()
 			durationInt = durationInt + d.WarmupDuration // add warmup
+			if d.WarmupDuration > 0 {
+				durationInt += 1 // add profiling
+			}
 			duration := strconv.Itoa(durationInt)
 			metrics := []string{"duration"}
 			if d.loaderConfig.loaderConfiguration.EnableMetricsScrapping {
@@ -393,7 +396,11 @@ func (d *Driver) collectStats() {
 }
 
 func (d *Driver) aggregateStats() {
-	path := filepath.Join(d.OutputDir, d.ExperimentName, "/experiment_duration_"+strconv.Itoa(d.ExperimentDuration+d.WarmupDuration))
+	duration := d.ExperimentDuration
+	if d.WarmupDuration > 0 {
+		duration += d.WarmupDuration + 1
+	}
+	path := filepath.Join(d.OutputDir, d.ExperimentName, "/experiment_duration_"+strconv.Itoa(duration))
 	path = path + "_" + strconv.Itoa(d.loaderConfig.functions) + "functions_part_0.csv"
 	// path to the results file from the first loader, which should always exist
 	// If there is only 1 loader, then this is the only results file.
@@ -429,7 +436,11 @@ func (d *Driver) aggregateStats() {
 		log.Fatalf("error writing record to file: %s", err)
 	}
 	for i := 1; i < len(d.clients); i++ {
-		path = filepath.Join(d.OutputDir, d.ExperimentName, "/experiment_duration_"+strconv.Itoa(d.ExperimentDuration+d.WarmupDuration))
+		duration := d.ExperimentDuration
+		if d.WarmupDuration > 0 {
+			duration += d.WarmupDuration + 1
+		}
+		path = filepath.Join(d.OutputDir, d.ExperimentName, "/experiment_duration_"+strconv.Itoa(duration))
 		path = path + "_" + strconv.Itoa(d.loaderConfig.functions) + "functions_part_" + strconv.Itoa(i) + ".csv"
 		// path to the i-th result file (the 0-th one has already been read and written into the aggregated file)
 		_, err := os.Stat(path)
