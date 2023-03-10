@@ -1,18 +1,17 @@
 #!/bin/bash
 
 ######################################################
-# Script for tainting cluster
+# Script for labeling cluster
 ######################################################
-# taint_master $MASTER_NODE - forbid scheduling pods on nodes labeled as master nodes
-# taint_workers $MASTER_NODE - forbid scheduling pods on any node not labeled as master
-# untaint_workers $MASTER_NODE - remove taint introduced by taint_worker function
+# label_master $MASTER_NODE - label master node as monitoring
+# label_workers $MASTER_NODE - label worker node as worker
 ######################################################
 
 server_exec() {
   ssh -oStrictHostKeyChecking=no -p 22 $1 $2;
 }
 
-taint_master() {
+label_master() {
   MASTER_NODE=$1
 
   server_exec $MASTER_NODE 'kubectl get nodes' > tmp
@@ -23,15 +22,15 @@ taint_master() {
     TYPE=$(echo $LINE | cut -d ' ' -f 3)
 
     if [[ $TYPE == *"master"* ]]; then
-      echo "Tainted ${NODE}"
-      server_exec $MASTER_NODE "kubectl taint nodes ${NODE} key1=value1:NoSchedule" < /dev/null
+      echo "Label ${NODE}"
+      server_exec $MASTER_NODE "kubectl label nodes ${NODE} loader-nodetype=monitoring" < /dev/null
     fi
   done < tmp
 
   rm tmp
 }
 
-taint_workers() {
+label_workers() {
   MASTER_NODE=$1
 
   server_exec $MASTER_NODE 'kubectl get nodes' > tmp
@@ -42,15 +41,15 @@ taint_workers() {
     TYPE=$(echo $LINE | cut -d ' ' -f 3)
 
     if [[ $TYPE != *"master"* ]]; then
-      echo "Tainted ${NODE}"
-      server_exec $MASTER_NODE "kubectl taint nodes ${NODE} key1=value1:NoSchedule" < /dev/null
+      echo "Label ${NODE}"
+      server_exec $MASTER_NODE "kubectl label nodes ${NODE} loader-nodetype=worker" < /dev/null
     fi
   done < tmp
 
   rm tmp
 }
 
-untaint_workers() {
+label_all_workers() {
   MASTER_NODE=$1
 
   server_exec $MASTER_NODE 'kubectl get nodes' > tmp
@@ -58,12 +57,9 @@ untaint_workers() {
 
   while read LINE; do
     NODE=$(echo $LINE | cut -d ' ' -f 1)
-    TYPE=$(echo $LINE | cut -d ' ' -f 3)
 
-    if [[ $TYPE != *"master"* ]]; then
-      echo "Untainted ${NODE}"
-      server_exec $MASTER_NODE "kubectl taint nodes ${NODE} key1-" < /dev/null
-    fi
+    echo "Label ${NODE}"
+    server_exec $MASTER_NODE "kubectl label nodes ${NODE} loader-nodetype=worker" < /dev/null
   done < tmp
 
   rm tmp

@@ -248,14 +248,16 @@ function clone_loader_on_workers() {
 
     server_exec $MASTER_NODE 'cd loader; bash scripts/setup/patch_init_scale.sh'
 
+    source $DIR/label.sh
     if [[ "$DEPLOY_PROMETHEUS" == true ]]; then
-        source $DIR/taint.sh
 
-        # Force placement of metrics collectors and instrumentation on the master node
-        taint_workers $MASTER_NODE
+        # # Force placement of metrics collectors and instrumentation on the master node
+        label_workers $MASTER_NODE
+        label_master $MASTER_NODE
         $DIR/expose_infra_metrics.sh $MASTER_NODE
-        untaint_workers $MASTER_NODE
-
-        taint_master $MASTER_NODE
+    else
+        label_all_workers $MASTER_NODE
     fi
+    # patch knative to accept nodeselector
+    server_exec $MASTER_NODE "cd loader; kubectl patch configmap config-features -n knative-serving -p '{\"data\": {\"kubernetes.podspec-nodeselector\": \"enabled\"}}'"
 }
