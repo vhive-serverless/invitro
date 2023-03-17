@@ -7,7 +7,6 @@ server_exec() {
 
 {
 	echo 'Setting up monitoring components'
-	server_exec 'sudo apt install htop'
 
 	#* Deploy Metrics Server to k8s in namespace kube-system.
 	server_exec 'cd loader; kubectl apply -f config/metrics_server_components.yaml'
