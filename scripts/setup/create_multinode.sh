@@ -234,6 +234,8 @@ function clone_loader_on_workers() {
     copy_k8s_certificates "$@"
     clone_loader_on_workers "$@"
 
+    server_exec $MASTER_NODE 'cd loader; bash scripts/setup/patch_init_scale.sh'
+
     if [[ "$DEPLOY_PROMETHEUS" == true ]]; then
         source $DIR/taint.sh
 

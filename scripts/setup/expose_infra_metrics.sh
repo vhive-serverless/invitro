@@ -53,6 +53,5 @@ server_exec() {
 
 	echo 'Done setting up monitoring components'
 
-	server_exec 'cd loader; bash scripts/setup/patch_init_scale.sh'
 	exit
 }
