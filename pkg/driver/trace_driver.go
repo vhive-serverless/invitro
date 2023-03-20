@@ -141,7 +141,7 @@ type InvocationMetadata struct {
 
 	SuccessCount           *int64
 	FailedCount            *int64
-	ApproximateFailedCount *int64
+	FailedCountByMinute    []int64
 
 	RecordOutputChannel chan *mc.ExecutionRecord
 	AnnounceDoneWG      *sync.WaitGroup
@@ -174,7 +174,7 @@ func (d *Driver) invokeFunction(metadata *InvocationMetadata) {
 		atomic.AddInt64(metadata.SuccessCount, 1)
 	} else {
 		atomic.AddInt64(metadata.FailedCount, 1)
-		atomic.AddInt64(metadata.ApproximateFailedCount, 1)
+		atomic.AddInt64(&metadata.FailedCountByMinute[metadata.MinuteIndex], 1)
 	}
 
 	metadata.RecordOutputChannel <- record
@@ -190,7 +190,7 @@ func (d *Driver) individualFunctionDriver(function *common.Function, announceFun
 
 	var successfulInvocations int64
 	var failedInvocations int64
-	var approximateFailedCount int64
+	var failedInvocationByMinute = make([]int64, totalTraceDuration)
 	var numberOfIssuedInvocations int64
 	var currentPhase = common.ExecutionPhase
 
@@ -213,8 +213,10 @@ func (d *Driver) individualFunctionDriver(function *common.Function, announceFun
 			break
 		} else if function.InvocationStats.Invocations[minuteIndex] == 0 {
 			// Sleep for a minute if there are no invocations
-			d.proceedToNextMinute(function, &minuteIndex, &invocationIndex,
-				&startOfMinute, true, &currentPhase, &approximateFailedCount, &previousIATSum)
+			if d.proceedToNextMinute(function, &minuteIndex, &invocationIndex,
+				&startOfMinute, true, &currentPhase, failedInvocationByMinute, &previousIATSum) {
+				break
+			}
 
 			switch d.Configuration.TraceGranularity {
 			case common.MinuteGranularity:
@@ -240,7 +242,7 @@ func (d *Driver) individualFunctionDriver(function *common.Function, announceFun
 				InvocationIndex:        invocationIndex,
 				SuccessCount:           &successfulInvocations,
 				FailedCount:            &failedInvocations,
-				ApproximateFailedCount: &approximateFailedCount,
+				FailedCountByMinute:    failedInvocationByMinute,
 				RecordOutputChannel:    recordOutputChannel,
 				AnnounceDoneWG:         &waitForInvocations,
 			})
@@ -269,7 +271,7 @@ func (d *Driver) individualFunctionDriver(function *common.Function, announceFun
 		invocationIndex++
 		if function.InvocationStats.Invocations[minuteIndex] == invocationIndex || hasMinuteExpired(startOfMinute) {
 			readyToBreak := d.proceedToNextMinute(function, &minuteIndex, &invocationIndex, &startOfMinute,
-				false, &currentPhase, &approximateFailedCount, &previousIATSum)
+				false, &currentPhase, failedInvocationByMinute, &previousIATSum)
 
 			if readyToBreak {
 				break
@@ -288,36 +290,30 @@ func (d *Driver) individualFunctionDriver(function *common.Function, announceFun
 }
 
 func (d *Driver) proceedToNextMinute(function *common.Function, minuteIndex *int, invocationIndex *int, startOfMinute *time.Time,
-	skipMinute bool, currentPhase *common.ExperimentPhase, approximateFailedCount *int64, previousIATSum *int64) bool {
+	skipMinute bool, currentPhase *common.ExperimentPhase, failedInvocationByMinute []int64, previousIATSum *int64) bool {
 
 	if d.Configuration.TraceGranularity == common.MinuteGranularity {
 		if !isRequestTargetAchieved(function.InvocationStats.Invocations[*minuteIndex], *invocationIndex, common.RequestedVsIssued) {
 			// Not fatal because we want to keep the measurements to be written to the output file
-			log.Warnf("Relative difference between requested and issued number of invocations is greater than %.2f%%. Terminating experiment!\n", common.RequestedVsIssuedTerminateThreshold*100)
+			log.Warnf("Relative difference between requested and issued number of invocations is greater than %.2f%%. Terminating function driver for %s!\n", common.RequestedVsIssuedTerminateThreshold*100, function.Name)
 
 			return true
 		}
 
-		notFailedCount := function.InvocationStats.Invocations[*minuteIndex] - int(atomic.LoadInt64(approximateFailedCount))
-		if !isRequestTargetAchieved(function.InvocationStats.Invocations[*minuteIndex], notFailedCount, common.IssuedVsFailed) {
-			// Not fatal because we want to keep the measurements to be written to the output file
-			log.Warnf("Percentage of failed request is greater than %.2f%%. Terminating experiment!\n", common.FailedTerminateThreshold*100)
+		for i := 0; i <= *minuteIndex; i++ {
+			notFailedCount := function.InvocationStats.Invocations[i] - int(atomic.LoadInt64(&failedInvocationByMinute[i]))
+			if !isRequestTargetAchieved(function.InvocationStats.Invocations[i], notFailedCount, common.IssuedVsFailed) {
+				// Not fatal because we want to keep the measurements to be written to the output file
+				log.Warnf("Percentage of failed request is greater than %.2f%%. Terminating function driver for %s!\n", common.FailedTerminateThreshold*100, function.Name)
 
-			// NOTE: approximateFailedCount is the number of requests that experienced connection timeout or
-			// function timeout. If an invocation is invoked after 55th second of the minute, the connection
-			// timeout will happen in the next minute, or in case of function timeout, will happen after 15
-			// minutes. Hence, this metrics shows how much invocations failed in the current minute. It will
-			// eventually start to grow and after the relative difference between invoked and faild goes above
-			// 20% the experiment will be terminated.
-
-			return true
+				return true
+			}
 		}
 	}
 
 	*minuteIndex++
 	*invocationIndex = 0
 	*previousIATSum = 0
-	atomic.StoreInt64(approximateFailedCount, 0)
 
 	if d.Configuration.WithWarmup() && *minuteIndex == (d.Configuration.LoaderConfiguration.WarmupDuration+1) {
 		*currentPhase = common.ExecutionPhase
