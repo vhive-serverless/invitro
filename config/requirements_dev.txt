@@ -6,14 +6,14 @@ cryptography==39.0.1
 dbus-python==1.2.16
 distro==1.8.0
 distro-info===1.0
-html5lib==1.0.1
+html5lib==1.1
 idna==2.8
 language-selector==0.1
 lxml==4.5.0
 netifaces==0.11.0
 numpy==1.22.2
 packaging==21.3
-pandas==1.4.1
+pandas==1.5.3
 patsy==0.5.2
 pssh==2.3.1
 PyGObject==3.36.0
@@ -30,7 +30,7 @@ requests-unixsocket==0.2.0
 scipy==1.8.0
 six==1.16.0
 soupsieve==1.9.5
-ssh-import-id==5.10
+ssh-import-id==5.11
 statsmodels==0.13.2
 ubuntu-advantage-tools==20.3
 ufw==0.36
