@@ -6,7 +6,7 @@ cryptography==39.0.1
 dbus-python==1.2.16
 distro==1.8.0
 distro-info===1.0
-html5lib==1.0.1
+html5lib==1.1
 idna==2.8
 language-selector==0.1
 lxml==4.5.0
