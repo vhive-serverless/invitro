@@ -30,7 +30,7 @@ requests-unixsocket==0.2.0
 scipy==1.8.0
 six==1.16.0
 soupsieve==1.9.5
-ssh-import-id==5.10
+ssh-import-id==5.11
 statsmodels==0.13.2
 ubuntu-advantage-tools==20.3
 ufw==0.36
