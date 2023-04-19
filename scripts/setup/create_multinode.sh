@@ -175,36 +175,48 @@ function extend_CIDR() {
 }
 
 function clone_loader() {
-    server_exec $1 "git clone --branch=$LOADER_BRANCH git@github.com:eth-easl/loader.git"
-    server_exec $1 'echo -en "\n\n" | sudo apt-get install python3-pip python-dev'
+    server_exec $1 "git clone --depth=1 --branch=$LOADER_BRANCH git@github.com:eth-easl/loader.git"
+    server_exec $1 'echo -en "\n\n" | sudo apt-get install -y python3-pip python-dev'
     server_exec $1 'cd; cd loader; pip install -r config/requirements.txt'
 }
 
 function copy_k8s_certificates() {
+    function internal_copy() {
+        server_exec $1 "mkdir -p ~/.kube"
+        rsync ./kubeconfig $1:~/.kube/config
+    }
+
     echo $MASTER_NODE
     rsync $MASTER_NODE:~/.kube/config ./kubeconfig
 
     for node in "$@"
     do
-        server_exec $node "mkdir -p ~/.kube"
-        rsync ./kubeconfig $node:~/.kube/config
+        internal_copy "$node" &
     done
+
+    wait
 
     rm ./kubeconfig
 }
 
 function clone_loader_on_workers() {
+    function internal_clone() {
+        rsync ./id_rsa* $1:~/.ssh/
+        server_exec $1 "chmod 600 ~/.ssh/id_rsa"
+        server_exec $1 'ssh-keyscan -t rsa github.com >> ~/.ssh/known_hosts'
+
+        clone_loader $1
+    }
+
     # copying ssh keys first from the master node
     rsync $MASTER_NODE:~/.ssh/id_rsa* .
 
     for node in "$@"
     do
-        rsync ./id_rsa* $node:~/.ssh/
-        server_exec $node "chmod 600 ~/.ssh/id_rsa"
-        server_exec $node 'ssh-keyscan -t rsa github.com >> ~/.ssh/known_hosts'
-
-        clone_loader $node
+        internal_clone "$node" &
     done
+
+    wait
 
     rm ./id_rsa*
 }
