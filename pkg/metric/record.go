@@ -25,6 +25,8 @@ type ActivationRecord struct {
 	InitTime          int64  `csv:"initTime"`
 	// ActualMemoryUsage uint32 `csv:"actualMemoryUsage"`	//not supported
 
+	StartType string `csv:"startType"`
+
 	ConnectionTimeout     bool `csv:"connectionTimeout"`
 	FunctionTimeout       bool `csv:"functionTimeout"`
 	RequestCreationFailed bool `csv:"requestCreationFailed"`

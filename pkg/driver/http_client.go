@@ -3,9 +3,11 @@ package driver
 import (
 	"bytes"
 	"crypto/tls"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"os/exec"
+	"strings"
 	"time"
 
 	"github.com/eth-easl/loader/pkg/common"
@@ -55,42 +57,54 @@ func InvokeOpenWhisk(function *common.Function, runtimeSpec *common.RuntimeSpeci
 	}
 
 	record.ConnectionTimeout = false
-
-	//read response
-	record.ActivationID = res.Header.Get("X-Openwhisk-Activation-Id")
 	record.HttpStatusCode = res.StatusCode
-	record.Instance = recordInstance
-	record.ResponseTime = time.Since(start).Microseconds()
-
-	cmd := exec.Command("wsk", "-i", "activation", "get", record.ActivationID)
-	var out bytes.Buffer
-	cmd.Stdout = &out
-
-	er := cmd.Run()
-
-	if er != nil {
-		log.Fatal(err)
-	}
-
-	fmt.Println(out.String())
-
-	// record.ActualDuration = response.DurationInMicroSec
-	record.ActualDuration = uint32(record.ResponseTime) //change later
-
-	if res.StatusCode < 200 || res.StatusCode >= 300 {
-		log.Debugf("http request for function %s failed - error code: %d", function.Name, res.StatusCode)
+	if record.HttpStatusCode < 200 || record.HttpStatusCode >= 300 {
+		log.Debugf("http request for function %s failed - error code: %d", function.Name, record.HttpStatusCode)
 
 		return false, record
 	}
 
-	// log.Tracef("(Replied)\t %s: %s, %.2f[ms], %d[MiB]", function.Name, response.Message,
-	// 	float64(response.DurationInMicroSec)/1e3, common.Kib2Mib(response.MemoryUsageInKb))
-	// log.Tracef("(E2E Latency) %s: %.2f[ms]\n", function.Name, float64(record.ResponseTime)/1e3)
+	record.ActivationID = res.Header.Get("X-Openwhisk-Activation-Id")
+	record.Instance = recordInstance
+	record.ResponseTime = time.Since(start).Microseconds()
 
-	log.Tracef("(Replied)\t %s:", function.Name)
+	//read data from OpenWhisk based on the activation ID
+	cmd := exec.Command("wsk", "-i", "activation", "get", record.ActivationID)
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	err = cmd.Run()
+	if err != nil {
+		log.Debugf("error reading activation information from OpenWhisk %s - %s", function.Name, err)
+
+		return false, record
+	}
+
+	var jsonMap map[string]interface{}
+	output := out.String()
+	ind := strings.Index(output, "{")
+	json.Unmarshal([]byte(output[ind:]), &jsonMap)
+
+	record.ActualDuration = uint32(jsonMap["duration"].(float64)) * 1000 //ms to micro sec
+	record.StartType = "hot"
+	record.InitTime = 0
+	annotations := jsonMap["annotations"].([]interface{})
+	for i := 0; i < len(annotations); i++ {
+		annotation := annotations[i].(map[string]interface{})
+
+		if annotation["key"] == "waitTime" {
+			record.WaitTime = int64(annotation["value"].(float64))
+		}
+
+		if annotation["key"] == "initTime" {
+			record.StartType = "cold/warm"
+			record.InitTime = int64(annotation["value"].(float64)) * 1000 //ms to micro sec
+		}
+	}
+
+	log.Tracef("(Replied)\t %s: %d[ms]", function.Name, record.ActualDuration)
 	log.Tracef("(E2E Latency) %s: %.2f[ms]\n", function.Name, float64(record.ResponseTime)/1e3)
 
-	fmt.Printf("(Replied)\t %s:", function.Name)
+	fmt.Printf("(Replied)\t %s: %d[ms]", function.Name, record.ActualDuration)
 	fmt.Printf("(E2E Latency) %s: %.2f[ms]\n", function.Name, float64(record.ResponseTime)/1e3)
 	fmt.Printf("client: status code: %d\n", res.StatusCode)
 
