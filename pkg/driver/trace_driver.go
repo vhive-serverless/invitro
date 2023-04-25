@@ -21,6 +21,9 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+//OpenWhisk changes - ExecutionRecord -> ActivationRecord
+//				    - Invoke		  -> InvokeOpenWhisk
+
 type DriverConfiguration struct {
 	LoaderConfiguration *config.LoaderConfiguration
 	IATDistribution     common.IatDistribution
@@ -143,7 +146,7 @@ type InvocationMetadata struct {
 	FailedCount            *int64
 	ApproximateFailedCount *int64
 
-	RecordOutputChannel chan *mc.ActivationRecord //CHANGE
+	RecordOutputChannel chan *mc.ActivationRecord
 	AnnounceDoneWG      *sync.WaitGroup
 }
 
@@ -182,7 +185,7 @@ func (d *Driver) invokeFunction(metadata *InvocationMetadata) {
 }
 
 func (d *Driver) individualFunctionDriver(function *common.Function, announceFunctionDone *sync.WaitGroup,
-	totalSuccessful *int64, totalFailed *int64, totalIssued *int64, recordOutputChannel chan *mc.ActivationRecord) { //CHANGE
+	totalSuccessful *int64, totalFailed *int64, totalIssued *int64, recordOutputChannel chan *mc.ActivationRecord) {
 
 	totalTraceDuration := d.Configuration.TraceDuration
 	minuteIndex, invocationIndex := 0, 0
@@ -249,7 +252,7 @@ func (d *Driver) individualFunctionDriver(function *common.Function, announceFun
 			// To be used from within the Golang testing framework
 			log.Debugf("Test mode invocation fired.\n")
 
-			recordOutputChannel <- &mc.ActivationRecord{ //CHANGE
+			recordOutputChannel <- &mc.ActivationRecord{
 				Phase:        int(currentPhase),
 				InvocationID: composeInvocationID(d.Configuration.TraceGranularity, minuteIndex, invocationIndex),
 				StartTime:    time.Now().UnixNano(),
@@ -459,7 +462,7 @@ func (d *Driver) startBackgroundProcesses(allRecordsWritten *sync.WaitGroup) (*s
 
 	auxiliaryProcessBarrier.Add(2)
 
-	globalMetricsCollector := make(chan *mc.ActivationRecord) //CHANGE
+	globalMetricsCollector := make(chan *mc.ActivationRecord)
 	totalIssuedChannel := make(chan int64)
 	go d.createGlobalMetricsCollector(d.outputFilename("duration"), globalMetricsCollector, auxiliaryProcessBarrier, allRecordsWritten, totalIssuedChannel)
 
