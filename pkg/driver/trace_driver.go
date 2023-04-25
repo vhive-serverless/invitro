@@ -143,7 +143,7 @@ type InvocationMetadata struct {
 	FailedCount            *int64
 	ApproximateFailedCount *int64
 
-	RecordOutputChannel chan *mc.ExecutionRecord
+	RecordOutputChannel chan *mc.ActivationRecord //CHANGE
 	AnnounceDoneWG      *sync.WaitGroup
 }
 
@@ -165,7 +165,8 @@ func composeInvocationID(timeGranularity common.TraceGranularity, minuteIndex in
 func (d *Driver) invokeFunction(metadata *InvocationMetadata) {
 	defer metadata.AnnounceDoneWG.Done()
 
-	success, record := Invoke(metadata.Function, metadata.RuntimeSpecifications, d.Configuration.LoaderConfiguration)
+	//success, record := Invoke(metadata.Function, metadata.RuntimeSpecifications, d.Configuration.LoaderConfiguration)
+	success, record := InvokeOpenWhisk(metadata.Function, metadata.RuntimeSpecifications, d.Configuration.LoaderConfiguration)
 
 	record.Phase = int(metadata.Phase)
 	record.InvocationID = composeInvocationID(d.Configuration.TraceGranularity, metadata.MinuteIndex, metadata.InvocationIndex)
@@ -181,7 +182,7 @@ func (d *Driver) invokeFunction(metadata *InvocationMetadata) {
 }
 
 func (d *Driver) individualFunctionDriver(function *common.Function, announceFunctionDone *sync.WaitGroup,
-	totalSuccessful *int64, totalFailed *int64, totalIssued *int64, recordOutputChannel chan *mc.ExecutionRecord) {
+	totalSuccessful *int64, totalFailed *int64, totalIssued *int64, recordOutputChannel chan *mc.ActivationRecord) { //CHANGE
 
 	totalTraceDuration := d.Configuration.TraceDuration
 	minuteIndex, invocationIndex := 0, 0
@@ -248,7 +249,7 @@ func (d *Driver) individualFunctionDriver(function *common.Function, announceFun
 			// To be used from within the Golang testing framework
 			log.Debugf("Test mode invocation fired.\n")
 
-			recordOutputChannel <- &mc.ExecutionRecord{
+			recordOutputChannel <- &mc.ActivationRecord{ //CHANGE
 				Phase:        int(currentPhase),
 				InvocationID: composeInvocationID(d.Configuration.TraceGranularity, minuteIndex, invocationIndex),
 				StartTime:    time.Now().UnixNano(),
@@ -402,7 +403,7 @@ func (d *Driver) globalTimekeeper(totalTraceDuration int, signalReady *sync.Wait
 	ticker.Stop()
 }
 
-func (d *Driver) createGlobalMetricsCollector(filename string, collector chan *mc.ExecutionRecord,
+func (d *Driver) createGlobalMetricsCollector(filename string, collector chan *mc.ActivationRecord,
 	signalReady *sync.WaitGroup, signalEverythingWritten *sync.WaitGroup, totalIssuedChannel chan int64) {
 
 	// NOTE: totalNumberOfInvocations is initialized to MaxInt64 not to allow collector to complete before
@@ -443,7 +444,7 @@ func (d *Driver) createGlobalMetricsCollector(filename string, collector chan *m
 	}
 }
 
-func (d *Driver) startBackgroundProcesses(allRecordsWritten *sync.WaitGroup) (*sync.WaitGroup, chan *mc.ExecutionRecord, chan int64, chan int) {
+func (d *Driver) startBackgroundProcesses(allRecordsWritten *sync.WaitGroup) (*sync.WaitGroup, chan *mc.ActivationRecord, chan int64, chan int) {
 	auxiliaryProcessBarrier := &sync.WaitGroup{}
 
 	finishCh := make(chan int, 1)
@@ -458,7 +459,7 @@ func (d *Driver) startBackgroundProcesses(allRecordsWritten *sync.WaitGroup) (*s
 
 	auxiliaryProcessBarrier.Add(2)
 
-	globalMetricsCollector := make(chan *mc.ExecutionRecord)
+	globalMetricsCollector := make(chan *mc.ActivationRecord) //CHANGE
 	totalIssuedChannel := make(chan int64)
 	go d.createGlobalMetricsCollector(d.outputFilename("duration"), globalMetricsCollector, auxiliaryProcessBarrier, allRecordsWritten, totalIssuedChannel)
 

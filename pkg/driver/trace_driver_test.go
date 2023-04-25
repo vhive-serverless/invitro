@@ -91,7 +91,7 @@ func TestInvokeFunctionFromDriver(t *testing.T) {
 			var failureCount int64 = 0
 			var approximateFailureCount int64 = 0
 
-			invocationRecordOutputChannel := make(chan *metric.ExecutionRecord, 1)
+			invocationRecordOutputChannel := make(chan *metric.ActivationRecord, 1) //CHANGE
 			announceDone := &sync.WaitGroup{}
 
 			testDriver := createTestDriver()
@@ -151,7 +151,7 @@ func TestInvokeFunctionFromDriver(t *testing.T) {
 func TestGlobalMetricsCollector(t *testing.T) {
 	driver := createTestDriver()
 
-	inputChannel := make(chan *metric.ExecutionRecord)
+	inputChannel := make(chan *metric.ActivationRecord)
 	totalIssuedChannel := make(chan int64)
 	collectorReady, collectorFinished := &sync.WaitGroup{}, &sync.WaitGroup{}
 
@@ -161,7 +161,7 @@ func TestGlobalMetricsCollector(t *testing.T) {
 	go driver.createGlobalMetricsCollector(driver.outputFilename("duration"), inputChannel, collectorReady, collectorFinished, totalIssuedChannel)
 	collectorReady.Wait()
 
-	bogusRecord := &metric.ExecutionRecord{
+	bogusRecord := &metric.ActivationRecord{
 		Phase:        int(common.ExecutionPhase),
 		Instance:     "",
 		InvocationID: "min1.inv1",
@@ -170,7 +170,7 @@ func TestGlobalMetricsCollector(t *testing.T) {
 		RequestedDuration: 1,
 		ResponseTime:      2,
 		ActualDuration:    3,
-		ActualMemoryUsage: 4,
+		//ActualMemoryUsage: 4,
 
 		ConnectionTimeout: false,
 		FunctionTimeout:   true,
@@ -188,7 +188,7 @@ func TestGlobalMetricsCollector(t *testing.T) {
 		t.Error(err)
 	}
 
-	var record []metric.ExecutionRecord
+	var record []metric.ActivationRecord
 	err = gocsv.UnmarshalFile(f, &record)
 	if err != nil {
 		log.Fatalf(err.Error())

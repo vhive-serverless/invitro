@@ -10,6 +10,27 @@ type MinuteInvocationRecord struct {
 	NumColdStarts   int   `csv:"num_coldstarts"`
 }
 
+type ActivationRecord struct {
+	Phase        int    `csv:"phase"`
+	Instance     string `csv:"instance"`
+	InvocationID string `csv:"invocationID"`
+	ActivationID string `csv:"activationID"`
+	StartTime    int64  `csv:"startTime"`
+
+	// Measurements in microseconds
+	RequestedDuration uint32 `csv:"requestedDuration"`
+	ResponseTime      int64  `csv:"responseTime"`
+	ActualDuration    uint32 `csv:"actualDuration"`
+	WaitTime          int64  `csv:"waitTime"`
+	InitTime          int64  `csv:"initTime"`
+	// ActualMemoryUsage uint32 `csv:"actualMemoryUsage"`	//not supported
+
+	ConnectionTimeout     bool `csv:"connectionTimeout"`
+	FunctionTimeout       bool `csv:"functionTimeout"`
+	RequestCreationFailed bool `csv:"requestCreationFailed"`
+	HttpStatusCode        int  `csv:"httpStatusCode"`
+}
+
 type ExecutionRecord struct {
 	Phase        int    `csv:"phase"`
 	Instance     string `csv:"instance"`
