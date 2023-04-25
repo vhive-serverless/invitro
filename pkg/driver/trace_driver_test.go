@@ -15,6 +15,8 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+//OpenWhisk changes - ExecutionRecord -> ActivationRecord
+
 func createTestDriver() *Driver {
 	cfg := createFakeLoaderConfiguration()
 

@@ -17,7 +17,8 @@ import (
 )
 
 const serverPort = 31001
-const recordInstance = "hello"
+const recordInstance = "demo/hello"
+const ipAddress = "128.110.218.126"
 
 func InvokeOpenWhisk(function *common.Function, runtimeSpec *common.RuntimeSpecification, cfg *config.LoaderConfiguration) (bool, *mc.ActivationRecord) {
 	log.Tracef("(Invoke)\t %s: %d[ms], %d[MiB]", function.Name, runtimeSpec.Runtime, runtimeSpec.Memory)
@@ -33,7 +34,7 @@ func InvokeOpenWhisk(function *common.Function, runtimeSpec *common.RuntimeSpeci
 	record.StartTime = start.UnixMicro()
 
 	http.DefaultTransport.(*http.Transport).TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
-	requestURL := fmt.Sprintf("https://128.110.218.126:%d/api/v1/web/guest/demo/hello", serverPort)
+	requestURL := fmt.Sprintf("https://%s:%d/api/v1/web/guest/%s", ipAddress, serverPort, recordInstance)
 	req, err := http.NewRequest(http.MethodGet, requestURL, nil)
 	if err != nil {
 		log.Debugf("http request creation failed for function %s - %s", function.Name, err)
