@@ -95,17 +95,27 @@ type KnStats struct {
 }
 
 type ClusterUsage struct {
-	Timestamp       int64    `csv:"timestamp" json:"timestamp"`
-	MasterCpuPct    float64  `csv:"master_cpu_pct" json:"master_cpu_pct"`
-	MasterMemoryPct float64  `csv:"master_mem_pct" json:"master_mem_pct"`
-	Cpu             []string `csv:"cpu" json:"cpu"`
-	CpuPctAvg       float64  `csv:"cpu_pct_avg" json:"cpu_pct_avg"`
-	CpuPctMax       float64  `csv:"cpu_pct_max" json:"cpu_pct_max"`
-	CpuPctActiveAvg float64  `csv:"cpu_pct_active_avg" json:"cpu_pct_active_avg"`
-	Memory          []string `csv:"memory" json:"memory"`
-	MemoryPctAvg    float64  `csv:"memory_pct" json:"memory_pct"`
-	PodCpu          []string `csv:"pod_cpu" json:"pod_cpu"`
-	PodMemory       []string `csv:"pod_memory" json:"pod_mem"`
+	Timestamp       int64     `csv:"timestamp" json:"timestamp"`
+	MasterCpuPct    float64   `csv:"master_cpu_pct" json:"master_cpu_pct"`
+	MasterCpuReq    float64   `csv:"master_cpu_req" json:"master_cpu_req"`
+	MasterCpuLim    float64   `csv:"master_cpu_lim" json:"master_cpu_lim"`
+	MasterMemoryPct float64   `csv:"master_mem_pct" json:"master_mem_pct"`
+	MasterMemoryReq float64   `csv:"master_mem_req" json:"master_mem_req"`
+	MasterMemoryLim float64   `csv:"master_mem_lim" json:"master_mem_lim"`
+	MasterPods      int       `csv:"master_pods" json:"master_pods"`
+	Cpu             []string  `csv:"cpu" json:"cpu"`
+	CpuReq          []float64 `csv:"cpu_req" json:"cpu_req"`
+	CpuLim          []float64 `csv:"cpu_lim" json:"cpu_lim"`
+	CpuPctAvg       float64   `csv:"cpu_pct_avg" json:"cpu_pct_avg"`
+	CpuPctMax       float64   `csv:"cpu_pct_max" json:"cpu_pct_max"`
+	CpuPctActiveAvg float64   `csv:"cpu_pct_active_avg" json:"cpu_pct_active_avg"`
+	Memory          []string  `csv:"memory" json:"memory"`
+	MemoryReq       []float64 `csv:"memory_req" json:"memory_req"`
+	MemoryLim       []float64 `csv:"memory_lim" json:"memory_lim"`
+	MemoryPctAvg    float64   `csv:"memory_pct" json:"memory_pct"`
+	PodCpu          []string  `csv:"pod_cpu" json:"pod_cpu"`
+	PodMemory       []string  `csv:"pod_memory" json:"pod_mem"`
+	Pods            []int     `csv:"pods" json:"pods"`
 }
 
 type AdfResult struct {
