@@ -7,7 +7,7 @@ loader_total_cores = 8
 
 def get_promql_query(query):
     def promql_query():
-        return "tools/bin/promql --no-headers --host 'http://localhost:9090' '" + query + "' | awk '{print $2}'"
+        return "tools/bin/promql --no-headers --host 'http://localhost:9090' '" + query + "' | grep . | sort | awk '{print $2}'"
     return promql_query
 
 if __name__ == "__main__":
