@@ -89,9 +89,7 @@ func InvokeOpenWhisk(function *common.Function, runtimeSpec *common.RuntimeSpeci
 
 		if annotation["key"] == "waitTime" {
 			record.WaitTime = int64(annotation["value"].(float64))
-		}
-
-		if annotation["key"] == "initTime" {
+		} else if annotation["key"] == "initTime" {
 			record.StartType = "cold"
 			record.InitTime = int64(annotation["value"].(float64)) * 1000 //ms to micro sec
 		}
