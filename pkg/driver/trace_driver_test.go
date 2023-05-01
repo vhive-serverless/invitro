@@ -15,8 +15,6 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-//OpenWhisk changes - ExecutionRecord -> ActivationRecord
-
 func createTestDriver() *Driver {
 	cfg := createFakeLoaderConfiguration()
 
@@ -93,7 +91,7 @@ func TestInvokeFunctionFromDriver(t *testing.T) {
 			var failureCount int64 = 0
 			var approximateFailureCount int64 = 0
 
-			invocationRecordOutputChannel := make(chan *metric.ActivationRecord, 1) //CHANGE
+			invocationRecordOutputChannel := make(chan interface{}, 1)
 			announceDone := &sync.WaitGroup{}
 
 			testDriver := createTestDriver()
@@ -138,7 +136,7 @@ func TestInvokeFunctionFromDriver(t *testing.T) {
 				}
 			}
 
-			record := <-invocationRecordOutputChannel
+			record := (<-invocationRecordOutputChannel).(metric.ExecutionRecordBase)
 			announceDone.Wait()
 
 			if record.Phase != int(metadata.Phase) ||
@@ -153,7 +151,7 @@ func TestInvokeFunctionFromDriver(t *testing.T) {
 func TestGlobalMetricsCollector(t *testing.T) {
 	driver := createTestDriver()
 
-	inputChannel := make(chan *metric.ActivationRecord)
+	inputChannel := make(chan interface{})
 	totalIssuedChannel := make(chan int64)
 	collectorReady, collectorFinished := &sync.WaitGroup{}, &sync.WaitGroup{}
 
@@ -163,7 +161,7 @@ func TestGlobalMetricsCollector(t *testing.T) {
 	go driver.createGlobalMetricsCollector(driver.outputFilename("duration"), inputChannel, collectorReady, collectorFinished, totalIssuedChannel)
 	collectorReady.Wait()
 
-	bogusRecord := &metric.ActivationRecord{
+	bogusRecord := &metric.ExecutionRecordBase{
 		Phase:        int(common.ExecutionPhase),
 		Instance:     "",
 		InvocationID: "min1.inv1",
@@ -172,7 +170,6 @@ func TestGlobalMetricsCollector(t *testing.T) {
 		RequestedDuration: 1,
 		ResponseTime:      2,
 		ActualDuration:    3,
-		//ActualMemoryUsage: 4,
 
 		ConnectionTimeout: false,
 		FunctionTimeout:   true,
@@ -190,7 +187,7 @@ func TestGlobalMetricsCollector(t *testing.T) {
 		t.Error(err)
 	}
 
-	var record []metric.ActivationRecord
+	var record []metric.ExecutionRecordBase
 	err = gocsv.UnmarshalFile(f, &record)
 	if err != nil {
 		log.Fatalf(err.Error())
@@ -281,7 +278,7 @@ func TestDriverCompletely(t *testing.T) {
 				t.Error(err)
 			}
 
-			var records []metric.ExecutionRecord
+			var records []metric.ExecutionRecordBase
 			err = gocsv.UnmarshalFile(f, &records)
 			if err != nil {
 				log.Fatalf(err.Error())

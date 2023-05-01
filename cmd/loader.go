@@ -62,7 +62,11 @@ func main() {
 	}
 
 	if cfg.ExperimentDuration < 1 {
-		log.Fatal("Runtime duration should be longer at least a minute.")
+		log.Fatal("Runtime duration should be longer, at least a minute.")
+	}
+
+	if cfg.Platform != "Knative" && cfg.Platform != "OpenWhisk" {
+		log.Fatal("Unsupported platform! Supported platforms are [Knative, OpenWhisk]")
 	}
 
 	runTraceMode(&cfg, *iatGeneration, *generated)

@@ -21,9 +21,6 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-//OpenWhisk changes - ExecutionRecord -> ActivationRecord
-//				    - Invoke		  -> InvokeOpenWhisk
-
 type DriverConfiguration struct {
 	LoaderConfiguration *config.LoaderConfiguration
 	IATDistribution     common.IatDistribution
@@ -146,7 +143,7 @@ type InvocationMetadata struct {
 	FailedCount            *int64
 	ApproximateFailedCount *int64
 
-	RecordOutputChannel chan *mc.ActivationRecord
+	RecordOutputChannel chan interface{}
 	AnnounceDoneWG      *sync.WaitGroup
 }
 
@@ -168,11 +165,26 @@ func composeInvocationID(timeGranularity common.TraceGranularity, minuteIndex in
 func (d *Driver) invokeFunction(metadata *InvocationMetadata) {
 	defer metadata.AnnounceDoneWG.Done()
 
-	//success, record := Invoke(metadata.Function, metadata.RuntimeSpecifications, d.Configuration.LoaderConfiguration)
-	success, record := InvokeOpenWhisk(metadata.Function, metadata.RuntimeSpecifications, d.Configuration.LoaderConfiguration)
+	var success bool
 
-	record.Phase = int(metadata.Phase)
-	record.InvocationID = composeInvocationID(d.Configuration.TraceGranularity, metadata.MinuteIndex, metadata.InvocationIndex)
+	if d.Configuration.LoaderConfiguration.Platform == "Knative" {
+		var record *mc.ExecutionRecord
+		success, record = Invoke(metadata.Function, metadata.RuntimeSpecifications, d.Configuration.LoaderConfiguration)
+
+		record.Phase = int(metadata.Phase)
+		record.InvocationID = composeInvocationID(d.Configuration.TraceGranularity, metadata.MinuteIndex, metadata.InvocationIndex)
+
+		metadata.RecordOutputChannel <- record
+
+	} else if d.Configuration.LoaderConfiguration.Platform == "OpenWhisk" {
+		var record *mc.ExecutionRecordOpenWhisk
+		success, record = InvokeOpenWhisk(metadata.Function, metadata.RuntimeSpecifications, d.Configuration.LoaderConfiguration)
+
+		record.Phase = int(metadata.Phase)
+		record.InvocationID = composeInvocationID(d.Configuration.TraceGranularity, metadata.MinuteIndex, metadata.InvocationIndex)
+
+		metadata.RecordOutputChannel <- record
+	}
 
 	if success {
 		atomic.AddInt64(metadata.SuccessCount, 1)
@@ -180,12 +192,10 @@ func (d *Driver) invokeFunction(metadata *InvocationMetadata) {
 		atomic.AddInt64(metadata.FailedCount, 1)
 		atomic.AddInt64(metadata.ApproximateFailedCount, 1)
 	}
-
-	metadata.RecordOutputChannel <- record
 }
 
 func (d *Driver) individualFunctionDriver(function *common.Function, announceFunctionDone *sync.WaitGroup,
-	totalSuccessful *int64, totalFailed *int64, totalIssued *int64, recordOutputChannel chan *mc.ActivationRecord) {
+	totalSuccessful *int64, totalFailed *int64, totalIssued *int64, recordOutputChannel chan interface{}) {
 
 	totalTraceDuration := d.Configuration.TraceDuration
 	minuteIndex, invocationIndex := 0, 0
@@ -252,7 +262,7 @@ func (d *Driver) individualFunctionDriver(function *common.Function, announceFun
 			// To be used from within the Golang testing framework
 			log.Debugf("Test mode invocation fired.\n")
 
-			recordOutputChannel <- &mc.ActivationRecord{
+			recordOutputChannel <- &mc.ExecutionRecordBase{
 				Phase:        int(currentPhase),
 				InvocationID: composeInvocationID(d.Configuration.TraceGranularity, minuteIndex, invocationIndex),
 				StartTime:    time.Now().UnixNano(),
@@ -406,7 +416,7 @@ func (d *Driver) globalTimekeeper(totalTraceDuration int, signalReady *sync.Wait
 	ticker.Stop()
 }
 
-func (d *Driver) createGlobalMetricsCollector(filename string, collector chan *mc.ActivationRecord,
+func (d *Driver) createGlobalMetricsCollector(filename string, collector chan interface{},
 	signalReady *sync.WaitGroup, signalEverythingWritten *sync.WaitGroup, totalIssuedChannel chan int64) {
 
 	// NOTE: totalNumberOfInvocations is initialized to MaxInt64 not to allow collector to complete before
@@ -447,7 +457,7 @@ func (d *Driver) createGlobalMetricsCollector(filename string, collector chan *m
 	}
 }
 
-func (d *Driver) startBackgroundProcesses(allRecordsWritten *sync.WaitGroup) (*sync.WaitGroup, chan *mc.ActivationRecord, chan int64, chan int) {
+func (d *Driver) startBackgroundProcesses(allRecordsWritten *sync.WaitGroup) (*sync.WaitGroup, chan interface{}, chan int64, chan int) {
 	auxiliaryProcessBarrier := &sync.WaitGroup{}
 
 	finishCh := make(chan int, 1)
@@ -462,7 +472,7 @@ func (d *Driver) startBackgroundProcesses(allRecordsWritten *sync.WaitGroup) (*s
 
 	auxiliaryProcessBarrier.Add(2)
 
-	globalMetricsCollector := make(chan *mc.ActivationRecord)
+	globalMetricsCollector := make(chan interface{})
 	totalIssuedChannel := make(chan int64)
 	go d.createGlobalMetricsCollector(d.outputFilename("duration"), globalMetricsCollector, auxiliaryProcessBarrier, allRecordsWritten, totalIssuedChannel)
 
@@ -568,11 +578,19 @@ func (d *Driver) RunExperiment(iatOnly bool, generated bool) {
 
 	trace.ApplyResourceLimits(d.Configuration.Functions)
 
-	DeployFunctions(d.Configuration.Functions,
-		d.Configuration.YAMLPath,
-		d.Configuration.LoaderConfiguration.IsPartiallyPanic,
-		d.Configuration.LoaderConfiguration.EndpointPort,
-		d.Configuration.LoaderConfiguration.AutoscalingMetric)
+	if d.Configuration.LoaderConfiguration.Platform == "Knative" {
+		DeployFunctions(d.Configuration.Functions,
+			d.Configuration.YAMLPath,
+			d.Configuration.LoaderConfiguration.IsPartiallyPanic,
+			d.Configuration.LoaderConfiguration.EndpointPort,
+			d.Configuration.LoaderConfiguration.AutoscalingMetric)
+	} else if d.Configuration.LoaderConfiguration.Platform == "OpenWhisk" {
+		DeployFunctionsOpenWhisk(d.Configuration.Functions)
+	}
 
 	d.internalRun(iatOnly, generated)
+
+	if d.Configuration.LoaderConfiguration.Platform == "OpenWhisk" {
+		CleanOpenWhisk()
+	}
 }

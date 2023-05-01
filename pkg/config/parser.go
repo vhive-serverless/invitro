@@ -10,6 +10,8 @@ import (
 type LoaderConfiguration struct {
 	Seed int64 `json:"Seed"`
 
+	Platform string `json:"Platform"`
+
 	YAMLSelector string `json:"YAMLSelector"`
 	EndpointPort int    `json:"EndpointPort"`
 

@@ -1,6 +1,8 @@
 {
   "Seed": 42,
 
+  "Platform": "OpenWhisk",
+
   "YAMLSelector": "container",
   "EndpointPort": 80,
 
