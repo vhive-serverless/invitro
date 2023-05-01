@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"crypto/tls"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"os/exec"
 	"strings"
@@ -16,15 +15,13 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-const serverPort = 31001
-const recordInstance = "demo/hello"
-const ipAddress = "128.110.218.126"
-
-func InvokeOpenWhisk(function *common.Function, runtimeSpec *common.RuntimeSpecification, cfg *config.LoaderConfiguration) (bool, *mc.ActivationRecord) {
+func InvokeOpenWhisk(function *common.Function, runtimeSpec *common.RuntimeSpecification, cfg *config.LoaderConfiguration) (bool, *mc.ExecutionRecordOpenWhisk) {
 	log.Tracef("(Invoke)\t %s: %d[ms], %d[MiB]", function.Name, runtimeSpec.Runtime, runtimeSpec.Memory)
 
-	record := &mc.ActivationRecord{
-		RequestedDuration: uint32(runtimeSpec.Runtime * 1e3),
+	record := &mc.ExecutionRecordOpenWhisk{
+		ExecutionRecordBase: mc.ExecutionRecordBase{
+			RequestedDuration: uint32(runtimeSpec.Runtime * 1e3),
+		},
 	}
 
 	////////////////////////////////////
@@ -34,18 +31,16 @@ func InvokeOpenWhisk(function *common.Function, runtimeSpec *common.RuntimeSpeci
 	record.StartTime = start.UnixMicro()
 
 	http.DefaultTransport.(*http.Transport).TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
-	requestURL := fmt.Sprintf("https://%s:%d/api/v1/web/guest/%s", ipAddress, serverPort, recordInstance)
+	requestURL := function.Endpoint
 	req, err := http.NewRequest(http.MethodGet, requestURL, nil)
 	if err != nil {
 		log.Debugf("http request creation failed for function %s - %s", function.Name, err)
 
 		record.ResponseTime = time.Since(start).Microseconds()
-		record.RequestCreationFailed = true
+		record.ConnectionTimeout = true
 
 		return false, record
 	}
-
-	record.RequestCreationFailed = false
 
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -57,7 +52,6 @@ func InvokeOpenWhisk(function *common.Function, runtimeSpec *common.RuntimeSpeci
 		return false, record
 	}
 
-	record.ConnectionTimeout = false
 	record.HttpStatusCode = res.StatusCode
 	if record.HttpStatusCode < 200 || record.HttpStatusCode >= 300 {
 		log.Debugf("http request for function %s failed - error code: %d", function.Name, record.HttpStatusCode)
@@ -66,11 +60,12 @@ func InvokeOpenWhisk(function *common.Function, runtimeSpec *common.RuntimeSpeci
 	}
 
 	record.ActivationID = res.Header.Get("X-Openwhisk-Activation-Id")
-	record.Instance = recordInstance
+	record.Instance = actionName
 	record.ResponseTime = time.Since(start).Microseconds()
 
 	//read data from OpenWhisk based on the activation ID
 	cmd := exec.Command("wsk", "-i", "activation", "get", record.ActivationID)
+	time.Sleep(2 * time.Second)
 	var out bytes.Buffer
 	cmd.Stdout = &out
 	err = cmd.Run()
@@ -97,17 +92,14 @@ func InvokeOpenWhisk(function *common.Function, runtimeSpec *common.RuntimeSpeci
 		}
 
 		if annotation["key"] == "initTime" {
-			record.StartType = "cold/warm"
+			record.StartType = "cold"
 			record.InitTime = int64(annotation["value"].(float64)) * 1000 //ms to micro sec
 		}
 	}
 
 	log.Tracef("(Replied)\t %s: %d[ms]", function.Name, record.ActualDuration)
 	log.Tracef("(E2E Latency) %s: %.2f[ms]\n", function.Name, float64(record.ResponseTime)/1e3)
-
-	fmt.Printf("(Replied)\t %s: %d[ms]", function.Name, record.ActualDuration)
-	fmt.Printf("(E2E Latency) %s: %.2f[ms]\n", function.Name, float64(record.ResponseTime)/1e3)
-	fmt.Printf("client: status code: %d\n", res.StatusCode)
+	log.Tracef("(Client status code) %s: %d", function.Name, record.HttpStatusCode)
 
 	return true, record
 }

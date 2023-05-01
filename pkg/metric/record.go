@@ -10,44 +10,40 @@ type MinuteInvocationRecord struct {
 	NumColdStarts   int   `csv:"num_coldstarts"`
 }
 
-type ActivationRecord struct {
+type ExecutionRecordBase struct {
 	Phase        int    `csv:"phase"`
 	Instance     string `csv:"instance"`
 	InvocationID string `csv:"invocationID"`
-	ActivationID string `csv:"activationID"`
 	StartTime    int64  `csv:"startTime"`
 
 	// Measurements in microseconds
 	RequestedDuration uint32 `csv:"requestedDuration"`
 	ResponseTime      int64  `csv:"responseTime"`
 	ActualDuration    uint32 `csv:"actualDuration"`
-	WaitTime          int64  `csv:"waitTime"`
-	InitTime          int64  `csv:"initTime"`
-	// ActualMemoryUsage uint32 `csv:"actualMemoryUsage"`	//not supported
 
-	StartType string `csv:"startType"`
+	ConnectionTimeout bool `csv:"connectionTimeout"`
+	FunctionTimeout   bool `csv:"functionTimeout"`
+}
 
-	ConnectionTimeout     bool `csv:"connectionTimeout"`
-	FunctionTimeout       bool `csv:"functionTimeout"`
-	RequestCreationFailed bool `csv:"requestCreationFailed"`
-	HttpStatusCode        int  `csv:"httpStatusCode"`
+type ExecutionRecordOpenWhisk struct {
+	ExecutionRecordBase
+
+	ActivationID   string `csv:"activationID"`
+	StartType      string `csv:"startType"`
+	HttpStatusCode int    `csv:"httpStatusCode"`
+
+	// Measurements in microseconds
+	WaitTime int64 `csv:"waitTime"`
+	InitTime int64 `csv:"initTime"`
 }
 
 type ExecutionRecord struct {
-	Phase        int    `csv:"phase"`
-	Instance     string `csv:"instance"`
-	InvocationID string `csv:"invocationID"`
-	StartTime    int64  `csv:"startTime"`
+	ExecutionRecordBase
 
 	// Measurements in microseconds
-	RequestedDuration uint32 `csv:"requestedDuration"`
-	ResponseTime      int64  `csv:"responseTime"`
-	ActualDuration    uint32 `csv:"actualDuration"`
 	ActualMemoryUsage uint32 `csv:"actualMemoryUsage"`
 
 	MemoryAllocationTimeout bool `csv:"memoryAllocationTimeout"`
-	ConnectionTimeout       bool `csv:"connectionTimeout"`
-	FunctionTimeout         bool `csv:"functionTimeout"`
 
 	// TODO: EVERYTHING BELOW ARE UNTESTED FIELDS
 
