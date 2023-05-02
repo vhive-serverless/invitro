@@ -7,7 +7,7 @@ prometheus_ip = os.popen("kubectl get svc -n monitoring | grep prometheus-kube-p
 
 def get_promql_query(query):
     def promql_query():
-        return "tools/bin/promql --no-headers --host 'http://" + prometheus_ip + ":9090' '" + query + "' | grep . | sort | awk '{print $2}'"
+        return "tools/bin/promql --no-headers --host 'http://" + prometheus_ip + ":9090' '" + query + "' | grep . | LC_COLLATE=C sort | awk '{print $2}'"
     return promql_query
 
 if __name__ == "__main__":
@@ -15,10 +15,10 @@ if __name__ == "__main__":
     cmd_get_abs_vals = ['bash', 'scripts/metrics/get_node_stats_abs.sh']
     cmd_get_pcts = ['bash', 'scripts/metrics/get_node_stats_percent.sh']
     cmd_get_pod_abs_vals = ['bash', 'scripts/metrics/get_pod_stats_abs.sh']
-    query_mem_req = 'sum(kube_pod_container_resource_requests{resource="memory"} and on(container, pod) (kube_pod_container_status_running==1)) by (node)'
-    query_mem_lim = 'sum(kube_pod_container_resource_limits{resource="memory"} and on(container, pod) (kube_pod_container_status_running==1)) by (node)'
-    query_cpu_req = 'sum(kube_pod_container_resource_requests{resource="cpu"} and on(container, pod) (kube_pod_container_status_running==1)) by (node)'
-    query_cpu_lim = 'sum(kube_pod_container_resource_limits{resource="cpu"} and on(container, pod) (kube_pod_container_status_running==1)) by (node)'
+    query_mem_req = 'sum(kube_pod_container_resource_requests{resource="memory"} and on(container, pod) (kube_pod_container_status_running==1) or on(node) (kube_node_info*0)) by (node)'
+    query_mem_lim = 'sum(kube_pod_container_resource_limits{resource="memory"} and on(container, pod) (kube_pod_container_status_running==1) or on(node) (kube_node_info*0)) by (node)'
+    query_cpu_req = 'sum(kube_pod_container_resource_requests{resource="cpu"} and on(container, pod) (kube_pod_container_status_running==1) or on(node) (kube_node_info*0)) by (node)'
+    query_cpu_lim = 'sum(kube_pod_container_resource_limits{resource="cpu"} and on(container, pod) (kube_pod_container_status_running==1) or on(node) (kube_node_info*0)) by (node)'
     query_pod_count = 'count(kube_pod_info and on(pod) max(kube_pod_container_status_running==1) by (pod)) by(node)'
 
     result = {
