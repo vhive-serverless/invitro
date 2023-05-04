@@ -10,40 +10,40 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-const actionName = "tester"
-
 func DeployFunctionsOpenWhisk(functions []*common.Function) {
 	cmd := exec.Command("wsk", "-i", "property", "get", "--apihost")
 	var out bytes.Buffer
 	cmd.Stdout = &out
 	err := cmd.Run()
 	if err != nil {
-		log.Fatal("Unable to read OpenWhisk API host data.")
+		log.Fatal("Unable to read OpenWhisk API host data - %s", err)
 	}
 
 	result := strings.Split(out.String(), "\t")
 	endpoint := strings.TrimSpace(result[len(result)-1])
 
-	const actionLocation = "./pkg/workload/openwhisk/workload_openwhisk.go"
-	cmd = exec.Command("wsk", "-i", "action", "create", actionName, actionLocation, "--web", "true")
-	err = cmd.Run()
-	if err != nil {
-		log.Fatal("Unable to create OpenWhisk action.")
-	}
-
-	functionURL := fmt.Sprintf("https://%s/api/v1/web/guest/default/%s", endpoint, actionName)
+	const actionLocation = "./pkg/workload/openwhisk/workload_openwhisk.zip"
 
 	for i := 0; i < len(functions); i++ {
-		functions[i].Endpoint = functionURL
+		cmd = exec.Command("wsk", "-i", "action", "create", functions[i].Name, actionLocation, "--kind", "go:1.17", "--web", "true")
+
+		err = cmd.Run()
+		if err != nil {
+			log.Fatal("Unable to create OpenWhisk action for function %s - %s", functions[i].Name, err)
+		}
+
+		functions[i].Endpoint = fmt.Sprintf("https://%s/api/v1/web/guest/default/%s", endpoint, functions[i].Name)
 	}
 }
 
-func CleanOpenWhisk() {
-	cmd := exec.Command("wsk", "-i", "action", "delete", actionName)
-	var out bytes.Buffer
-	cmd.Stdout = &out
-	err := cmd.Run()
-	if err != nil {
-		log.Debugf("Unable to delete OpenWhisk action.")
+func CleanOpenWhisk(functions []*common.Function) {
+	for i := 0; i < len(functions); i++ {
+		cmd := exec.Command("wsk", "-i", "action", "delete", functions[i].Name)
+		var out bytes.Buffer
+		cmd.Stdout = &out
+		err := cmd.Run()
+		if err != nil {
+			log.Debugf("Unable to delete OpenWhisk action for function %s - %s", functions[i].Name, err)
+		}
 	}
 }

@@ -1,12 +1,14 @@
 package driver
 
 import (
+	"bytes"
 	"fmt"
-	"github.com/eth-easl/loader/pkg/common"
 	"math"
 	"os/exec"
 	"regexp"
 	"strconv"
+
+	"github.com/eth-easl/loader/pkg/common"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -20,7 +22,7 @@ var (
 	urlRegex = regexp.MustCompile("at URL:\nhttp://([^\n]+)")
 )
 
-func DeployFunctions(functions []*common.Function, yamlPath string, isPartiallyPanic bool, endpointPort int,
+func DeployFunctionsKnative(functions []*common.Function, yamlPath string, isPartiallyPanic bool, endpointPort int,
 	autoscalingMetric string) {
 	for i := 0; i < len(functions); i++ {
 		deployOne(functions[i], yamlPath, isPartiallyPanic, endpointPort, autoscalingMetric)
@@ -83,4 +85,14 @@ func deployOne(function *common.Function, yamlPath string, isPartiallyPanic bool
 
 	log.Debugf("Deployed function on %s\n", function.Endpoint)
 	return true
+}
+
+func CleanKnative() {
+	cmd := exec.Command("kn", "service", "delete", "--all")
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	err := cmd.Run()
+	if err != nil {
+		log.Debugf("Unable to delete Knative services - %s", err)
+	}
 }

@@ -145,6 +145,7 @@ type InvocationMetadata struct {
 
 	RecordOutputChannel chan interface{}
 	AnnounceDoneWG      *sync.WaitGroup
+	AnnouceDoneExe      *sync.WaitGroup
 }
 
 func composeInvocationID(timeGranularity common.TraceGranularity, minuteIndex int, invocationIndex int) string {
@@ -178,7 +179,7 @@ func (d *Driver) invokeFunction(metadata *InvocationMetadata) {
 
 	} else if d.Configuration.LoaderConfiguration.Platform == "OpenWhisk" {
 		var record *mc.ExecutionRecordOpenWhisk
-		success, record = InvokeOpenWhisk(metadata.Function, metadata.RuntimeSpecifications, d.Configuration.LoaderConfiguration)
+		success, record = InvokeOpenWhisk(metadata.Function, metadata.RuntimeSpecifications, d.Configuration.LoaderConfiguration, metadata.AnnouceDoneExe)
 
 		record.Phase = int(metadata.Phase)
 		record.InvocationID = composeInvocationID(d.Configuration.TraceGranularity, metadata.MinuteIndex, metadata.InvocationIndex)
@@ -195,7 +196,14 @@ func (d *Driver) invokeFunction(metadata *InvocationMetadata) {
 }
 
 func (d *Driver) individualFunctionDriver(function *common.Function, announceFunctionDone *sync.WaitGroup,
-	totalSuccessful *int64, totalFailed *int64, totalIssued *int64, recordOutputChannel chan interface{}) {
+	addInvocationsToGroup *sync.WaitGroup, totalSuccessful *int64, totalFailed *int64, totalIssued *int64,
+	recordOutputChannel chan interface{}) {
+
+	numberOfInvocations := 0
+	for i := 0; i < len(function.InvocationStats.Invocations); i++ {
+		numberOfInvocations += function.InvocationStats.Invocations[i]
+	}
+	addInvocationsToGroup.Add(numberOfInvocations)
 
 	totalTraceDuration := d.Configuration.TraceDuration
 	minuteIndex, invocationIndex := 0, 0
@@ -259,6 +267,7 @@ func (d *Driver) individualFunctionDriver(function *common.Function, announceFun
 				FailedCountByMinute:    failedInvocationByMinute,
 				RecordOutputChannel:    recordOutputChannel,
 				AnnounceDoneWG:         &waitForInvocations,
+				AnnouceDoneExe:         addInvocationsToGroup,
 			})
 		} else {
 			// To be used from within the Golang testing framework
@@ -483,6 +492,7 @@ func (d *Driver) internalRun(iatOnly bool, generated bool) {
 	var failedInvocations int64
 	var invocationsIssued int64
 
+	allFunctionsInvoked := sync.WaitGroup{}
 	allIndividualDriversCompleted := sync.WaitGroup{}
 	allRecordsWritten := sync.WaitGroup{}
 	allRecordsWritten.Add(1)
@@ -525,6 +535,7 @@ func (d *Driver) internalRun(iatOnly bool, generated bool) {
 		go d.individualFunctionDriver(
 			function,
 			&allIndividualDriversCompleted,
+			&allFunctionsInvoked,
 			&successfulInvocations,
 			&failedInvocations,
 			&invocationsIssued,
@@ -575,7 +586,7 @@ func (d *Driver) RunExperiment(iatOnly bool, generated bool) {
 	trace.ApplyResourceLimits(d.Configuration.Functions)
 
 	if d.Configuration.LoaderConfiguration.Platform == "Knative" {
-		DeployFunctions(d.Configuration.Functions,
+		DeployFunctionsKnative(d.Configuration.Functions,
 			d.Configuration.YAMLPath,
 			d.Configuration.LoaderConfiguration.IsPartiallyPanic,
 			d.Configuration.LoaderConfiguration.EndpointPort,
@@ -586,7 +597,9 @@ func (d *Driver) RunExperiment(iatOnly bool, generated bool) {
 
 	d.internalRun(iatOnly, generated)
 
-	if d.Configuration.LoaderConfiguration.Platform == "OpenWhisk" {
-		CleanOpenWhisk()
+	if d.Configuration.LoaderConfiguration.Platform == "Knative" {
+		CleanKnative()
+	} else if d.Configuration.LoaderConfiguration.Platform == "OpenWhisk" {
+		CleanOpenWhisk(d.Configuration.Functions)
 	}
 }
