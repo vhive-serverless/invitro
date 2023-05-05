@@ -1,5 +1,12 @@
 package metric
 
+type StartType string
+
+const (
+	Hot  StartType = "hot"
+	Cold           = "cold"
+)
+
 type MinuteInvocationRecord struct {
 	Phase           int   `csv:"phase"`
 	Rps             int   `csv:"rps"`
@@ -28,9 +35,9 @@ type ExecutionRecordBase struct {
 type ExecutionRecordOpenWhisk struct {
 	ExecutionRecordBase
 
-	ActivationID   string `csv:"activationID"`
-	StartType      string `csv:"startType"`
-	HttpStatusCode int    `csv:"httpStatusCode"`
+	ActivationID   string    `csv:"activationID"`
+	StartType      StartType `csv:"startType"`
+	HttpStatusCode int       `csv:"httpStatusCode"`
 
 	// Measurements in microseconds
 	WaitTime int64 `csv:"waitTime"`

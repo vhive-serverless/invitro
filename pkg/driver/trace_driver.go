@@ -176,7 +176,6 @@ func (d *Driver) invokeFunction(metadata *InvocationMetadata) {
 		record.InvocationID = composeInvocationID(d.Configuration.TraceGranularity, metadata.MinuteIndex, metadata.InvocationIndex)
 
 		metadata.RecordOutputChannel <- record
-
 	} else if d.Configuration.LoaderConfiguration.Platform == "OpenWhisk" {
 		var record *mc.ExecutionRecordOpenWhisk
 		success, record = InvokeOpenWhisk(metadata.Function, metadata.RuntimeSpecifications, d.Configuration.LoaderConfiguration, metadata.AnnouceDoneExe)
