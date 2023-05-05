@@ -1,9 +1,10 @@
 package generator
 
 import (
+	"math/rand"
+
 	"github.com/eth-easl/loader/pkg/common"
 	log "github.com/sirupsen/logrus"
-	"math/rand"
 )
 
 type SpecificationGenerator struct {
@@ -156,13 +157,10 @@ func (s *SpecificationGenerator) generateExecuteSpec(runQtl float64, runStats *c
 		runtime = s.randIntBetween(runStats.Percentile25, runStats.Percentile50)
 	case runQtl <= 0.75:
 		runtime = s.randIntBetween(runStats.Percentile50, runStats.Percentile75)
-	case runQtl <= 0.95:
-		runtime = s.randIntBetween(runStats.Percentile75, runStats.Percentile99)
 	case runQtl <= 0.99:
-		runtime = s.randIntBetween(runStats.Percentile99, runStats.Percentile100)
+		runtime = s.randIntBetween(runStats.Percentile75, runStats.Percentile99)
 	case runQtl < 1:
-		// NOTE: 100th percentile is smaller from the max. somehow.
-		runtime = int(runStats.Percentile100)
+		runtime = s.randIntBetween(runStats.Percentile99, runStats.Percentile100)
 	}
 
 	return runtime
