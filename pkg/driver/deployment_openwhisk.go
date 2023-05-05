@@ -16,7 +16,7 @@ func DeployFunctionsOpenWhisk(functions []*common.Function) {
 	cmd.Stdout = &out
 	err := cmd.Run()
 	if err != nil {
-		log.Fatal("Unable to read OpenWhisk API host data - %s", err)
+		log.Fatalf("Unable to read OpenWhisk API host data - %s", err)
 	}
 
 	result := strings.Split(out.String(), "\t")
@@ -29,7 +29,7 @@ func DeployFunctionsOpenWhisk(functions []*common.Function) {
 
 		err = cmd.Run()
 		if err != nil {
-			log.Fatal("Unable to create OpenWhisk action for function %s - %s", functions[i].Name, err)
+			log.Fatalf("Unable to create OpenWhisk action for function %s - %s", functions[i].Name, err)
 		}
 
 		functions[i].Endpoint = fmt.Sprintf("https://%s/api/v1/web/guest/default/%s", endpoint, functions[i].Name)

@@ -9,6 +9,7 @@ data/traces/*
 pkg/generator/*.png
 pkg/generator/*.txt
 pkg/driver/*.csv
+pkg/workload/openwhisk/*.zip
 *.log
 tools/*/__pycache__
 tools/trace_synthesizer/*.csv

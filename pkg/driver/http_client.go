@@ -18,9 +18,9 @@ import (
 
 type ActivationMetadata struct {
 	Duration  uint32 //ms
-	StartType string //"hot" or "cold"
-	WaitTime  int64  //micro seconds
-	InitTime  int64  //ms
+	StartType mc.StartType
+	WaitTime  int64 //micro seconds
+	InitTime  int64 //ms
 }
 
 func InvokeOpenWhisk(function *common.Function, runtimeSpec *common.RuntimeSpecification, cfg *config.LoaderConfiguration, AnnouceDoneExe *sync.WaitGroup) (bool, *mc.ExecutionRecordOpenWhisk) {
@@ -82,7 +82,6 @@ func InvokeOpenWhisk(function *common.Function, runtimeSpec *common.RuntimeSpeci
 
 	//read data from OpenWhisk based on the activation ID
 	cmd := exec.Command("wsk", "-i", "activation", "get", record.ActivationID)
-	time.Sleep(2 * time.Second)
 	var out bytes.Buffer
 	cmd.Stdout = &out
 	err = cmd.Run()
@@ -122,7 +121,7 @@ func parseActivationMetadata(response string) (error, ActivationMetadata) {
 	}
 
 	result.Duration = uint32(jsonMap["duration"].(float64))
-	result.StartType = "hot"
+	result.StartType = mc.Hot
 	result.InitTime = 0
 	annotations := jsonMap["annotations"].([]interface{})
 	for i := 0; i < len(annotations); i++ {
@@ -131,7 +130,7 @@ func parseActivationMetadata(response string) (error, ActivationMetadata) {
 		if annotation["key"] == "waitTime" {
 			result.WaitTime = int64(annotation["value"].(float64))
 		} else if annotation["key"] == "initTime" {
-			result.StartType = "cold"
+			result.StartType = mc.Cold
 			result.InitTime = int64(annotation["value"].(float64))
 		}
 	}
