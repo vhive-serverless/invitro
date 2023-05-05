@@ -1,7 +1,7 @@
 {
   "Seed": 42,
 
-  "Platform": "OpenWhisk",
+  "Platform": "Knative",
 
   "YAMLSelector": "container",
   "EndpointPort": 80,
