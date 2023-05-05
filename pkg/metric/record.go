@@ -4,7 +4,7 @@ type StartType string
 
 const (
 	Hot  StartType = "hot"
-	Cold           = "cold"
+	Cold StartType = "cold"
 )
 
 type MinuteInvocationRecord struct {
