@@ -23,7 +23,7 @@ type ActivationMetadata struct {
 	InitTime  int64 //ms
 }
 
-func InvokeOpenWhisk(function *common.Function, runtimeSpec *common.RuntimeSpecification, cfg *config.LoaderConfiguration, AnnouceDoneExe *sync.WaitGroup) (bool, *mc.ExecutionRecordOpenWhisk) {
+func InvokeOpenWhisk(function *common.Function, runtimeSpec *common.RuntimeSpecification, cfg *config.LoaderConfiguration, AnnouceDoneExe *sync.WaitGroup, ReadOpenWhiskMetadata *sync.Mutex) (bool, *mc.ExecutionRecordOpenWhisk) {
 	log.Tracef("(Invoke)\t %s: %d[ms], %d[MiB]", function.Name, runtimeSpec.Runtime, runtimeSpec.Memory)
 
 	record := &mc.ExecutionRecordOpenWhisk{
@@ -37,6 +37,7 @@ func InvokeOpenWhisk(function *common.Function, runtimeSpec *common.RuntimeSpeci
 	////////////////////////////////////
 	start := time.Now()
 	record.StartTime = start.UnixMicro()
+	record.Instance = function.Name
 
 	http.DefaultTransport.(*http.Transport).TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 	requestURL := function.Endpoint
@@ -68,17 +69,21 @@ func InvokeOpenWhisk(function *common.Function, runtimeSpec *common.RuntimeSpeci
 	if record.HttpStatusCode < 200 || record.HttpStatusCode >= 300 {
 		log.Debugf("http request for function %s failed - error code: %d", function.Name, record.HttpStatusCode)
 
+		record.ResponseTime = time.Since(start).Microseconds()
+		record.ConnectionTimeout = true
+
 		AnnouceDoneExe.Done()
 
 		return false, record
 	}
 
 	record.ActivationID = res.Header.Get("X-Openwhisk-Activation-Id")
-	record.Instance = function.Name
 	record.ResponseTime = time.Since(start).Microseconds()
 
 	AnnouceDoneExe.Done()
 	AnnouceDoneExe.Wait()
+
+	ReadOpenWhiskMetadata.Lock()
 
 	//read data from OpenWhisk based on the activation ID
 	cmd := exec.Command("wsk", "-i", "activation", "get", record.ActivationID)
@@ -88,8 +93,12 @@ func InvokeOpenWhisk(function *common.Function, runtimeSpec *common.RuntimeSpeci
 	if err != nil {
 		log.Debugf("error reading activation information from OpenWhisk %s - %s", function.Name, err)
 
+		ReadOpenWhiskMetadata.Lock()
+
 		return false, record
 	}
+
+	ReadOpenWhiskMetadata.Unlock()
 
 	err, activationMetadata := parseActivationMetadata(out.String())
 	if err != nil {

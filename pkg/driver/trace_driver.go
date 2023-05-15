@@ -139,13 +139,14 @@ type InvocationMetadata struct {
 	MinuteIndex     int
 	InvocationIndex int
 
-	SuccessCount           *int64
-	FailedCount            *int64
-	FailedCountByMinute    []int64
+	SuccessCount        *int64
+	FailedCount         *int64
+	FailedCountByMinute []int64
 
-	RecordOutputChannel chan interface{}
-	AnnounceDoneWG      *sync.WaitGroup
-	AnnouceDoneExe      *sync.WaitGroup
+	RecordOutputChannel   chan interface{}
+	AnnounceDoneWG        *sync.WaitGroup
+	AnnouceDoneExe        *sync.WaitGroup
+	ReadOpenWhiskMetadata *sync.Mutex
 }
 
 func composeInvocationID(timeGranularity common.TraceGranularity, minuteIndex int, invocationIndex int) string {
@@ -178,7 +179,7 @@ func (d *Driver) invokeFunction(metadata *InvocationMetadata) {
 		metadata.RecordOutputChannel <- record
 	} else if d.Configuration.LoaderConfiguration.Platform == "OpenWhisk" {
 		var record *mc.ExecutionRecordOpenWhisk
-		success, record = InvokeOpenWhisk(metadata.Function, metadata.RuntimeSpecifications, d.Configuration.LoaderConfiguration, metadata.AnnouceDoneExe)
+		success, record = InvokeOpenWhisk(metadata.Function, metadata.RuntimeSpecifications, d.Configuration.LoaderConfiguration, metadata.AnnouceDoneExe, metadata.ReadOpenWhiskMetadata)
 
 		record.Phase = int(metadata.Phase)
 		record.InvocationID = composeInvocationID(d.Configuration.TraceGranularity, metadata.MinuteIndex, metadata.InvocationIndex)
@@ -195,8 +196,8 @@ func (d *Driver) invokeFunction(metadata *InvocationMetadata) {
 }
 
 func (d *Driver) individualFunctionDriver(function *common.Function, announceFunctionDone *sync.WaitGroup,
-	addInvocationsToGroup *sync.WaitGroup, totalSuccessful *int64, totalFailed *int64, totalIssued *int64,
-	recordOutputChannel chan interface{}) {
+	addInvocationsToGroup *sync.WaitGroup, readOpenWhiskMetadata *sync.Mutex, totalSuccessful *int64,
+	totalFailed *int64, totalIssued *int64, recordOutputChannel chan interface{}) {
 
 	numberOfInvocations := 0
 	for i := 0; i < len(function.InvocationStats.Invocations); i++ {
@@ -256,17 +257,18 @@ func (d *Driver) individualFunctionDriver(function *common.Function, announceFun
 			waitForInvocations.Add(1)
 
 			go d.invokeFunction(&InvocationMetadata{
-				Function:               function,
-				RuntimeSpecifications:  &runtimeSpecification[minuteIndex][invocationIndex],
-				Phase:                  currentPhase,
-				MinuteIndex:            minuteIndex,
-				InvocationIndex:        invocationIndex,
-				SuccessCount:           &successfulInvocations,
-				FailedCount:            &failedInvocations,
-				FailedCountByMinute:    failedInvocationByMinute,
-				RecordOutputChannel:    recordOutputChannel,
-				AnnounceDoneWG:         &waitForInvocations,
-				AnnouceDoneExe:         addInvocationsToGroup,
+				Function:              function,
+				RuntimeSpecifications: &runtimeSpecification[minuteIndex][invocationIndex],
+				Phase:                 currentPhase,
+				MinuteIndex:           minuteIndex,
+				InvocationIndex:       invocationIndex,
+				SuccessCount:          &successfulInvocations,
+				FailedCount:           &failedInvocations,
+				FailedCountByMinute:   failedInvocationByMinute,
+				RecordOutputChannel:   recordOutputChannel,
+				AnnounceDoneWG:        &waitForInvocations,
+				AnnouceDoneExe:        addInvocationsToGroup,
+				ReadOpenWhiskMetadata: readOpenWhiskMetadata,
 			})
 		} else {
 			// To be used from within the Golang testing framework
@@ -491,6 +493,7 @@ func (d *Driver) internalRun(iatOnly bool, generated bool) {
 	var failedInvocations int64
 	var invocationsIssued int64
 
+	readOpenWhiskMetadata := sync.Mutex{}
 	allFunctionsInvoked := sync.WaitGroup{}
 	allIndividualDriversCompleted := sync.WaitGroup{}
 	allRecordsWritten := sync.WaitGroup{}
@@ -535,6 +538,7 @@ func (d *Driver) internalRun(iatOnly bool, generated bool) {
 			function,
 			&allIndividualDriversCompleted,
 			&allFunctionsInvoked,
+			&readOpenWhiskMetadata,
 			&successfulInvocations,
 			&failedInvocations,
 			&invocationsIssued,
