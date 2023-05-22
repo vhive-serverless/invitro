@@ -5,13 +5,13 @@ go 1.19
 require (
 	github.com/ease-lab/vhive/utils/tracing/go v0.0.0-20211206145412-3a4607297428
 	github.com/gocarina/gocsv v0.0.0-20211203214250-4735fba0c1d9
-	github.com/golang/protobuf v1.5.2
+	github.com/golang/protobuf v1.5.3
 	github.com/sfreiberg/simplessh v0.0.0-20220719182921-185eafd40485
 	github.com/sirupsen/logrus v1.9.0
-	golang.org/x/sys v0.7.0
+	golang.org/x/sys v0.8.0
 	gonum.org/v1/gonum v0.13.0
 	gonum.org/v1/plot v0.13.0
-	google.golang.org/grpc v1.54.0
+	google.golang.org/grpc v1.55.0
 )
 
 require github.com/stretchr/testify v1.8.0
@@ -45,6 +45,6 @@ require (
 	go.opentelemetry.io/otel/trace v0.20.0 // indirect
 	golang.org/x/net v0.8.0 // indirect
 	golang.org/x/text v0.9.0 // indirect
-	google.golang.org/genproto v0.0.0-20230110181048-76db0878b65f // indirect
-	google.golang.org/protobuf v1.28.1 // indirect
+	google.golang.org/genproto v0.0.0-20230306155012-7f2fa6fef1f4 // indirect
+	google.golang.org/protobuf v1.30.0 // indirect
 )
