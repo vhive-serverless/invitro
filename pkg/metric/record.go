@@ -48,9 +48,10 @@ type ExecutionRecordBase struct {
 	StartTime    int64  `csv:"startTime"`
 
 	// Measurements in microseconds
-	RequestedDuration uint32 `csv:"requestedDuration"`
-	ResponseTime      int64  `csv:"responseTime"`
-	ActualDuration    uint32 `csv:"actualDuration"`
+	RequestedDuration           uint32 `csv:"requestedDuration"`
+	GRPCConnectionEstablishTime int64  `csv:"grpcConnEstablish"`
+	ResponseTime                int64  `csv:"responseTime"`
+	ActualDuration              uint32 `csv:"actualDuration"`
 
 	ConnectionTimeout bool `csv:"connectionTimeout"`
 	FunctionTimeout   bool `csv:"functionTimeout"`
@@ -72,9 +73,8 @@ type ExecutionRecord struct {
 	ExecutionRecordBase
 
 	// Measurements in microseconds
-	ActualMemoryUsage uint32 `csv:"actualMemoryUsage"`
-
-	MemoryAllocationTimeout bool `csv:"memoryAllocationTimeout"`
+	ActualMemoryUsage       uint32 `csv:"actualMemoryUsage"`
+	MemoryAllocationTimeout bool   `csv:"memoryAllocationTimeout"`
 
 	// TODO: EVERYTHING BELOW ARE UNTESTED FIELDS
 
