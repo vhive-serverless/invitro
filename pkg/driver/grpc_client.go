@@ -52,6 +52,8 @@ func Invoke(function *common.Function, runtimeSpec *common.RuntimeSpecification,
 		return false, record
 	}
 
+	record.GRPCConnectionEstablishTime = time.Since(start).Microseconds()
+
 	grpcClient := proto.NewExecutorClient(conn)
 
 	executionCxt, cancelExecution := context.WithTimeout(context.Background(), time.Duration(cfg.GRPCFunctionTimeoutSeconds)*time.Second)
