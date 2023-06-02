@@ -27,12 +27,14 @@ package driver
 import (
 	"bytes"
 	"fmt"
+	"github.com/vhive-serverless/loader/pkg/common"
+	"io"
 	"math"
+	"net/http"
+	"net/url"
 	"os/exec"
 	"regexp"
 	"strconv"
-
-	"github.com/vhive-serverless/loader/pkg/common"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -46,11 +48,31 @@ var (
 	urlRegex = regexp.MustCompile("at URL:\nhttp://([^\n]+)")
 )
 
-func DeployFunctionsKnative(functions []*common.Function, yamlPath string, isPartiallyPanic bool, endpointPort int,
-	autoscalingMetric string) {
+func DeployFunctions(functions []*common.Function, yamlPath string, isPartiallyPanic bool, endpointPort int, autoscalingMetric string) {
 	for i := 0; i < len(functions); i++ {
-		deployOne(functions[i], yamlPath, isPartiallyPanic, endpointPort, autoscalingMetric)
+		//deployOne(functions[i], yamlPath, isPartiallyPanic, endpointPort, autoscalingMetric)
+		deployCM(functions[i])
 	}
+}
+
+func deployCM(function *common.Function) {
+	payload := url.Values{
+		"name":            {"/faas.Executor/Execute"},
+		"image":           {"docker.io/cvetkovic/empty_function:latest"},
+		"port_forwarding": {"80", "tcp"},
+	}
+
+	resp, err := http.PostForm("http://localhost:9091/registerService", payload)
+	if err != nil {
+		log.Fatal("Failed to register a service with the control plane - ", err.Error())
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		log.Fatal("Failed to read response body.")
+	}
+	function.Endpoint = string(body)
 }
 
 func deployOne(function *common.Function, yamlPath string, isPartiallyPanic bool, endpointPort int,
