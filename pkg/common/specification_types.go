@@ -6,9 +6,15 @@ type IATMatrix [][]float64
 // ProbabilisticDuration used for testing the exponential distribution
 type ProbabilisticDuration []float64
 
+type GPTStats struct {
+	Iterations int
+	BatchSize  int
+}
+
 type RuntimeSpecification struct {
 	Runtime int
 	Memory  int
+	Stats   GPTStats
 }
 
 type RuntimeSpecificationMatrix [][]RuntimeSpecification

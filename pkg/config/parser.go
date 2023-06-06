@@ -19,6 +19,7 @@ type LoaderConfiguration struct {
 	IATDistribution    string `json:"IATDistribution"`
 	ExperimentDuration int    `json:"ExperimentDuration"`
 	WarmupDuration     int    `json:"WarmupDuration"`
+	ClientTraining     string `json:"ClientTraining"`
 
 	IsPartiallyPanic            bool   `json:"IsPartiallyPanic"`
 	EnableZipkinTracing         bool   `json:"EnableZipkinTracing"`

@@ -99,5 +99,5 @@ var Executor_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "server/faas.proto",
+	Metadata: "faas.proto",
 }

@@ -1,0 +1,19 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: trace-function-gpt
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: trace-function-gpt
+  template:
+    metadata:
+      labels:
+        app: trace-function-gpt
+    spec:
+      containers:
+      - name: trace-function-gpt
+        image: gaow0007/trace_function_gpt:latest
+        ports:
+        - containerPort: 80

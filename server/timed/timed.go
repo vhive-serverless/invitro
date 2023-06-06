@@ -4,12 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	util "github.com/eth-easl/loader/pkg/common"
-	"github.com/eth-easl/loader/pkg/workload/proto"
 	"net"
 	"os"
 	"strconv"
 	"time"
+
+	util "github.com/eth-easl/loader/pkg/common"
+	"github.com/eth-easl/loader/pkg/workload/proto"
 
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
@@ -49,7 +50,7 @@ func (s *funcServer) Execute(ctx context.Context, req *proto.FaasRequest) (*prot
 	//* To avoid unecessary overheads, memory allocation is at the granularity of os pages.
 	delta := 2 //* Emperical skewness.
 	pageSize := unix.Getpagesize()
-	numPagesRequested := util.Mib2b(req.MemoryInMebiBytes) / uint32(pageSize) / uint32(delta)
+	numPagesRequested := util.Mib2b(req.GpuMemoryInMebiBytes) / uint32(pageSize) / uint32(delta)
 	bytes := make([]byte, numPagesRequested*uint32(pageSize))
 	timeout := false
 	for i := 0; i < int(numPagesRequested); i += pageSize {
@@ -71,9 +72,9 @@ finish:
 	}
 
 	return &proto.FaasReply{
-		Message:            msg,
-		DurationInMicroSec: uint32(time.Since(start).Microseconds()),
-		MemoryUsageInKb:    util.B2Kib(numPagesRequested * uint32(unix.Getpagesize())),
+		Message:              msg,
+		DurationInMicroSec:   uint32(time.Since(start).Microseconds()),
+		GpuMemoryInMebiBytes: util.B2Kib(numPagesRequested * uint32(unix.Getpagesize())),
 	}, nil
 }
 

@@ -21,10 +21,11 @@ const (
 )
 
 var (
-	configPath    = flag.String("config", "config.json", "Path to loader configuration file")
-	verbosity     = flag.String("verbosity", "info", "Logging verbosity - choose from [info, debug, trace]")
-	iatGeneration = flag.Bool("iatGeneration", false, "Generate iats only or run invocations as well")
-	generated     = flag.Bool("generated", false, "True if iats were already generated")
+	configPath         = flag.String("config", "cmd/config_client_single.json", "Path to loader configuration file")
+	verbosity          = flag.String("verbosity", "trace", "Logging verbosity - choose from [info, debug, trace]")
+	iatGeneration      = flag.Bool("iatGeneration", false, "Generate iats only or run invocations as well")
+	generated          = flag.Bool("generated", false, "True if iats were already generated")
+	overwrite_duration = flag.Int("overwrite_duration", -1, "overwrite duration")
 )
 
 func init() {
@@ -34,6 +35,13 @@ func init() {
 		TimestampFormat: time.StampMilli,
 		FullTimestamp:   true,
 	})
+	// cfg := config.ReadConfigurationFile(*configPath)
+	// logPath := fmt.Sprintf("data/logs/experiment_duration_%d.txt", cfg.ExperimentDuration)
+	// file, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
+	// log.SetOutput(io.MultiWriter(os.Stdout, file))
 	log.SetOutput(os.Stdout)
 
 	switch *verbosity {
@@ -64,7 +72,9 @@ func main() {
 	if cfg.ExperimentDuration < 1 {
 		log.Fatal("Runtime duration should be longer at least a minute.")
 	}
-
+	if (*overwrite_duration) > 0 {
+		cfg.ExperimentDuration = *overwrite_duration
+	}
 	runTraceMode(&cfg, *iatGeneration, *generated)
 }
 
@@ -81,11 +91,32 @@ func determineDurationToParse(runtimeDuration int, warmupDuration int) int {
 	return result
 }
 
+func shadowFunctions(functions []*common.Function) []*common.Function {
+	newFunctions := make([]*common.Function, len(functions)*len(common.GPUSet))
+
+	for i, f := range functions {
+		for j := 0; j < len(common.GPUSet); j++ {
+			copy := *f                                                     // make a copy of the function
+			copy.Name = fmt.Sprintf("%s-gpu-%d", f.Name, common.GPUSet[j]) // update the name of the copy
+			newFunctions[i*len(common.GPUSet)+j] = &copy                   // add the copy to the new slice
+		}
+		for j := 0; j < len(common.GPUSet); j++ {
+			log.Infof("shadowFunctions function name is %s", f.Name)
+		}
+	}
+
+	return newFunctions
+}
+
 func runTraceMode(cfg *config.LoaderConfiguration, iatOnly bool, generated bool) {
 	durationToParse := determineDurationToParse(cfg.ExperimentDuration, cfg.WarmupDuration)
 
 	traceParser := trace.NewAzureParser(cfg.TracePath, durationToParse)
 	functions := traceParser.Parse()
+
+	if cfg.ClientTraining == common.Single {
+		functions = shadowFunctions(functions)
+	}
 
 	log.Infof("Traces contain the following %d functions:\n", len(functions))
 	for _, function := range functions {
@@ -109,7 +140,7 @@ func runTraceMode(cfg *config.LoaderConfiguration, iatOnly bool, generated bool)
 	case "wimpy":
 		yamlSpecificationPath = "workloads/container/wimpy.yaml"
 	case "container":
-		yamlSpecificationPath = "workloads/container/trace_func_go.yaml"
+		yamlSpecificationPath = "workloads/container/trace_func_gpt.yaml"
 	case "firecracker":
 		yamlSpecificationPath = "workloads/firecracker/trace_func_go.yaml"
 	default:

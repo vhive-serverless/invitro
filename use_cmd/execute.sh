@@ -1,0 +1,1 @@
+kubectl exec -it $1 -c user-container -- /bin/sh

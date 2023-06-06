@@ -2,9 +2,13 @@ loader
 analysis
 .vscode/
 .idea
+*pyc
+use_cmd/__pycache__
 tmp
 data/out
 data/traces/*
+data/logs
+images/*
 !data/traces/example/
 pkg/generator/*.png
 pkg/generator/*.txt

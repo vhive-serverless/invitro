@@ -13,9 +13,9 @@
 */
 syntax = "proto3";
 
-option go_package = "github.com/eth-easl/loader/workload/proto";
-
 package faas;
+
+option go_package = "proto/proto";
 
 service Executor {
   // Remote execution via RPC call.
@@ -23,13 +23,16 @@ service Executor {
 }
 
 message FaasRequest {
-  string message = 1;           // Text message field (unused).
-  uint32 runtimeInMilliSec = 2; // Execution runtime [ms].
-  uint32 memoryInMebiBytes = 3; // Request memory usage [MiB].
+  string message = 1;           // Text message field.
+  uint32 batchsize = 2;         // batch size 
+  uint32 runtimeInMilliSec = 3; // Execution runtime [ms].
+  uint32 gpuMemoryInMebiBytes = 4; // Request memory usage [MiB].
+  repeated float promptTensor = 5 [packed = true]; // prompt inputs
 }
 
 message FaasReply {
-  string message = 1;             // Text message field (unused).
+  string message = 1;             // Text message field.
   uint32 durationInMicroSec = 2;   // Execution latency [µs].
-  uint32 memoryUsageInKb = 3;     // Memory usage [KB].
+  uint32 gpuMemoryInMebiBytes = 3;     // Memory usage [MiB].
+  repeated float promptGradient = 4 [packed = true]; // prompt gradients
 }

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -57,7 +58,7 @@ func (c *DriverConfiguration) WithWarmup() bool {
 // HELPER METHODS
 // ///////////////////////////////////////
 func (d *Driver) outputFilename(name string) string {
-	return fmt.Sprintf("%s_%s_%d.csv", d.Configuration.LoaderConfiguration.OutputPathPrefix, name, d.Configuration.TraceDuration)
+	return fmt.Sprintf("%s_%s_%d_ClientTraining_%s.csv", d.Configuration.LoaderConfiguration.OutputPathPrefix, name, d.Configuration.TraceDuration, d.Configuration.LoaderConfiguration.ClientTraining)
 }
 
 func (d *Driver) runCSVWriter(records chan interface{}, filename string, writerDone *sync.WaitGroup) {
@@ -139,9 +140,9 @@ type InvocationMetadata struct {
 	MinuteIndex     int
 	InvocationIndex int
 
-	SuccessCount           *int64
-	FailedCount            *int64
-	FailedCountByMinute    []int64
+	SuccessCount        *int64
+	FailedCount         *int64
+	FailedCountByMinute []int64
 
 	RecordOutputChannel chan *mc.ExecutionRecord
 	AnnounceDoneWG      *sync.WaitGroup
@@ -206,7 +207,12 @@ func (d *Driver) individualFunctionDriver(function *common.Function, announceFun
 
 	startOfMinute := time.Now()
 	var previousIATSum int64
-
+	// log.Infof("Minute %d, Function Name %s\n", minuteIndex, function.Name)
+	gpuCount := -1
+	if d.Configuration.LoaderConfiguration.ClientTraining == common.Single {
+		parts := strings.Split(function.Name, "-")
+		gpuCount, _ = strconv.Atoi(parts[len(parts)-1])
+	}
 	for {
 		if minuteIndex >= totalTraceDuration {
 			// Check whether the end of trace has been reached
@@ -229,22 +235,35 @@ func (d *Driver) individualFunctionDriver(function *common.Function, announceFun
 
 			continue
 		}
-
 		numberOfIssuedInvocations++
-		if !d.Configuration.TestMode {
+
+		invokeFunctionOrNot := true
+
+		if d.Configuration.LoaderConfiguration.ClientTraining == common.Single {
+			// log.Infof("numberOfIssuedInvocations %d, length of invocation %d\n", numberOfIssuedInvocations, len(function.BatchStats.Invocations))
+			expectedGPUCount := function.BatchStats.Invocations[numberOfIssuedInvocations-1] / common.BszPerDevice
+			if gpuCount != expectedGPUCount {
+				invokeFunctionOrNot = false
+			}
+		}
+
+		if (!d.Configuration.TestMode) && invokeFunctionOrNot {
 			waitForInvocations.Add(1)
+			runtimeSpecification[minuteIndex][invocationIndex].Stats = common.GPTStats{
+				Iterations: function.IterationStats.Invocations[numberOfIssuedInvocations-1],
+				BatchSize:  function.BatchStats.Invocations[numberOfIssuedInvocations-1]}
 
 			go d.invokeFunction(&InvocationMetadata{
-				Function:               function,
-				RuntimeSpecifications:  &runtimeSpecification[minuteIndex][invocationIndex],
-				Phase:                  currentPhase,
-				MinuteIndex:            minuteIndex,
-				InvocationIndex:        invocationIndex,
-				SuccessCount:           &successfulInvocations,
-				FailedCount:            &failedInvocations,
-				FailedCountByMinute:    failedInvocationByMinute,
-				RecordOutputChannel:    recordOutputChannel,
-				AnnounceDoneWG:         &waitForInvocations,
+				Function:              function,
+				RuntimeSpecifications: &runtimeSpecification[minuteIndex][invocationIndex],
+				Phase:                 currentPhase,
+				MinuteIndex:           minuteIndex,
+				InvocationIndex:       invocationIndex,
+				SuccessCount:          &successfulInvocations,
+				FailedCount:           &failedInvocations,
+				FailedCountByMinute:   failedInvocationByMinute,
+				RecordOutputChannel:   recordOutputChannel,
+				AnnounceDoneWG:        &waitForInvocations,
 			})
 		} else {
 			// To be used from within the Golang testing framework
@@ -507,7 +526,7 @@ func (d *Driver) internalRun(iatOnly bool, generated bool) {
 	log.Infof("Starting function invocation driver\n")
 	for _, function := range d.Configuration.Functions {
 		allIndividualDriversCompleted.Add(1)
-
+		fmt.Printf("invoke function %v\n", function)
 		go d.individualFunctionDriver(
 			function,
 			&allIndividualDriversCompleted,
@@ -560,7 +579,9 @@ func (d *Driver) RunExperiment(iatOnly bool, generated bool) {
 
 	trace.ApplyResourceLimits(d.Configuration.Functions)
 
-	DeployFunctions(d.Configuration.Functions,
+	DeployFunctions(
+		d.Configuration.LoaderConfiguration,
+		d.Configuration.Functions,
 		d.Configuration.YAMLPath,
 		d.Configuration.LoaderConfiguration.IsPartiallyPanic,
 		d.Configuration.LoaderConfiguration.EndpointPort,

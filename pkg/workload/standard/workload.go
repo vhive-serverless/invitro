@@ -3,16 +3,17 @@ package standard
 import (
 	"context"
 	"fmt"
+	"net"
+	"os"
+	"strconv"
+	"time"
+
 	tracing "github.com/ease-lab/vhive/utils/tracing/go"
 	util "github.com/eth-easl/loader/pkg/common"
 	"github.com/eth-easl/loader/pkg/workload/proto"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
-	"net"
-	"os"
-	"strconv"
-	"time"
 )
 
 // static double SQRTSD (double x) {
@@ -94,9 +95,10 @@ func (s *funcServer) Execute(_ context.Context, req *proto.FaasRequest) (*proto.
 	}
 
 	return &proto.FaasReply{
-		Message:            msg,
-		DurationInMicroSec: uint32(time.Since(start).Microseconds()),
-		MemoryUsageInKb:    req.MemoryInMebiBytes * 1024,
+		Message:              msg,
+		DurationInMicroSec:   uint32(time.Since(start).Microseconds()),
+		GpuMemoryInMebiBytes: req.GpuMemoryInMebiBytes * 1024,
+		PromptGradient:       req.PromptTensor,
 	}, nil
 }
 

@@ -1,7 +1,7 @@
 package common
 
 const (
-	FunctionNamePrefix      = "trace-func"
+	FunctionNamePrefix      = "gpttrace-func"
 	OneSecondInMicroseconds = 1_000_000.0
 )
 
@@ -67,4 +67,13 @@ type RuntimeAssertType int
 const (
 	RequestedVsIssued RuntimeAssertType = 0
 	IssuedVsFailed    RuntimeAssertType = 1
+)
+
+const (
+	Single string = "single"
+	Batch  string = "batch"
+)
+
+const (
+	BszPerDevice = 32
 )

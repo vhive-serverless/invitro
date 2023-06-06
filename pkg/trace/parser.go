@@ -3,14 +3,15 @@ package trace
 import (
 	"encoding/csv"
 	"fmt"
-	"github.com/eth-easl/loader/pkg/common"
-	"github.com/gocarina/gocsv"
 	"io"
 	"math/rand"
 	"os"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/eth-easl/loader/pkg/common"
+	"github.com/gocarina/gocsv"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -76,6 +77,17 @@ func (p *AzureTraceParser) extractFunctions(invocations *[]common.FunctionInvoca
 	return result
 }
 
+func (p *AzureTraceParser) extendFunctions(functions []*common.Function,
+	iterationTrace *[]common.FunctionInvocationStats, batchTrace *[]common.FunctionInvocationStats) []*common.Function {
+
+	for i := 0; i < len(functions); i++ {
+		function := functions[i]
+		function.IterationStats = &((*iterationTrace)[i])
+		function.BatchStats = &((*batchTrace)[i])
+	}
+	return functions
+}
+
 func (p *AzureTraceParser) Parse() []*common.Function {
 	invocationPath := p.DirectoryPath + "/invocations.csv"
 	runtimePath := p.DirectoryPath + "/durations.csv"
@@ -85,7 +97,20 @@ func (p *AzureTraceParser) Parse() []*common.Function {
 	runtimeTrace := parseRuntimeTrace(runtimePath)
 	memoryTrace := parseMemoryTrace(memoryPath)
 
-	return p.extractFunctions(invocationTrace, runtimeTrace, memoryTrace)
+	simulationFunctions := p.extractFunctions(invocationTrace, runtimeTrace, memoryTrace)
+
+	// extend function attributes
+	iterationPath := p.DirectoryPath + "/iterations.csv"
+	batchPath := p.DirectoryPath + "/batch.csv"
+	_, err := os.Stat(iterationPath)
+	if os.IsNotExist(err) {
+		fmt.Println("File does not exist")
+	} else {
+		iterationTrace := parseInvocationTrace(iterationPath, p.duration*5)
+		batchTrace := parseInvocationTrace(batchPath, p.duration*5)
+		simulationFunctions = p.extendFunctions(simulationFunctions, iterationTrace, batchTrace)
+	}
+	return simulationFunctions
 }
 
 func parseInvocationTrace(traceFile string, traceDuration int) *[]common.FunctionInvocationStats {

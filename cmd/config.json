@@ -4,11 +4,12 @@
   "YAMLSelector": "container",
   "EndpointPort": 80,
 
-  "TracePath": "data/traces/example",
+  "TracePath": "data/gpttraces/example",
   "Granularity": "minute",
   "OutputPathPrefix": "data/out/experiment",
+  "ClientTraining": "Single", 
   "IATDistribution": "exponential",
-  "ExperimentDuration": 45,
+  "ExperimentDuration": 20,
   "WarmupDuration": 0,
 
   "IsPartiallyPanic": false,

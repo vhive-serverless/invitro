@@ -6,7 +6,9 @@ spec:
   template:
     spec:
       containers:
-        - image: docker.io/hyhe/trace-func-py:latest
+        # - image: gaow0007/trace_function_gpt:latest
+        - image: gaow0007/trace_function_gpt:latest
+          imagePullPolicy: Always
           ports:
             - name: h2c # For gRPC support
               containerPort: 80

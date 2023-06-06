@@ -4,10 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	util "github.com/eth-easl/loader/pkg/common"
-	"github.com/eth-easl/loader/pkg/workload/proto"
 	"net"
 	"time"
+
+	util "github.com/eth-easl/loader/pkg/common"
+	"github.com/eth-easl/loader/pkg/workload/proto"
 
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
@@ -29,7 +30,7 @@ func (s *funcServer) Execute(ctx context.Context, req *proto.FaasRequest) (*prot
 	}
 
 	pageSize := unix.Getpagesize()
-	numPagesRequested := util.Mib2b(req.MemoryInMebiBytes) / uint32(pageSize)
+	numPagesRequested := util.Mib2b(req.GpuMemoryInMebiBytes) / uint32(pageSize)
 	//* Golang internally uses `mmap()`, talking to OS directly.
 	pages, err := unix.Mmap(-1, 0, int(numPagesRequested)*int(numPagesRequested),
 		unix.PROT_WRITE, unix.MAP_ANON|unix.MAP_PRIVATE)
@@ -42,9 +43,9 @@ func (s *funcServer) Execute(ctx context.Context, req *proto.FaasRequest) (*prot
 
 	<-timeoutSem //* Blocking wait.
 	return &proto.FaasReply{
-		Message:            "Wimpy func -- DONE", // Unused
-		DurationInMicroSec: uint32(time.Since(start).Microseconds()),
-		MemoryUsageInKb:    util.B2Kib(numPagesRequested * uint32(pageSize)),
+		Message:              "Wimpy func -- DONE", // Unused
+		DurationInMicroSec:   uint32(time.Since(start).Microseconds()),
+		GpuMemoryInMebiBytes: util.B2Kib(numPagesRequested * uint32(pageSize)),
 	}, nil
 }
 
