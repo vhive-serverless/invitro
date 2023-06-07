@@ -3,6 +3,7 @@ package driver
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -10,10 +11,12 @@ import (
 	"github.com/eth-easl/loader/pkg/common"
 	"github.com/eth-easl/loader/pkg/config"
 	"github.com/eth-easl/loader/pkg/workload/proto"
+	"github.com/google/uuid"
 
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/metadata"
 
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 
@@ -82,6 +85,10 @@ func BatchInvoke(function *common.Function, runtimeSpec *common.RuntimeSpecifica
 	// function.Iterations = rand.Intn(10) + 5
 
 	minReplicas := runtimeSpec.Stats.BatchSize / common.BszPerDevice
+	// add http header for scheduler
+	uuid := uuid.New()
+	md := metadata.New(map[string]string{"GPTName": uuid.String(), "Replicas": strconv.Itoa(minReplicas)})
+	executionCxt = metadata.NewOutgoingContext(executionCxt, md)
 
 	responses := make([]proto.FaasReply, 32)
 

@@ -4,7 +4,7 @@ clean_env() {
     sleep 60 
 }
 
-for duration in 60 # 40 # 10 20 40 # 60 120 180 #
+for duration in 10 20 40 60 120 # 40 # 10 20 40 # 60 120 180 #
 do
     go run cmd/loader.go --config cmd/config_client_single.json  --overwrite_duration ${duration}
     clean_env "$@"
