@@ -69,7 +69,7 @@ Set `invoker.containerFactory.kubernetes.replicaCount` to the number of worker n
 
 Set `invoker.options` to `"-Dwhisk.spi.LogStoreProvider=org.apache.openwhisk.core.containerpool.logging.LogDriverLogStoreProvider"`. 
 
-In this file you can control the log verbosity by setting the adequate `loglevel` fileds to a desired value (default: `"INFO"`).
+In this file you can control the log verbosity by setting the adequate `loglevel` fields to a desired value (default: `"INFO"`).
 
 *  `openwhisk-deploy-kube/helm/openwhisk/runtimes.json` 
 
@@ -96,7 +96,7 @@ If you want to change the lifetime of the container after executing a function, 
   value: "<desired_time>"
 ```
 
-Set the `<desired_time>` to your prefered value.  
+Set the `<desired_time>` to your preferred value.  
 
 ### Starting the custom OpenWhisk configuration 
 
@@ -149,3 +149,4 @@ $ go  run  cmd/loader.go  --config  cmd/config.json
 ```
 
 Additionally, one can specify log verbosity argument as `--verbosity [info, debug, trace]`. The default value is `info`.
+

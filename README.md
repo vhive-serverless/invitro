@@ -160,3 +160,7 @@ For more details take a look at the README in the tools/driver folder.
 
 For more options, please see the `Makefile`.
 
+## Using OpenWhisk
+
+For instructions on how to use the loader with OpenWhisk go to `openwhisk_setup/README.md`.
+

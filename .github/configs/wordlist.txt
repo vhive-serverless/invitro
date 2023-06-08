@@ -720,3 +720,5 @@ YAMLSelector
 reproducibility
 warmup
 OpenWhisk
+wsk
+CLI
