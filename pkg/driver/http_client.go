@@ -19,7 +19,7 @@ import (
 type ActivationMetadata struct {
 	Duration  uint32 //ms
 	StartType mc.StartType
-	WaitTime  int64 //micro seconds
+	WaitTime  int64 //ms
 	InitTime  int64 //ms
 }
 
@@ -93,7 +93,7 @@ func InvokeOpenWhisk(function *common.Function, runtimeSpec *common.RuntimeSpeci
 	if err != nil {
 		log.Debugf("error reading activation information from OpenWhisk %s - %s", function.Name, err)
 
-		ReadOpenWhiskMetadata.Lock()
+		ReadOpenWhiskMetadata.Unlock()
 
 		return false, record
 	}
@@ -110,7 +110,7 @@ func InvokeOpenWhisk(function *common.Function, runtimeSpec *common.RuntimeSpeci
 	record.ActualDuration = activationMetadata.Duration * 1000 //ms to micro sec
 	record.StartType = activationMetadata.StartType
 	record.InitTime = activationMetadata.InitTime * 1000 //ms to micro sec
-	record.WaitTime = activationMetadata.WaitTime
+	record.WaitTime = activationMetadata.WaitTime * 1000 //ms to micro sec
 
 	log.Tracef("(Replied)\t %s: %d[ms]", function.Name, record.ActualDuration)
 	log.Tracef("(E2E Latency) %s: %.2f[ms]\n", function.Name, float64(record.ResponseTime)/1e3)
