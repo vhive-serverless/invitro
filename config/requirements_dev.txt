@@ -3,7 +3,7 @@ certifi==2019.11.28
 chardet==5.1.0
 command-not-found==0.3
 cryptography==40.0.2
-dbus-python==1.2.16
+dbus-python==1.3.2
 distro==1.8.0
 distro-info===1.0
 html5lib==1.1
