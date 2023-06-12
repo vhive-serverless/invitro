@@ -3,11 +3,11 @@ import json
 import sys
 import os
 
-loader_total_cores = 8
+prometheus_ip = os.popen("kubectl get svc -n monitoring | grep prometheus-kube-prometheus-prometheus | awk '{print $3}'").read().strip().split('\n')[0]
 
 def get_promql_query(query):
     def promql_query():
-        return "tools/bin/promql --no-headers --host 'http://localhost:9090' '" + query + "' | grep . | sort | awk '{print $2}'"
+        return "tools/bin/promql --no-headers --host 'http://" + prometheus_ip + ":9090' '" + query + "' | grep . | sort | awk '{print $2}'"
     return promql_query
 
 if __name__ == "__main__":
@@ -42,12 +42,13 @@ if __name__ == "__main__":
         "pod_cpu": [],
         "pod_mem": [],
         "pods": [],
+        "loader_cpu": 0,
+        "loader_mem": 0,
     }
 
-    loader_cpu_pct, loader_mem_pct = list(
+    result["loader_cpu"], result["loader_mem"] = list(
         map(float, subprocess.check_output(cmd_get_loader_pct).decode("utf-8").strip().split())
     )
-    loader_cpu_pct /= loader_total_cores #* Normalise to [0, 100]
 
     abs_out = subprocess.check_output(cmd_get_abs_vals).decode("utf-8")[:-1].split('\n')
     pcts_out = subprocess.check_output(cmd_get_pcts).decode("utf-8").split('\n')
@@ -66,8 +67,6 @@ if __name__ == "__main__":
         if is_master:
             # Record master node.
             result['master_cpu_pct'], result['master_mem_pct'] = list(map(float, pcts[:-1].split('%')))
-            result['master_cpu_pct'] = max(0, result['master_cpu_pct'] - loader_cpu_pct)
-            result['master_mem_pct'] = max(0, result['master_mem_pct'] - loader_mem_pct)
             result['master_mem_req'] = float(mem_r)
             result['master_mem_lim'] = float(mem_l)
             result['master_cpu_req'] = float(cpu_r)

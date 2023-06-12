@@ -1,9 +1,11 @@
 import os
 import json
 
+prometheus_ip = os.popen("kubectl get svc -n monitoring | grep prometheus-kube-prometheus-prometheus | awk '{print $3}'").read().strip().split('\n')[0]
+
 def get_promql_query(query):
     def promql_query():
-        return "tools/bin/promql --no-headers --host 'http://localhost:9090' '" + query + "' | awk '{print $1}'"
+        return "tools/bin/promql --no-headers --host 'http://" + prometheus_ip + ":9090' '" + query + "' | awk '{print $1}'"
     return promql_query
 
 if __name__ == "__main__":
