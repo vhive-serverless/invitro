@@ -26,9 +26,9 @@ var (
 func DeployFunctions(loaderConfiguration *config.LoaderConfiguration, functions []*common.Function, yamlPath string, isPartiallyPanic bool, endpointPort int,
 	autoscalingMetric string) {
 	for i := 0; i < len(functions); i++ {
-		if loaderConfiguration.ClientTraining == common.Batch {
+		if loaderConfiguration.ClientTraining == common.Batch || loaderConfiguration.ClientTraining == common.BatchPriority || loaderConfiguration.ClientTraining == common.PipelineBatchPriority {
 			deployOne(functions[i], yamlPath, isPartiallyPanic, endpointPort, autoscalingMetric)
-		} else {
+		} else if loaderConfiguration.ClientTraining == common.Single {
 
 			parts := strings.Split(functions[i].Name, "-")
 			gpuCount, err := strconv.Atoi(parts[len(parts)-1])
@@ -36,6 +36,8 @@ func DeployFunctions(loaderConfiguration *config.LoaderConfiguration, functions 
 				fmt.Println(gpuCount, functions[i].Name)
 			}
 			deployOneWithGPU(gpuCount, functions[i], yamlPath, isPartiallyPanic, endpointPort, autoscalingMetric)
+		} else {
+			log.Errorf("Invalid client_training value: %s", loaderConfiguration.ClientTraining)
 		}
 
 	}

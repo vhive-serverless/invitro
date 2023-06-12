@@ -116,6 +116,10 @@ func runTraceMode(cfg *config.LoaderConfiguration, iatOnly bool, generated bool)
 
 	if cfg.ClientTraining == common.Single {
 		functions = shadowFunctions(functions)
+	} else if cfg.ClientTraining == common.Batch || cfg.ClientTraining == common.BatchPriority || cfg.ClientTraining == common.PipelineBatchPriority {
+
+	} else {
+		log.Errorf("Invalid client_training value: %s", cfg.ClientTraining)
 	}
 
 	log.Infof("Traces contain the following %d functions:\n", len(functions))

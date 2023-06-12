@@ -1,9 +1,10 @@
 package trace
 
 import (
+	"math"
+
 	"github.com/eth-easl/loader/pkg/common"
 	log "github.com/sirupsen/logrus"
-	"math"
 )
 
 func DoStaticTraceProfiling(functions []*common.Function) {

@@ -70,8 +70,10 @@ const (
 )
 
 const (
-	Single string = "single"
-	Batch  string = "batch"
+	Single                string = "single"
+	Batch                 string = "batch"
+	BatchPriority         string = "batch_priority"
+	PipelineBatchPriority string = "pipeline_batch_priority"
 )
 
 const (

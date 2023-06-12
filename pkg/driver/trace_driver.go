@@ -212,6 +212,12 @@ func (d *Driver) individualFunctionDriver(function *common.Function, announceFun
 	if d.Configuration.LoaderConfiguration.ClientTraining == common.Single {
 		parts := strings.Split(function.Name, "-")
 		gpuCount, _ = strconv.Atoi(parts[len(parts)-1])
+	} else if d.Configuration.LoaderConfiguration.ClientTraining == common.Batch ||
+		d.Configuration.LoaderConfiguration.ClientTraining == common.BatchPriority ||
+		d.Configuration.LoaderConfiguration.ClientTraining == common.PipelineBatchPriority {
+
+	} else {
+		log.Errorf("Invalid client_training value: %s", d.Configuration.LoaderConfiguration.ClientTraining)
 	}
 	for {
 		if minuteIndex >= totalTraceDuration {
@@ -245,6 +251,12 @@ func (d *Driver) individualFunctionDriver(function *common.Function, announceFun
 			if gpuCount != expectedGPUCount {
 				invokeFunctionOrNot = false
 			}
+		} else if d.Configuration.LoaderConfiguration.ClientTraining == common.Batch ||
+			d.Configuration.LoaderConfiguration.ClientTraining == common.BatchPriority ||
+			d.Configuration.LoaderConfiguration.ClientTraining == common.PipelineBatchPriority {
+
+		} else {
+			log.Errorf("Invalid client_training value: %s", d.Configuration.LoaderConfiguration.ClientTraining)
 		}
 
 		if (!d.Configuration.TestMode) && invokeFunctionOrNot {

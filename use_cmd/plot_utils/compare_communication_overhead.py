@@ -136,22 +136,18 @@ def init_plot(ncols, **kwargs):
     return fig, axes 
 
 
-def cal_jct(df): 
+def cal_overhead(df): 
     num_job = 1.0 * len(df)
     jct = 0
     min_time = sys.maxsize
     max_time = 0
     jct_list = list() 
-    # print('num of jobs == {}'.format(num_job))
+    actual_duration = 0 
+    respnonse_time = 0 
     for idx, job in df.iterrows(): 
-        jct += job.responseTime / num_job
-        # jct += job.actualDuration / num_job 
-        min_time = min(job.startTime, min_time)
-        max_time = max(job.responseTime, max_time)
-        jct_list.append(job.responseTime)
-        # jct_list.append(job.actualDuration//1000//60)
-    # print('sorted jct list {}'.format(sorted(jct_list)))
-    return jct, max(jct_list) # max_time - min_time
+        actual_duration += job.actualDuration 
+        respnonse_time += job.responseTime
+    return respnonse_time / actual_duration
 
 
 def cal_fft(df): 
@@ -225,49 +221,46 @@ def plot_bar_by_method(ax, info_by_method, **kwargs):
 if True: 
     root = os.path.dirname(os.path.realpath(__file__))
     while not root.endswith('loader'): 
-        # print(root)
+        print(root)
         root = os.path.dirname(root)
     
      # [5, 10, 15]:
     jct_info_by_method = list() 
     makespan_info_by_method = list()
     # duration_list = [10, 20, 40] # , 60, 120] 
-    duration_list = [5, 10, 20, 30]
-    # duration_list = [2]
+    # duration_list = [5, 10]
+    duration_list = [10] # [5, 10, 20, 30]
     # for method in  ['single', 'batch']: 
-    # for method in ['single', 'batch', 'batch_priority']: 
-    # for method in ['single', 'batch', 'batch_priority']: 
-    # for method in ['batch', 'batch_priority', 'pipeline_batch_priority']: 
     for method in ['pipeline_batch_priority', 'batch_priority', 'batch']: 
-        jct_list = list() 
+        jct_list = list()  
         makespan_list = list() 
         for duration in duration_list:
             csv_name = os.path.join(root, 'data', 'out', f'experiment_duration_{duration}_ClientTraining_{method}.csv')
             df = pd.read_csv(csv_name)
-            df = df[df.requestedDuration > 0]
-            df = df[df.actualDuration > 0 ]
             
-            jct, makespan = cal_jct(df)
-            jct_list.append(jct)
-            # print(csv_name, ' length ', len(df))
-            print(csv_name, jct / 1000/3600)
-            makespan_list.append(makespan)
+            df = df[df.requestedDuration > 0]
+            # print(csv_name, len(df))
+            # continue 
+            overhead_ratio = cal_overhead(df)
+            jct_list.append(overhead_ratio)
+            # makespan_list.append(makespan)
         sched_verbose = ''
         jct_info_by_method.append([method, jct_list, [0 for jct in jct_list]])
-        makespan_info_by_method.append([method, makespan_list, [0 for makespan in makespan_list]])
+        # makespan_info_by_method.append([method, makespan_list, [0 for makespan in makespan_list]])
+    # exit(0)
     
     template.update(
         {
             "norm": False, 
             "width": 0.3, 
             "autolabel": False, 
-            'norm': True,
+            'norm': False,
             'logy': 0,
             'barh': False,
         }
     )
     new_template =  {
-        "norm": True, 
+        "norm": False, 
         "width": 0.3, 
         "autolabel": False, 
         'logy': 1,
@@ -280,9 +273,8 @@ if True:
     plot_bar_by_method(ax, jct_info_by_method, **template)
     ax.set_xticks([i + 0.3 for i in range(len(duration_list))])
     ax.set_xticklabels(duration_list)
-    ax.set_ylim(0.75, 1.5)
-    ax.set_yticks([0.9, 1.0, 1.1, 1.2])
-    # ax.set_yticks([1, 1.25, 1.5, 1.75, 2.0])
+    ax.set_ylim(0, 2)
+    ax.set_yticks([1, 1.25, 1.5, 1.75, 2.0])
     ax.set_ylabel('Norm. Latency')
     ax.set_xlabel('Duration Length')
     ax.legend(fontsize=template['fontsize'] - 4, loc='upper center', ncol=1, bbox_to_anchor=(0.5, 1.2), fancybox=True, shadow=False, edgecolor="white", handlelength=2) 
