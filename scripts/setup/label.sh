@@ -11,8 +11,11 @@ server_exec() {
   ssh -oStrictHostKeyChecking=no -p 22 $1 $2;
 }
 
-label_master() {
+label_nodes() {
   MASTER_NODE=$1
+  LOADER_NODE=$2
+  LOADER_NODE_NAME="$(server_exec "$LOADER_NODE" hostname)"
+  echo $LOADER_NODE_NAME
 
   server_exec $MASTER_NODE 'kubectl get nodes' > tmp
   sed -i '1d' tmp
@@ -20,46 +23,15 @@ label_master() {
   while read LINE; do
     NODE=$(echo $LINE | cut -d ' ' -f 1)
     TYPE=$(echo $LINE | cut -d ' ' -f 3)
-
-    if [[ $TYPE == *"master"* ]]; then
-      echo "Label ${NODE}"
-      server_exec $MASTER_NODE "kubectl label nodes ${NODE} loader-nodetype=monitoring" < /dev/null
-    fi
-  done < tmp
-
-  rm tmp
-}
-
-label_workers() {
-  MASTER_NODE=$1
-
-  server_exec $MASTER_NODE 'kubectl get nodes' > tmp
-  sed -i '1d' tmp
-
-  while read LINE; do
-    NODE=$(echo $LINE | cut -d ' ' -f 1)
-    TYPE=$(echo $LINE | cut -d ' ' -f 3)
-
-    if [[ $TYPE != *"master"* ]]; then
-      echo "Label ${NODE}"
-      server_exec $MASTER_NODE "kubectl label nodes ${NODE} loader-nodetype=worker" < /dev/null
-    fi
-  done < tmp
-
-  rm tmp
-}
-
-label_all_workers() {
-  MASTER_NODE=$1
-
-  server_exec $MASTER_NODE 'kubectl get nodes' > tmp
-  sed -i '1d' tmp
-
-  while read LINE; do
-    NODE=$(echo $LINE | cut -d ' ' -f 1)
 
     echo "Label ${NODE}"
-    server_exec $MASTER_NODE "kubectl label nodes ${NODE} loader-nodetype=worker" < /dev/null
+    if [[ $TYPE == *"master"* ]]; then
+      server_exec $MASTER_NODE "kubectl label nodes ${NODE} loader-nodetype=master" < /dev/null
+    elif [[ $NODE == $LOADER_NODE_NAME ]]; then
+      server_exec $MASTER_NODE "kubectl label nodes ${NODE} loader-nodetype=monitoring" < /dev/null
+    else
+      server_exec $MASTER_NODE "kubectl label nodes ${NODE} loader-nodetype=worker" < /dev/null
+    fi
   done < tmp
 
   rm tmp
