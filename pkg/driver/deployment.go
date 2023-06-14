@@ -50,14 +50,18 @@ var (
 
 func DeployFunctions(functions []*common.Function, yamlPath string, isPartiallyPanic bool, endpointPort int, autoscalingMetric string) {
 	for i := 0; i < len(functions); i++ {
-		//deployOne(functions[i], yamlPath, isPartiallyPanic, endpointPort, autoscalingMetric)
-		deployCM(functions[i])
+		switch yamlPath {
+		case "cm":
+			deployCM(functions[i])
+		default:
+			deployOne(functions[i], yamlPath, isPartiallyPanic, endpointPort, autoscalingMetric)
+		}
 	}
 }
 
 func deployCM(function *common.Function) {
 	payload := url.Values{
-		"name":            {"/faas.Executor/Execute"},
+		"name":            {function.Name},
 		"image":           {"docker.io/cvetkovic/empty_function:latest"},
 		"port_forwarding": {"80", "tcp"},
 	}
