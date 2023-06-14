@@ -141,6 +141,8 @@ func runTraceMode(cfg *config.LoaderConfiguration, iatOnly bool, generated bool)
 
 	var yamlSpecificationPath string
 	switch cfg.YAMLSelector {
+	case "cm":
+		yamlSpecificationPath = "cm"
 	case "wimpy":
 		yamlSpecificationPath = "workloads/container/wimpy.yaml"
 	case "container":

@@ -63,6 +63,7 @@ func Invoke(function *common.Function, runtimeSpec *common.RuntimeSpecification,
 	var dialOptions []grpc.DialOption
 	dialOptions = append(dialOptions, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	dialOptions = append(dialOptions, grpc.WithBlock())
+	dialOptions = append(dialOptions, grpc.WithAuthority(function.Name))
 	if cfg.EnableZipkinTracing {
 		// NOTE: if enabled it will exclude Istio span from the Zipkin trace
 		dialOptions = append(dialOptions, grpc.WithUnaryInterceptor(otelgrpc.UnaryClientInterceptor()))
