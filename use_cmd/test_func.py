@@ -8,7 +8,7 @@ channel = grpc.insecure_channel("gpt.default.10.200.3.4.sslip.io:80")
 stub = faas_pb2_grpc.ExecutorStub(channel)
 
 
-request = faas_pb2.FaasRequest(message='Hello, world!', batchsize=32, runtimeInMilliSec=10, gpuMemoryInMebiBytes=1000, promptTensor=[0 for _ in range(128)])
+request = faas_pb2.FaasRequest(message='Hello, world!', batchsize=32, runtimeInMilliSec=100, gpuMemoryInMebiBytes=1000, promptTensor=[0 for _ in range(128)])
 response = stub.Execute(request)
 
 print(response)

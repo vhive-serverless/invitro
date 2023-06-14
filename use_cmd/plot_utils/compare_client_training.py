@@ -180,9 +180,10 @@ def plot_bar_by_method(ax, info_by_method, **kwargs):
 
         if kwargs.get('norm'): 
             if len(norm_list) > 0: 
-                print(ident)
-                print(norm_list, len(norm_list))
-                print(value_list, len(value_list))
+                pass
+                # print(ident)
+                # print(norm_list, len(norm_list))
+                # print(value_list, len(value_list))
             if len(norm_list) == 0: 
                 norm_list = [val for val in value_list]
                 value_list = [1. for _ in value_list]
@@ -208,8 +209,8 @@ def plot_bar_by_method(ax, info_by_method, **kwargs):
                 rect = ax.bar([x_item], [value_item], width=width, color='w', hatch=hatch_list[idx], alpha=0.75, edgecolor='black', capsize=0, label=ident)
                 rect = ax.bar([x_item], [value_item], width=width, color=color_list[idy], hatch=hatch_list[idx], alpha=0.75, edgecolor='black', capsize=0)
                 
-        print('x_list', x_list)
-        print('y_list', y_list)
+        # print('x_list', x_list)
+        # print('y_list', y_list)
         if kwargs.get('autolabel'): 
             #autolabel_percent(rects, ax, value_list, error_list=None, str_func=None):
             str_func = None 
@@ -224,7 +225,7 @@ def plot_bar_by_method(ax, info_by_method, **kwargs):
         
 if True: 
     root = os.path.dirname(os.path.realpath(__file__))
-    while not root.endswith('loader'): 
+    while not root.endswith('loader-gpt'): 
         # print(root)
         root = os.path.dirname(root)
     
@@ -232,29 +233,44 @@ if True:
     jct_info_by_method = list() 
     makespan_info_by_method = list()
     # duration_list = [10, 20, 40] # , 60, 120] 
-    duration_list = [5, 10, 20, 30]
+    duration_list = [5] # , 10, 20] # , 10, 20, 30]
     # duration_list = [2]
     # for method in  ['single', 'batch']: 
     # for method in ['single', 'batch', 'batch_priority']: 
     # for method in ['single', 'batch', 'batch_priority']: 
     # for method in ['batch', 'batch_priority', 'pipeline_batch_priority']: 
-    for method in ['pipeline_batch_priority', 'batch_priority', 'batch']: 
+    # method_list = ['perfect', 'single', 'batch', 'batch_priority', 'pipeline_batch_priority']
+    method_list = ['perfect', 'batch', 'batch_priority', 'pipeline_batch_priority']
+    perfect_jct_list = list() 
+    for method in method_list: 
         jct_list = list() 
         makespan_list = list() 
+        
+        method_ident = method if method != 'perfect' else 'pipeline_batch_priority'
         for duration in duration_list:
-            csv_name = os.path.join(root, 'data', 'out', f'experiment_duration_{duration}_ClientTraining_{method}.csv')
-            df = pd.read_csv(csv_name)
-            df = df[df.requestedDuration > 0]
-            df = df[df.actualDuration > 0 ]
             
-            jct, makespan = cal_jct(df)
-            jct_list.append(jct)
-            # print(csv_name, ' length ', len(df))
-            print(csv_name, jct / 1000/3600)
-            makespan_list.append(makespan)
+            csv_name = os.path.join(root, 'data', 'out', f'experiment_duration_{duration}_ClientTraining_{method_ident}.csv')
+            df = pd.read_csv(csv_name)
+            if method != 'perfect': 
+                df = df[df.requestedDuration > 0]
+                df = df[df.actualDuration > 0 ]
+                
+                jct, makespan = cal_jct(df)
+                jct_list.append(jct)
+                print(csv_name, ' length ', len(df))
+                # print(csv_name, jct / 1000/3600)
+                makespan_list.append(makespan)
+            else: 
+                # import pdb; pdb.set_trace() 
+                jct = df.actualDuration.mean() 
+                makespan = 0 
+                jct_list.append(jct)
+                makespan_list.append(makespan)
+                
         sched_verbose = ''
         jct_info_by_method.append([method, jct_list, [0 for jct in jct_list]])
         makespan_info_by_method.append([method, makespan_list, [0 for makespan in makespan_list]])
+
     
     template.update(
         {
@@ -276,16 +292,16 @@ if True:
     template.update(new_template)
     fig, axes = init_plot(1, grid=True)
     ax = axes[0]
-    
+    # import pdb; pdb.set_trace() 
     plot_bar_by_method(ax, jct_info_by_method, **template)
-    ax.set_xticks([i + 0.3 for i in range(len(duration_list))])
+    ax.set_xticks([(i + 0.5) * len(method_list) * 0.5  for i in range(len(duration_list))])
     ax.set_xticklabels(duration_list)
-    ax.set_ylim(0.75, 1.5)
-    ax.set_yticks([0.9, 1.0, 1.1, 1.2])
+    ax.set_ylim(0.75, 2.5)
+    # ax.set_yticks([0.9, 1.0, 1.1, 1.2])
     # ax.set_yticks([1, 1.25, 1.5, 1.75, 2.0])
     ax.set_ylabel('Norm. Latency')
     ax.set_xlabel('Duration Length')
-    ax.legend(fontsize=template['fontsize'] - 4, loc='upper center', ncol=1, bbox_to_anchor=(0.5, 1.2), fancybox=True, shadow=False, edgecolor="white", handlelength=2) 
+    ax.legend(fontsize=template['fontsize'] - 8, loc='upper center', ncol=2, bbox_to_anchor=(0.5, 1.4), fancybox=True, shadow=False, edgecolor="white", handlelength=2) 
     plt.savefig(f'{root}/images/client_training/jct.jpg', bbox_inches='tight')
     print(f'{root}/images/client_training/jct.jpg')
     

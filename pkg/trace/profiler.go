@@ -27,6 +27,14 @@ func ApplyResourceLimits(functions []*common.Function) {
 	}
 }
 
+func ApplyResourceLimitsForGPU(functions []*common.Function) {
+	for i := 0; i < len(functions); i++ {
+		functions[i].CPURequestsMilli = 1000
+		functions[i].MemoryRequestsMiB = 1024
+		functions[i].CPULimitsMilli = 1000
+	}
+}
+
 // ConvertMemoryToCpu Google Cloud Function conversion table used from https://cloud.google.com/functions/pricing
 func ConvertMemoryToCpu(memoryRequest int) int {
 	var cpuRequest float32

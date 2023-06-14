@@ -1,6 +1,13 @@
+kn service delete gpt
+sleep 2 
+
 kn service create gpt \
 --image gaow0007/trace_function_gpt:latest \
---port h2c:80 
+--port h2c:80 \
+--limit cpu=200m,memory=500Mi
+
+
+# kubectl get pods -o name | xargs -I {}  kubectl logs -f {} user-container
 
 # docker.io/cvetkovic/trace_function:latest
 # kn service create hello \

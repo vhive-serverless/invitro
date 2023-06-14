@@ -147,6 +147,7 @@ def cal_overhead(df):
     for idx, job in df.iterrows(): 
         actual_duration += job.actualDuration 
         respnonse_time += job.responseTime
+        # import  pdb; pdb.set_trace() 
     return respnonse_time / actual_duration
 
 
@@ -220,7 +221,7 @@ def plot_bar_by_method(ax, info_by_method, **kwargs):
         
 if True: 
     root = os.path.dirname(os.path.realpath(__file__))
-    while not root.endswith('loader'): 
+    while not root.endswith('loader-gpt'): 
         print(root)
         root = os.path.dirname(root)
     
@@ -231,6 +232,7 @@ if True:
     # duration_list = [5, 10]
     duration_list = [10] # [5, 10, 20, 30]
     # for method in  ['single', 'batch']: 
+    # for method in ['pipeline_batch_priority', 'batch_priority', 'batch']: 
     for method in ['pipeline_batch_priority', 'batch_priority', 'batch']: 
         jct_list = list()  
         makespan_list = list() 

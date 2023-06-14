@@ -18,6 +18,6 @@
   "MetricScrapingPeriodSeconds": 15,
   "AutoscalingMetric": "concurrency",
 
-  "GRPCConnectionTimeoutSeconds": 60,
-  "GRPCFunctionTimeoutSeconds": 900
+  "GRPCConnectionTimeoutSeconds": 1200,
+  "GRPCFunctionTimeoutSeconds": 1200
 }

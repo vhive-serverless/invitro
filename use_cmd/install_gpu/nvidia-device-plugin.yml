@@ -49,7 +49,7 @@ spec:
       - image: gaow0007/k8s-device-plugin:latest
         imagePullPolicy: "Always" 
         name: nvidia-device-plugin-ctr
-        args: ["--c=128"]
+        args: ["--c=8"]
         securityContext:
           allowPrivilegeEscalation: false
           capabilities:

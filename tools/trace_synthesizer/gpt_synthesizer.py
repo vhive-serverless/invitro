@@ -7,7 +7,7 @@ import random
 import copy 
 
 if __name__ == '__main__': 
-    output_path = '/users/gaow0007/loader/data/gpttraces/example/'
+    output_path = '/users/gaow0007/loader-gpt/data/gpttraces/example/'
     df = pd.read_csv(f'{output_path}/invocations.csv')
     start_index = 4
     max_length = 0 
@@ -27,9 +27,10 @@ if __name__ == '__main__':
         for i in range(1, max_requests + 1): 
             insert_key = str(i)
             
-            iteration_df.iloc[row, start_index - 1 + i] = np.random.randint(10, 100) // 10 * 10
+            iteration_df.iloc[row, start_index - 1 + i] = np.random.randint(10, 100) // 10 * 100
             # batch_df.iloc[row, start_index - 1+ i] = np.random.choice([32 * k for k in [1, 2, 4, 6, 8, 10, 12, 16, 20, 24, 32]])
-            batch_df.iloc[row, start_index - 1+ i] = np.random.choice([32 * k for k in [1, 2, 4, 6, 8, 12, 16]], p=[0.4, 0.2, 0.1, 0.1, 0.1, 0.05, 0.05])
+            # batch_df.iloc[row, start_index - 1+ i] = np.random.choice([32 * k for k in [1, 2, 4, 8, 12, 16]], p=[0.4, 0.2, 0.15, 0.15, 0.05, 0.05])
+            batch_df.iloc[row, start_index - 1+ i] = np.random.choice([32 * k for k in [1, 2, 4, 8]], p=[0.4, 0.3, 0.2, 0.1])
             # import pdb; pdb.set_trace() 
             print('process {}'.format(i))
     save_data(iteration_df, f'{output_path}/iterations.csv')

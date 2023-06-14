@@ -9,21 +9,22 @@ import (
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 
+	invokefunc "github.com/eth-easl/loader/pkg/driver/invokefunc/"
 	mc "github.com/eth-easl/loader/pkg/metric"
 )
 
 func Invoke(function *common.Function, runtimeSpec *common.RuntimeSpecification, cfg *config.LoaderConfiguration) (bool, *mc.ExecutionRecord) {
-	log.Tracef("(Invoke)\t %s: %d[ms], %d[MiB]", function.Name, runtimeSpec.Runtime, runtimeSpec.Memory)
+	// log.Tracef("(Invoke)\t %s: %d[ms], %d[MiB]", function.Name, runtimeSpec.Runtime, runtimeSpec.Memory)
 	// runtimeSpec.Stats.Iterations = 5
 	client_training := cfg.ClientTraining
 	if client_training == common.Batch {
-		return BatchInvoke(function, runtimeSpec, cfg)
+		return invokefunc.BatchInvoke(function, runtimeSpec, cfg)
 	} else if client_training == common.BatchPriority {
-		return BatchPriorityInvoke(function, runtimeSpec, cfg)
+		return invokefunc.BatchPriorityInvoke(function, runtimeSpec, cfg)
 	} else if client_training == common.PipelineBatchPriority {
-		return PipelineBatchPriorityInvoke(function, runtimeSpec, cfg)
+		return invokefunc.PipelineBatchPriorityInvoke(function, runtimeSpec, cfg)
 	} else if client_training == common.Single {
-		return SingleInvoke(function, runtimeSpec, cfg)
+		return invokefunc.SingleInvoke(function, runtimeSpec, cfg)
 	} else {
 		log.Errorf("Invalid client_training value: %s", client_training)
 		return false, nil

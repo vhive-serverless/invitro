@@ -251,6 +251,7 @@ func (d *Driver) individualFunctionDriver(function *common.Function, announceFun
 			if gpuCount != expectedGPUCount {
 				invokeFunctionOrNot = false
 			}
+			// log.Infof("d.Configuration.TestMode invokeFunctionOrNot: %v: expectedGPUCount %d, gpuCount %d", invokeFunctionOrNot, expectedGPUCount, gpuCount)
 		} else if d.Configuration.LoaderConfiguration.ClientTraining == common.Batch ||
 			d.Configuration.LoaderConfiguration.ClientTraining == common.BatchPriority ||
 			d.Configuration.LoaderConfiguration.ClientTraining == common.PipelineBatchPriority {
@@ -588,8 +589,11 @@ func (d *Driver) RunExperiment(iatOnly bool, generated bool) {
 	if d.Configuration.WithWarmup() {
 		trace.DoStaticTraceProfiling(d.Configuration.Functions)
 	}
-
-	trace.ApplyResourceLimits(d.Configuration.Functions)
+	if strings.Contains(d.Configuration.LoaderConfiguration.TracePath, "gpt") {
+		trace.ApplyResourceLimitsForGPU(d.Configuration.Functions)
+	} else {
+		trace.ApplyResourceLimits(d.Configuration.Functions)
+	}
 
 	DeployFunctions(
 		d.Configuration.LoaderConfiguration,
