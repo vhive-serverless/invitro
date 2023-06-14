@@ -1,24 +1,29 @@
-package driver
+package invokefunc
 
 import (
 	"context"
+	"fmt"
+	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/eth-easl/loader/pkg/common"
 	"github.com/eth-easl/loader/pkg/config"
 	"github.com/eth-easl/loader/pkg/workload/proto"
+	"github.com/google/uuid"
 
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/metadata"
 
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 
 	mc "github.com/eth-easl/loader/pkg/metric"
 )
 
-func SingleInvoke(function *common.Function, runtimeSpec *common.RuntimeSpecification, cfg *config.LoaderConfiguration) (bool, *mc.ExecutionRecord) {
+func BatchInvoke(function *common.Function, runtimeSpec *common.RuntimeSpecification, cfg *config.LoaderConfiguration) (bool, *mc.ExecutionRecord) {
 	log.Tracef("(Invoke)\t %s: %d[ms], %d[MiB]", function.Name, runtimeSpec.Runtime, runtimeSpec.Memory)
 
 	record := &mc.ExecutionRecord{
@@ -44,7 +49,6 @@ func SingleInvoke(function *common.Function, runtimeSpec *common.RuntimeSpecific
 
 	conn, err := grpc.DialContext(dialContext, function.Endpoint, dialOptions...)
 	defer gRPCConnectionClose(conn)
-	// log.Debugf("SingleInvoke gRPC step 1")
 	if err != nil {
 		log.Debugf("Failed to establish a gRPC connection - %v\n", err)
 
@@ -61,47 +65,115 @@ func SingleInvoke(function *common.Function, runtimeSpec *common.RuntimeSpecific
 	for i := range promptTensor {
 		promptTensor[i] = 0
 	}
-	// log.Debugf("SingleInvoke gRPC step 1")
 	if !strings.Contains(function.Name, "gpt") {
 		return false, record
 	}
-	// log.Debugf("SingleInvoke gRPC step 2")
+
+	// randomly assign workload information
+	// bszPerDevice := 32
+	// numbers := []int{1, 2, 4, 6, 8, 12, 24}
+	// rand.Seed(233)
+	// function.BatchSize = numbers[rand.Intn(len(numbers))] * bszPerDevice
+	// function.Iterations = rand.Intn(10) + 5
 
 	minReplicas := runtimeSpec.Stats.BatchSize / common.BszPerDevice
+	// add http header for scheduler
+	uuid := uuid.New()
+	md := metadata.New(map[string]string{"GPTName": uuid.String(), "Replicas": strconv.Itoa(minReplicas), "RIter": "0"})
+	executionCxt = metadata.NewOutgoingContext(executionCxt, md)
 
 	responses := make([]proto.FaasReply, 32)
 
+	// create a wait group to wait for all goroutines to finish
+	var wg sync.WaitGroup
+
 	// create grpc clients
 	grpcClients := make([]proto.ExecutorClient, minReplicas)
-	grpcClients[0] = proto.NewExecutorClient(conn)
-	// ActualDuration := uint32(0)
+	for replicaID := 0; replicaID < minReplicas; replicaID++ {
+		grpcClients[replicaID] = proto.NewExecutorClient(conn)
+	}
 
+	ActualDuration := uint32(0)
 	send_messages := "Can you condense the sentence into a shorter version without losing its meaning?"
 	for i := 0; i < common.BszPerDevice; i++ {
 		send_messages = send_messages + "; Can you condense the sentence into a shorter version without losing its meaning?"
 	}
-onemore:
-	response, err := grpcClients[0].Execute(executionCxt, &proto.FaasRequest{
-		Message:              send_messages,
-		Batchsize:            uint32(common.BszPerDevice),
-		RuntimeInMilliSec:    uint32(runtimeSpec.Runtime * runtimeSpec.Stats.Iterations),
-		GpuMemoryInMebiBytes: 123,
-		PromptTensor:         promptTensor,
-	})
+	// iterate over the function iterations
+	for curIter := 0; curIter < runtimeSpec.Stats.Iterations; curIter++ {
+		// for curIter := 0; curIter < 1; curIter++ {
+		// create a channel to wait for all function invocations to finish
+		doneChan := make(chan struct{})
+		if curIter%100 == 0 {
+			log.Infof("Function: %s \t exuecte [%d/%d] \t replica [%d] \n", function.Name, curIter, runtimeSpec.Stats.Iterations, minReplicas)
+		}
+		// cur iteration for promput tuning priority
+		// md.Set("RIter", strconv.Itoa(runtimeSpec.Stats.Iterations-curIter))
 
+		// iterate over the minimum replicas
+		for replicaID := 0; replicaID < minReplicas; replicaID++ {
+			// add one to the wait group
+			wg.Add(1)
+			// execute the function asynchronously
+			go func(replicaID int) {
+				defer wg.Done()
+				// execute the function and store the response
+				response, err := grpcClients[replicaID].Execute(executionCxt, &proto.FaasRequest{
+					Message:              send_messages,
+					Batchsize:            uint32(common.BszPerDevice),
+					RuntimeInMilliSec:    uint32(runtimeSpec.Runtime),
+					GpuMemoryInMebiBytes: 123,
+					PromptTensor:         promptTensor,
+				})
+				if err != nil {
+					fmt.Printf("Error executing function: %v\n", err)
+					return
+				}
+
+				// store the response in the slice
+				responses[replicaID] = *response
+			}(replicaID)
+		}
+
+		// create a goroutine to wait for all goroutines to finish
+		go func() {
+			wg.Wait()
+			close(doneChan)
+		}()
+		// wait for all function invocations to finish
+		<-doneChan
+
+		// gradient average
+		promptTensor = responses[0].PromptGradient
+		for i := 1; i < len(responses); i++ {
+			for j := 0; j < len(promptTensor); j++ {
+				promptTensor[j] += responses[0].PromptGradient[j]
+			}
+		}
+
+		for j := 0; j < len(promptTensor); j++ {
+			promptTensor[j] = promptTensor[j] / float32(len(responses))
+		}
+		ActualDuration += responses[0].DurationInMicroSec
+	}
 	if err != nil {
 		log.Debugf("gRPC timeout exceeded for function %s - %s", function.Name, err)
-		// record.ResponseTime = time.Since(start).Microseconds()
-		// record.FunctionTimeout = true
-		goto onemore
-		// return false, record
+
+		record.ResponseTime = time.Since(start).Microseconds()
+		record.FunctionTimeout = true
+
+		return false, record
 	}
-	responses[0] = *response
+
 	record.Instance = extractInstanceName(responses[0].GetMessage())
 	record.ResponseTime = time.Since(start).Microseconds()
-	record.ActualDuration += responses[0].DurationInMicroSec
+	record.ActualDuration = ActualDuration
+	log.Debugf("gRPC requested duration %d [ms], actual duration per iteration %d [ms], iteration %d", runtimeSpec.Runtime, int(ActualDuration)/runtimeSpec.Stats.Iterations/1000, runtimeSpec.Stats.Iterations)
 
-	log.Debugf("SingleInvoke gRPC requested duration %d [ms], actual duration per iteration %d [ms], iteration %d", runtimeSpec.Runtime, int(responses[0].DurationInMicroSec)/runtimeSpec.Stats.Iterations/1000, runtimeSpec.Stats.Iterations)
+	// log.Debugf("PipelineBatchPriority gRPC requested duration %d [ms], actual duration per iteration %d [ms], iteration %d", runtimeSpec.Runtime, int(responses[0].DurationInMicroSec)/runtimeSpec.Stats.Iterations/1000, runtimeSpec.Stats.Iterations)
+	printDuration := int(ActualDuration) / runtimeSpec.Stats.Iterations / 1000
+	printResponse := int(int(record.ResponseTime) / runtimeSpec.Stats.Iterations / 1000)
+	log.Debugf("print minReplicas %d", minReplicas)
+	log.Debugf("**************** PipelineBatchPriority gRPC actual duration per iteration %d [ms], response Time %d [ms]", printDuration, printResponse-printDuration)
 
 	if strings.HasPrefix(responses[0].GetMessage(), "FAILURE - mem_alloc") {
 		record.MemoryAllocationTimeout = true

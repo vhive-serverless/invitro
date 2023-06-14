@@ -9,7 +9,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 
-	invokefunc "github.com/eth-easl/loader/pkg/driver/invokefunc/"
+	invokefunc "github.com/eth-easl/loader/pkg/driver/invokefunc"
 	mc "github.com/eth-easl/loader/pkg/metric"
 )
 
