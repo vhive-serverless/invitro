@@ -18,7 +18,7 @@ import (
 	mc "github.com/eth-easl/loader/pkg/metric"
 )
 
-func SingleInvoke(function *common.Function, runtimeSpec *common.RuntimeSpecification, cfg *config.LoaderConfiguration) (bool, *mc.ExecutionRecord) {
+func SingleInvoke(function *common.Function, runtimeSpec *common.RuntimeSpecification, cfg *config.LoaderConfiguration, invocationID string) (bool, *mc.ExecutionRecord) {
 	log.Tracef("(Invoke)\t %s: %d[ms], %d[MiB]", function.Name, runtimeSpec.Runtime, runtimeSpec.Memory)
 
 	record := &mc.ExecutionRecord{
@@ -81,27 +81,31 @@ func SingleInvoke(function *common.Function, runtimeSpec *common.RuntimeSpecific
 		send_messages = send_messages + "; Can you condense the sentence into a shorter version without losing its meaning?"
 	}
 onemore:
-	response, err := grpcClients[0].Execute(executionCxt, &proto.FaasRequest{
-		Message:              send_messages,
-		Batchsize:            uint32(common.BszPerDevice),
-		RuntimeInMilliSec:    uint32(runtimeSpec.Runtime * runtimeSpec.Stats.Iterations),
-		GpuMemoryInMebiBytes: 123,
-		PromptTensor:         promptTensor,
-	})
+	iteration_per_call := 100
+	for curIter := 0; curIter < runtimeSpec.Stats.Iterations/iteration_per_call; curIter++ {
+		response, err := grpcClients[0].Execute(executionCxt, &proto.FaasRequest{
+			Message:              send_messages,
+			Batchsize:            uint32(common.BszPerDevice),
+			RuntimeInMilliSec:    uint32(runtimeSpec.Runtime * iteration_per_call),
+			GpuMemoryInMebiBytes: 123,
+			PromptTensor:         promptTensor,
+		})
 
-	if err != nil {
-		log.Debugf("gRPC timeout exceeded for function %s - %s", function.Name, err)
-		// record.ResponseTime = time.Since(start).Microseconds()
-		// record.FunctionTimeout = true
-		goto onemore
-		// return false, record
+		if err != nil {
+			log.Debugf("gRPC timeout exceeded for function %s - %s", function.Name, err)
+			goto onemore
+		}
+		responses[0] = *response
+		record.ActualDuration += responses[0].DurationInMicroSec
 	}
-	responses[0] = *response
+
 	record.Instance = extractInstanceName(responses[0].GetMessage())
 	record.ResponseTime = time.Since(start).Microseconds()
-	record.ActualDuration += responses[0].DurationInMicroSec
 
-	log.Debugf("SingleInvoke gRPC requested duration %d [ms], actual duration per iteration %d [ms], iteration %d", runtimeSpec.Runtime, int(responses[0].DurationInMicroSec)/runtimeSpec.Stats.Iterations/1000, runtimeSpec.Stats.Iterations)
+	printDuration := int(record.ActualDuration) / runtimeSpec.Stats.Iterations / 1000
+	printResponse := int(int(record.ResponseTime) / runtimeSpec.Stats.Iterations / 1000)
+	log.Debugf("print minReplicas %d, iterations %d ", minReplicas, runtimeSpec.Stats.Iterations)
+	log.Debugf("**************** SingleInvoke invocationID %s, actual duration per iteration %d [ms], response Time %d [ms]", invocationID, printDuration, printResponse-printDuration)
 
 	if strings.HasPrefix(responses[0].GetMessage(), "FAILURE - mem_alloc") {
 		record.MemoryAllocationTimeout = true

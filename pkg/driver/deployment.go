@@ -23,6 +23,20 @@ var (
 	urlRegex = regexp.MustCompile("at URL:\nhttp://([^\n]+)")
 )
 
+func min(nums ...int) int {
+	if len(nums) == 0 {
+		return 0
+	}
+	min := nums[0]
+	for _, num := range nums {
+		if num < min {
+			min = num
+		}
+	}
+
+	return min
+}
+
 func DeployFunctions(loaderConfiguration *config.LoaderConfiguration, functions []*common.Function, yamlPath string, isPartiallyPanic bool, endpointPort int,
 	autoscalingMetric string) {
 	for i := 0; i < len(functions); i++ {
@@ -120,16 +134,16 @@ func deployOneWithGPU(gpuCount int, function *common.Function, yamlPath string, 
 		// for rps mode use the average runtime in milliseconds to determine how many requests a pod can process per
 		// second, then round to an integer as that is what the knative config expects
 	}
-
+	extra_resource_scale := min(gpuCount, 8)
 	cmd := exec.Command(
 		"bash",
 		"./pkg/driver/deploy_gpt.sh",
 		yamlPath,
 		function.Name,
 
-		strconv.Itoa(function.CPURequestsMilli*gpuCount)+"m",
-		strconv.Itoa(function.CPULimitsMilli*gpuCount)+"m",
-		strconv.Itoa(function.MemoryRequestsMiB*gpuCount)+"Mi",
+		strconv.Itoa(function.CPURequestsMilli*extra_resource_scale)+"m",
+		strconv.Itoa(function.CPULimitsMilli*extra_resource_scale)+"m",
+		strconv.Itoa(function.MemoryRequestsMiB*extra_resource_scale)+"Mi",
 		fmt.Sprintf("%d", gpuCount),
 		fmt.Sprintf("%d", gpuCount),
 		strconv.Itoa(function.InitialScale),

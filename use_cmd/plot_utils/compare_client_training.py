@@ -233,20 +233,21 @@ if True:
     jct_info_by_method = list() 
     makespan_info_by_method = list()
     # duration_list = [10, 20, 40] # , 60, 120] 
-    duration_list = [5] # , 10, 20] # , 10, 20, 30]
+    duration_list = [5, 10, 20, 30] # , 10, 20] # , 10, 20, 30]
     # duration_list = [2]
     # for method in  ['single', 'batch']: 
     # for method in ['single', 'batch', 'batch_priority']: 
     # for method in ['single', 'batch', 'batch_priority']: 
     # for method in ['batch', 'batch_priority', 'pipeline_batch_priority']: 
     # method_list = ['perfect', 'single', 'batch', 'batch_priority', 'pipeline_batch_priority']
+    method_list = ['perfect', 'single', 'batch'] # , 'batch_priority', 'pipeline_batch_priority']
     method_list = ['perfect', 'batch', 'batch_priority', 'pipeline_batch_priority']
     perfect_jct_list = list() 
     for method in method_list: 
         jct_list = list() 
         makespan_list = list() 
         
-        method_ident = method if method != 'perfect' else 'pipeline_batch_priority'
+        method_ident = method if method != 'perfect' else method_list[-1] # 'batch'
         for duration in duration_list:
             
             csv_name = os.path.join(root, 'data', 'out', f'experiment_duration_{duration}_ClientTraining_{method_ident}.csv')
@@ -296,7 +297,7 @@ if True:
     plot_bar_by_method(ax, jct_info_by_method, **template)
     ax.set_xticks([(i + 0.5) * len(method_list) * 0.5  for i in range(len(duration_list))])
     ax.set_xticklabels(duration_list)
-    ax.set_ylim(0.75, 2.5)
+    # ax.set_ylim(0.75, 2.5)
     # ax.set_yticks([0.9, 1.0, 1.1, 1.2])
     # ax.set_yticks([1, 1.25, 1.5, 1.75, 2.0])
     ax.set_ylabel('Norm. Latency')

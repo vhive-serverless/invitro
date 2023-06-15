@@ -3,6 +3,7 @@ package invokefunc
 import (
 	"context"
 	"fmt"
+	"os/exec"
 	"strconv"
 	"strings"
 	"sync"
@@ -23,7 +24,7 @@ import (
 	mc "github.com/eth-easl/loader/pkg/metric"
 )
 
-func BatchInvoke(function *common.Function, runtimeSpec *common.RuntimeSpecification, cfg *config.LoaderConfiguration) (bool, *mc.ExecutionRecord) {
+func BatchInvoke(function *common.Function, runtimeSpec *common.RuntimeSpecification, cfg *config.LoaderConfiguration, invocationID string) (bool, *mc.ExecutionRecord) {
 	log.Tracef("(Invoke)\t %s: %d[ms], %d[MiB]", function.Name, runtimeSpec.Runtime, runtimeSpec.Memory)
 
 	record := &mc.ExecutionRecord{
@@ -100,6 +101,8 @@ func BatchInvoke(function *common.Function, runtimeSpec *common.RuntimeSpecifica
 	}
 	// iterate over the function iterations
 	for curIter := 0; curIter < runtimeSpec.Stats.Iterations; curIter++ {
+		curStart := time.Now()
+
 		// for curIter := 0; curIter < 1; curIter++ {
 		// create a channel to wait for all function invocations to finish
 		doneChan := make(chan struct{})
@@ -154,7 +157,28 @@ func BatchInvoke(function *common.Function, runtimeSpec *common.RuntimeSpecifica
 			promptTensor[j] = promptTensor[j] / float32(len(responses))
 		}
 		ActualDuration += responses[0].DurationInMicroSec
+		curResponse := time.Since(curStart)
+		printDuration := responses[0].DurationInMicroSec / 1000
+		printResponse := uint32(curResponse / 1000000)
+		if printResponse-printDuration > 10 {
+			cmd := exec.Command("kubectl", "get", "pods")
+			out, err := cmd.Output()
+			if err != nil {
+				fmt.Println("Error:", err)
+			}
+			// fmt.Printf("kubectl cmd info %s\n", string(out))
+			cmd = exec.Command("kubectl", "get", "revisions")
+			out, err = cmd.Output()
+			if err != nil {
+				fmt.Println("Error:", err)
+			}
+			fmt.Printf("kubectl get revision %s\n", string(out))
+			fmt.Printf("curIter %d, computation time %d, communication time %d, minReplicas %d\n", curIter, printDuration, printResponse-printDuration, minReplicas)
+
+		}
+
 	}
+
 	if err != nil {
 		log.Debugf("gRPC timeout exceeded for function %s - %s", function.Name, err)
 
@@ -172,9 +196,9 @@ func BatchInvoke(function *common.Function, runtimeSpec *common.RuntimeSpecifica
 	// log.Debugf("PipelineBatchPriority gRPC requested duration %d [ms], actual duration per iteration %d [ms], iteration %d", runtimeSpec.Runtime, int(responses[0].DurationInMicroSec)/runtimeSpec.Stats.Iterations/1000, runtimeSpec.Stats.Iterations)
 	printDuration := int(ActualDuration) / runtimeSpec.Stats.Iterations / 1000
 	printResponse := int(int(record.ResponseTime) / runtimeSpec.Stats.Iterations / 1000)
-	log.Debugf("print minReplicas %d", minReplicas)
-	log.Debugf("**************** PipelineBatchPriority gRPC actual duration per iteration %d [ms], response Time %d [ms]", printDuration, printResponse-printDuration)
-
+	log.Debugf("print minReplicas %d, iterations %d ", minReplicas, runtimeSpec.Stats.Iterations)
+	log.Debugf("**************** OnBatchPriority gRPC actual duration per iteration %d [ms], response Time %d [ms]", printDuration, printResponse-printDuration)
+	// os.Exit(0)
 	if strings.HasPrefix(responses[0].GetMessage(), "FAILURE - mem_alloc") {
 		record.MemoryAllocationTimeout = true
 	} else {

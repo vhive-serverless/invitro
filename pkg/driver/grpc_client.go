@@ -13,18 +13,16 @@ import (
 	mc "github.com/eth-easl/loader/pkg/metric"
 )
 
-func Invoke(function *common.Function, runtimeSpec *common.RuntimeSpecification, cfg *config.LoaderConfiguration) (bool, *mc.ExecutionRecord) {
-	// log.Tracef("(Invoke)\t %s: %d[ms], %d[MiB]", function.Name, runtimeSpec.Runtime, runtimeSpec.Memory)
-	// runtimeSpec.Stats.Iterations = 5
+func Invoke(function *common.Function, runtimeSpec *common.RuntimeSpecification, cfg *config.LoaderConfiguration, invocationID string) (bool, *mc.ExecutionRecord) {
 	client_training := cfg.ClientTraining
 	if client_training == common.Batch {
-		return invokefunc.BatchInvoke(function, runtimeSpec, cfg)
+		return invokefunc.BatchInvoke(function, runtimeSpec, cfg, invocationID)
 	} else if client_training == common.BatchPriority {
-		return invokefunc.BatchPriorityInvoke(function, runtimeSpec, cfg)
+		return invokefunc.BatchPriorityInvoke(function, runtimeSpec, cfg, invocationID)
 	} else if client_training == common.PipelineBatchPriority {
-		return invokefunc.PipelineBatchPriorityInvoke(function, runtimeSpec, cfg)
+		return invokefunc.PipelineBatchPriorityInvoke(function, runtimeSpec, cfg, invocationID)
 	} else if client_training == common.Single {
-		return invokefunc.SingleInvoke(function, runtimeSpec, cfg)
+		return invokefunc.SingleInvoke(function, runtimeSpec, cfg, invocationID)
 	} else {
 		log.Errorf("Invalid client_training value: %s", client_training)
 		return false, nil
