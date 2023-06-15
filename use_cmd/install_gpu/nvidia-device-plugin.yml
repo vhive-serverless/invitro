@@ -47,9 +47,8 @@ spec:
       priorityClassName: "system-node-critical"
       containers:
       - image: gaow0007/k8s-device-plugin:latest
-        imagePullPolicy: "Always" 
         name: nvidia-device-plugin-ctr
-        args: ["--c=8"]
+        args: ["--fail-on-init-error=false", "-c=8"]
         securityContext:
           allowPrivilegeEscalation: false
           capabilities:

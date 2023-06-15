@@ -15,6 +15,7 @@ import (
 
 func Invoke(function *common.Function, runtimeSpec *common.RuntimeSpecification, cfg *config.LoaderConfiguration, invocationID string) (bool, *mc.ExecutionRecord) {
 	client_training := cfg.ClientTraining
+	// runtimeSpec.Runtime = runtimeSpec.Runtime * 5
 	if client_training == common.Batch {
 		return invokefunc.BatchInvoke(function, runtimeSpec, cfg, invocationID)
 	} else if client_training == common.BatchPriority {

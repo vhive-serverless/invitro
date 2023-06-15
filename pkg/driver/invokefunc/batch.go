@@ -62,7 +62,7 @@ func BatchInvoke(function *common.Function, runtimeSpec *common.RuntimeSpecifica
 	executionCxt, cancelExecution := context.WithTimeout(context.Background(), time.Duration(cfg.GRPCFunctionTimeoutSeconds)*time.Second)
 	defer cancelExecution()
 
-	promptTensor := make([]float32, 128)
+	promptTensor := make([]float32, 2)
 	for i := range promptTensor {
 		promptTensor[i] = 0
 	}
@@ -80,7 +80,7 @@ func BatchInvoke(function *common.Function, runtimeSpec *common.RuntimeSpecifica
 	minReplicas := runtimeSpec.Stats.BatchSize / common.BszPerDevice
 	// add http header for scheduler
 	uuid := uuid.New()
-	md := metadata.New(map[string]string{"GPTName": uuid.String(), "Replicas": strconv.Itoa(minReplicas), "RIter": "0"})
+	md := metadata.New(map[string]string{"GPTName": uuid.String(), "Replicas": strconv.Itoa(minReplicas), "RIter": "0", "cur": time.Now().Format("2006-01-02 15:04:05.999")})
 	executionCxt = metadata.NewOutgoingContext(executionCxt, md)
 
 	responses := make([]proto.FaasReply, 32)
@@ -95,19 +95,21 @@ func BatchInvoke(function *common.Function, runtimeSpec *common.RuntimeSpecifica
 	}
 
 	ActualDuration := uint32(0)
-	send_messages := "Can you condense the sentence into a shorter version without losing its meaning?"
-	for i := 0; i < common.BszPerDevice; i++ {
-		send_messages = send_messages + "; Can you condense the sentence into a shorter version without losing its meaning?"
-	}
+	// send_messages := "Can you condense the sentence into a shorter version without losing its meaning?"
+	// for i := 0; i < common.BszPerDevice; i++ {
+	// 	send_messages = send_messages + "; Can you condense the sentence into a shorter version without losing its meaning?"
+	// }
+	send_messages := ""
 	// iterate over the function iterations
 	for curIter := 0; curIter < runtimeSpec.Stats.Iterations; curIter++ {
 		curStart := time.Now()
+		md.Set("cur", time.Now().Format("2006-01-02 15:04:05.999"))
 
 		// for curIter := 0; curIter < 1; curIter++ {
 		// create a channel to wait for all function invocations to finish
 		doneChan := make(chan struct{})
 		if curIter%100 == 0 {
-			log.Infof("Function: %s \t exuecte [%d/%d] \t replica [%d] \n", function.Name, curIter, runtimeSpec.Stats.Iterations, minReplicas)
+			log.Infof("Function: %s \t exuecte [%d/%d] \t replica [%d] \n", invocationID, curIter, runtimeSpec.Stats.Iterations, minReplicas)
 		}
 		// cur iteration for promput tuning priority
 		// md.Set("RIter", strconv.Itoa(runtimeSpec.Stats.Iterations-curIter))
@@ -173,7 +175,7 @@ func BatchInvoke(function *common.Function, runtimeSpec *common.RuntimeSpecifica
 				fmt.Println("Error:", err)
 			}
 			fmt.Printf("kubectl get revision %s\n", string(out))
-			fmt.Printf("curIter %d, computation time %d, communication time %d, minReplicas %d\n", curIter, printDuration, printResponse-printDuration, minReplicas)
+			fmt.Printf("function %s, curIter %d, computation time %d, communication time %d, minReplicas %d\n", invocationID, curIter, printDuration, printResponse-printDuration, minReplicas)
 
 		}
 
