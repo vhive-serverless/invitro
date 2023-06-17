@@ -13,7 +13,7 @@ import (
 	mc "github.com/eth-easl/loader/pkg/metric"
 )
 
-func Invoke(function *common.Function, runtimeSpec *common.RuntimeSpecification, cfg *config.LoaderConfiguration, invocationID string) (bool, *mc.ExecutionRecord) {
+func Invoke(function *common.Function, functions []*common.Function, runtimeSpec *common.RuntimeSpecification, cfg *config.LoaderConfiguration, invocationID string) (bool, *mc.ExecutionRecord) {
 	client_training := cfg.ClientTraining
 	// runtimeSpec.Runtime = runtimeSpec.Runtime * 5
 	if client_training == common.Batch {
@@ -24,6 +24,8 @@ func Invoke(function *common.Function, runtimeSpec *common.RuntimeSpecification,
 		return invokefunc.PipelineBatchPriorityInvoke(function, runtimeSpec, cfg, invocationID)
 	} else if client_training == common.Single {
 		return invokefunc.SingleInvoke(function, runtimeSpec, cfg, invocationID)
+	} else if client_training == common.HiveD {
+		return invokefunc.HiveDInvoke(functions, runtimeSpec, cfg, invocationID)
 	} else {
 		log.Errorf("Invalid client_training value: %s", client_training)
 		return false, nil

@@ -34,3 +34,12 @@ func gRPCConnectionClose(conn *grpc.ClientConn) {
 		log.Warnf("Error while closing gRPC connection - %s\n", err)
 	}
 }
+
+func findIndex(list []int, element int) int {
+	for i, v := range list {
+		if v == element {
+			return i
+		}
+	}
+	return -1
+}

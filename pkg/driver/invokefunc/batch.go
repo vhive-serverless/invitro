@@ -200,7 +200,6 @@ func BatchInvoke(function *common.Function, runtimeSpec *common.RuntimeSpecifica
 	printResponse := int(int(record.ResponseTime) / runtimeSpec.Stats.Iterations / 1000)
 	log.Debugf("print minReplicas %d, iterations %d ", minReplicas, runtimeSpec.Stats.Iterations)
 	log.Debugf("**************** OnBatchPriority gRPC actual duration per iteration %d [ms], response Time %d [ms]", printDuration, printResponse-printDuration)
-	// os.Exit(0)
 	if strings.HasPrefix(responses[0].GetMessage(), "FAILURE - mem_alloc") {
 		record.MemoryAllocationTimeout = true
 	} else {

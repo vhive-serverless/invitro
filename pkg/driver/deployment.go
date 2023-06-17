@@ -40,9 +40,10 @@ func min(nums ...int) int {
 func DeployFunctions(loaderConfiguration *config.LoaderConfiguration, functions []*common.Function, yamlPath string, isPartiallyPanic bool, endpointPort int,
 	autoscalingMetric string) {
 	for i := 0; i < len(functions); i++ {
-		if loaderConfiguration.ClientTraining == common.Batch || loaderConfiguration.ClientTraining == common.BatchPriority || loaderConfiguration.ClientTraining == common.PipelineBatchPriority {
+		if IsStringInList(loaderConfiguration.ClientTraining, []string{common.Batch, common.BatchPriority, common.PipelineBatchPriority}) {
 			deployOne(functions[i], yamlPath, isPartiallyPanic, endpointPort, autoscalingMetric)
-		} else if loaderConfiguration.ClientTraining == common.Single {
+		} else if IsStringInList(loaderConfiguration.ClientTraining, []string{common.Single, common.HiveD}) {
+			// loaderConfiguration.ClientTraining == common.Single || loaderConfiguration.ClientTraining == common.HiveD {
 
 			parts := strings.Split(functions[i].Name, "-")
 			gpuCount, err := strconv.Atoi(parts[len(parts)-1])
@@ -53,7 +54,6 @@ func DeployFunctions(loaderConfiguration *config.LoaderConfiguration, functions 
 		} else {
 			log.Errorf("Invalid client_training value: %s", loaderConfiguration.ClientTraining)
 		}
-
 	}
 	for i := 0; i < len(functions); i++ {
 		log.Infof("DepolyFunctions: Name[%s], Port [%s]", functions[i].Name, functions[i].Endpoint)

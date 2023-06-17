@@ -225,7 +225,7 @@ def plot_bar_by_method(ax, info_by_method, **kwargs):
         
 if True: 
     root = os.path.dirname(os.path.realpath(__file__))
-    while not root.endswith('loader-gpt'): 
+    while not root.endswith('loader-gpt') and not root.endswith('loader'): 
         # print(root)
         root = os.path.dirname(root)
     
@@ -233,15 +233,15 @@ if True:
     jct_info_by_method = list() 
     makespan_info_by_method = list()
     # duration_list = [10, 20, 40] # , 60, 120] 
-    duration_list = [5, 10, 20, 30] # , 10, 20] # , 10, 20, 30]
-    # duration_list = [2]
+    # duration_list = [5, 10, 20, 30] # , 10, 20] # , 10, 20, 30]
+    duration_list = [5, 10]
     # for method in  ['single', 'batch']: 
     # for method in ['single', 'batch', 'batch_priority']: 
     # for method in ['single', 'batch', 'batch_priority']: 
     # for method in ['batch', 'batch_priority', 'pipeline_batch_priority']: 
     # method_list = ['perfect', 'single', 'batch', 'batch_priority', 'pipeline_batch_priority']
-    method_list = ['perfect', 'single', 'batch'] # , 'batch_priority', 'pipeline_batch_priority']
-    method_list = ['perfect', 'batch', 'batch_priority', 'pipeline_batch_priority']
+    method_list = ['perfect', 'single', 'hived'] # , 'batch_priority', 'pipeline_batch_priority']
+    # method_list = ['perfect', 'batch', 'batch_priority', 'pipeline_batch_priority']
     perfect_jct_list = list() 
     for method in method_list: 
         jct_list = list() 
@@ -251,6 +251,7 @@ if True:
         for duration in duration_list:
             
             csv_name = os.path.join(root, 'data', 'out', f'experiment_duration_{duration}_ClientTraining_{method_ident}.csv')
+            print(csv_name)
             df = pd.read_csv(csv_name)
             if method != 'perfect': 
                 df = df[df.requestedDuration > 0]

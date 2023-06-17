@@ -163,11 +163,11 @@ func composeInvocationID(timeGranularity common.TraceGranularity, minuteIndex in
 	return fmt.Sprintf("%s%d.inv%d", timePrefix, minuteIndex, invocationIndex)
 }
 
-func (d *Driver) invokeFunction(metadata *InvocationMetadata) {
+func (d *Driver) invokeFunction(metadata *InvocationMetadata, functions []*common.Function) {
 	defer metadata.AnnounceDoneWG.Done()
 
 	invocationID := composeInvocationID(d.Configuration.TraceGranularity, metadata.MinuteIndex, metadata.InvocationIndex)
-	success, record := Invoke(metadata.Function, metadata.RuntimeSpecifications, d.Configuration.LoaderConfiguration, invocationID)
+	success, record := Invoke(metadata.Function, functions, metadata.RuntimeSpecifications, d.Configuration.LoaderConfiguration, invocationID)
 
 	record.Phase = int(metadata.Phase)
 	record.InvocationID = composeInvocationID(d.Configuration.TraceGranularity, metadata.MinuteIndex, metadata.InvocationIndex)
@@ -182,7 +182,7 @@ func (d *Driver) invokeFunction(metadata *InvocationMetadata) {
 	metadata.RecordOutputChannel <- record
 }
 
-func (d *Driver) individualFunctionDriver(function *common.Function, announceFunctionDone *sync.WaitGroup,
+func (d *Driver) individualFunctionDriver(function *common.Function, functions []*common.Function, announceFunctionDone *sync.WaitGroup,
 	totalSuccessful *int64, totalFailed *int64, totalIssued *int64, recordOutputChannel chan *mc.ExecutionRecord) {
 
 	totalTraceDuration := d.Configuration.TraceDuration
@@ -208,14 +208,13 @@ func (d *Driver) individualFunctionDriver(function *common.Function, announceFun
 
 	startOfMinute := time.Now()
 	var previousIATSum int64
-	// log.Infof("Minute %d, Function Name %s\n", minuteIndex, function.Name)
 	gpuCount := -1
-	if d.Configuration.LoaderConfiguration.ClientTraining == common.Single {
+	if IsStringInList(d.Configuration.LoaderConfiguration.ClientTraining, []string{common.Single, common.HiveD}) {
+		// IsStringInList(d.Configuration.LoaderConfiguration.ClientTraining); d.Configuration.LoaderConfiguration.ClientTraining == common.Single || d.Configuration.LoaderConfiguration.ClientTraining == common.HiveD {
 		parts := strings.Split(function.Name, "-")
 		gpuCount, _ = strconv.Atoi(parts[len(parts)-1])
-	} else if d.Configuration.LoaderConfiguration.ClientTraining == common.Batch ||
-		d.Configuration.LoaderConfiguration.ClientTraining == common.BatchPriority ||
-		d.Configuration.LoaderConfiguration.ClientTraining == common.PipelineBatchPriority {
+	} else if IsStringInList(d.Configuration.LoaderConfiguration.ClientTraining,
+		[]string{common.Batch, common.BatchPriority, common.PipelineBatchPriority}) {
 
 	} else {
 		log.Errorf("Invalid client_training value: %s", d.Configuration.LoaderConfiguration.ClientTraining)
@@ -246,16 +245,14 @@ func (d *Driver) individualFunctionDriver(function *common.Function, announceFun
 
 		invokeFunctionOrNot := true
 
-		if d.Configuration.LoaderConfiguration.ClientTraining == common.Single {
+		if IsStringInList(d.Configuration.LoaderConfiguration.ClientTraining, []string{common.Single, common.HiveD}) {
 			// log.Infof("numberOfIssuedInvocations %d, length of invocation %d\n", numberOfIssuedInvocations, len(function.BatchStats.Invocations))
 			expectedGPUCount := function.BatchStats.Invocations[numberOfIssuedInvocations-1] / common.BszPerDevice
 			if gpuCount != expectedGPUCount {
 				invokeFunctionOrNot = false
 			}
 			// log.Infof("d.Configuration.TestMode invokeFunctionOrNot: %v: expectedGPUCount %d, gpuCount %d", invokeFunctionOrNot, expectedGPUCount, gpuCount)
-		} else if d.Configuration.LoaderConfiguration.ClientTraining == common.Batch ||
-			d.Configuration.LoaderConfiguration.ClientTraining == common.BatchPriority ||
-			d.Configuration.LoaderConfiguration.ClientTraining == common.PipelineBatchPriority {
+		} else if IsStringInList(d.Configuration.LoaderConfiguration.ClientTraining, []string{common.Batch, common.BatchPriority, common.PipelineBatchPriority}) {
 
 		} else {
 			log.Errorf("Invalid client_training value: %s", d.Configuration.LoaderConfiguration.ClientTraining)
@@ -278,7 +275,8 @@ func (d *Driver) individualFunctionDriver(function *common.Function, announceFun
 				FailedCountByMinute:   failedInvocationByMinute,
 				RecordOutputChannel:   recordOutputChannel,
 				AnnounceDoneWG:        &waitForInvocations,
-			})
+			},
+				functions)
 		} else {
 			// To be used from within the Golang testing framework
 			log.Debugf("Test mode invocation fired.\n")
@@ -541,14 +539,32 @@ func (d *Driver) internalRun(iatOnly bool, generated bool) {
 	for _, function := range d.Configuration.Functions {
 		allIndividualDriversCompleted.Add(1)
 		fmt.Printf("invoke function %v\n", function)
-		go d.individualFunctionDriver(
-			function,
-			&allIndividualDriversCompleted,
-			&successfulInvocations,
-			&failedInvocations,
-			&invocationsIssued,
-			globalMetricsCollector,
-		)
+		if IsStringInList(d.Configuration.LoaderConfiguration.ClientTraining, []string{common.Single, common.Batch, common.BatchPriority, common.PipelineBatchPriority}) {
+			go d.individualFunctionDriver(
+				function,
+				d.Configuration.Functions,
+				&allIndividualDriversCompleted,
+				&successfulInvocations,
+				&failedInvocations,
+				&invocationsIssued,
+				globalMetricsCollector,
+			)
+		} else if IsStringInList(d.Configuration.LoaderConfiguration.ClientTraining, []string{common.HiveD}) {
+			key_prefix := strings.Split(function.Name, "-gpu-")[0]
+			filter_functions := FilterByKey(d.Configuration.Functions, key_prefix)
+			go d.individualFunctionDriver(
+				function,
+				filter_functions,
+				&allIndividualDriversCompleted,
+				&successfulInvocations,
+				&failedInvocations,
+				&invocationsIssued,
+				globalMetricsCollector,
+			)
+		} else {
+			log.Errorf("Invalid client_training value: %s", d.Configuration.LoaderConfiguration.ClientTraining)
+		}
+
 	}
 
 	allIndividualDriversCompleted.Wait()
