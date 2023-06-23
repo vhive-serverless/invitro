@@ -144,6 +144,8 @@ def cal_jct(df):
     jct_list = list() 
     # print('num of jobs == {}'.format(num_job))
     for idx, job in df.iterrows(): 
+        # import pdb; pdb.set_trace() 
+        # print(f'actualDuration {job.actualDuration/60000}, responseTime {job.responseTime/60000}')
         jct += job.responseTime / num_job
         # jct += job.actualDuration / num_job 
         min_time = min(job.startTime, min_time)
@@ -234,14 +236,14 @@ if True:
     makespan_info_by_method = list()
     # duration_list = [10, 20, 40] # , 60, 120] 
     # duration_list = [5, 10, 20, 30] # , 10, 20] # , 10, 20, 30]
-    duration_list = [5, 10]
+    duration_list = [10, 20, 40, 60, 80, 120] # [10, 20, 40]
     # for method in  ['single', 'batch']: 
     # for method in ['single', 'batch', 'batch_priority']: 
     # for method in ['single', 'batch', 'batch_priority']: 
     # for method in ['batch', 'batch_priority', 'pipeline_batch_priority']: 
     # method_list = ['perfect', 'single', 'batch', 'batch_priority', 'pipeline_batch_priority']
-    method_list = ['perfect', 'single', 'hived'] # , 'batch_priority', 'pipeline_batch_priority']
-    # method_list = ['perfect', 'batch', 'batch_priority', 'pipeline_batch_priority']
+    method_list = ['perfect', 'single', 'hived', 'batch'] # , 'batch_priority', 'pipeline_batch_priority']
+    # method_list = ['perfect', 'hived']
     perfect_jct_list = list() 
     for method in method_list: 
         jct_list = list() 
@@ -263,6 +265,8 @@ if True:
                 # print(csv_name, jct / 1000/3600)
                 makespan_list.append(makespan)
             else: 
+                df = df[df.requestedDuration > 0]
+                df = df[df.actualDuration > 0 ]
                 # import pdb; pdb.set_trace() 
                 jct = df.actualDuration.mean() 
                 makespan = 0 
