@@ -242,7 +242,7 @@ if True:
     # for method in ['single', 'batch', 'batch_priority']: 
     # for method in ['batch', 'batch_priority', 'pipeline_batch_priority']: 
     # method_list = ['perfect', 'single', 'batch', 'batch_priority', 'pipeline_batch_priority']
-    method_list = ['perfect', 'single', 'hived', 'batch'] # , 'batch_priority', 'pipeline_batch_priority']
+    method_list = ['perfect', 'hived', 'hived_elastic', 'batch'] # , 'batch_priority', 'pipeline_batch_priority']
     # method_list = ['perfect', 'hived']
     perfect_jct_list = list() 
     for method in method_list: 

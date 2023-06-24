@@ -209,7 +209,7 @@ func (d *Driver) individualFunctionDriver(function *common.Function, functions [
 	startOfMinute := time.Now()
 	var previousIATSum int64
 	gpuCount := -1
-	if IsStringInList(d.Configuration.LoaderConfiguration.ClientTraining, []string{common.Single, common.HiveD}) {
+	if IsStringInList(d.Configuration.LoaderConfiguration.ClientTraining, []string{common.Single, common.HiveD, common.HiveDElastic}) {
 		// IsStringInList(d.Configuration.LoaderConfiguration.ClientTraining); d.Configuration.LoaderConfiguration.ClientTraining == common.Single || d.Configuration.LoaderConfiguration.ClientTraining == common.HiveD {
 		parts := strings.Split(function.Name, "-")
 		gpuCount, _ = strconv.Atoi(parts[len(parts)-1])
@@ -245,7 +245,7 @@ func (d *Driver) individualFunctionDriver(function *common.Function, functions [
 
 		invokeFunctionOrNot := true
 
-		if IsStringInList(d.Configuration.LoaderConfiguration.ClientTraining, []string{common.Single, common.HiveD}) {
+		if IsStringInList(d.Configuration.LoaderConfiguration.ClientTraining, []string{common.Single, common.HiveD, common.HiveDElastic}) {
 			// log.Infof("numberOfIssuedInvocations %d, length of invocation %d\n", numberOfIssuedInvocations, len(function.BatchStats.Invocations))
 			expectedGPUCount := function.BatchStats.Invocations[numberOfIssuedInvocations-1] / common.BszPerDevice
 			if gpuCount != expectedGPUCount {
@@ -549,7 +549,7 @@ func (d *Driver) internalRun(iatOnly bool, generated bool) {
 				&invocationsIssued,
 				globalMetricsCollector,
 			)
-		} else if IsStringInList(d.Configuration.LoaderConfiguration.ClientTraining, []string{common.HiveD}) {
+		} else if IsStringInList(d.Configuration.LoaderConfiguration.ClientTraining, []string{common.HiveD, common.HiveDElastic}) {
 			key_prefix := strings.Split(function.Name, "-gpu-")[0]
 			filter_functions := FilterByKey(d.Configuration.Functions, key_prefix)
 			go d.individualFunctionDriver(

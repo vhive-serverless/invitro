@@ -42,7 +42,7 @@ func DeployFunctions(loaderConfiguration *config.LoaderConfiguration, functions 
 	for i := 0; i < len(functions); i++ {
 		if IsStringInList(loaderConfiguration.ClientTraining, []string{common.Batch, common.BatchPriority, common.PipelineBatchPriority}) {
 			deployOne(functions[i], yamlPath, isPartiallyPanic, endpointPort, autoscalingMetric)
-		} else if IsStringInList(loaderConfiguration.ClientTraining, []string{common.Single, common.HiveD}) {
+		} else if IsStringInList(loaderConfiguration.ClientTraining, []string{common.Single, common.HiveD, common.HiveDElastic}) {
 			// loaderConfiguration.ClientTraining == common.Single || loaderConfiguration.ClientTraining == common.HiveD {
 
 			parts := strings.Split(functions[i].Name, "-")

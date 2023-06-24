@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os/exec"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -20,82 +19,9 @@ import (
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 
 	mc "github.com/eth-easl/loader/pkg/metric"
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/tools/clientcmd"
 )
 
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
-}
-
-func min(a, b int) int {
-	return a + b - max(a, b)
-}
-
-func queryRemainingGPU() int {
-	config, err := clientcmd.BuildConfigFromFlags("", filepath.Join("/users/gaow0007", ".kube", "config"))
-	if err != nil {
-		panic(err.Error())
-	}
-
-	// Create a Kubernetes clientset
-	clientset, err := kubernetes.NewForConfig(config)
-	if err != nil {
-		panic(err.Error())
-	}
-
-	totalGPUs := 48
-	usedGPUs := 0
-
-	// Get the list of Pods in the cluster
-	pods, err := clientset.CoreV1().Pods("").List(context.Background(), metav1.ListOptions{FieldSelector: "status.phase=Running"})
-	if err != nil {
-		panic(err.Error())
-	}
-
-	for _, pod := range pods.Items {
-		if pod.Status.Phase != corev1.PodRunning {
-			continue
-		}
-		for _, container := range pod.Spec.Containers {
-			if container.Resources.Limits != nil {
-				limits := container.Resources.Limits
-				if gpu, ok := limits["nvidia.com/gpu"]; ok {
-					// fmt.Printf("gpu %v, container %v. gpu Value %d\n", gpu, container.Name, gpu.Value())
-					usedGPUs += int(gpu.Value())
-				}
-			}
-		}
-	}
-	availabeGPUs := totalGPUs - usedGPUs
-	fmt.Printf("Total Allocatable GPUs in the cluster: %d\n", availabeGPUs)
-	return availabeGPUs
-}
-
-func roundToPowerOfTwo(value int) int {
-	if value == 0 {
-		return 1
-	}
-
-	if value&(value-1) == 0 {
-		return value
-	}
-	var exponent uint
-	for i := uint(0); i < 32; i++ {
-		if 1<<i > value {
-			exponent = i - 1
-			break
-		}
-	}
-	return 1 << exponent
-}
-
-func HiveDInvoke(functions []*common.Function, runtimeSpec *common.RuntimeSpecification, cfg *config.LoaderConfiguration, invocationID string) (bool, *mc.ExecutionRecord) {
+func HiveDElasticInvoke(functions []*common.Function, runtimeSpec *common.RuntimeSpecification, cfg *config.LoaderConfiguration, invocationID string) (bool, *mc.ExecutionRecord) {
 
 	record := &mc.ExecutionRecord{
 		RequestedDuration: uint32(runtimeSpec.Runtime * 1e3),
@@ -169,14 +95,15 @@ func HiveDInvoke(functions []*common.Function, runtimeSpec *common.RuntimeSpecif
 	// }
 	clusterAvailableGPUs := roundToPowerOfTwo(queryRemainingGPU())
 	totalBatchSize := runtimeSpec.Stats.BatchSize
-	upperboundReplicas := totalBatchSize / common.BszPerDevice
+	upperboundReplicas := min(totalBatchSize/common.BszPerDevice*2, 8)
+	// baseReplicas := totalBatchSize / common.BszPerDevice
 	lowerboundReplicas := max(upperboundReplicas/2, 1)
 
 	initReplicas := upperboundReplicas
 	if clusterAvailableGPUs < initReplicas {
 		initReplicas = lowerboundReplicas
 	}
-	// fmt.Printf("invocation name %s, initReplicas %d, upperboundReplicas %d\n", invocationID, initReplicas, upperboundReplicas)
+	fmt.Printf("invocation name %s, initReplicas %d, upperboundReplicas %d\n", invocationID, initReplicas, upperboundReplicas)
 	maxDeploymentGPUID := findIndex(common.GPUSet, initReplicas)
 	curDeploymentGPUID := maxDeploymentGPUID
 
@@ -186,8 +113,14 @@ func HiveDInvoke(functions []*common.Function, runtimeSpec *common.RuntimeSpecif
 	onemore:
 		deploymentID := findIndex(gpu_list, common.GPUSet[curDeploymentGPUID])
 		curReplicas := common.GPUSet[curDeploymentGPUID]
-		accumulationSteps := totalBatchSize / gpu_list[deploymentID] / common.BszPerDevice
-		equalIteration := iteration_per_call / accumulationSteps
+		equalIteration := 0
+		if totalBatchSize/gpu_list[deploymentID] >= common.BszPerDevice {
+			accumulationSteps := totalBatchSize / gpu_list[deploymentID] / common.BszPerDevice
+			equalIteration = iteration_per_call / accumulationSteps
+		} else {
+			accumulationSteps := common.BszPerDevice / (totalBatchSize / gpu_list[deploymentID])
+			equalIteration = iteration_per_call * accumulationSteps
+		}
 
 		response, err := grpcClients[deploymentID].Execute(executionCxt, &proto.FaasRequest{
 			Message:              send_messages,
@@ -227,7 +160,7 @@ func HiveDInvoke(functions []*common.Function, runtimeSpec *common.RuntimeSpecif
 		responseTime := time.Since(curTime).Milliseconds()
 
 		previousDuration := runtimeSpec.Runtime * iteration_per_call
-		if curIter > 0 {
+		if curIter > 0 && curIter%100 == 0 {
 			curPrintResponse := int(responseTime)
 			curPrintDuration := previousDuration // int(record.ActualDuration) / curIter / 1000 / iteration_per_call
 			actualDuration := int(responses[0].DurationInMicroSec / 1000)

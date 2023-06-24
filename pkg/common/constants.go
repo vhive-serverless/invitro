@@ -75,6 +75,7 @@ const (
 	BatchPriority         string = "batch_priority"
 	PipelineBatchPriority string = "pipeline_batch_priority"
 	HiveD                 string = "hived"
+	HiveDElastic          string = "hived_elastic"
 )
 
 const (
