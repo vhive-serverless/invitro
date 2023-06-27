@@ -11,10 +11,12 @@ import (
 	"github.com/eth-easl/loader/pkg/common"
 	"github.com/eth-easl/loader/pkg/config"
 	"github.com/eth-easl/loader/pkg/workload/proto"
+	"github.com/google/uuid"
 
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/metadata"
 
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 
@@ -64,8 +66,12 @@ func HiveDElasticInvoke(functions []*common.Function, runtimeSpec *common.Runtim
 	}
 
 	// executionCxt, cancelExecution := context.WithTimeout(context.Background(), time.Duration(cfg.GRPCFunctionTimeoutSeconds)*time.Second)
-	leaseTime := 30
+	leaseTime := 15
 	executionCxt, cancelExecution := context.WithTimeout(context.Background(), time.Duration(leaseTime)*time.Second)
+	// add http header for scheduler
+	uuid := uuid.New()
+	md := metadata.New(map[string]string{"GPTName": uuid.String(), "RIter": strconv.Itoa(0)})
+	executionCxt = metadata.NewOutgoingContext(executionCxt, md)
 
 	promptTensor := make([]float32, 128)
 	for i := range promptTensor {
@@ -95,9 +101,8 @@ func HiveDElasticInvoke(functions []*common.Function, runtimeSpec *common.Runtim
 	// }
 	clusterAvailableGPUs := roundToPowerOfTwo(queryRemainingGPU())
 	totalBatchSize := runtimeSpec.Stats.BatchSize
-	upperboundReplicas := min(totalBatchSize/common.BszPerDevice*2, 8)
-	// baseReplicas := totalBatchSize / common.BszPerDevice
-	lowerboundReplicas := max(upperboundReplicas/2, 1)
+	upperboundReplicas := min(totalBatchSize/common.BszPerDevice*4, 8)
+	lowerboundReplicas := max(totalBatchSize/common.BszPerDevice, 1)
 
 	initReplicas := upperboundReplicas
 	if clusterAvailableGPUs < initReplicas {
@@ -133,6 +138,9 @@ func HiveDElasticInvoke(functions []*common.Function, runtimeSpec *common.Runtim
 		if err != nil {
 			cancelExecution()
 			executionCxt, cancelExecution = context.WithTimeout(context.Background(), time.Duration(leaseTime)*time.Second)
+			md := metadata.New(map[string]string{"GPTName": uuid.String(), "RIter": strconv.Itoa(curIter)})
+			executionCxt = metadata.NewOutgoingContext(executionCxt, md)
+
 			if curReplicas > lowerboundReplicas {
 				curDeploymentGPUID = curDeploymentGPUID - 1
 			}
@@ -187,6 +195,8 @@ func HiveDElasticInvoke(functions []*common.Function, runtimeSpec *common.Runtim
 		if curIter%100 == 0 && curIter > 0 {
 			cancelExecution()
 			executionCxt, cancelExecution = context.WithTimeout(context.Background(), time.Duration(leaseTime)*time.Second)
+			md.Set("RIter", strconv.Itoa((curIter)))
+			executionCxt = metadata.NewOutgoingContext(executionCxt, md)
 		}
 		curIter += equalIteration
 	}

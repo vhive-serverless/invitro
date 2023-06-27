@@ -4,7 +4,7 @@ clean_env() {
     sleep 120 
 }
 
-for duration in 10 20 40 60 80 120 # 120 160 # 80 # 80 #  20 40  # 20 40 # 5 # 10 # 20 30 # 20 # 40 60 120 # 40 # 10 20 40 # 60 120 180 #
+for duration in 10 20 40 60 80 # 120 # 150 180 # 10 20 40 60 80 120 # 120 160 # 80 # 80 #  20 40  # 20 40 # 5 # 10 # 20 30 # 20 # 40 60 120 # 40 # 10 20 40 # 60 120 180 #
 do
     go run cmd/loader.go --config cmd/config_client_hived_elastic.json  --overwrite_duration ${duration} # > log/hived_log_$duration.txt
     clean_env "$@"
