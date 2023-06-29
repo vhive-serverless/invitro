@@ -30,11 +30,13 @@ import (
 	"github.com/vhive-serverless/loader/pkg/common"
 	"io"
 	"math"
+	"math/rand"
 	"net/http"
 	"net/url"
 	"os/exec"
 	"regexp"
 	"strconv"
+	"strings"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -61,10 +63,14 @@ func DeployFunctions(functions []*common.Function, yamlPath string, isPartiallyP
 
 func deployCM(function *common.Function) {
 	payload := url.Values{
-		"name":            {function.Name},
-		"image":           {"docker.io/cvetkovic/empty_function:latest"},
-		"port_forwarding": {"80", "tcp"},
+		"name":             {function.Name},
+		"image":            {"docker.io/cvetkovic/empty_function:latest"},
+		"port_forwarding":  {"80", "tcp"},
+		"requested_cpu":    {strconv.Itoa(function.CPURequestsMilli)},
+		"requested_memory": {strconv.Itoa(function.MemoryRequestsMiB)},
 	}
+
+	log.Debug(payload)
 
 	resp, err := http.PostForm("http://localhost:9091/registerService", payload)
 	if err != nil {
@@ -76,7 +82,12 @@ func deployCM(function *common.Function) {
 	if err != nil {
 		log.Fatal("Failed to read response body.")
 	}
-	function.Endpoint = string(body)
+
+	endpoints := strings.Split(string(body), ";")
+	if endpoints == nil || len(endpoints) == 0 {
+		log.Fatal("Function registration returned no data plane(s).")
+	}
+	function.Endpoint = endpoints[rand.Intn(len(endpoints))]
 }
 
 func deployOne(function *common.Function, yamlPath string, isPartiallyPanic bool, endpointPort int,
