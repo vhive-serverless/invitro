@@ -30,11 +30,13 @@ import (
 	"github.com/eth-easl/loader/pkg/common"
 	"io"
 	"math"
+	"math/rand"
 	"net/http"
 	"net/url"
 	"os/exec"
 	"regexp"
 	"strconv"
+	"strings"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -76,7 +78,12 @@ func deployCM(function *common.Function) {
 	if err != nil {
 		log.Fatal("Failed to read response body.")
 	}
-	function.Endpoint = string(body)
+
+	endpoints := strings.Split(string(body), ";")
+	if endpoints == nil || len(endpoints) == 0 {
+		log.Fatal("Function registration returned no data plane(s).")
+	}
+	function.Endpoint = endpoints[rand.Intn(len(endpoints))]
 }
 
 func deployOne(function *common.Function, yamlPath string, isPartiallyPanic bool, endpointPort int,
