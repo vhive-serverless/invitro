@@ -9,7 +9,7 @@ can choose the APT cluster `d430` node.
 
 ## Create a cluster
 
-First, configure `script/setup.cfg`. You can specify there which vHive branch to use, loader branch, operation mode
+First, configure `script/setup/setup.cfg`. You can specify there which vHive branch to use, loader branch, operation mode
 (sandbox type), maximum number of pods per node, and the Github token. All these configurations are mandatory.
 We currently support the following modes: containerd (`container`), Firecracker (`firecracker`), and Firecracker with
 snapshots (`firecracker_snapshots`).
@@ -21,12 +21,13 @@ API server certificate.
 * To create a multi-node cluster, specify the node addresses as the arguments and run the following command:
 
 ```bash
-$ bash ./scripts/setup/create_multinode.sh <master_node@IP> <worker_node@IP> ...
+$ bash ./scripts/setup/create_multinode.sh <master_node@IP> <loader_node@IP> <worker_node@IP> ...
 ```
 
-The loader should be running on a separate node that is part of the Kubernetes cluster. Do not collocate master and
-worker node components where the loader is located for performance reasons. Make sure you taint the node where loader is
-located prior to running any experiment.
+This command will create the following setup: control plane is placed on master node, loader node is used for running
+loader and monitoring pods (mostly, Prometheus, if enabled in setup config), workers are used purely for working pods. In
+this setup, neither control plane nor workers are affected by loader and monitoring, creating more reliable measurements
+of performance.
 
 * Single-node cluster (experimental)
 

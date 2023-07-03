@@ -85,8 +85,8 @@ func (d *Driver) CreateMetricsScrapper(interval time.Duration,
 
 	return func() {
 		signalReady.Done()
-		clusterUsageRecords := make(chan interface{}, 100)
 		knStatRecords := make(chan interface{}, 100)
+		scaleRecords := make(chan interface{}, 100)
 		writerDone := sync.WaitGroup{}
 
 		clusterUsageFile, err := os.Create(d.outputFilename("cluster_usage"))
@@ -95,6 +95,9 @@ func (d *Driver) CreateMetricsScrapper(interval time.Duration,
 
 		writerDone.Add(1)
 		go d.runCSVWriter(knStatRecords, d.outputFilename("kn_stats"), &writerDone)
+
+		writerDone.Add(1)
+		go d.runCSVWriter(scaleRecords, d.outputFilename("deployment_scale"), &writerDone)
 
 		for {
 			select {
@@ -111,12 +114,19 @@ func (d *Driver) CreateMetricsScrapper(interval time.Duration,
 				_, err = clusterUsageFile.WriteString("\n")
 				common.Check(err)
 
+				recScale := mc.ScrapeDeploymentScales()
+				timestamp := time.Now().UnixMicro()
+				for _, rec := range recScale {
+					rec.Timestamp = timestamp
+					scaleRecords <- rec
+				}
+
 				recKnative := mc.ScrapeKnStats()
 				recKnative.Timestamp = time.Now().UnixMicro()
 				knStatRecords <- recKnative
 			case <-finishCh:
-				close(clusterUsageRecords)
 				close(knStatRecords)
+				close(scaleRecords)
 
 				writerDone.Wait()
 				allRecordsWritten.Done()
