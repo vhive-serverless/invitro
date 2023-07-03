@@ -14,7 +14,7 @@ if __name__ == "__main__":
     query_unready_pods = 'max(autoscaler_not_ready_pods) by(configuration_name)'
     query_pending_pods = 'max(autoscaler_pending_pods) by(configuration_name)'
     query_terminating_pods = 'max(autoscaler_terminating_pods) by(configuration_name)'
-    query_activator_queue = 'max(activator_request_concurrency) by(configuration_name)'
+    query_activator_queue = 'sum(activator_request_concurrency) by(configuration_name)'
 
     desired_pods_count = {x.split()[0]: int(x.split()[1]) for x in os.popen(get_promql_query(query_desired_pods)()).read().strip().split('\n')}
     running_pods_count = {x.split()[0]: int(x.split()[1]) for x in os.popen(get_promql_query(query_running_pods)()).read().strip().split('\n')}
