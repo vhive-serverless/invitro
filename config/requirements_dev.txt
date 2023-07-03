@@ -31,7 +31,7 @@ scipy==1.10.1
 six==1.16.0
 soupsieve==2.4.1
 ssh-import-id==5.11
-statsmodels==0.13.2
+statsmodels==0.14.0
 ubuntu-advantage-tools==20.3
 ufw==0.36
 unattended-upgrades==0.1
