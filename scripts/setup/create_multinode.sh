@@ -95,6 +95,14 @@ function setup_master() {
     LOGIN_TOKEN=${LOGIN_TOKEN//[$'\t\r\n']}
 }
 
+function setup_loader() {
+    echo "Setting up loader/monitoring node: $1"
+
+    server_exec "$1" 'wget -q https://go.dev/dl/go1.20.5.linux-amd64.tar.gz >/dev/null'
+    server_exec "$1" 'sudo rm -rf /usr/local/go && sudo tar -C /usr/local/ -xzf go1.20.5.linux-amd64.tar.gz >/dev/null'
+    server_exec "$1" 'echo "export PATH=$PATH:/usr/local/go/bin" >> .profile'
+}
+
 function setup_vhive_firecracker_daemon() {
     node=$1
 
@@ -232,6 +240,7 @@ function clone_loader_on_workers() {
     shift # make argument list only contain worker nodes (drops master node)
 
     setup_master
+    setup_loader $1
     setup_workers "$@"
 
     if [ $PODS_PER_NODE -gt 240 ]; then
@@ -240,6 +249,13 @@ function clone_loader_on_workers() {
 
     # Notify the master that all nodes have joined the cluster
     server_exec $MASTER_NODE 'tmux send -t master "y" ENTER'
+
+    namespace_info=$(server_exec $MASTER_NODE "kubectl get namespaces")
+    while [[ ${namespace_info} != *'knative-serving'*  ]]; do
+        sleep 60
+        namespace_info=$(server_exec $MASTER_NODE "kubectl get namespaces")
+    done
+
     echo "Master node $MASTER_NODE finalised."
 
     # Copy API server certificates from master to each worker node
@@ -249,15 +265,14 @@ function clone_loader_on_workers() {
     server_exec $MASTER_NODE 'cd loader; bash scripts/setup/patch_init_scale.sh'
 
     source $DIR/label.sh
-    if [[ "$DEPLOY_PROMETHEUS" == true ]]; then
 
-        # # Force placement of metrics collectors and instrumentation on the master node
-        label_workers $MASTER_NODE
-        label_master $MASTER_NODE
-        $DIR/expose_infra_metrics.sh $MASTER_NODE
-    else
-        label_all_workers $MASTER_NODE
-    fi
+    # Force placement of metrics collectors and instrumentation on the loader node and control plane on master
+    label_nodes $MASTER_NODE $1 # loader node is second on the list, becoming first after arg shift
+
     # patch knative to accept nodeselector
     server_exec $MASTER_NODE "cd loader; kubectl patch configmap config-features -n knative-serving -p '{\"data\": {\"kubernetes.podspec-nodeselector\": \"enabled\"}}'"
+
+    if [[ "$DEPLOY_PROMETHEUS" == true ]]; then
+        $DIR/expose_infra_metrics.sh $MASTER_NODE
+    fi
 }
