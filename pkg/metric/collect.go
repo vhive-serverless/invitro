@@ -3,16 +3,12 @@ package metric
 import (
 	"encoding/json"
 	"os/exec"
-	"time"
 
 	log "github.com/sirupsen/logrus"
 )
 
-func ScrapeDeploymentScales() []ScaleRecord {
-	cmd := exec.Command(
-		"python3",
-		"pkg/metric/scrape_scales.py",
-	)
+func ScrapeDeploymentScales() []DeploymentScale {
+	cmd := exec.Command("python3", "pkg/metric/scrape_scales.py")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		log.Warn("Fail to scrape deployment scales: ", err)
@@ -24,17 +20,7 @@ func ScrapeDeploymentScales() []ScaleRecord {
 		log.Warn("Fail to parse deployment scales: ", string(out[:]), err)
 	}
 
-	timestamp := time.Now().UnixMicro()
-	records := []ScaleRecord{}
-	for _, result := range results {
-		records = append(records, ScaleRecord{
-			Timestamp:    timestamp,
-			Deployment:   result.Deployment,
-			DesiredScale: result.DesiredScale,
-			ActualScale:  result.ActualScale,
-		})
-	}
-	return records
+	return results
 }
 
 func ScrapeKnStats() KnStats {
