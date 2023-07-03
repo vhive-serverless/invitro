@@ -86,18 +86,15 @@ type ExecutionRecord struct {
 	ColdStartCount int `csv:"coldstart_count"`*/
 }
 
-type ScaleRecord struct {
-	Timestamp    int64  `csv:"timestamp"`
-	Deployment   string `csv:"deployment"`
-	DesiredScale int    `csv:"desired_scale"`
-	ActualScale  int    `csv:"actual_scale"`
-}
-
 type DeploymentScale struct {
-	Timestamp    int64  `csv:"timestamp"`
-	Deployment   string `csv:"deployment"`
-	DesiredScale int    `csv:"desired_scale"`
-	ActualScale  int    `csv:"actual_scale"`
+	Timestamp       int64   `csv:"timestamp" json:"timestamp"`
+	Function        string  `csv:"function" json:"function"`
+	DesiredPods     int     `csv:"desired_pods" json:"desired_pods"`
+	RunningPods     int     `csv:"running_pods" json:"running_pods"`
+	UnreadyPods     int     `csv:"unready_pods" json:"unready_pods"`
+	PendingPods     int     `csv:"pending_pods" json:"pending_pods"`
+	TerminatingPods int     `csv:"terminating_pods" json:"terminating_pods"`
+	ActivatorQueue  float64 `csv:"activator_queue" json:"activator_queue"`
 }
 
 type KnStats struct {
