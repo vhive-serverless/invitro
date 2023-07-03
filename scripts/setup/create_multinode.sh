@@ -249,6 +249,13 @@ function clone_loader_on_workers() {
 
     # Notify the master that all nodes have joined the cluster
     server_exec $MASTER_NODE 'tmux send -t master "y" ENTER'
+
+    namespace_info=$(server_exec $MASTER_NODE "kubectl get namespaces")
+    while [[ ${namespace_info} != *'knative-serving'*  ]]; do
+        sleep 60
+        namespace_info=$(server_exec $MASTER_NODE "kubectl get namespaces")
+    done
+
     echo "Master node $MASTER_NODE finalised."
 
     # Copy API server certificates from master to each worker node
