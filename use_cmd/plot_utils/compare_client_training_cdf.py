@@ -153,7 +153,7 @@ def cal_jct(df):
         jct_list.append(job.responseTime)
         # jct_list.append(job.actualDuration//1000//60)
     # print('sorted jct list {}'.format(sorted(jct_list)))
-    return jct, max(jct_list) # max_time - min_time
+    return sorted(jct_list)
 
 
 def cal_fft(df): 
@@ -237,7 +237,8 @@ if True:
     makespan_info_by_method = list()
     # duration_list = [10, 20, 40] # , 60, 120] 
     # duration_list = [5, 10, 20, 30] # , 10, 20] # , 10, 20, 30]
-    duration_list = [10, 20, 40, 60, 80, 120, 150] # , 240] # , 180] # , 40, 60, 80] # , 40, 60, 80, 120] # [10, 20, 40]
+    # duration_list = [10, 20, 40, 60, 80, 120, 150, 240] # , 180] # , 40, 60, 80] # , 40, 60, 80, 120] # [10, 20, 40]
+    duration_list = [10] # 120, 150, 240] # , 180]
     # duration_list = [120, 240]
     # for method in  ['single', 'batch']: 
     # for method in ['single', 'batch', 'batch_priority']: 
@@ -248,13 +249,32 @@ if True:
     method_list = ['perfect',  'hived_elastic', 'hived', 'batch'] # , 'batch_priority', 'pipeline_batch_priority'] # 'hived', 'hived_elastic',
     # method_list = ['perfect', 'hived']
     perfect_jct_list = list() 
-    for method in method_list: 
-        jct_list = list() 
-        makespan_list = list() 
+    for duration in duration_list:
         
-        method_ident = method if method != 'perfect' else method_list[-1] # 'batch'
-        for duration in duration_list:
-            
+        if True: 
+            template.update(
+                {
+                    "norm": False, 
+                    "width": 0.3, 
+                    "autolabel": False, 
+                    'norm': True,
+                    'logy': 0,
+                    'barh': False,
+                }
+            )
+            new_template =  {
+                "norm": True, 
+                "width": 0.3, 
+                "autolabel": False, 
+                'logy': 1,
+                'xname': None,
+            }
+            template.update(new_template)
+            fig, axes = init_plot(1, grid=True)
+            ax = axes[0]
+        
+        for method_idx, method in enumerate(method_list): 
+            method_ident = method if method != 'perfect' else method_list[-1] # 'batch'
             csv_name = os.path.join(root, 'data', 'out', f'experiment_duration_{duration}_ClientTraining_{method_ident}.csv')
             # print(csv_name)
             df = pd.read_csv(csv_name)
@@ -262,55 +282,19 @@ if True:
                 df = df[df.requestedDuration > 0]
                 df = df[df.actualDuration > 0 ]
                 
-                jct, makespan = cal_jct(df)
-                jct_list.append(jct)
-                # print(csv_name, ' length ', len(df))
-                # print(csv_name, jct / 1000/3600)
-                makespan_list.append(makespan)
+                sorted_jct_list = cal_jct(df)
             else: 
                 df = df[df.requestedDuration > 0]
                 df = df[df.actualDuration > 0 ]
-                # import pdb; pdb.set_trace() 
-                jct = df.actualDuration.mean() 
-                makespan = 0 
-                jct_list.append(jct)
-                makespan_list.append(makespan)
-                
-        sched_verbose = ''
-        jct_info_by_method.append([method, jct_list, [0 for jct in jct_list]])
-        makespan_info_by_method.append([method, makespan_list, [0 for makespan in makespan_list]])
+                sorted_jct_list = sorted(df.actualDuration.tolist())
+            cumulative_prob = np.arange(1, len(sorted_jct_list) + 1) / len(sorted_jct_list)
 
-    
-    template.update(
-        {
-            "norm": False, 
-            "width": 0.3, 
-            "autolabel": False, 
-            'norm': True,
-            'logy': 0,
-            'barh': False,
-        }
-    )
-    new_template =  {
-        "norm": True, 
-        "width": 0.3, 
-        "autolabel": False, 
-        'logy': 1,
-        'xname': None,
-    }
-    template.update(new_template)
-    fig, axes = init_plot(1, grid=True)
-    ax = axes[0]
-    # import pdb; pdb.set_trace() 
-    plot_bar_by_method(ax, jct_info_by_method, **template)
-    ax.set_xticks([(i + 0.5) * len(method_list) * 0.5  for i in range(len(duration_list))])
-    ax.set_xticklabels(duration_list)
-    # ax.set_ylim(0.75, 2.5)
-    # ax.set_yticks([0.9, 1.0, 1.1, 1.2])
-    # ax.set_yticks([1, 1.25, 1.5, 1.75, 2.0])
-    ax.set_ylabel('Norm. Latency')
-    ax.set_xlabel('Duration Length')
-    ax.legend(fontsize=template['fontsize'] - 8, loc='upper center', ncol=2, bbox_to_anchor=(0.5, 1.4), fancybox=True, shadow=False, edgecolor="white", handlelength=2) 
-    plt.savefig(f'{root}/images/client_training/jct.jpg', bbox_inches='tight')
-    print(f'{root}/images/client_training/jct.jpg')
+            ax.plot(sorted_jct_list, cumulative_prob, label=method, color=color_list[method_idx])
+        ax.set_xscale('log')
+        ax.set_ylabel('CDF')
+        ax.set_xlabel(f'Latency (ms) [Log Scaled], \njob density={duration}')
+        ax.legend(fontsize=template['fontsize'] - 8, loc='upper center', ncol=2, bbox_to_anchor=(0.5, 1.4), fancybox=True, shadow=False, edgecolor="white", handlelength=2) 
+        plt.savefig(f'{root}/images/cdf/jct_{duration}.jpg', bbox_inches='tight')
+        plt.close() 
+        print(f'{root}/images/cdf/jct_{duration}.jpg')
     

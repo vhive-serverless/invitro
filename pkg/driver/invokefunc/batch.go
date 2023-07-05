@@ -176,7 +176,6 @@ func BatchInvoke(function *common.Function, runtimeSpec *common.RuntimeSpecifica
 			}
 			fmt.Printf("kubectl get revision %s\n", string(out))
 			fmt.Printf("function %s, curIter %d, computation time %d, communication time %d, minReplicas %d\n", invocationID, curIter, printDuration, printResponse-printDuration, minReplicas)
-
 		}
 
 	}

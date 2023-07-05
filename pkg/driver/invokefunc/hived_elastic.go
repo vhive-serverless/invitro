@@ -23,6 +23,11 @@ import (
 	mc "github.com/eth-easl/loader/pkg/metric"
 )
 
+func calPriority(curIter, seconds int) int {
+	return curIter / (seconds + 1)
+	// return 0
+}
+
 func HiveDElasticInvoke(functions []*common.Function, runtimeSpec *common.RuntimeSpecification, cfg *config.LoaderConfiguration, invocationID string) (bool, *mc.ExecutionRecord) {
 
 	record := &mc.ExecutionRecord{
@@ -66,11 +71,12 @@ func HiveDElasticInvoke(functions []*common.Function, runtimeSpec *common.Runtim
 	}
 
 	// executionCxt, cancelExecution := context.WithTimeout(context.Background(), time.Duration(cfg.GRPCFunctionTimeoutSeconds)*time.Second)
-	leaseTime := 15
+	leaseTime := 30
 	executionCxt, cancelExecution := context.WithTimeout(context.Background(), time.Duration(leaseTime)*time.Second)
 	// add http header for scheduler
 	uuid := uuid.New()
-	md := metadata.New(map[string]string{"GPTName": uuid.String(), "RIter": strconv.Itoa(0)})
+	priority := calPriority(10, 1)
+	md := metadata.New(map[string]string{"GPTName": uuid.String(), "RIter": strconv.Itoa(priority)})
 	executionCxt = metadata.NewOutgoingContext(executionCxt, md)
 
 	promptTensor := make([]float32, 128)
@@ -138,14 +144,17 @@ func HiveDElasticInvoke(functions []*common.Function, runtimeSpec *common.Runtim
 		if err != nil {
 			cancelExecution()
 			executionCxt, cancelExecution = context.WithTimeout(context.Background(), time.Duration(leaseTime)*time.Second)
-			md := metadata.New(map[string]string{"GPTName": uuid.String(), "RIter": strconv.Itoa(curIter)})
+			priority := calPriority(curIter, int(time.Since(start).Seconds()))
+			md := metadata.New(map[string]string{"GPTName": uuid.String(), "RIter": strconv.Itoa(priority)})
 			executionCxt = metadata.NewOutgoingContext(executionCxt, md)
 
 			if curReplicas > lowerboundReplicas {
 				curDeploymentGPUID = curDeploymentGPUID - 1
 			}
 
-			log.Debugf("gRPC timeout exceeded for SingleInvoke invocationID %s, curDeploymentGPUID %d - %s", invocationID, curDeploymentGPUID, err)
+			log.Debugf("gRPC timeout exceeded for HiveDElastic invocationID %s, curDeploymentGPUID %d - %s", invocationID, curDeploymentGPUID, err)
+			log.Debugf("**************** gRPC timeout exceeded HiveDInvoke invocationID %s, curIter %d,  priority %d", invocationID, curIter, priority)
+
 			cmd := exec.Command("kubectl", "get", "pods")
 			out, err := cmd.Output()
 			if err != nil {
@@ -195,8 +204,10 @@ func HiveDElasticInvoke(functions []*common.Function, runtimeSpec *common.Runtim
 		if curIter%100 == 0 && curIter > 0 {
 			cancelExecution()
 			executionCxt, cancelExecution = context.WithTimeout(context.Background(), time.Duration(leaseTime)*time.Second)
-			md.Set("RIter", strconv.Itoa((curIter)))
+			priority := calPriority(curIter, int(time.Since(start).Seconds()))
+			md.Set("RIter", strconv.Itoa((priority)))
 			executionCxt = metadata.NewOutgoingContext(executionCxt, md)
+			log.Debugf("**************** HiveDInvoke invocationID %s, curIter %d,  priority %d", invocationID, curIter, priority)
 		}
 		curIter += equalIteration
 	}
