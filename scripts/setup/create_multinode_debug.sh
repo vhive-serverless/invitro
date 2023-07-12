@@ -235,46 +235,7 @@ function clone_loader_on_workers() {
 
 {
     # Set up all nodes including the master
-    common_init "$@"
-
-    shift # make argument list only contain worker nodes (drops master node)
-
-    setup_master
-    setup_loader $1
-    setup_workers "$@"
-
-    if [ $PODS_PER_NODE -gt 240 ]; then
-        extend_CIDR "$@"
-    fi
-
-    # Notify the master that all nodes have joined the cluster
-    server_exec $MASTER_NODE 'tmux send -t master "y" ENTER'
-
-    namespace_info=$(server_exec $MASTER_NODE "kubectl get namespaces")
-    while [[ ${namespace_info} != *'knative-serving'*  ]]; do
-        sleep 60
-        namespace_info=$(server_exec $MASTER_NODE "kubectl get namespaces")
-    done
-
-    echo "Master node $MASTER_NODE finalised."
-
-    # Copy API server certificates from master to each worker node
-    copy_k8s_certificates "$@"
-    clone_loader_on_workers "$@"
-
-    server_exec $MASTER_NODE 'cd loader; bash scripts/setup/patch_init_scale.sh'
-
-    source $DIR/label.sh
-
-    # Force placement of metrics collectors and instrumentation on the loader node and control plane on master
-    label_nodes $MASTER_NODE $1 # loader node is second on the list, becoming first after arg shift
-
-    # patch knative to accept nodeselector
-    server_exec $MASTER_NODE "cd loader; kubectl patch configmap config-features -n knative-serving -p '{\"data\": {\"kubernetes.podspec-nodeselector\": \"enabled\"}}'"
-
-    if [[ "$DEPLOY_PROMETHEUS" == true ]]; then
-        $DIR/expose_infra_metrics.sh $MASTER_NODE
-    fi
+    # common_init "$@"
 
     if [[ "$DEPLOY_GPU" == true ]]; then
         $DIR/setup_nvidia_plugin.sh $MASTER_NODE
