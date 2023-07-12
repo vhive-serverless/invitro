@@ -8,11 +8,10 @@ server_exec() {
 {
 	echo 'Setting up fake nvidia plugin'
 	rsync config/nvidia-device-plugin.yml $MASTER_NODE:~/nvidia-device-plugin.yml
+	
 	server_exec 'kubectl apply -f ~/nvidia-device-plugin.yml'
 
 	server_exec 'kubectl get pods -n kube-system'
 
 	echo 'Done setting up fake nvidia plugin'
-	
-	exit
 }
