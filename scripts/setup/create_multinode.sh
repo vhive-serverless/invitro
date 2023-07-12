@@ -275,4 +275,8 @@ function clone_loader_on_workers() {
     if [[ "$DEPLOY_PROMETHEUS" == true ]]; then
         $DIR/expose_infra_metrics.sh $MASTER_NODE
     fi
+
+    if [[ "$DEPLOY_GPU" == true ]]; then
+        $DIR/setup_nvidia_plugin.sh $MASTER_NODE
+    fi
 }
