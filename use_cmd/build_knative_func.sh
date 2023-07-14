@@ -2,9 +2,9 @@ kn service delete gpt
 sleep 2 
 
 kn service create gpt \
---image gaow0007/trace_function_gpt:latest \
+--image gaow0007/trace_function_gpt_gpu:latest \
 --port h2c:80 \
---limit cpu=200m,memory=500Mi
+--limit cpu=2000m,memory=8000Mi
 
 
 # kubectl get pods -o name | xargs -I {}  kubectl logs -f {} user-container
