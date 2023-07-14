@@ -95,7 +95,7 @@ func roundToPowerOfTwo(value int) int {
 	return 1 << exponent
 }
 
-func HiveDInvoke(functions []*common.Function, runtimeSpec *common.RuntimeSpecification, cfg *config.LoaderConfiguration, invocationID string) (bool, *mc.ExecutionRecord) {
+func HiveDInvoke(functions []*common.Function, promptFunctions []*common.Function, runtimeSpec *common.RuntimeSpecification, cfg *config.LoaderConfiguration, invocationID string) (bool, *mc.ExecutionRecord) {
 
 	record := &mc.ExecutionRecord{
 		RequestedDuration: uint32(runtimeSpec.Runtime * 1e3),
@@ -141,7 +141,7 @@ func HiveDInvoke(functions []*common.Function, runtimeSpec *common.RuntimeSpecif
 	leaseTime := 30
 	executionCxt, cancelExecution := context.WithTimeout(context.Background(), time.Duration(leaseTime)*time.Second)
 
-	promptTensor := make([]float32, 128)
+	promptTensor := make([]float32, 128*common.EmbedingDim)
 	for i := range promptTensor {
 		promptTensor[i] = 0
 	}

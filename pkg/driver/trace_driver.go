@@ -31,7 +31,8 @@ type DriverConfiguration struct {
 	YAMLPath string
 	TestMode bool
 
-	Functions []*common.Function
+	Functions       []*common.Function
+	PromptFunctions []*common.Function
 }
 
 type Driver struct {
@@ -163,11 +164,11 @@ func composeInvocationID(timeGranularity common.TraceGranularity, minuteIndex in
 	return fmt.Sprintf("%s%d.inv%d", timePrefix, minuteIndex, invocationIndex)
 }
 
-func (d *Driver) invokeFunction(metadata *InvocationMetadata, functions []*common.Function) {
+func (d *Driver) invokeFunction(metadata *InvocationMetadata, functions []*common.Function, promptFunctions []*common.Function) {
 	defer metadata.AnnounceDoneWG.Done()
 
 	invocationID := composeInvocationID(d.Configuration.TraceGranularity, metadata.MinuteIndex, metadata.InvocationIndex)
-	success, record := Invoke(metadata.Function, functions, metadata.RuntimeSpecifications, d.Configuration.LoaderConfiguration, invocationID)
+	success, record := Invoke(metadata.Function, functions, promptFunctions, metadata.RuntimeSpecifications, d.Configuration.LoaderConfiguration, invocationID)
 
 	record.Phase = int(metadata.Phase)
 	record.InvocationID = composeInvocationID(d.Configuration.TraceGranularity, metadata.MinuteIndex, metadata.InvocationIndex)
@@ -182,8 +183,8 @@ func (d *Driver) invokeFunction(metadata *InvocationMetadata, functions []*commo
 	metadata.RecordOutputChannel <- record
 }
 
-func (d *Driver) individualFunctionDriver(function *common.Function, functions []*common.Function, announceFunctionDone *sync.WaitGroup,
-	totalSuccessful *int64, totalFailed *int64, totalIssued *int64, recordOutputChannel chan *mc.ExecutionRecord) {
+func (d *Driver) individualFunctionDriver(function *common.Function, functions []*common.Function, promptFunctions []*common.Function,
+	announceFunctionDone *sync.WaitGroup, totalSuccessful *int64, totalFailed *int64, totalIssued *int64, recordOutputChannel chan *mc.ExecutionRecord) {
 
 	totalTraceDuration := d.Configuration.TraceDuration
 	minuteIndex, invocationIndex := 0, 0
@@ -276,7 +277,7 @@ func (d *Driver) individualFunctionDriver(function *common.Function, functions [
 				RecordOutputChannel:   recordOutputChannel,
 				AnnounceDoneWG:        &waitForInvocations,
 			},
-				functions)
+				functions, promptFunctions)
 		} else {
 			// To be used from within the Golang testing framework
 			log.Debugf("Test mode invocation fired.\n")
@@ -538,11 +539,12 @@ func (d *Driver) internalRun(iatOnly bool, generated bool) {
 	log.Infof("Starting function invocation driver\n")
 	for _, function := range d.Configuration.Functions {
 		allIndividualDriversCompleted.Add(1)
-		fmt.Printf("invoke function %v\n", function)
+		fmt.Printf("invoke function %v, length of prompt functions %v\n", function, len(d.Configuration.PromptFunctions))
 		if IsStringInList(d.Configuration.LoaderConfiguration.ClientTraining, []string{common.Single, common.Batch, common.BatchPriority, common.PipelineBatchPriority}) {
 			go d.individualFunctionDriver(
 				function,
 				d.Configuration.Functions,
+				d.Configuration.PromptFunctions,
 				&allIndividualDriversCompleted,
 				&successfulInvocations,
 				&failedInvocations,
@@ -555,6 +557,7 @@ func (d *Driver) internalRun(iatOnly bool, generated bool) {
 			go d.individualFunctionDriver(
 				function,
 				filter_functions,
+				d.Configuration.PromptFunctions,
 				&allIndividualDriversCompleted,
 				&successfulInvocations,
 				&failedInvocations,
@@ -620,5 +623,14 @@ func (d *Driver) RunExperiment(iatOnly bool, generated bool) {
 		d.Configuration.LoaderConfiguration.EndpointPort,
 		d.Configuration.LoaderConfiguration.AutoscalingMetric)
 
+	if d.Configuration.LoaderConfiguration.WithPromptBank {
+		d.Configuration.PromptFunctions = DeployPromptFunctions(
+			d.Configuration.LoaderConfiguration,
+			d.Configuration.Functions,
+			d.Configuration.LoaderConfiguration.PromptYamlPath, // prompt path
+			d.Configuration.LoaderConfiguration.IsPartiallyPanic,
+			d.Configuration.LoaderConfiguration.EndpointPort,
+			d.Configuration.LoaderConfiguration.AutoscalingMetric)
+	}
 	d.internalRun(iatOnly, generated)
 }

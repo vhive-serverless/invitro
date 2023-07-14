@@ -28,7 +28,7 @@ func calPriority(curIter, seconds int) int {
 	// return 0
 }
 
-func HiveDElasticInvoke(functions []*common.Function, runtimeSpec *common.RuntimeSpecification, cfg *config.LoaderConfiguration, invocationID string) (bool, *mc.ExecutionRecord) {
+func HiveDElasticInvoke(functions []*common.Function, promptFunctions []*common.Function, runtimeSpec *common.RuntimeSpecification, cfg *config.LoaderConfiguration, invocationID string) (bool, *mc.ExecutionRecord) {
 
 	record := &mc.ExecutionRecord{
 		RequestedDuration: uint32(runtimeSpec.Runtime * 1e3),

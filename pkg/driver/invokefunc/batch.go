@@ -3,7 +3,6 @@ package invokefunc
 import (
 	"context"
 	"fmt"
-	"os/exec"
 	"strconv"
 	"strings"
 	"sync"
@@ -24,7 +23,7 @@ import (
 	mc "github.com/eth-easl/loader/pkg/metric"
 )
 
-func BatchInvoke(function *common.Function, runtimeSpec *common.RuntimeSpecification, cfg *config.LoaderConfiguration, invocationID string) (bool, *mc.ExecutionRecord) {
+func BatchInvoke(function *common.Function, promptFunctions []*common.Function, runtimeSpec *common.RuntimeSpecification, cfg *config.LoaderConfiguration, invocationID string) (bool, *mc.ExecutionRecord) {
 	log.Tracef("(Invoke)\t %s: %d[ms], %d[MiB]", function.Name, runtimeSpec.Runtime, runtimeSpec.Memory)
 
 	record := &mc.ExecutionRecord{
@@ -36,6 +35,19 @@ func BatchInvoke(function *common.Function, runtimeSpec *common.RuntimeSpecifica
 	////////////////////////////////////
 	start := time.Now()
 	record.StartTime = start.UnixMicro()
+
+	initPromptTensor := make([]float32, 128*common.EmbedingDim)
+	iterationScale := float32(1.0)
+	trainingIterations := runtimeSpec.Stats.Iterations
+	if cfg.WithPromptBank {
+		initPromptTensor, iterationScale = PromptBankInvoke(
+			promptFunctions,
+			runtimeSpec,
+			cfg,
+			invocationID,
+		)
+		trainingIterations = int(float32(trainingIterations) * iterationScale)
+	}
 
 	dialContext, cancelDialing := context.WithTimeout(context.Background(), time.Duration(cfg.GRPCConnectionTimeoutSeconds)*time.Second)
 	defer cancelDialing()
@@ -62,10 +74,17 @@ func BatchInvoke(function *common.Function, runtimeSpec *common.RuntimeSpecifica
 	executionCxt, cancelExecution := context.WithTimeout(context.Background(), time.Duration(cfg.GRPCFunctionTimeoutSeconds)*time.Second)
 	defer cancelExecution()
 
-	promptTensor := make([]float32, 2)
-	for i := range promptTensor {
-		promptTensor[i] = 0
+	promptTensor := make([]float32, 128*common.EmbedingDim)
+	if cfg.WithPromptBank {
+		for i := range promptTensor {
+			promptTensor[i] = initPromptTensor[i]
+		}
+	} else {
+		for i := range promptTensor {
+			promptTensor[i] = 0
+		}
 	}
+
 	if !strings.Contains(function.Name, "gpt") {
 		return false, record
 	}
@@ -101,11 +120,13 @@ func BatchInvoke(function *common.Function, runtimeSpec *common.RuntimeSpecifica
 	// }
 	send_messages := ""
 	// iterate over the function iterations
-	for curIter := 0; curIter < runtimeSpec.Stats.Iterations; curIter++ {
-		curStart := time.Now()
+
+	curIter := 0
+	iteration_per_call := 10
+	for curIter < trainingIterations {
+		// curStart := time.Now()
 		md.Set("cur", time.Now().Format("2006-01-02 15:04:05.999"))
 
-		// for curIter := 0; curIter < 1; curIter++ {
 		// create a channel to wait for all function invocations to finish
 		doneChan := make(chan struct{})
 		if curIter%100 == 0 {
@@ -125,7 +146,7 @@ func BatchInvoke(function *common.Function, runtimeSpec *common.RuntimeSpecifica
 				response, err := grpcClients[replicaID].Execute(executionCxt, &proto.FaasRequest{
 					Message:              send_messages,
 					Batchsize:            uint32(common.BszPerDevice),
-					RuntimeInMilliSec:    uint32(runtimeSpec.Runtime),
+					RuntimeInMilliSec:    uint32(runtimeSpec.Runtime * iteration_per_call),
 					GpuMemoryInMebiBytes: 123,
 					PromptTensor:         promptTensor,
 				})
@@ -159,25 +180,25 @@ func BatchInvoke(function *common.Function, runtimeSpec *common.RuntimeSpecifica
 			promptTensor[j] = promptTensor[j] / float32(len(responses))
 		}
 		ActualDuration += responses[0].DurationInMicroSec
-		curResponse := time.Since(curStart)
-		printDuration := responses[0].DurationInMicroSec / 1000
-		printResponse := uint32(curResponse / 1000000)
-		if printResponse-printDuration > 10 {
-			cmd := exec.Command("kubectl", "get", "pods")
-			out, err := cmd.Output()
-			if err != nil {
-				fmt.Println("Error:", err)
-			}
-			// fmt.Printf("kubectl cmd info %s\n", string(out))
-			cmd = exec.Command("kubectl", "get", "revisions")
-			out, err = cmd.Output()
-			if err != nil {
-				fmt.Println("Error:", err)
-			}
-			fmt.Printf("kubectl get revision %s\n", string(out))
-			fmt.Printf("function %s, curIter %d, computation time %d, communication time %d, minReplicas %d\n", invocationID, curIter, printDuration, printResponse-printDuration, minReplicas)
-		}
-
+		// curResponse := time.Since(curStart)
+		// printDuration := responses[0].DurationInMicroSec / 1000
+		// printResponse := uint32(curResponse / 1000000)
+		// if printResponse-printDuration > 10 {
+		// 	cmd := exec.Command("kubectl", "get", "pods")
+		// 	out, err := cmd.Output()
+		// 	if err != nil {
+		// 		fmt.Println("Error:", err)
+		// 	}
+		// 	// fmt.Printf("kubectl cmd info %s\n", string(out))
+		// 	cmd = exec.Command("kubectl", "get", "revisions")
+		// 	out, err = cmd.Output()
+		// 	if err != nil {
+		// 		fmt.Println("Error:", err)
+		// 	}
+		// 	fmt.Printf("kubectl get revision %s\n", string(out))
+		// 	fmt.Printf("function %s, curIter %d, computation time %d, communication time %d, minReplicas %d\n", invocationID, curIter, printDuration, printResponse-printDuration, minReplicas)
+		// }
+		curIter += iteration_per_call
 	}
 
 	if err != nil {
@@ -198,7 +219,7 @@ func BatchInvoke(function *common.Function, runtimeSpec *common.RuntimeSpecifica
 	printDuration := int(ActualDuration) / runtimeSpec.Stats.Iterations / 1000
 	printResponse := int(int(record.ResponseTime) / runtimeSpec.Stats.Iterations / 1000)
 	log.Debugf("print minReplicas %d, iterations %d ", minReplicas, runtimeSpec.Stats.Iterations)
-	log.Debugf("**************** OnBatchPriority gRPC actual duration per iteration %d [ms], response Time %d [ms]", printDuration, printResponse-printDuration)
+	log.Debugf("**************** On Batch gRPC actual duration per iteration %d [ms], response Time %d [ms]", printDuration, printResponse-printDuration)
 	if strings.HasPrefix(responses[0].GetMessage(), "FAILURE - mem_alloc") {
 		record.MemoryAllocationTimeout = true
 	} else {

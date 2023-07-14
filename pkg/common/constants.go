@@ -81,3 +81,7 @@ const (
 const (
 	BszPerDevice = 32
 )
+
+const (
+	EmbedingDim = 128
+)

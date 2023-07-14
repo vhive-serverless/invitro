@@ -1,0 +1,34 @@
+/*
+* Set up: 
+* $ go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.26
+* $ go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.1
+*
+* Add `<GOPATH>/bin` to your $PATH:
+* OR (!suboptimal since it overwrites $PATH by appending an additional 
+* line as opposed to change it directly)
+* $ echo "export PATH=$PATH:$(go env GOPATH)/bin" >> ~/.profile 
+* $ source ~/.profile 
+* OR temporarily
+* $ export PATH="$PATH:$(go env GOPATH)/bin"
+*/
+syntax = "proto3";
+
+package prompt;
+
+option go_package = "promptproto/promptproto";
+
+service Executor {
+  // Remote execution via RPC call.
+  rpc Execute (PromptRequest) returns (PromptReply) {}
+}
+
+message PromptRequest {
+  string message = 1;           // Text message field.
+}
+
+message PromptReply {
+  string message = 1;             // Text message field.
+  uint32 durationInMicroSec = 2;   // Execution latency [µs].
+  uint32 gpuMemoryInMebiBytes = 3;     // Memory usage [MiB].
+  repeated float promptTensor = 4 [packed = true]; // prompt gradients
+}

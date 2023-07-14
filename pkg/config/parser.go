@@ -29,6 +29,9 @@ type LoaderConfiguration struct {
 
 	GRPCConnectionTimeoutSeconds int `json:"GRPCConnectionTimeoutSeconds"`
 	GRPCFunctionTimeoutSeconds   int `json:"GRPCFunctionTimeoutSeconds"`
+
+	WithPromptBank bool   `json:"WithPromptBank"`
+	PromptYamlPath string `json:"PromptYamlPath"`
 }
 
 func ReadConfigurationFile(path string) LoaderConfiguration {
