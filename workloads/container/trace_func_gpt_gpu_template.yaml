@@ -23,7 +23,7 @@ spec:
         loader-nodetype: worker
       containers:
         - image: gaow0007/trace_function_gpt_gpu:latest
-          imagePullPolicy: Always  # No need if the tag is `latest`.
+          imagePullPolicy: IfNotPresent  # No need if the tag is `latest`.
           ports:
             - name: h2c  # For gRPC support
               containerPort: 80
@@ -40,3 +40,12 @@ spec:
               cpu: $CPU_REQUEST
               memory: $MEMORY_REQUESTS
               nvidia.com/gpu: $GPU_REQUEST
+      #     volumeMounts:
+      #         - name: data-volume
+      #           mountPath: /app/checkpoints/hf_model/models--gpt2-large/
+      #           readOnly: true
+      # volumes:
+      #   - name: data-volume
+      #     persistentVolumeClaim:
+      #       claimName: poddpvc
+      #       readOnly: true

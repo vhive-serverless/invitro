@@ -33,4 +33,7 @@ sudo systemctl restart docker
 
 
 
-# kubectl create -f https://raw.githubusercontent.com/yzs981130/k8s-device-plugin/fake_new/nvidia-device-plugin.yml
+# kubectl create -f https://raw.githubusercontent.com/NVIDIA/k8s-device-plugin/v0.14.0/nvidia-device-plugin.yml
+# kubectl create -f https://raw.githubusercontent.com/NVIDIA/k8s-device-plugin/v0.11.0/nvidia-device-plugin.yml
+# kubectl delete -f https://raw.githubusercontent.com/NVIDIA/k8s-device-plugin/v0.11.0/nvidia-device-plugin.yml
+# sudo apt install nvidia-cuda-toolkit
