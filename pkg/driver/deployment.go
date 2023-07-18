@@ -74,7 +74,7 @@ func deployOne(function *common.Function, yamlPath string, isPartiallyPanic bool
 		// for rps mode use the average runtime in milliseconds to determine how many requests a pod can process per
 		// second, then round to an integer as that is what the knative config expects
 	}
-
+	fmt.Println(yamlPath)
 	cmd := exec.Command(
 		"bash",
 		"./pkg/driver/deploy_gpt.sh",

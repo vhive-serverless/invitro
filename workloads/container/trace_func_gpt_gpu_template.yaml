@@ -23,7 +23,7 @@ spec:
         loader-nodetype: worker
       containers:
         - image: gaow0007/trace_function_gpt_gpu:latest
-          imagePullPolicy: IfNotPresent  # No need if the tag is `latest`.
+          imagePullPolicy: Always # IfNotPresent  # No need if the tag is `latest`.
           ports:
             - name: h2c  # For gRPC support
               containerPort: 80
