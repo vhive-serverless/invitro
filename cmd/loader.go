@@ -145,6 +145,8 @@ func runTraceMode(cfg *config.LoaderConfiguration, iatOnly bool, generated bool)
 		yamlSpecificationPath = "workloads/container/wimpy.yaml"
 	case "container":
 		yamlSpecificationPath = "workloads/container/trace_func_gpt.yaml"
+	case "container-gpu":
+		yamlSpecificationPath = "workloads/container/trace_func_gpt_gpu.yaml"
 	case "firecracker":
 		yamlSpecificationPath = "workloads/firecracker/trace_func_go.yaml"
 	default:
