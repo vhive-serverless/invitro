@@ -48,7 +48,7 @@ spec:
       containers:
       - image: gaow0007/k8s-device-plugin:latest
         name: nvidia-device-plugin-ctr
-        args: ["--fail-on-init-error=false", "-c=8"]
+        args: ["--fail-on-init-error=false", "-c=4"]
         securityContext:
           allowPrivilegeEscalation: false
           capabilities:

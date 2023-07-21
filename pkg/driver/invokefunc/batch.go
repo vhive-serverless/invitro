@@ -89,13 +89,6 @@ func BatchInvoke(function *common.Function, promptFunctions []*common.Function, 
 		return false, record
 	}
 
-	// randomly assign workload information
-	// bszPerDevice := 32
-	// numbers := []int{1, 2, 4, 6, 8, 12, 24}
-	// rand.Seed(233)
-	// function.BatchSize = numbers[rand.Intn(len(numbers))] * bszPerDevice
-	// function.Iterations = rand.Intn(10) + 5
-
 	minReplicas := runtimeSpec.Stats.BatchSize / common.BszPerDevice
 	// add http header for scheduler
 	uuid := uuid.New()
@@ -114,15 +107,12 @@ func BatchInvoke(function *common.Function, promptFunctions []*common.Function, 
 	}
 
 	ActualDuration := uint32(0)
-	// send_messages := "Can you condense the sentence into a shorter version without losing its meaning?"
-	// for i := 0; i < common.BszPerDevice; i++ {
-	// 	send_messages = send_messages + "; Can you condense the sentence into a shorter version without losing its meaning?"
-	// }
-	send_messages := ""
-	// iterate over the function iterations
 
+	iteration_per_call := 100
+	send_messages := prepareMessages("Can you condense the sentence into a shorter version without losing its meaning?", iteration_per_call)
+
+	// iterate over the function iterations
 	curIter := 0
-	iteration_per_call := 10
 	for curIter < trainingIterations {
 		// curStart := time.Now()
 		md.Set("cur", time.Now().Format("2006-01-02 15:04:05.999"))

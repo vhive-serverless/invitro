@@ -80,8 +80,9 @@ const (
 
 const (
 	BszPerDevice = 32
+	GPUPerNode   = 4
 )
 
 const (
-	EmbedingDim = 128
+	EmbedingDim = 256
 )

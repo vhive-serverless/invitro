@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/eth-easl/loader/pkg/common"
@@ -25,11 +26,40 @@ import (
 
 func calPriority(curIter, seconds int) int {
 	return curIter / (seconds + 1)
-	// return 0
+}
+
+func buildGrpcClients(conn_list []*grpc.ClientConn, functions []*common.Function, runtimeSpec *common.RuntimeSpecification) [][]proto.ExecutorClient {
+	grpcClients := make([][]proto.ExecutorClient, len(functions))
+	for conn_idx, conn := range conn_list {
+		if conn_idx < len(conn_list)-1 {
+			grpcClients[conn_idx] = append(grpcClients[conn_idx], proto.NewExecutorClient(conn))
+		} else {
+			totalBatchSize := runtimeSpec.Stats.BatchSize
+			upperboundReplicas := totalBatchSize / common.BszPerDevice * 4
+			if upperboundReplicas < common.GPUPerNode {
+				grpcClients[conn_idx] = append(grpcClients[conn_idx], proto.NewExecutorClient(conn))
+			} else {
+				grpcReplicas := upperboundReplicas / common.GPUPerNode
+				for i := 0; i < grpcReplicas; i++ {
+					grpcClients[conn_idx] = append(grpcClients[conn_idx], proto.NewExecutorClient(conn))
+				}
+			}
+		}
+	}
+	return grpcClients
+}
+
+func prepareLocalGPUSet(upperboundReplicas int, maxGPUPerNode int) []int {
+	localGPUSet := make([]int, 0)
+	baseGPU := 1
+	for baseGPU <= upperboundReplicas {
+		localGPUSet = append(localGPUSet, baseGPU)
+		baseGPU = baseGPU * 2
+	}
+	return localGPUSet
 }
 
 func HiveDElasticInvoke(functions []*common.Function, promptFunctions []*common.Function, runtimeSpec *common.RuntimeSpecification, cfg *config.LoaderConfiguration, invocationID string) (bool, *mc.ExecutionRecord) {
-
 	record := &mc.ExecutionRecord{
 		RequestedDuration: uint32(runtimeSpec.Runtime * 1e3),
 	}
@@ -63,7 +93,6 @@ func HiveDElasticInvoke(functions []*common.Function, promptFunctions []*common.
 			return false, record
 		}
 		conn_list[function_idx] = conn
-		// fmt.Printf("gpu is %d, funcname %s\n", gpu_list[function_idx], function.Name)
 	}
 
 	for i := 0; i < len(functions); i++ {
@@ -79,80 +108,107 @@ func HiveDElasticInvoke(functions []*common.Function, promptFunctions []*common.
 	md := metadata.New(map[string]string{"GPTName": uuid.String(), "RIter": strconv.Itoa(priority)})
 	executionCxt = metadata.NewOutgoingContext(executionCxt, md)
 
-	promptTensor := make([]float32, 128)
+	promptTensor := make([]float32, 128*common.EmbedingDim)
 	for i := range promptTensor {
 		promptTensor[i] = 0
 	}
-	// log.Debugf("SingleInvoke gRPC step 1")
 	if !strings.Contains(functions[0].Name, "gpt") {
 		return false, record
 	}
 
 	responses := make([]proto.FaasReply, 32)
 
+	// create a wait group to wait for all goroutines to finish
+	var wg sync.WaitGroup
+
 	// create grpc clients
-	grpcClients := make([]proto.ExecutorClient, len(functions))
-	for conn_idx, conn := range conn_list {
-		grpcClients[conn_idx] = proto.NewExecutorClient(conn)
-	}
-
-	// ActualDuration := uint32(0)
-
+	grpcClients := buildGrpcClients(conn_list, functions, runtimeSpec)
 	iteration_per_call := 10
-	send_messages := "Can you condense the sentence into a shorter version without losing its meaning?"
-	// for i := 0; i < iteration_per_call; i++ {
-	// 	for bsz := 0; bsz < common.BszPerDevice; bsz++ {
-	// 		send_messages = send_messages + "; Can you condense the sentence into a shorter version without losing its meaning?"
-	// 	}
-	// }
+	send_messages := prepareMessages("Can you condense the sentence into a shorter version without losing its meaning?", iteration_per_call)
+
 	clusterAvailableGPUs := roundToPowerOfTwo(queryRemainingGPU())
 	totalBatchSize := runtimeSpec.Stats.BatchSize
-	upperboundReplicas := min(totalBatchSize/common.BszPerDevice*4, 8)
+	upperboundReplicas := totalBatchSize / common.BszPerDevice * 4
 	lowerboundReplicas := max(totalBatchSize/common.BszPerDevice, 1)
+
+	localGPUSet := prepareLocalGPUSet(upperboundReplicas, common.GPUPerNode)
 
 	initReplicas := upperboundReplicas
 	if clusterAvailableGPUs < initReplicas {
 		initReplicas = lowerboundReplicas
 	}
 	fmt.Printf("invocation name %s, initReplicas %d, upperboundReplicas %d\n", invocationID, initReplicas, upperboundReplicas)
-	maxDeploymentGPUID := findIndex(common.GPUSet, initReplicas)
+	fmt.Printf("gpu_list %v\n", gpu_list)
+	fmt.Printf("prepareLocalGPUSet %v\n", localGPUSet)
+	maxDeploymentGPUID := findIndex(localGPUSet, initReplicas)
 	curDeploymentGPUID := maxDeploymentGPUID
 
 	curIter := 0
 	for curIter < runtimeSpec.Stats.Iterations {
+		doneChan := make(chan struct{})
 		curTime := time.Now()
 	onemore:
-		deploymentID := findIndex(gpu_list, common.GPUSet[curDeploymentGPUID])
-		curReplicas := common.GPUSet[curDeploymentGPUID]
+		deploymentFuncID := min(findIndex(localGPUSet, localGPUSet[curDeploymentGPUID]), len(gpu_list)-1)
+		curReplicas := localGPUSet[curDeploymentGPUID]
 		equalIteration := 0
-		if totalBatchSize/gpu_list[deploymentID] >= common.BszPerDevice {
-			accumulationSteps := totalBatchSize / gpu_list[deploymentID] / common.BszPerDevice
+		if totalBatchSize/localGPUSet[curDeploymentGPUID] >= common.BszPerDevice {
+			accumulationSteps := totalBatchSize / localGPUSet[curDeploymentGPUID] / common.BszPerDevice
 			equalIteration = iteration_per_call / accumulationSteps
 		} else {
-			accumulationSteps := common.BszPerDevice / (totalBatchSize / gpu_list[deploymentID])
+			accumulationSteps := common.BszPerDevice / (totalBatchSize / localGPUSet[curDeploymentGPUID])
 			equalIteration = iteration_per_call * accumulationSteps
 		}
 
-		response, err := grpcClients[deploymentID].Execute(executionCxt, &proto.FaasRequest{
-			Message:              send_messages,
-			Batchsize:            uint32(common.BszPerDevice),
-			RuntimeInMilliSec:    uint32(runtimeSpec.Runtime * iteration_per_call),
-			GpuMemoryInMebiBytes: 123,
-			PromptTensor:         promptTensor,
-		})
+		grpcReplicas := localGPUSet[curDeploymentGPUID] / gpu_list[deploymentFuncID]
 
-		if err != nil {
+		errorOrNot := false
+		for replicaID := 0; replicaID < grpcReplicas; replicaID++ {
+
+			// add one to the wait group
+			wg.Add(1)
+			// execute the function asynchronously
+			go func(replicaID int) {
+				defer wg.Done()
+				// execute the function and store the response
+				response, err := grpcClients[deploymentFuncID][replicaID].Execute(executionCxt, &proto.FaasRequest{
+					Message:              send_messages,
+					Batchsize:            uint32(common.BszPerDevice),
+					RuntimeInMilliSec:    uint32(runtimeSpec.Runtime * iteration_per_call),
+					GpuMemoryInMebiBytes: 123,
+					PromptTensor:         promptTensor,
+				})
+				if err != nil {
+					fmt.Printf("Error executing function: %v\n", err)
+					errorOrNot = errorOrNot || true
+					return
+				}
+
+				// store the response in the slice
+				responses[replicaID] = *response
+			}(replicaID)
+		}
+
+		// create a goroutine to wait for all goroutines to finish
+		go func() {
+			wg.Wait()
+			close(doneChan)
+		}()
+		// wait for all function invocations to finish
+		<-doneChan
+
+		if errorOrNot {
 			cancelExecution()
 			executionCxt, cancelExecution = context.WithTimeout(context.Background(), time.Duration(leaseTime)*time.Second)
 			priority := calPriority(curIter, int(time.Since(start).Seconds()))
 			md := metadata.New(map[string]string{"GPTName": uuid.String(), "RIter": strconv.Itoa(priority)})
 			executionCxt = metadata.NewOutgoingContext(executionCxt, md)
 
+			log.Debugf("curReplicas %d, lowerboundReplicas %d", curReplicas, lowerboundReplicas)
 			if curReplicas > lowerboundReplicas {
 				curDeploymentGPUID = curDeploymentGPUID - 1
 			}
 
-			log.Debugf("gRPC timeout exceeded for HiveDElastic invocationID %s, curDeploymentGPUID %d - %s", invocationID, curDeploymentGPUID, err)
+			log.Debugf("gRPC timeout exceeded for HiveDElastic invocationID %s, curDeploymentGPUID %d - %s", invocationID, curDeploymentGPUID, "error")
 			log.Debugf("**************** gRPC timeout exceeded HiveDInvoke invocationID %s, curIter %d,  priority %d", invocationID, curIter, priority)
 
 			cmd := exec.Command("kubectl", "get", "pods")
@@ -172,7 +228,7 @@ func HiveDElasticInvoke(functions []*common.Function, promptFunctions []*common.
 			goto onemore
 		}
 
-		responses[0] = *response
+		// responses[0] = *response
 		record.ActualDuration += responses[0].DurationInMicroSec
 		responseTime := time.Since(curTime).Milliseconds()
 
@@ -182,18 +238,18 @@ func HiveDElasticInvoke(functions []*common.Function, promptFunctions []*common.
 			curPrintDuration := previousDuration // int(record.ActualDuration) / curIter / 1000 / iteration_per_call
 			actualDuration := int(responses[0].DurationInMicroSec / 1000)
 			log.Debugf("invocation name %s, print curReplicas %d, maxReplicas %d, iterations %d, totalIterations %d expected duration %d [ms], actualDuration %d [ms], response Time %d [ms]",
-				invocationID, gpu_list[curDeploymentGPUID], upperboundReplicas, curIter, runtimeSpec.Stats.Iterations, curPrintDuration, actualDuration, curPrintResponse-actualDuration)
+				invocationID, localGPUSet[curDeploymentGPUID], upperboundReplicas, curIter, runtimeSpec.Stats.Iterations, curPrintDuration, actualDuration, curPrintResponse-actualDuration)
 		}
 
-		if curIter%100 == 0 && curIter > 0 && common.GPUSet[curDeploymentGPUID] < upperboundReplicas {
+		if curIter%100 == 0 && curIter > 0 && localGPUSet[curDeploymentGPUID] < upperboundReplicas {
 			clusterAvailableGPUs = roundToPowerOfTwo(queryRemainingGPU())
 			if clusterAvailableGPUs > upperboundReplicas {
 				clusterAvailableGPUs = upperboundReplicas
 			}
 			if clusterAvailableGPUs >= lowerboundReplicas {
-				nextDeploymentGPUID := findIndex(common.GPUSet, clusterAvailableGPUs)
+				nextDeploymentGPUID := findIndex(localGPUSet, clusterAvailableGPUs)
 				curRemainingTime := responseTime
-				nextRemainingTime := runtimeSpec.Runtime * iteration_per_call / 1000 * common.GPUSet[curDeploymentGPUID] / common.GPUSet[nextDeploymentGPUID]
+				nextRemainingTime := runtimeSpec.Runtime * iteration_per_call / 1000 * localGPUSet[curDeploymentGPUID] / localGPUSet[nextDeploymentGPUID]
 				if int64(float64(nextRemainingTime)*1.1) < curRemainingTime {
 					curDeploymentGPUID = nextDeploymentGPUID
 				}
@@ -232,41 +288,3 @@ func HiveDElasticInvoke(functions []*common.Function, promptFunctions []*common.
 	cancelExecution()
 	return true, record
 }
-
-// if responseTime < int64(float64(lastResponseTime)*0.9) {
-// 	nextDeploymentGPUID := curDeploymentGPUID + 1
-// 	if nextDeploymentGPUID > maxDeploymentGPUID {
-// 		nextDeploymentGPUID = maxDeploymentGPUID
-// 	}
-// 	curRemainingTime := responseTime * int64(runtimeSpec.Stats.Iterations/iteration_per_call-curIter)
-// 	nextRemainingTime := runtimeSpec.Runtime * iteration_per_call * accumulation_steps / 1000 * common.GPUSet[curDeploymentGPUID] / common.GPUSet[nextDeploymentGPUID]
-// 	if int64(float64(nextRemainingTime)*1.1) < curRemainingTime {
-// 		curDeploymentGPUID = nextDeploymentGPUID
-// 	}
-
-// } else if responseTime > int64(float64(lastResponseTime)/0.9) {
-// 	nextDeploymentGPUID := curDeploymentGPUID - 1
-// 	if nextDeploymentGPUID < 0 {
-// 		nextDeploymentGPUID = 0
-// 	}
-
-// 	curRemainingTime := responseTime * int64(runtimeSpec.Stats.Iterations/iteration_per_call-curIter)
-// 	nextRemainingTime := runtimeSpec.Runtime * iteration_per_call * accumulation_steps / 1000 * common.GPUSet[curDeploymentGPUID] / common.GPUSet[nextDeploymentGPUID]
-// 	if int64(float64(nextRemainingTime)*1.1) < curRemainingTime {
-// 		curDeploymentGPUID = nextDeploymentGPUID
-// 	}
-// } else
-
-// // log.Debugf("previousDuration %d, responseTime %d", previousDuration, responseTime)
-// if curIter > 0 && responseTime > int64(float64(previousDuration)*1.1) && curReplicas {
-// 	nextDeploymentGPUID := curDeploymentGPUID - 1
-// 	if nextDeploymentGPUID < 0 {
-// 		nextDeploymentGPUID = 0
-// 	}
-// 	curRemainingTime := responseTime * int64(runtimeSpec.Stats.Iterations/iteration_per_call-curIter)
-// 	nextRemainingTime := runtimeSpec.Runtime * iteration_per_call * accumulationSteps / 1000 * common.GPUSet[curDeploymentGPUID] / common.GPUSet[nextDeploymentGPUID]
-// 	if int64(float64(nextRemainingTime)*1.1) < curRemainingTime {
-// 		curDeploymentGPUID = nextDeploymentGPUID
-// 	}
-// 	log.Debugf("update lastResponseTime %d", lastResponseTime)
-// }

@@ -8,6 +8,17 @@ import (
 	"google.golang.org/grpc"
 )
 
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
+}
+
+func min(a, b int) int {
+	return a + b - max(a, b)
+}
+
 func sum(numbers []float32) float32 {
 	result := float32(0.0)
 	for _, num := range numbers {
@@ -42,4 +53,14 @@ func findIndex(list []int, element int) int {
 		}
 	}
 	return -1
+}
+
+func prepareMessages(message string, repeat int) string {
+	send_messages := ""
+	for i := 0; i < repeat; i++ {
+		for bsz := 0; bsz < common.BszPerDevice; bsz++ {
+			send_messages = send_messages + "@@" + message
+		}
+	}
+	return send_messages
 }

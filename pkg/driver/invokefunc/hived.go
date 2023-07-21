@@ -26,17 +26,6 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 )
 
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
-}
-
-func min(a, b int) int {
-	return a + b - max(a, b)
-}
-
 func queryRemainingGPU() int {
 	config, err := clientcmd.BuildConfigFromFlags("", filepath.Join("/users/gaow0007", ".kube", "config"))
 	if err != nil {
