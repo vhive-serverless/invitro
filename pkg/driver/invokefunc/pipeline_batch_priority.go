@@ -73,9 +73,6 @@ func PipelineBatchPriorityInvoke(function *common.Function, promptFunctions []*c
 	for i := range promptTensor {
 		promptTensor[i] = 0
 	}
-	if !strings.Contains(function.Name, "gpt") {
-		return false, record
-	}
 
 	// add http header for scheduler
 	uuid := uuid.New()

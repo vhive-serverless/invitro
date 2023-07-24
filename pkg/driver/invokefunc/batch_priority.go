@@ -65,9 +65,6 @@ func BatchPriorityInvoke(function *common.Function, promptFunctions []*common.Fu
 	for i := range promptTensor {
 		promptTensor[i] = 0
 	}
-	if !strings.Contains(function.Name, "gpt") {
-		return false, record
-	}
 
 	// randomly assign workload information
 	// bszPerDevice := 32

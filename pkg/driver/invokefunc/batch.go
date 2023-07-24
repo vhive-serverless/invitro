@@ -85,10 +85,6 @@ func BatchInvoke(function *common.Function, promptFunctions []*common.Function, 
 		}
 	}
 
-	if !strings.Contains(function.Name, "gpt") {
-		return false, record
-	}
-
 	minReplicas := runtimeSpec.Stats.BatchSize / common.BszPerDevice
 	// add http header for scheduler
 	uuid := uuid.New()
@@ -114,7 +110,6 @@ func BatchInvoke(function *common.Function, promptFunctions []*common.Function, 
 	// iterate over the function iterations
 	curIter := 0
 	for curIter < trainingIterations {
-		// curStart := time.Now()
 		md.Set("cur", time.Now().Format("2006-01-02 15:04:05.999"))
 
 		// create a channel to wait for all function invocations to finish
@@ -170,24 +165,6 @@ func BatchInvoke(function *common.Function, promptFunctions []*common.Function, 
 			promptTensor[j] = promptTensor[j] / float32(len(responses))
 		}
 		ActualDuration += responses[0].DurationInMicroSec
-		// curResponse := time.Since(curStart)
-		// printDuration := responses[0].DurationInMicroSec / 1000
-		// printResponse := uint32(curResponse / 1000000)
-		// if printResponse-printDuration > 10 {
-		// 	cmd := exec.Command("kubectl", "get", "pods")
-		// 	out, err := cmd.Output()
-		// 	if err != nil {
-		// 		fmt.Println("Error:", err)
-		// 	}
-		// 	// fmt.Printf("kubectl cmd info %s\n", string(out))
-		// 	cmd = exec.Command("kubectl", "get", "revisions")
-		// 	out, err = cmd.Output()
-		// 	if err != nil {
-		// 		fmt.Println("Error:", err)
-		// 	}
-		// 	fmt.Printf("kubectl get revision %s\n", string(out))
-		// 	fmt.Printf("function %s, curIter %d, computation time %d, communication time %d, minReplicas %d\n", invocationID, curIter, printDuration, printResponse-printDuration, minReplicas)
-		// }
 		curIter += iteration_per_call
 	}
 

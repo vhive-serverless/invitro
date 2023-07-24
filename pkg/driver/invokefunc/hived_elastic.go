@@ -112,9 +112,6 @@ func HiveDElasticInvoke(functions []*common.Function, promptFunctions []*common.
 	for i := range promptTensor {
 		promptTensor[i] = 0
 	}
-	if !strings.Contains(functions[0].Name, "gpt") {
-		return false, record
-	}
 
 	responses := make([]proto.FaasReply, 32)
 
@@ -145,9 +142,9 @@ func HiveDElasticInvoke(functions []*common.Function, promptFunctions []*common.
 
 	curIter := 0
 	for curIter < runtimeSpec.Stats.Iterations {
-		doneChan := make(chan struct{})
 		curTime := time.Now()
 	onemore:
+		doneChan := make(chan struct{})
 		deploymentFuncID := min(findIndex(localGPUSet, localGPUSet[curDeploymentGPUID]), len(gpu_list)-1)
 		curReplicas := localGPUSet[curDeploymentGPUID]
 		equalIteration := 0

@@ -64,7 +64,7 @@ func (p *AzureTraceParser) extractFunctions(invocations *[]common.FunctionInvoca
 		invocationStats := (*invocations)[i]
 
 		function := &common.Function{
-			Name: fmt.Sprintf("%s-%d-%d", common.FunctionNamePrefix, i, p.functionNameGenerator.Uint64()),
+			Name: fmt.Sprintf("%s-%d-%d", invocationStats.HashFunction, i, p.functionNameGenerator.Uint32()),
 
 			InvocationStats: &invocationStats,
 			RuntimeStats:    runtimeByHashFunction[invocationStats.HashFunction],
@@ -112,8 +112,8 @@ func (p *AzureTraceParser) Parse() []*common.Function {
 				totalRequestCount = totalRequestCount + invoc
 			}
 		}
-		iterationTrace := parseInvocationTrace(iterationPath, totalRequestCount)
-		batchTrace := parseInvocationTrace(batchPath, totalRequestCount)
+		iterationTrace := parseInvocationTrace(iterationPath, totalRequestCount*6)
+		batchTrace := parseInvocationTrace(batchPath, totalRequestCount*6)
 		simulationFunctions = p.extendFunctions(simulationFunctions, iterationTrace, batchTrace)
 	}
 	return simulationFunctions
