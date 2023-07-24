@@ -185,7 +185,13 @@ func (d *Driver) invokeFunction(metadata *InvocationMetadata, functions []*commo
 
 func (d *Driver) individualFunctionDriver(function *common.Function, functions []*common.Function, promptFunctions []*common.Function,
 	announceFunctionDone *sync.WaitGroup, totalSuccessful *int64, totalFailed *int64, totalIssued *int64, recordOutputChannel chan *mc.ExecutionRecord) {
-
+	// for i, v := range function.InvocationStats.Invocations {
+	// 	log.Infof("InvocationStats, i == %d, v == %d", i, v)
+	// }
+	// for i, v := range function.IterationStats.Invocations {
+	// 	log.Infof("IterationStats, i == %d, v == %d", i, v)
+	// }
+	// os.Exit(0)
 	totalTraceDuration := d.Configuration.TraceDuration
 	minuteIndex, invocationIndex := 0, 0
 
@@ -261,6 +267,8 @@ func (d *Driver) individualFunctionDriver(function *common.Function, functions [
 
 		if (!d.Configuration.TestMode) && invokeFunctionOrNot {
 			waitForInvocations.Add(1)
+			log.Infof("numberOfIssuedInvocations %v", numberOfIssuedInvocations)
+			log.Infof("length %v", len(function.IterationStats.Invocations))
 			runtimeSpecification[minuteIndex][invocationIndex].Stats = common.GPTStats{
 				Iterations: function.IterationStats.Invocations[numberOfIssuedInvocations-1],
 				BatchSize:  function.BatchStats.Invocations[numberOfIssuedInvocations-1]}

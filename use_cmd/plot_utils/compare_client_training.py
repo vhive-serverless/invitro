@@ -237,7 +237,7 @@ if True:
     makespan_info_by_method = list()
     # duration_list = [10, 20, 40] # , 60, 120] 
     # duration_list = [5, 10, 20, 30] # , 10, 20] # , 10, 20, 30]
-    duration_list = [10, 20, 40, 60, 80, 120, 150, 240] # , 60, 80, 120, 150, 240] # , 40, 60, 80, 120] # , 150, 240] # , 180] # , 40, 60, 80] # , 40, 60, 80, 120] # [10, 20, 40]
+    duration_list = [10, 20, 40, 60, 80, 120, 150] # , 120, 150, 240] # , 60, 80, 120, 150, 240] # , 40, 60, 80, 120] # , 150, 240] # , 180] # , 40, 60, 80] # , 40, 60, 80, 120] # [10, 20, 40]
     # duration_list = [120, 240]
     # for method in  ['single', 'batch']: 
     # for method in ['single', 'batch', 'batch_priority']: 
@@ -245,7 +245,7 @@ if True:
     # for method in ['batch', 'batch_priority', 'pipeline_batch_priority']: 
     # method_list = ['perfect', 'single', 'batch', 'batch_priority', 'pipeline_batch_priority']
     print(duration_list)
-    method_list = ['perfect',  'hived_elastic', 'hived', 'batch'] # , 'batch_priority', 'pipeline_batch_priority'] # 'hived', 'hived_elastic',
+    method_list = ['perfect',  'hived_elastic', 'batch'] # , 'batch_priority', 'pipeline_batch_priority'] # 'hived', 'hived_elastic',
     # method_list = ['perfect', 'hived']
     perfect_jct_list = list() 
     for method in method_list: 
@@ -255,7 +255,7 @@ if True:
         method_ident = method if method != 'perfect' else method_list[-1] # 'batch'
         for duration in duration_list:
             
-            csv_name = os.path.join(root, 'data', 'out', f'experiment_duration_{duration}_ClientTraining_{method_ident}.csv')
+            csv_name = os.path.join(root, 'data', 'out', f'real-experiment_duration_{duration}_ClientTraining_{method_ident}.csv')
             # print(csv_name)
             df = pd.read_csv(csv_name)
             if method != 'perfect': 

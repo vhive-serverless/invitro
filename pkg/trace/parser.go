@@ -106,8 +106,14 @@ func (p *AzureTraceParser) Parse() []*common.Function {
 	if os.IsNotExist(err) {
 		fmt.Println("File does not exist")
 	} else {
-		iterationTrace := parseInvocationTrace(iterationPath, p.duration*5)
-		batchTrace := parseInvocationTrace(batchPath, p.duration*5)
+		totalRequestCount := 0
+		for _, funcInvocStats := range *invocationTrace {
+			for _, invoc := range funcInvocStats.Invocations {
+				totalRequestCount = totalRequestCount + invoc
+			}
+		}
+		iterationTrace := parseInvocationTrace(iterationPath, totalRequestCount)
+		batchTrace := parseInvocationTrace(batchPath, totalRequestCount)
 		simulationFunctions = p.extendFunctions(simulationFunctions, iterationTrace, batchTrace)
 	}
 	return simulationFunctions
