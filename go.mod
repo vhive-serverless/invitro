@@ -11,12 +11,13 @@ require (
 	golang.org/x/sys v0.9.0
 	gonum.org/v1/gonum v0.13.0
 	gonum.org/v1/plot v0.13.0
-	google.golang.org/grpc v1.56.1
+	google.golang.org/grpc v1.57.0
 )
 
 require github.com/stretchr/testify v1.8.0
 
 require (
+	cloud.google.com/go/compute/metadata v0.2.3 // indirect
 	git.sr.ht/~sbinet/gg v0.4.1 // indirect
 	github.com/ajstarks/svgo v0.0.0-20211024235047-1546f124cd8b // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
@@ -30,6 +31,7 @@ require (
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	golang.org/x/crypto v0.0.0-20220411220226-7b82a4e95df4 // indirect
 	golang.org/x/image v0.7.0 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20230525234030-28d5490b6b19 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
@@ -45,6 +47,5 @@ require (
 	go.opentelemetry.io/otel/trace v0.20.0 // indirect
 	golang.org/x/net v0.9.0 // indirect
 	golang.org/x/text v0.9.0 // indirect
-	google.golang.org/genproto v0.0.0-20230410155749-daa745c078e1 // indirect
 	google.golang.org/protobuf v1.30.0 // indirect
 )
