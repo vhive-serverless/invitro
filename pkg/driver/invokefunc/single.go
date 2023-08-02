@@ -64,11 +64,6 @@ onemore:
 	for i := range promptTensor {
 		promptTensor[i] = 0
 	}
-	// log.Debugf("SingleInvoke gRPC step 1")
-	if !strings.Contains(function.Name, "gpt") {
-		cancelExecution()
-		return false, record
-	}
 	// log.Debugf("SingleInvoke gRPC step 2")
 
 	minReplicas := runtimeSpec.Stats.BatchSize / common.BszPerDevice

@@ -135,9 +135,6 @@ func HiveDInvoke(functions []*common.Function, promptFunctions []*common.Functio
 		promptTensor[i] = 0
 	}
 	// log.Debugf("SingleInvoke gRPC step 1")
-	if !strings.Contains(functions[0].Name, "gpt") {
-		return false, record
-	}
 
 	responses := make([]proto.FaasReply, 32)
 

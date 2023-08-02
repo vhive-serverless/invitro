@@ -85,10 +85,6 @@ func BatchInvoke(function *common.Function, promptFunctions []*common.Function, 
 		}
 	}
 
-	if !strings.Contains(function.Name, "gpt") {
-		return false, record
-	}
-
 	minReplicas := runtimeSpec.Stats.BatchSize / common.BszPerDevice
 	// add http header for scheduler
 	uuid := uuid.New()
@@ -114,7 +110,6 @@ func BatchInvoke(function *common.Function, promptFunctions []*common.Function, 
 	// iterate over the function iterations
 	curIter := 0
 	for curIter < trainingIterations {
-		// curStart := time.Now()
 		md.Set("cur", time.Now().Format("2006-01-02 15:04:05.999"))
 
 		// create a channel to wait for all function invocations to finish

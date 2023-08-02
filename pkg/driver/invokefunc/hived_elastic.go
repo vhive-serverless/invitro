@@ -112,16 +112,13 @@ func HiveDElasticInvoke(functions []*common.Function, promptFunctions []*common.
 	for i := range promptTensor {
 		promptTensor[i] = 0
 	}
-	if !strings.Contains(functions[0].Name, "gpt") {
-		return false, record
-	}
 
 	responses := make([]proto.FaasReply, 32)
 
 	// create grpc clients
 	grpcClients := buildGrpcClients(conn_list, functions, runtimeSpec)
 	iteration_per_call := 10
-	send_messages := prepareMessages("Can you condense the sentence into a shorter version without losing its meaning?", iteration_per_call * common.BszPerDevice)
+	send_messages := prepareMessages("Can you condense the sentence into a shorter version without losing its meaning?", iteration_per_call*common.BszPerDevice)
 
 	clusterAvailableGPUs := roundToPowerOfTwo(queryRemainingGPU())
 	totalBatchSize := runtimeSpec.Stats.BatchSize
@@ -144,9 +141,9 @@ func HiveDElasticInvoke(functions []*common.Function, promptFunctions []*common.
 	for curIter < runtimeSpec.Stats.Iterations {
 		// create a wait group to wait for all goroutines to finish
 		var wg sync.WaitGroup
-		doneChan := make(chan struct{})
 		curTime := time.Now()
 	onemore:
+		doneChan := make(chan struct{})
 		deploymentFuncID := min(findIndex(localGPUSet, localGPUSet[curDeploymentGPUID]), len(gpu_list)-1)
 		curReplicas := localGPUSet[curDeploymentGPUID]
 		equalIteration := 0

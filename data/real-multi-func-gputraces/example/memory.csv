@@ -1,0 +1,4 @@
+HashOwner,HashApp,HashFunction,SampleCount,AverageAllocatedMb,AverageAllocatedMb_pct1,AverageAllocatedMb_pct5,AverageAllocatedMb_pct25,AverageAllocatedMb_pct50,AverageAllocatedMb_pct75,AverageAllocatedMb_pct95,AverageAllocatedMb_pct99,AverageAllocatedMb_pct100
+a4123,18ege,gpt2-base,19342.0,120.0,100.0,102.0,114.0,123.0,127.0,136.0,143.0,152.0
+b4264,83hke,gpt2-large,19342.0,120.0,100.0,102.0,114.0,123.0,127.0,136.0,143.0,152.0
+c4575,38bae,llama-7b,19342.0,120.0,100.0,102.0,114.0,123.0,127.0,136.0,143.0,152.0

@@ -4,9 +4,9 @@
   "YAMLSelector": "container",
   "EndpointPort": 80,
 
-  "TracePath": "data/real-gputraces/example",
+  "TracePath": "data/real-multi-func-gputraces/example",
   "Granularity": "minute",
-  "OutputPathPrefix": "data/out/real-experiment",
+  "OutputPathPrefix": "data/out/real-multi-experiment",
   "ClientTraining": "hived_elastic", 
   "IATDistribution": "exponential",
   "ExperimentDuration": 20,
