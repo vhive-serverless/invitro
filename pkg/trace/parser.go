@@ -112,9 +112,10 @@ func (p *AzureTraceParser) Parse() []*common.Function {
 				totalRequestCount = totalRequestCount + invoc
 			}
 		}
-		iterationTrace := parseInvocationTrace(iterationPath, totalRequestCount)
-		batchTrace := parseInvocationTrace(batchPath, totalRequestCount)
+		iterationTrace := parseInvocationTrace(iterationPath, totalRequestCount*10)
+		batchTrace := parseInvocationTrace(batchPath, totalRequestCount*10)
 		simulationFunctions = p.extendFunctions(simulationFunctions, iterationTrace, batchTrace)
+		// fmt.Println(len((*iterationTrace)[0].Invocations))
 	}
 	return simulationFunctions
 }
@@ -123,7 +124,8 @@ func parseInvocationTrace(traceFile string, traceDuration int) *[]common.Functio
 	log.Debugf("Parsing function invocation trace %s (duration: %d min)", traceFile, traceDuration)
 
 	// Fit duration on (0, 1440] interval
-	traceDuration = common.MaxOf(common.MinOf(traceDuration, 1440), 1)
+	// traceDuration = common.MaxOf(common.MinOf(traceDuration, 1440), 1)
+	traceDuration = common.MaxOf(common.MinOf(traceDuration, 144000), 1)
 
 	var result []common.FunctionInvocationStats
 
@@ -177,6 +179,9 @@ func parseInvocationTrace(traceFile string, traceDuration int) *[]common.Functio
 			var invocations []int
 
 			for i := invocationColumnIndex; i < invocationColumnIndex+traceDuration; i++ {
+				if i >= len(record) {
+					continue
+				}
 				minute := i - invocationColumnIndex
 				num, err := strconv.Atoi(record[i])
 				common.Check(err)

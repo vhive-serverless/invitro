@@ -142,7 +142,7 @@ def cal_jct(df):
     min_time = sys.maxsize
     max_time = 0
     jct_list = list() 
-    # print('num of jobs == {}'.format(num_job))
+    print('num of jobs == {}'.format(num_job))
     for idx, job in df.iterrows(): 
         # import pdb; pdb.set_trace() 
         # print(f'actualDuration {job.actualDuration/60000}, responseTime {job.responseTime/60000}')
@@ -151,6 +151,7 @@ def cal_jct(df):
         min_time = min(job.startTime, min_time)
         max_time = max(job.responseTime, max_time)
         jct_list.append(job.responseTime)
+        # import pdb; pdb.set_trace() 
         # jct_list.append(job.actualDuration//1000//60)
     # print('sorted jct list {}'.format(sorted(jct_list)))
     return jct, max(jct_list) # max_time - min_time
@@ -237,7 +238,7 @@ if True:
     makespan_info_by_method = list()
     # duration_list = [10, 20, 40] # , 60, 120] 
     # duration_list = [5, 10, 20, 30] # , 10, 20] # , 10, 20, 30]
-    duration_list = [10, 20, 40, 60, 80, 120, 150] # , 120, 150, 240] # , 60, 80, 120, 150, 240] # , 40, 60, 80, 120] # , 150, 240] # , 180] # , 40, 60, 80] # , 40, 60, 80, 120] # [10, 20, 40]
+    duration_list = [10, 20, 40] # , 80, 120, 150] # , 120, 150, 240] # , 60, 80, 120, 150, 240] # , 40, 60, 80, 120] # , 150, 240] # , 180] # , 40, 60, 80] # , 40, 60, 80, 120] # [10, 20, 40]
     # duration_list = [120, 240]
     # for method in  ['single', 'batch']: 
     # for method in ['single', 'batch', 'batch_priority']: 
@@ -245,7 +246,7 @@ if True:
     # for method in ['batch', 'batch_priority', 'pipeline_batch_priority']: 
     # method_list = ['perfect', 'single', 'batch', 'batch_priority', 'pipeline_batch_priority']
     print(duration_list)
-    method_list = ['perfect',  'hived_elastic', 'batch'] # , 'batch_priority', 'pipeline_batch_priority'] # 'hived', 'hived_elastic',
+    method_list = ['perfect', 'hived_elastic', 'batch'] # , 'batch_priority', 'pipeline_batch_priority'] # 'hived', 'hived_elastic',
     # method_list = ['perfect', 'hived']
     perfect_jct_list = list() 
     for method in method_list: 
@@ -258,6 +259,7 @@ if True:
             csv_name = os.path.join(root, 'data', 'out', f'real-experiment_duration_{duration}_ClientTraining_{method_ident}.csv')
             # print(csv_name)
             df = pd.read_csv(csv_name)
+            print(method, csv_name)
             if method != 'perfect': 
                 df = df[df.requestedDuration > 0]
                 df = df[df.actualDuration > 0 ]

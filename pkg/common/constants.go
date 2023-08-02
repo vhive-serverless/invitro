@@ -84,5 +84,5 @@ const (
 )
 
 const (
-	EmbedingDim = 256
+	EmbedingDim = 32
 )

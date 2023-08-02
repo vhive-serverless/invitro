@@ -170,6 +170,7 @@ func BatchInvoke(function *common.Function, promptFunctions []*common.Function, 
 			promptTensor[j] = promptTensor[j] / float32(len(responses))
 		}
 		ActualDuration += responses[0].DurationInMicroSec
+		log.Infof("ActualDuration is %d", ActualDuration)
 		// curResponse := time.Since(curStart)
 		// printDuration := responses[0].DurationInMicroSec / 1000
 		// printResponse := uint32(curResponse / 1000000)
