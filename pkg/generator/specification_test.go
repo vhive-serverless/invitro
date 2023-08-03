@@ -2,13 +2,14 @@ package generator
 
 import (
 	"fmt"
-	"github.com/eth-easl/loader/pkg/common"
-	log "github.com/sirupsen/logrus"
 	"math"
 	"os"
 	"os/exec"
 	"sync"
 	"testing"
+
+	"github.com/eth-easl/loader/pkg/common"
+	log "github.com/sirupsen/logrus"
 )
 
 var testFunction = common.Function{
@@ -46,6 +47,7 @@ var testFunction = common.Function{
 - uniform distribution - spillover test, distribution test, single point
 */
 func TestSerialGenerateIAT(t *testing.T) {
+	log.SetLevel(log.DebugLevel)
 	tests := []struct {
 		testName         string
 		duration         int // s
@@ -76,7 +78,7 @@ func TestSerialGenerateIAT(t *testing.T) {
 			invocations:      []int{1},
 			iatDistribution:  common.Exponential,
 			granularity:      common.MinuteGranularity,
-			expectedPoints:   [][]float64{{60_000_000}},
+			expectedPoints:   [][]float64{{11689078.788397, 48310921.211603}},
 			testDistribution: false,
 		},
 		{
@@ -86,6 +88,7 @@ func TestSerialGenerateIAT(t *testing.T) {
 			granularity:     common.MinuteGranularity,
 			expectedPoints: [][]float64{
 				{
+					0,
 					12000000,
 					12000000,
 					12000000,
@@ -103,6 +106,7 @@ func TestSerialGenerateIAT(t *testing.T) {
 			expectedPoints: [][]float64{
 				{
 					// min 1
+					0,
 					12000000,
 					12000000,
 					12000000,
@@ -111,6 +115,7 @@ func TestSerialGenerateIAT(t *testing.T) {
 				},
 				{
 					// min 2
+					0,
 					12000000,
 					12000000,
 					12000000,
@@ -119,6 +124,7 @@ func TestSerialGenerateIAT(t *testing.T) {
 				},
 				{
 					// min 3
+					0,
 					12000000,
 					12000000,
 					12000000,
@@ -127,6 +133,7 @@ func TestSerialGenerateIAT(t *testing.T) {
 				},
 				{
 					// min 4
+					0,
 					12000000,
 					12000000,
 					12000000,
@@ -135,6 +142,7 @@ func TestSerialGenerateIAT(t *testing.T) {
 				},
 				{
 					// min 5
+					0,
 					12000000,
 					12000000,
 					12000000,
@@ -151,6 +159,15 @@ func TestSerialGenerateIAT(t *testing.T) {
 			granularity:     common.MinuteGranularity,
 			expectedPoints: [][]float64{
 				{
+					1193000.964808,
+					622524.819620,
+					2161625.000293,
+					2467158.610498,
+					3161216.965226,
+					120925.338482,
+					3461650.068734,
+					3681772.563419,
+					3591929.298027,
 					3062124.611863,
 					3223056.707367,
 					3042558.740794,
@@ -167,15 +184,7 @@ func TestSerialGenerateIAT(t *testing.T) {
 					3460047.444726,
 					2849475.331077,
 					3187546.011741,
-					2950391.492700,
-					622524.819620,
-					2161625.000293,
-					2467158.610498,
-					3161216.965226,
-					120925.338482,
-					3461650.068734,
-					3681772.563419,
-					3591929.298027,
+					1757390.527891,
 				},
 			},
 			testDistribution: false,
@@ -195,6 +204,19 @@ func TestSerialGenerateIAT(t *testing.T) {
 			granularity:     common.MinuteGranularity,
 			expectedPoints: [][]float64{
 				{
+					697544.471476,
+					5339421.146045,
+					3362048.158408,
+					939526.523674,
+					1113771.382294,
+					4439636.567646,
+					4623026.109831,
+					2082985.655760,
+					45937.118986,
+					4542253.875620,
+					2264414.993992,
+					3872560.868064,
+					179575.470862,
 					1311929.341329,
 					3685871.430916,
 					1626476.996595,
@@ -207,19 +229,7 @@ func TestSerialGenerateIAT(t *testing.T) {
 					2366337.4678820,
 					40667.5994150,
 					2778945.4898700,
-					4201722.5747150,
-					5339421.1460450,
-					3362048.1584080,
-					939526.5236740,
-					1113771.3822940,
-					4439636.5676460,
-					4623026.1098310,
-					2082985.6557600,
-					45937.1189860,
-					4542253.8756200,
-					2264414.9939920,
-					3872560.8680640,
-					179575.4708620,
+					3504178.103239,
 				},
 			},
 			testDistribution: false,
@@ -240,6 +250,7 @@ func TestSerialGenerateIAT(t *testing.T) {
 			expectedPoints: [][]float64{
 				{
 					// second 1
+					0,
 					200000,
 					200000,
 					200000,
@@ -248,6 +259,7 @@ func TestSerialGenerateIAT(t *testing.T) {
 				},
 				{
 					// second 2
+					0,
 					250000,
 					250000,
 					250000,
@@ -255,6 +267,7 @@ func TestSerialGenerateIAT(t *testing.T) {
 				},
 				{
 					// second 3
+					0,
 					500000,
 					500000,
 				},
@@ -282,7 +295,13 @@ func TestSerialGenerateIAT(t *testing.T) {
 
 			if test.expectedPoints != nil {
 				for min := 0; min < len(test.expectedPoints); min++ {
-					for i := 0; i < len(IAT[min]); i++ {
+					for i := 0; i < len(test.expectedPoints[min]); i++ {
+						if len(test.expectedPoints[min]) != len(IAT[min]) {
+							log.Debug(fmt.Sprintf("wrong number of IATs in the minute, got: %d, expected: %d\n", len(IAT[min]), len(test.expectedPoints[min])))
+
+							failed = true
+							break
+						}
 						if math.Abs(IAT[min][i]-test.expectedPoints[min][i]) > epsilon {
 							log.Debug(fmt.Sprintf("got: %f, expected: %f\n", IAT[min][i], test.expectedPoints[min][i]))
 

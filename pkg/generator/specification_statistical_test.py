@@ -8,7 +8,7 @@ inputFile = sys.argv[2]
 
 alpha = 0.05
 
-f = np.loadtxt("test_data.txt", dtype=float)
+f = np.loadtxt(inputFile, dtype=float)
 
 if distribution == "uniform":
     minBoundary = 0

@@ -25,6 +25,10 @@ func NewSpecificationGenerator(seed int64) *SpecificationGenerator {
 
 // generateIATPerGranularity generates IAT for one minute based on given number of invocations and the given distribution
 func (s *SpecificationGenerator) generateIATPerGranularity(numberOfInvocations int, iatDistribution common.IatDistribution, granularity common.TraceGranularity) ([]float64, float64) {
+	if numberOfInvocations == 0 {
+		return []float64{}, 0.0
+	}
+
 	var iatResult []float64
 	totalDuration := 0.0 // total non-scaled duration
 
@@ -70,6 +74,26 @@ func (s *SpecificationGenerator) generateIATPerGranularity(numberOfInvocations i
 				iatResult[i] *= 60.0
 			}
 		}
+
+		// Cut the IAT array at random place to move the first invocation from the beginning of the minute
+		split := s.iatRand.Float64() * common.OneSecondInMicroseconds
+		if granularity == common.MinuteGranularity {
+			split *= 60.0
+		}
+		sum, i := 0.0, 0
+		for ; i < len(iatResult); i++ {
+			sum += iatResult[i]
+			if sum > split {
+				break
+			}
+		}
+		beginningIAT := sum - split
+		endIAT := iatResult[i] - beginningIAT
+		finalIAT := append([]float64{beginningIAT}, iatResult[i+1:]...)
+		finalIAT = append(finalIAT, iatResult[:i]...)
+		iatResult = append(finalIAT, endIAT)
+	} else {
+		iatResult = append([]float64{0.0}, iatResult...)
 	}
 
 	return iatResult, totalDuration
