@@ -32,6 +32,7 @@ aes
 al
 Alberquilla
 Aldus
+Alibaba
 AMAC
 amna
 Amna
@@ -98,6 +99,7 @@ CCNOC
 ccNUMA
 cd
 celsius
+CFS
 Changelog
 changelog
 checkoutservice
@@ -136,6 +138,7 @@ containerPort
 coolDownTime
 Costa
 CPUs
+cpu
 CRC
 crccheck
 cri
@@ -224,6 +227,7 @@ funcNames
 FunctionBench
 Fytraki
 Gavrielatos
+GCP
 GECCO
 geo
 Geo
@@ -355,6 +359,7 @@ Margaritov
 Marios
 matchers
 maxVMNum
+mCPU
 md
 MECS
 memcached
@@ -418,6 +423,8 @@ Ocin
 OneLab
 onenode
 Onur
+OOM
+OOMKiller
 OpenCV
 opentelemetry
 Opentelemetry
@@ -425,6 +432,9 @@ orchestrates
 orchestrator
 otelgrpc
 OutputPathPrefix
+overcommitted
+overcommitment
+overprovisioning
 Ozer
 PageMaker
 params
@@ -509,6 +519,7 @@ rperf
 RPerf
 RPERF
 rsquo
+RunD
 runtime
 runtimes
 Rustem
@@ -713,3 +724,6 @@ vitro
 downsample
 downsampling
 preprocessed
+OpenWhisk
+wsk
+CLI

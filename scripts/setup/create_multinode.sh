@@ -95,6 +95,14 @@ function setup_master() {
     LOGIN_TOKEN=${LOGIN_TOKEN//[$'\t\r\n']}
 }
 
+function setup_loader() {
+    echo "Setting up loader/monitoring node: $1"
+
+    server_exec "$1" 'wget -q https://go.dev/dl/go1.20.5.linux-amd64.tar.gz >/dev/null'
+    server_exec "$1" 'sudo rm -rf /usr/local/go && sudo tar -C /usr/local/ -xzf go1.20.5.linux-amd64.tar.gz >/dev/null'
+    server_exec "$1" 'echo "export PATH=$PATH:/usr/local/go/bin" >> .profile'
+}
+
 function setup_vhive_firecracker_daemon() {
     node=$1
 
@@ -175,36 +183,48 @@ function extend_CIDR() {
 }
 
 function clone_loader() {
-    server_exec $1 "git clone --branch=$LOADER_BRANCH git@github.com:eth-easl/loader.git"
-    server_exec $1 'echo -en "\n\n" | sudo apt-get install python3-pip python-dev'
+    server_exec $1 "git clone --depth=1 --branch=$LOADER_BRANCH git@github.com:eth-easl/loader.git"
+    server_exec $1 'echo -en "\n\n" | sudo apt-get install -y python3-pip python-dev'
     server_exec $1 'cd; cd loader; pip install -r config/requirements.txt'
 }
 
 function copy_k8s_certificates() {
+    function internal_copy() {
+        server_exec $1 "mkdir -p ~/.kube"
+        rsync ./kubeconfig $1:~/.kube/config
+    }
+
     echo $MASTER_NODE
     rsync $MASTER_NODE:~/.kube/config ./kubeconfig
 
     for node in "$@"
     do
-        server_exec $node "mkdir -p ~/.kube"
-        rsync ./kubeconfig $node:~/.kube/config
+        internal_copy "$node" &
     done
+
+    wait
 
     rm ./kubeconfig
 }
 
 function clone_loader_on_workers() {
+    function internal_clone() {
+        rsync ./id_rsa* $1:~/.ssh/
+        server_exec $1 "chmod 600 ~/.ssh/id_rsa"
+        server_exec $1 'ssh-keyscan -t rsa github.com >> ~/.ssh/known_hosts'
+
+        clone_loader $1
+    }
+
     # copying ssh keys first from the master node
     rsync $MASTER_NODE:~/.ssh/id_rsa* .
 
     for node in "$@"
     do
-        rsync ./id_rsa* $node:~/.ssh/
-        server_exec $node "chmod 600 ~/.ssh/id_rsa"
-        server_exec $node 'ssh-keyscan -t rsa github.com >> ~/.ssh/known_hosts'
-
-        clone_loader $node
+        internal_clone "$node" &
     done
+
+    wait
 
     rm ./id_rsa*
 }
@@ -220,6 +240,7 @@ function clone_loader_on_workers() {
     shift # make argument list only contain worker nodes (drops master node)
 
     setup_master
+    setup_loader $1
     setup_workers "$@"
 
     if [ $PODS_PER_NODE -gt 240 ]; then
@@ -228,6 +249,13 @@ function clone_loader_on_workers() {
 
     # Notify the master that all nodes have joined the cluster
     server_exec $MASTER_NODE 'tmux send -t master "y" ENTER'
+
+    namespace_info=$(server_exec $MASTER_NODE "kubectl get namespaces")
+    while [[ ${namespace_info} != *'knative-serving'*  ]]; do
+        sleep 60
+        namespace_info=$(server_exec $MASTER_NODE "kubectl get namespaces")
+    done
+
     echo "Master node $MASTER_NODE finalised."
 
     # Copy API server certificates from master to each worker node
@@ -236,14 +264,15 @@ function clone_loader_on_workers() {
 
     server_exec $MASTER_NODE 'cd loader; bash scripts/setup/patch_init_scale.sh'
 
+    source $DIR/label.sh
+
+    # Force placement of metrics collectors and instrumentation on the loader node and control plane on master
+    label_nodes $MASTER_NODE $1 # loader node is second on the list, becoming first after arg shift
+
+    # patch knative to accept nodeselector
+    server_exec $MASTER_NODE "cd loader; kubectl patch configmap config-features -n knative-serving -p '{\"data\": {\"kubernetes.podspec-nodeselector\": \"enabled\"}}'"
+
     if [[ "$DEPLOY_PROMETHEUS" == true ]]; then
-        source $DIR/taint.sh
-
-        # Force placement of metrics collectors and instrumentation on the master node
-        taint_workers $MASTER_NODE
         $DIR/expose_infra_metrics.sh $MASTER_NODE
-        untaint_workers $MASTER_NODE
-
-        taint_master $MASTER_NODE
     fi
 }

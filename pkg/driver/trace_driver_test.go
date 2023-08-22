@@ -89,12 +89,12 @@ func TestInvokeFunctionFromDriver(t *testing.T) {
 		t.Run(test.testName, func(t *testing.T) {
 			var successCount int64 = 0
 			var failureCount int64 = 0
-			var approximateFailureCount int64 = 0
 
-			invocationRecordOutputChannel := make(chan *metric.ExecutionRecord, 1)
+			invocationRecordOutputChannel := make(chan interface{}, 1)
 			announceDone := &sync.WaitGroup{}
 
 			testDriver := createTestDriver()
+			var failureCountByMinute = make([]int64, testDriver.Configuration.TraceDuration)
 
 			if !test.forceFail {
 				address, port := "localhost", test.port
@@ -113,11 +113,11 @@ func TestInvokeFunctionFromDriver(t *testing.T) {
 					Memory:  128,
 				},
 				Phase:                  common.ExecutionPhase,
-				MinuteIndex:            1,
+				MinuteIndex:            0,
 				InvocationIndex:        2,
 				SuccessCount:           &successCount,
 				FailedCount:            &failureCount,
-				ApproximateFailedCount: &approximateFailureCount,
+				FailedCountByMinute:    failureCountByMinute,
 				RecordOutputChannel:    invocationRecordOutputChannel,
 				AnnounceDoneWG:         announceDone,
 			}
@@ -136,7 +136,7 @@ func TestInvokeFunctionFromDriver(t *testing.T) {
 				}
 			}
 
-			record := <-invocationRecordOutputChannel
+			record := (<-invocationRecordOutputChannel).(*metric.ExecutionRecord)
 			announceDone.Wait()
 
 			if record.Phase != int(metadata.Phase) ||
@@ -151,7 +151,7 @@ func TestInvokeFunctionFromDriver(t *testing.T) {
 func TestGlobalMetricsCollector(t *testing.T) {
 	driver := createTestDriver()
 
-	inputChannel := make(chan *metric.ExecutionRecord)
+	inputChannel := make(chan interface{})
 	totalIssuedChannel := make(chan int64)
 	collectorReady, collectorFinished := &sync.WaitGroup{}, &sync.WaitGroup{}
 
@@ -162,18 +162,20 @@ func TestGlobalMetricsCollector(t *testing.T) {
 	collectorReady.Wait()
 
 	bogusRecord := &metric.ExecutionRecord{
-		Phase:        int(common.ExecutionPhase),
-		Instance:     "",
-		InvocationID: "min1.inv1",
-		StartTime:    123456789,
+		ExecutionRecordBase: metric.ExecutionRecordBase{
+			Phase:        int(common.ExecutionPhase),
+			Instance:     "",
+			InvocationID: "min1.inv1",
+			StartTime:    123456789,
 
-		RequestedDuration: 1,
-		ResponseTime:      2,
-		ActualDuration:    3,
+			RequestedDuration: 1,
+			ResponseTime:      2,
+			ActualDuration:    3,
+
+			ConnectionTimeout: false,
+			FunctionTimeout:   true,
+		},
 		ActualMemoryUsage: 4,
-
-		ConnectionTimeout: false,
-		FunctionTimeout:   true,
 	}
 
 	for i := 0; i < driver.Configuration.Functions[0].InvocationStats.Invocations[0]; i++ {
@@ -279,7 +281,7 @@ func TestDriverCompletely(t *testing.T) {
 				t.Error(err)
 			}
 
-			var records []metric.ExecutionRecord
+			var records []metric.ExecutionRecordBase
 			err = gocsv.UnmarshalFile(f, &records)
 			if err != nil {
 				log.Fatalf(err.Error())
@@ -380,7 +382,7 @@ func TestProceedToNextMinute(t *testing.T) {
 	}{
 		{
 			testName:        "proceed_to_next_minute_no_break_no_fail",
-			minuteIndex:     2,
+			minuteIndex:     0,
 			invocationIndex: 95,
 			failedCount:     0,
 			skipMinute:      false,
@@ -388,7 +390,7 @@ func TestProceedToNextMinute(t *testing.T) {
 		},
 		{
 			testName:        "proceed_to_next_minute_break_no_fail",
-			minuteIndex:     3,
+			minuteIndex:     0,
 			invocationIndex: 75,
 			failedCount:     0,
 			skipMinute:      false,
@@ -396,7 +398,7 @@ func TestProceedToNextMinute(t *testing.T) {
 		},
 		{
 			testName:        "proceed_to_next_minute_break_with_fail",
-			minuteIndex:     3,
+			minuteIndex:     0,
 			invocationIndex: 90,
 			failedCount:     55,
 			skipMinute:      false,
@@ -412,17 +414,18 @@ func TestProceedToNextMinute(t *testing.T) {
 			invocationIndex := test.invocationIndex
 			startOfMinute := time.Now()
 			phase := common.ExecutionPhase
-			var approximateFailedCount = test.failedCount
+			var failedCountByMinute = make([]int64, driver.Configuration.TraceDuration)
+			failedCountByMinute[minuteIndex] = test.failedCount
 			var iatSum int64 = 2500
 
 			toBreak := driver.proceedToNextMinute(function, &minuteIndex, &invocationIndex, &startOfMinute,
-				test.skipMinute, &phase, &approximateFailedCount, &iatSum)
+				test.skipMinute, &phase, failedCountByMinute, &iatSum)
 
 			if toBreak != test.toBreak {
 				t.Error("Invalid response from minute cleanup procedure.")
 			}
 
-			if !toBreak && ((minuteIndex != test.minuteIndex+1) || (invocationIndex != 0) || (approximateFailedCount != 0) || (iatSum != 0)) {
+			if !toBreak && ((minuteIndex != test.minuteIndex+1) || (invocationIndex != 0) || (failedCountByMinute[test.minuteIndex] != 0) || (iatSum != 0)) {
 				t.Error("Invalid response from minute cleanup procedure.")
 			}
 		})

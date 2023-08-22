@@ -1,6 +1,8 @@
 {
   "Seed": 42,
 
+  "Platform": "Knative",
+
   "YAMLSelector": "container",
   "EndpointPort": 80,
 

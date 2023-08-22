@@ -43,6 +43,7 @@ server_exec() {
 	server_exec "sudo kubectl -n monitoring patch ServiceMonitor prometheus-prometheus-node-exporter --type json -p '[{"op": "add", "path": "/spec/endpoints/0/interval", "value": "15s"}]'"
 
 	sleep 5
+
 	#* Set up port prometheus panel (infinite loops are important to circumvent kubectl timeout in the middle of experiments).
 	server_exec 'tmux new -s prometheusd -d'
 	server_exec 'tmux send -t prometheusd "while true; do kubectl port-forward -n monitoring svc/prometheus-operated 9090; done" ENTER'

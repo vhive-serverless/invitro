@@ -2,11 +2,12 @@ package driver
 
 import (
 	"context"
+	"strings"
+	"time"
+
 	"github.com/eth-easl/loader/pkg/common"
 	"github.com/eth-easl/loader/pkg/config"
 	"github.com/eth-easl/loader/pkg/workload/proto"
-	"strings"
-	"time"
 
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
@@ -21,7 +22,9 @@ func Invoke(function *common.Function, runtimeSpec *common.RuntimeSpecification,
 	log.Tracef("(Invoke)\t %s: %d[ms], %d[MiB]", function.Name, runtimeSpec.Runtime, runtimeSpec.Memory)
 
 	record := &mc.ExecutionRecord{
-		RequestedDuration: uint32(runtimeSpec.Runtime * 1e3),
+		ExecutionRecordBase: mc.ExecutionRecordBase{
+			RequestedDuration: uint32(runtimeSpec.Runtime * 1e3),
+		},
 	}
 
 	////////////////////////////////////

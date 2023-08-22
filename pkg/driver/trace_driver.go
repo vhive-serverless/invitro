@@ -85,8 +85,8 @@ func (d *Driver) CreateMetricsScrapper(interval time.Duration,
 
 	return func() {
 		signalReady.Done()
-		clusterUsageRecords := make(chan interface{}, 100)
 		knStatRecords := make(chan interface{}, 100)
+		scaleRecords := make(chan interface{}, 100)
 		writerDone := sync.WaitGroup{}
 
 		clusterUsageFile, err := os.Create(d.outputFilename("cluster_usage"))
@@ -95,6 +95,9 @@ func (d *Driver) CreateMetricsScrapper(interval time.Duration,
 
 		writerDone.Add(1)
 		go d.runCSVWriter(knStatRecords, d.outputFilename("kn_stats"), &writerDone)
+
+		writerDone.Add(1)
+		go d.runCSVWriter(scaleRecords, d.outputFilename("deployment_scale"), &writerDone)
 
 		for {
 			select {
@@ -111,12 +114,19 @@ func (d *Driver) CreateMetricsScrapper(interval time.Duration,
 				_, err = clusterUsageFile.WriteString("\n")
 				common.Check(err)
 
+				recScale := mc.ScrapeDeploymentScales()
+				timestamp := time.Now().UnixMicro()
+				for _, rec := range recScale {
+					rec.Timestamp = timestamp
+					scaleRecords <- rec
+				}
+
 				recKnative := mc.ScrapeKnStats()
 				recKnative.Timestamp = time.Now().UnixMicro()
 				knStatRecords <- recKnative
 			case <-finishCh:
-				close(clusterUsageRecords)
 				close(knStatRecords)
+				close(scaleRecords)
 
 				writerDone.Wait()
 				allRecordsWritten.Done()
@@ -139,12 +149,14 @@ type InvocationMetadata struct {
 	MinuteIndex     int
 	InvocationIndex int
 
-	SuccessCount           *int64
-	FailedCount            *int64
-	ApproximateFailedCount *int64
+	SuccessCount        *int64
+	FailedCount         *int64
+	FailedCountByMinute []int64
 
-	RecordOutputChannel chan *mc.ExecutionRecord
-	AnnounceDoneWG      *sync.WaitGroup
+	RecordOutputChannel   chan interface{}
+	AnnounceDoneWG        *sync.WaitGroup
+	AnnouceDoneExe        *sync.WaitGroup
+	ReadOpenWhiskMetadata *sync.Mutex
 }
 
 func composeInvocationID(timeGranularity common.TraceGranularity, minuteIndex int, invocationIndex int) string {
@@ -165,23 +177,43 @@ func composeInvocationID(timeGranularity common.TraceGranularity, minuteIndex in
 func (d *Driver) invokeFunction(metadata *InvocationMetadata) {
 	defer metadata.AnnounceDoneWG.Done()
 
-	success, record := Invoke(metadata.Function, metadata.RuntimeSpecifications, d.Configuration.LoaderConfiguration)
+	var success bool
 
-	record.Phase = int(metadata.Phase)
-	record.InvocationID = composeInvocationID(d.Configuration.TraceGranularity, metadata.MinuteIndex, metadata.InvocationIndex)
+	if d.Configuration.LoaderConfiguration.Platform == "Knative" {
+		var record *mc.ExecutionRecord
+		success, record = Invoke(metadata.Function, metadata.RuntimeSpecifications, d.Configuration.LoaderConfiguration)
+
+		record.Phase = int(metadata.Phase)
+		record.InvocationID = composeInvocationID(d.Configuration.TraceGranularity, metadata.MinuteIndex, metadata.InvocationIndex)
+
+		metadata.RecordOutputChannel <- record
+	} else if d.Configuration.LoaderConfiguration.Platform == "OpenWhisk" {
+		var record *mc.ExecutionRecordOpenWhisk
+		success, record = InvokeOpenWhisk(metadata.Function, metadata.RuntimeSpecifications, d.Configuration.LoaderConfiguration, metadata.AnnouceDoneExe, metadata.ReadOpenWhiskMetadata)
+
+		record.Phase = int(metadata.Phase)
+		record.InvocationID = composeInvocationID(d.Configuration.TraceGranularity, metadata.MinuteIndex, metadata.InvocationIndex)
+
+		metadata.RecordOutputChannel <- record
+	}
 
 	if success {
 		atomic.AddInt64(metadata.SuccessCount, 1)
 	} else {
 		atomic.AddInt64(metadata.FailedCount, 1)
-		atomic.AddInt64(metadata.ApproximateFailedCount, 1)
+		atomic.AddInt64(&metadata.FailedCountByMinute[metadata.MinuteIndex], 1)
 	}
-
-	metadata.RecordOutputChannel <- record
 }
 
 func (d *Driver) individualFunctionDriver(function *common.Function, announceFunctionDone *sync.WaitGroup,
-	totalSuccessful *int64, totalFailed *int64, totalIssued *int64, recordOutputChannel chan *mc.ExecutionRecord) {
+	addInvocationsToGroup *sync.WaitGroup, readOpenWhiskMetadata *sync.Mutex, totalSuccessful *int64,
+	totalFailed *int64, totalIssued *int64, recordOutputChannel chan interface{}) {
+
+	numberOfInvocations := 0
+	for i := 0; i < len(function.InvocationStats.Invocations); i++ {
+		numberOfInvocations += function.InvocationStats.Invocations[i]
+	}
+	addInvocationsToGroup.Add(numberOfInvocations)
 
 	totalTraceDuration := d.Configuration.TraceDuration
 	minuteIndex, invocationIndex := 0, 0
@@ -190,7 +222,7 @@ func (d *Driver) individualFunctionDriver(function *common.Function, announceFun
 
 	var successfulInvocations int64
 	var failedInvocations int64
-	var approximateFailedCount int64
+	var failedInvocationByMinute = make([]int64, totalTraceDuration)
 	var numberOfIssuedInvocations int64
 	var currentPhase = common.ExecutionPhase
 
@@ -213,8 +245,10 @@ func (d *Driver) individualFunctionDriver(function *common.Function, announceFun
 			break
 		} else if function.InvocationStats.Invocations[minuteIndex] == 0 {
 			// Sleep for a minute if there are no invocations
-			d.proceedToNextMinute(function, &minuteIndex, &invocationIndex,
-				&startOfMinute, true, &currentPhase, &approximateFailedCount, &previousIATSum)
+			if d.proceedToNextMinute(function, &minuteIndex, &invocationIndex,
+				&startOfMinute, true, &currentPhase, failedInvocationByMinute, &previousIATSum) {
+				break
+			}
 
 			switch d.Configuration.TraceGranularity {
 			case common.MinuteGranularity:
@@ -233,22 +267,24 @@ func (d *Driver) individualFunctionDriver(function *common.Function, announceFun
 			waitForInvocations.Add(1)
 
 			go d.invokeFunction(&InvocationMetadata{
-				Function:               function,
-				RuntimeSpecifications:  &runtimeSpecification[minuteIndex][invocationIndex],
-				Phase:                  currentPhase,
-				MinuteIndex:            minuteIndex,
-				InvocationIndex:        invocationIndex,
-				SuccessCount:           &successfulInvocations,
-				FailedCount:            &failedInvocations,
-				ApproximateFailedCount: &approximateFailedCount,
-				RecordOutputChannel:    recordOutputChannel,
-				AnnounceDoneWG:         &waitForInvocations,
+				Function:              function,
+				RuntimeSpecifications: &runtimeSpecification[minuteIndex][invocationIndex],
+				Phase:                 currentPhase,
+				MinuteIndex:           minuteIndex,
+				InvocationIndex:       invocationIndex,
+				SuccessCount:          &successfulInvocations,
+				FailedCount:           &failedInvocations,
+				FailedCountByMinute:   failedInvocationByMinute,
+				RecordOutputChannel:   recordOutputChannel,
+				AnnounceDoneWG:        &waitForInvocations,
+				AnnouceDoneExe:        addInvocationsToGroup,
+				ReadOpenWhiskMetadata: readOpenWhiskMetadata,
 			})
 		} else {
 			// To be used from within the Golang testing framework
 			log.Debugf("Test mode invocation fired.\n")
 
-			recordOutputChannel <- &mc.ExecutionRecord{
+			recordOutputChannel <- &mc.ExecutionRecordBase{
 				Phase:        int(currentPhase),
 				InvocationID: composeInvocationID(d.Configuration.TraceGranularity, minuteIndex, invocationIndex),
 				StartTime:    time.Now().UnixNano(),
@@ -269,7 +305,7 @@ func (d *Driver) individualFunctionDriver(function *common.Function, announceFun
 		invocationIndex++
 		if function.InvocationStats.Invocations[minuteIndex] == invocationIndex || hasMinuteExpired(startOfMinute) {
 			readyToBreak := d.proceedToNextMinute(function, &minuteIndex, &invocationIndex, &startOfMinute,
-				false, &currentPhase, &approximateFailedCount, &previousIATSum)
+				false, &currentPhase, failedInvocationByMinute, &previousIATSum)
 
 			if readyToBreak {
 				break
@@ -288,36 +324,30 @@ func (d *Driver) individualFunctionDriver(function *common.Function, announceFun
 }
 
 func (d *Driver) proceedToNextMinute(function *common.Function, minuteIndex *int, invocationIndex *int, startOfMinute *time.Time,
-	skipMinute bool, currentPhase *common.ExperimentPhase, approximateFailedCount *int64, previousIATSum *int64) bool {
+	skipMinute bool, currentPhase *common.ExperimentPhase, failedInvocationByMinute []int64, previousIATSum *int64) bool {
 
 	if d.Configuration.TraceGranularity == common.MinuteGranularity {
 		if !isRequestTargetAchieved(function.InvocationStats.Invocations[*minuteIndex], *invocationIndex, common.RequestedVsIssued) {
 			// Not fatal because we want to keep the measurements to be written to the output file
-			log.Warnf("Relative difference between requested and issued number of invocations is greater than %.2f%%. Terminating experiment!\n", common.RequestedVsIssuedTerminateThreshold*100)
+			log.Warnf("Relative difference between requested and issued number of invocations is greater than %.2f%%. Terminating function driver for %s!\n", common.RequestedVsIssuedTerminateThreshold*100, function.Name)
 
 			return true
 		}
 
-		notFailedCount := function.InvocationStats.Invocations[*minuteIndex] - int(atomic.LoadInt64(approximateFailedCount))
-		if !isRequestTargetAchieved(function.InvocationStats.Invocations[*minuteIndex], notFailedCount, common.IssuedVsFailed) {
-			// Not fatal because we want to keep the measurements to be written to the output file
-			log.Warnf("Percentage of failed request is greater than %.2f%%. Terminating experiment!\n", common.FailedTerminateThreshold*100)
+		for i := 0; i <= *minuteIndex; i++ {
+			notFailedCount := function.InvocationStats.Invocations[i] - int(atomic.LoadInt64(&failedInvocationByMinute[i]))
+			if !isRequestTargetAchieved(function.InvocationStats.Invocations[i], notFailedCount, common.IssuedVsFailed) {
+				// Not fatal because we want to keep the measurements to be written to the output file
+				log.Warnf("Percentage of failed request is greater than %.2f%%. Terminating function driver for %s!\n", common.FailedTerminateThreshold*100, function.Name)
 
-			// NOTE: approximateFailedCount is the number of requests that experienced connection timeout or
-			// function timeout. If an invocation is invoked after 55th second of the minute, the connection
-			// timeout will happen in the next minute, or in case of function timeout, will happen after 15
-			// minutes. Hence, this metrics shows how much invocations failed in the current minute. It will
-			// eventually start to grow and after the relative difference between invoked and faild goes above
-			// 20% the experiment will be terminated.
-
-			return true
+				return true
+			}
 		}
 	}
 
 	*minuteIndex++
 	*invocationIndex = 0
 	*previousIATSum = 0
-	atomic.StoreInt64(approximateFailedCount, 0)
 
 	if d.Configuration.WithWarmup() && *minuteIndex == (d.Configuration.LoaderConfiguration.WarmupDuration+1) {
 		*currentPhase = common.ExecutionPhase
@@ -402,7 +432,7 @@ func (d *Driver) globalTimekeeper(totalTraceDuration int, signalReady *sync.Wait
 	ticker.Stop()
 }
 
-func (d *Driver) createGlobalMetricsCollector(filename string, collector chan *mc.ExecutionRecord,
+func (d *Driver) createGlobalMetricsCollector(filename string, collector chan interface{},
 	signalReady *sync.WaitGroup, signalEverythingWritten *sync.WaitGroup, totalIssuedChannel chan int64) {
 
 	// NOTE: totalNumberOfInvocations is initialized to MaxInt64 not to allow collector to complete before
@@ -443,7 +473,7 @@ func (d *Driver) createGlobalMetricsCollector(filename string, collector chan *m
 	}
 }
 
-func (d *Driver) startBackgroundProcesses(allRecordsWritten *sync.WaitGroup) (*sync.WaitGroup, chan *mc.ExecutionRecord, chan int64, chan int) {
+func (d *Driver) startBackgroundProcesses(allRecordsWritten *sync.WaitGroup) (*sync.WaitGroup, chan interface{}, chan int64, chan int) {
 	auxiliaryProcessBarrier := &sync.WaitGroup{}
 
 	finishCh := make(chan int, 1)
@@ -458,7 +488,7 @@ func (d *Driver) startBackgroundProcesses(allRecordsWritten *sync.WaitGroup) (*s
 
 	auxiliaryProcessBarrier.Add(2)
 
-	globalMetricsCollector := make(chan *mc.ExecutionRecord)
+	globalMetricsCollector := make(chan interface{})
 	totalIssuedChannel := make(chan int64)
 	go d.createGlobalMetricsCollector(d.outputFilename("duration"), globalMetricsCollector, auxiliaryProcessBarrier, allRecordsWritten, totalIssuedChannel)
 
@@ -473,6 +503,8 @@ func (d *Driver) internalRun(iatOnly bool, generated bool) {
 	var failedInvocations int64
 	var invocationsIssued int64
 
+	readOpenWhiskMetadata := sync.Mutex{}
+	allFunctionsInvoked := sync.WaitGroup{}
 	allIndividualDriversCompleted := sync.WaitGroup{}
 	allRecordsWritten := sync.WaitGroup{}
 	allRecordsWritten.Add(1)
@@ -515,6 +547,8 @@ func (d *Driver) internalRun(iatOnly bool, generated bool) {
 		go d.individualFunctionDriver(
 			function,
 			&allIndividualDriversCompleted,
+			&allFunctionsInvoked,
+			&readOpenWhiskMetadata,
 			&successfulInvocations,
 			&failedInvocations,
 			&invocationsIssued,
@@ -564,11 +598,21 @@ func (d *Driver) RunExperiment(iatOnly bool, generated bool) {
 
 	trace.ApplyResourceLimits(d.Configuration.Functions)
 
-	DeployFunctions(d.Configuration.Functions,
-		d.Configuration.YAMLPath,
-		d.Configuration.LoaderConfiguration.IsPartiallyPanic,
-		d.Configuration.LoaderConfiguration.EndpointPort,
-		d.Configuration.LoaderConfiguration.AutoscalingMetric)
+	if d.Configuration.LoaderConfiguration.Platform == "Knative" {
+		DeployFunctionsKnative(d.Configuration.Functions,
+			d.Configuration.YAMLPath,
+			d.Configuration.LoaderConfiguration.IsPartiallyPanic,
+			d.Configuration.LoaderConfiguration.EndpointPort,
+			d.Configuration.LoaderConfiguration.AutoscalingMetric)
+	} else if d.Configuration.LoaderConfiguration.Platform == "OpenWhisk" {
+		DeployFunctionsOpenWhisk(d.Configuration.Functions)
+	}
 
 	d.internalRun(iatOnly, generated)
+
+	if d.Configuration.LoaderConfiguration.Platform == "Knative" {
+		CleanKnative()
+	} else if d.Configuration.LoaderConfiguration.Platform == "OpenWhisk" {
+		CleanOpenWhisk(d.Configuration.Functions)
+	}
 }

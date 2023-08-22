@@ -21,12 +21,13 @@ API server certificate.
 * To create a multi-node cluster, specify the node addresses as the arguments and run the following command:
 
 ```bash
-$ bash ./scripts/setup/create_multinode.sh <master_node@IP> <worker_node@IP> ...
+$ bash ./scripts/setup/create_multinode.sh <master_node@IP> <loader_node@IP> <worker_node@IP> ...
 ```
 
-The loader should be running on a separate node that is part of the Kubernetes cluster. Do not collocate master and
-worker node components where the loader is located for performance reasons. Make sure you taint the node where loader is
-located prior to running any experiment.
+This command will create the following setup: control plane is placed on master node, loader node is used for running
+loader and monitoring pods (mostly, Prometheus, if enabled in setup config), workers are used purely for working pods. In
+this setup, neither control plane nor workers are affected by loader and monitoring, creating more reliable measurements
+of performance.
 
 * Single-node cluster (experimental)
 
@@ -159,4 +160,8 @@ For more details take a look at the README in the tools/driver folder.
 ---
 
 For more options, please see the `Makefile`.
+
+## Using OpenWhisk
+
+For instructions on how to use the loader with OpenWhisk go to `openwhisk_setup/README.md`.
 

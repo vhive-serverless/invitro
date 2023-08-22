@@ -14,6 +14,7 @@ import (
 
 func createFakeLoaderConfiguration() *config.LoaderConfiguration {
 	return &config.LoaderConfiguration{
+		Platform:                     "Knative",
 		OutputPathPrefix:             "test",
 		EnableZipkinTracing:          true,
 		GRPCConnectionTimeoutSeconds: 5,

@@ -1,47 +1,77 @@
 import subprocess
 import json
 import sys
+import os
 
-loader_total_cores = 8
+prometheus_ip = os.popen("kubectl get svc -n monitoring | grep prometheus-kube-prometheus-prometheus | awk '{print $3}'").read().strip().split('\n')[0]
+
+def get_promql_query(query):
+    def promql_query():
+        return "tools/bin/promql --no-headers --host 'http://" + prometheus_ip + ":9090' '" + query + "' | grep . | LC_COLLATE=C sort | awk '{print $2}'"
+    return promql_query
 
 if __name__ == "__main__":
     cmd_get_loader_pct = ['bash', 'scripts/metrics/get_loader_cpu_pct.sh']
     cmd_get_abs_vals = ['bash', 'scripts/metrics/get_node_stats_abs.sh']
     cmd_get_pcts = ['bash', 'scripts/metrics/get_node_stats_percent.sh']
     cmd_get_pod_abs_vals = ['bash', 'scripts/metrics/get_pod_stats_abs.sh']
+    query_mem_req = 'sum(kube_pod_container_resource_requests{resource="memory"} and on(container, pod) (kube_pod_container_status_running==1) or on(node) (kube_node_info*0)) by (node)'
+    query_mem_lim = 'sum(kube_pod_container_resource_limits{resource="memory"} and on(container, pod) (kube_pod_container_status_running==1) or on(node) (kube_node_info*0)) by (node)'
+    query_cpu_req = 'sum(kube_pod_container_resource_requests{resource="cpu"} and on(container, pod) (kube_pod_container_status_running==1) or on(node) (kube_node_info*0)) by (node)'
+    query_cpu_lim = 'sum(kube_pod_container_resource_limits{resource="cpu"} and on(container, pod) (kube_pod_container_status_running==1) or on(node) (kube_node_info*0)) by (node)'
+    query_pod_count = 'count(kube_pod_info and on(pod) max(kube_pod_container_status_running==1) by (pod)) by(node)'
 
     result = {
         "master_cpu_pct": 0,
+        "master_cpu_req": 0,
+        "master_cpu_lim": 0,
         "master_mem_pct": 0,
+        "master_mem_req": 0,
+        "master_mem_lim": 0,
+        "master_pods": 0,
         "cpu": [],
+        "cpu_req": [],
+        "cpu_lim": [],
         "cpu_pct_avg": 0,
         "cpu_pct_active_avg": 0,
         "cpu_pct_max": 0,
         "memory": [],
+        "memory_req": [],
+        "memory_lim": [],
         "memory_pct": 0,
         "pod_cpu": [],
         "pod_mem": [],
+        "pods": [],
+        "loader_cpu": 0,
+        "loader_mem": 0,
     }
 
-    loader_cpu_pct, loader_mem_pct = list(
+    result["loader_cpu"], result["loader_mem"] = list(
         map(float, subprocess.check_output(cmd_get_loader_pct).decode("utf-8").strip().split())
     )
-    loader_cpu_pct /= loader_total_cores #* Normalise to [0, 100]
 
-    abs_out = subprocess.check_output(cmd_get_abs_vals).decode("utf-8")[:-1]
-    pcts_out = subprocess.check_output(cmd_get_pcts).decode("utf-8")
-    pod_abs_out = subprocess.check_output(cmd_get_pod_abs_vals).decode("utf-8")[:-1]
+    abs_out = subprocess.check_output(cmd_get_abs_vals).decode("utf-8")[:-1].split('\n')
+    pcts_out = subprocess.check_output(cmd_get_pcts).decode("utf-8").split('\n')
+    pod_abs_out = subprocess.check_output(cmd_get_pod_abs_vals).decode("utf-8")[:-1].split('\n')
+    mem_req = os.popen(get_promql_query(query_mem_req)()).read().strip().split('\n')
+    mem_lim = os.popen(get_promql_query(query_mem_lim)()).read().strip().split('\n')
+    cpu_req = os.popen(get_promql_query(query_cpu_req)()).read().strip().split('\n')
+    cpu_lim = os.popen(get_promql_query(query_cpu_lim)()).read().strip().split('\n')
+    pod_count = os.popen(get_promql_query(query_pod_count)()).read().strip().split('\n')
 
     cpus = []
     mems = []
     counter = 0
     is_master = True
-    for abs_vals, pcts in zip(abs_out.split('\n'), pcts_out.split('\n')):
+    for abs_vals, pcts, mem_r, mem_l, cpu_r, cpu_l, pod in zip(abs_out, pcts_out, mem_req, mem_lim, cpu_req, cpu_lim, pod_count):
         if is_master:
             # Record master node.
             result['master_cpu_pct'], result['master_mem_pct'] = list(map(float, pcts[:-1].split('%')))
-            result['master_cpu_pct'] = max(0, result['master_cpu_pct'] - loader_cpu_pct)
-            result['master_mem_pct'] = max(0, result['master_mem_pct'] - loader_mem_pct)
+            result['master_mem_req'] = float(mem_r)
+            result['master_mem_lim'] = float(mem_l)
+            result['master_cpu_req'] = float(cpu_r)
+            result['master_cpu_lim'] = float(cpu_l)
+            result['master_pods'] = int(pod)
             is_master = False
             continue
 
@@ -53,9 +83,14 @@ if __name__ == "__main__":
         cpus.append(float(cpu_pct_avg))
         result['memory'].append(mem[1:-1])
         mems.append(float(mem_pct))
+        result['memory_req'].append(float(mem_r))
+        result['memory_lim'].append(float(mem_l))
+        result['cpu_req'].append(float(cpu_r))
+        result['cpu_lim'].append(float(cpu_l))
+        result['pods'].append(int(pod))
     
 
-    for pod_abs_vals in pod_abs_out.split("\n"):
+    for pod_abs_vals in pod_abs_out:
         pod_cpu, pod_mem = pod_abs_vals.split(' ')
         result['pod_cpu'].append(pod_cpu)
         result['pod_mem'].append(pod_mem)
