@@ -1,7 +1,8 @@
 """Console script."""
 import argparse
-import sys
 import os
+import sys
+
 from synthesizer import generate
 
 
@@ -17,12 +18,13 @@ def run(args):
 
     return
 
+
 def main():
     parser = argparse.ArgumentParser()
     subparser = parser.add_subparsers(dest="cmd")
-    
+
     gen_parser = subparser.add_parser('generate')
-    
+
     gen_parser.add_argument(
         '-f',
         '--functions',
@@ -32,7 +34,7 @@ def main():
         metavar='integer',
         help='Number of functions in the trace'
     )
-    
+
     gen_parser.add_argument(
         '-b',
         '--beginning',
@@ -80,7 +82,7 @@ def main():
     )
 
     gen_parser.add_argument(
-        '-m',
+        '-mem',
         '--memory',
         required=False,
         type=int,
@@ -97,6 +99,14 @@ def main():
         help='Output path for the resulting trace'
     )
 
+    gen_parser.add_argument(
+        '-m',
+        '--mode',
+        required=True,
+        metavar='integer',
+        help='Normal [0]; RPS sweep [1]; Burst [2]'
+    )
+
     args = parser.parse_args()
 
     return run(args)
@@ -104,4 +114,3 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())  # pragma: no cover
-
