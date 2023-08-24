@@ -62,25 +62,21 @@ def generate(args):
 
             invArr.extend(ipm)
         elif mode == 1:
-            pattern = []
             padding = 10
 
-            p = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+            p = [0] * padding
             positionOf1 = int(i / (functions / padding))
             p[positionOf1] = 1
 
             repetitions = int(duration / padding)
-            for index in range(0, repetitions):
-                pattern += p
+            pattern = p * repetitions
 
             invArr.extend(pattern)
         else:
-            pattern = []
             p = [1, 0, 0]
 
             repetitions = int(duration / len(p))
-            for index in range(0, repetitions):
-                pattern += p
+            pattern = p * repetitions
 
             invArr.extend(pattern)
 
