@@ -34,10 +34,12 @@ optional arguments:
                         Duration of each RPS slot in minutes
   -e integer, --execution integer
                         Execution time of the functions in ms
-  -m integer, --memory integer
+  -mem integer, --memory integer
                         Memory usage of the functions in MB
   -o path, --output path
                         Output path for the resulting trace
+  -m integer, --mode integer
+                        Normal [0]; RPS sweep [1]; Burst [2]
 ```
 
 

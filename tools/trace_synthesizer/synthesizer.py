@@ -1,14 +1,14 @@
-from util import *
-import os
-import pandas as pd
-import numpy as np
-import string
-import random
 import logging
+import random
+import string
+
+import numpy as np
+
+from util import *
 
 
 def hash_generator(size):
-    chars=string.ascii_lowercase + string.digits
+    chars = string.ascii_lowercase + string.digits
     return ''.join(random.choice(chars) for _ in range(size))
 
 
@@ -21,6 +21,7 @@ def generate(args):
     execution = args.execution
     memory = args.memory
     output_path = args.output
+    mode = args.mode
     logging.basicConfig(filename='synthesizer.log', level=logging.DEBUG, force=True)
     inv_df = load_data("base_traces/inv.csv")
     mem_df = load_data("base_traces/mem.csv")
@@ -43,11 +44,6 @@ def generate(args):
     mem = np.repeat(mem, len(mem_df.columns) - 4)
     run = [execution]
     run = np.repeat(run, len(run_df.columns) - 5)
-    rps = [*range(beginning, target+1, step)]
-    ipm = [60*x for x in rps]  # convert rps to invocations per minute
-    ipm = np.repeat(ipm, duration)
-    # pad with zeros to get trace that is 1440 minutes
-    ipm = np.pad(ipm, (0, 1440 - len(ipm)), 'constant')
 
     for i in range(functions):
         memArr = [hashApp[i], hashOwner[i], hashFunction[i], sampleCount]
@@ -55,12 +51,36 @@ def generate(args):
         mem_df.loc[len(mem_df)] = memArr
         runArr = [hashFunction[i], hashOwner[i], hashApp[i], execution, sampleCount]
         runArr.extend(run)
-        run_df.loc[len(run_df)] = runArr 
+        run_df.loc[len(run_df)] = runArr
         invArr = [hashApp[i], hashFunction[i], hashOwner[i]]
-        invArr.extend(ipm)
-        inv_df.loc[len(inv_df)] = invArr
-    
+        if mode == 0:
+            rps = [*range(beginning, target + 1, step)]
+            ipm = [60 * x for x in rps]  # convert rps to invocations per minute
+            ipm = np.repeat(ipm, duration)
+            # pad with zeros to get trace that is 1440 minutes
+            ipm = np.pad(ipm, (0, 1440 - len(ipm)), 'constant')
 
+            invArr.extend(ipm)
+        elif mode == 1:
+            padding = 10
+
+            p = [0] * padding
+            positionOf1 = int(i / (functions / padding))
+            p[positionOf1] = 1
+
+            repetitions = int(duration / padding)
+            pattern = p * repetitions
+
+            invArr.extend(pattern)
+        else:
+            p = [1, 0, 0]
+
+            repetitions = int(duration / len(p))
+            pattern = p * repetitions
+
+            invArr.extend(pattern)
+
+        inv_df.loc[len(inv_df)] = invArr
 
     p1 = f"{output_path}/invocations.csv"
     save_data(inv_df, p1)
