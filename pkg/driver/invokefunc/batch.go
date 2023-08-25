@@ -27,8 +27,10 @@ func BatchInvoke(function *common.Function, promptFunctions []*common.Function, 
 	log.Tracef("(Invoke)\t %s: %d[ms], %d[MiB]", function.Name, runtimeSpec.Runtime, runtimeSpec.Memory)
 
 	record := &mc.ExecutionRecord{
-		RequestedDuration: uint32(runtimeSpec.Runtime * 1e3),
+		RequestedDuration: uint32(0),
 	}
+	// fmt.Println("runtimeSpec.Runtime : %v", runtimeSpec.Runtime)
+	// os.Exit(0)
 
 	////////////////////////////////////
 	// INVOKE FUNCTION
@@ -107,6 +109,7 @@ func BatchInvoke(function *common.Function, promptFunctions []*common.Function, 
 	iteration_per_call := 100
 	send_messages := prepareMessages("Can you condense the sentence into a shorter version without losing its meaning?", iteration_per_call)
 
+	log.Debugf("deadline is %d [ms]", runtimeSpec.Stats.Deadline)
 	// iterate over the function iterations
 	curIter := 0
 	for curIter < trainingIterations {
@@ -131,7 +134,7 @@ func BatchInvoke(function *common.Function, promptFunctions []*common.Function, 
 				response, err := grpcClients[replicaID].Execute(executionCxt, &proto.FaasRequest{
 					Message:              send_messages,
 					Batchsize:            uint32(common.BszPerDevice),
-					RuntimeInMilliSec:    uint32(runtimeSpec.Runtime * iteration_per_call),
+					RuntimeInMilliSec:    uint32(runtimeSpec.Runtime * iteration_per_call), // ms
 					GpuMemoryInMebiBytes: 123,
 					PromptTensor:         promptTensor,
 				})
@@ -190,22 +193,24 @@ func BatchInvoke(function *common.Function, promptFunctions []*common.Function, 
 	if err != nil {
 		log.Debugf("gRPC timeout exceeded for function %s - %s", function.Name, err)
 
-		record.ResponseTime = time.Since(start).Microseconds()
+		record.ResponseTime = time.Since(start).Milliseconds()
 		record.FunctionTimeout = true
 
 		return false, record
 	}
 
 	record.Instance = extractInstanceName(responses[0].GetMessage())
-	record.ResponseTime = time.Since(start).Microseconds()
-	record.ActualDuration = ActualDuration
+	record.ResponseTime = time.Since(start).Milliseconds()
+	record.Deadline = runtimeSpec.Stats.Deadline
+	record.ActualDuration = ActualDuration / 1e3 // ActualDuration is MicroSec
 	log.Debugf("gRPC requested duration %d [ms], actual duration per iteration %d [ms], iteration %d", runtimeSpec.Runtime, int(ActualDuration)/runtimeSpec.Stats.Iterations/1000, runtimeSpec.Stats.Iterations)
 
 	// log.Debugf("PipelineBatchPriority gRPC requested duration %d [ms], actual duration per iteration %d [ms], iteration %d", runtimeSpec.Runtime, int(responses[0].DurationInMicroSec)/runtimeSpec.Stats.Iterations/1000, runtimeSpec.Stats.Iterations)
-	printDuration := int(ActualDuration) / runtimeSpec.Stats.Iterations / 1000
-	printResponse := int(int(record.ResponseTime) / runtimeSpec.Stats.Iterations / 1000)
-	log.Debugf("print minReplicas %d, iterations %d ", minReplicas, runtimeSpec.Stats.Iterations)
-	log.Debugf("**************** On Batch gRPC actual duration per iteration %d [ms], response Time %d [ms]", printDuration, printResponse-printDuration)
+	// printDuration := int(ActualDuration) / runtimeSpec.Stats.Iterations
+	// printResponse := int(int(record.ResponseTime) / runtimeSpec.Stats.Iterations)
+	// log.Debugf("print minReplicas %d, iterations %d ", minReplicas, runtimeSpec.Stats.Iterations)
+	// log.Debugf("**************** On Batch gRPC actual duration per iteration %d [ms], response Time %d [ms]", printDuration, printResponse-printDuration)
+
 	if strings.HasPrefix(responses[0].GetMessage(), "FAILURE - mem_alloc") {
 		record.MemoryAllocationTimeout = true
 	} else {
@@ -214,7 +219,7 @@ func BatchInvoke(function *common.Function, promptFunctions []*common.Function, 
 
 	log.Tracef("(Replied)\t %s: %s, %.2f[ms], %d[MiB]", function.Name, responses[0].Message,
 		float64(responses[0].DurationInMicroSec)/1e3, responses[0].GpuMemoryInMebiBytes)
-	log.Tracef("(E2E Latency) %s: %.2f[ms]\n", function.Name, float64(record.ResponseTime)/1e3)
+	log.Tracef("(E2E Latency) %s: %.2f[ms]\n", function.Name, float64(record.ResponseTime))
 	log.Tracef("Length of Prompt Tensor [%d] \t Sum of Prompt Tensor [%.2f] \n", len(responses[0].PromptGradient), sum(responses[0].PromptGradient))
 
 	return true, record

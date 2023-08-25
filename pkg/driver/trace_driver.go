@@ -271,7 +271,9 @@ func (d *Driver) individualFunctionDriver(function *common.Function, functions [
 			log.Infof("length %v", len(function.IterationStats.Invocations))
 			runtimeSpecification[minuteIndex][invocationIndex].Stats = common.GPTStats{
 				Iterations: function.IterationStats.Invocations[numberOfIssuedInvocations-1],
-				BatchSize:  function.BatchStats.Invocations[numberOfIssuedInvocations-1]}
+				BatchSize:  function.BatchStats.Invocations[numberOfIssuedInvocations-1],
+				Deadline:   function.DeadlineStats.Invocations[numberOfIssuedInvocations-1],
+			}
 
 			go d.invokeFunction(&InvocationMetadata{
 				Function:              function,

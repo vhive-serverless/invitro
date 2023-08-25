@@ -78,12 +78,13 @@ func (p *AzureTraceParser) extractFunctions(invocations *[]common.FunctionInvoca
 }
 
 func (p *AzureTraceParser) extendFunctions(functions []*common.Function,
-	iterationTrace *[]common.FunctionInvocationStats, batchTrace *[]common.FunctionInvocationStats) []*common.Function {
+	iterationTrace *[]common.FunctionInvocationStats, batchTrace *[]common.FunctionInvocationStats, ddlTrace *[]common.FunctionInvocationStats) []*common.Function {
 
 	for i := 0; i < len(functions); i++ {
 		function := functions[i]
 		function.IterationStats = &((*iterationTrace)[i])
 		function.BatchStats = &((*batchTrace)[i])
+		function.DeadlineStats = &((*ddlTrace)[i])
 	}
 	return functions
 }
@@ -102,6 +103,7 @@ func (p *AzureTraceParser) Parse() []*common.Function {
 	// extend function attributes
 	iterationPath := p.DirectoryPath + "/iterations.csv"
 	batchPath := p.DirectoryPath + "/batch.csv"
+	ddlPath := p.DirectoryPath + "/deadline.csv"
 	_, err := os.Stat(iterationPath)
 	if os.IsNotExist(err) {
 		fmt.Println("File does not exist")
@@ -114,7 +116,8 @@ func (p *AzureTraceParser) Parse() []*common.Function {
 		}
 		iterationTrace := parseInvocationTrace(iterationPath, totalRequestCount*10)
 		batchTrace := parseInvocationTrace(batchPath, totalRequestCount*10)
-		simulationFunctions = p.extendFunctions(simulationFunctions, iterationTrace, batchTrace)
+		ddlTrace := parseInvocationTrace(ddlPath, totalRequestCount*10)
+		simulationFunctions = p.extendFunctions(simulationFunctions, iterationTrace, batchTrace, ddlTrace)
 		// fmt.Println(len((*iterationTrace)[0].Invocations))
 	}
 	return simulationFunctions
@@ -204,6 +207,7 @@ func parseInvocationTrace(traceFile string, traceDuration int) *[]common.Functio
 		}
 
 		rowID++
+
 	}
 
 	return &result

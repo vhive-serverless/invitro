@@ -118,7 +118,7 @@ def init_plot(ncols, **kwargs):
     apply_font(kwargs)
     if isinstance(ncols, tuple): 
         fig, axes = matplotlib.pyplot.subplots(ncols[0], ncols[1])
-        fig.set_size_inches(w=ncols[1]* 4*3, h=3*ncols[0])
+        fig.set_size_inches(w=ncols[1]* 4, h=3*ncols[0])
         
         axes = [axes[i] for i in range(ncols[0] * ncols[1])]
 #         axes = [axes[j][i] for i in range(ncols[0]) for j in range(ncols[1])]
@@ -146,7 +146,8 @@ def cal_jct(df):
     for idx, job in df.iterrows(): 
         # import pdb; pdb.set_trace() 
         # print(f'actualDuration {job.actualDuration/60000}, responseTime {job.responseTime/60000}')
-        jct += job.responseTime / num_job
+        job.responseTime = job.responseTime / 1000
+        jct += job.responseTime / num_job 
         # jct += job.actualDuration / num_job 
         min_time = min(job.startTime, min_time)
         max_time = max(job.responseTime, max_time)
@@ -235,22 +236,11 @@ if True:
      # [5, 10, 15]:
     jct_info_by_method = list() 
     makespan_info_by_method = list()
-    # duration_list = [10, 20, 40] # , 60, 120] 
-    # duration_list = [5, 10, 20, 30] # , 10, 20] # , 10, 20, 30]
-    # duration_list = [10, 20, 40, 60, 80, 120, 150, 240] # , 180] # , 40, 60, 80] # , 40, 60, 80, 120] # [10, 20, 40]
-    duration_list = [10] # 120, 150, 240] # , 180]
-    # duration_list = [120, 240]
-    # for method in  ['single', 'batch']: 
-    # for method in ['single', 'batch', 'batch_priority']: 
-    # for method in ['single', 'batch', 'batch_priority']: 
-    # for method in ['batch', 'batch_priority', 'pipeline_batch_priority']: 
-    # method_list = ['perfect', 'single', 'batch', 'batch_priority', 'pipeline_batch_priority']
+    duration_list = [5, 10, 20] # 120, 150, 240] # , 180]
     print(duration_list)
-    method_list = ['perfect',  'hived_elastic', 'hived', 'batch'] # , 'batch_priority', 'pipeline_batch_priority'] # 'hived', 'hived_elastic',
-    # method_list = ['perfect', 'hived']
+    method_list = ['perfect', 'hived_elastic', 'batch']
     perfect_jct_list = list() 
     for duration in duration_list:
-        
         if True: 
             template.update(
                 {
@@ -270,31 +260,33 @@ if True:
                 'xname': None,
             }
             template.update(new_template)
-            fig, axes = init_plot(1, grid=True)
-            ax = axes[0]
-        
-        for method_idx, method in enumerate(method_list): 
-            method_ident = method if method != 'perfect' else method_list[-1] # 'batch'
-            csv_name = os.path.join(root, 'data', 'out', f'experiment_duration_{duration}_ClientTraining_{method_ident}.csv')
-            # print(csv_name)
-            df = pd.read_csv(csv_name)
-            if method != 'perfect': 
-                df = df[df.requestedDuration > 0]
-                df = df[df.actualDuration > 0 ]
-                
-                sorted_jct_list = cal_jct(df)
-            else: 
-                df = df[df.requestedDuration > 0]
-                df = df[df.actualDuration > 0 ]
-                sorted_jct_list = sorted(df.actualDuration.tolist())
-            cumulative_prob = np.arange(1, len(sorted_jct_list) + 1) / len(sorted_jct_list)
-
-            ax.plot(sorted_jct_list, cumulative_prob, label=method, color=color_list[method_idx])
-        ax.set_xscale('log')
-        ax.set_ylabel('CDF')
-        ax.set_xlabel(f'Latency (ms) [Log Scaled], \njob density={duration}')
-        ax.legend(fontsize=template['fontsize'] - 8, loc='upper center', ncol=2, bbox_to_anchor=(0.5, 1.4), fancybox=True, shadow=False, edgecolor="white", handlelength=2) 
-        plt.savefig(f'{root}/images/cdf/jct_{duration}.jpg', bbox_inches='tight')
+            fig, axes = init_plot((1, 7), grid=True)
+        for load_idx, jobload in enumerate([0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5]): 
+            ax = axes[load_idx]
+            for method_idx, method in enumerate(method_list): 
+                method_ident = method if method != 'perfect' else method_list[-1] # 'batch'
+                csv_name = os.path.join(root, 'data', 'out',  f'real-multi-experiment-jobload-{jobload}_duration_{duration}_ClientTraining_{method_ident}.csv')
+                # print(csv_name)
+                df = pd.read_csv(csv_name)
+                if method != 'perfect': 
+                    df = df[df.requestedDuration > 0]
+                    df = df[df.actualDuration > 0 ]
+                    
+                    sorted_jct_list = cal_jct(df)
+                else: 
+                    df = df[df.requestedDuration > 0]
+                    df = df[df.actualDuration > 0 ]
+                    sorted_jct_list = sorted([val / 1000 for val in df.actualDuration.tolist()])
+                cumulative_prob = np.arange(1, len(sorted_jct_list) + 1) / len(sorted_jct_list)
+                mylabel = method if load_idx == 0 else None 
+                ax.plot(sorted_jct_list, cumulative_prob, label=mylabel, color=color_list[method_idx])
+            ax.set_xscale('log')
+            
+            ax.set_xlabel(f'Lat (ms) [Log Scaled], \n density={duration}, load={jobload}')
+            if load_idx == 0: 
+                ax.set_ylabel('CDF')
+        fig.legend(fontsize=template['fontsize'] - 8, loc='upper center', ncol=3, bbox_to_anchor=(0.5, 1.1), fancybox=True, shadow=False, edgecolor="white", handlelength=2) 
+        plt.savefig(f'{root}/images/cdf/jct_{duration}_load_{jobload}.jpg', bbox_inches='tight')
         plt.close() 
-        print(f'{root}/images/cdf/jct_{duration}.jpg')
+        print(f'{root}/images/cdf/jct_{duration}_load_{jobload}.jpg')
     

@@ -15,6 +15,7 @@ type ExecutionRecord struct {
 	Instance     string `csv:"instance"`
 	InvocationID string `csv:"invocationID"`
 	StartTime    int64  `csv:"startTime"`
+	Deadline     int    `csv:"deadline"`
 
 	// Measurements in microseconds
 	RequestedDuration uint32 `csv:"requestedDuration"`

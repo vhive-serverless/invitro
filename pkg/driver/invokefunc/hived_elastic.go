@@ -61,7 +61,7 @@ func prepareLocalGPUSet(upperboundReplicas int, maxGPUPerNode int) []int {
 
 func HiveDElasticInvoke(functions []*common.Function, promptFunctions []*common.Function, runtimeSpec *common.RuntimeSpecification, cfg *config.LoaderConfiguration, invocationID string) (bool, *mc.ExecutionRecord) {
 	record := &mc.ExecutionRecord{
-		RequestedDuration: uint32(runtimeSpec.Runtime * 1e3),
+		RequestedDuration: uint32(0),
 	}
 
 	////////////////////////////////////
@@ -88,7 +88,7 @@ func HiveDElasticInvoke(functions []*common.Function, promptFunctions []*common.
 		conn, err := grpc.DialContext(dialContext, function.Endpoint, dialOptions...)
 		if err != nil {
 			log.Debugf("Failed to establish a gRPC connection - %v\n", err)
-			record.ResponseTime = time.Since(start).Microseconds()
+			record.ResponseTime = time.Since(start).Milliseconds()
 			record.ConnectionTimeout = true
 			return false, record
 		}
@@ -123,17 +123,23 @@ func HiveDElasticInvoke(functions []*common.Function, promptFunctions []*common.
 	clusterAvailableGPUs := roundToPowerOfTwo(queryRemainingGPU())
 	totalBatchSize := runtimeSpec.Stats.BatchSize
 	upperboundReplicas := totalBatchSize / common.BszPerDevice * 4
-	lowerboundReplicas := max(totalBatchSize/common.BszPerDevice, 1)
-
 	localGPUSet := prepareLocalGPUSet(upperboundReplicas, common.GPUPerNode)
 
-	initReplicas := upperboundReplicas
-	if clusterAvailableGPUs < initReplicas {
-		initReplicas = lowerboundReplicas
+	specifiedReplicas := runtimeSpec.Stats.BatchSize / common.BszPerDevice
+	lowerboundReplicas := specifiedReplicas
+	for _, replicas := range localGPUSet {
+		jct := int(runtimeSpec.Stats.Iterations * runtimeSpec.Runtime * specifiedReplicas / replicas)
+		if jct <= runtimeSpec.Stats.Deadline {
+			lowerboundReplicas = replicas
+			break
+		}
 	}
+	initReplicas := lowerboundReplicas
+
 	fmt.Printf("invocation name %s, initReplicas %d, upperboundReplicas %d\n", invocationID, initReplicas, upperboundReplicas)
 	fmt.Printf("gpu_list %v\n", gpu_list)
 	fmt.Printf("prepareLocalGPUSet %v\n", localGPUSet)
+	fmt.Printf("clusterAvailableGPUs %v\n", clusterAvailableGPUs)
 	maxDeploymentGPUID := findIndex(localGPUSet, initReplicas)
 	curDeploymentGPUID := maxDeploymentGPUID
 
@@ -169,7 +175,7 @@ func HiveDElasticInvoke(functions []*common.Function, promptFunctions []*common.
 				response, err := grpcClients[deploymentFuncID][replicaID].Execute(executionCxt, &proto.FaasRequest{
 					Message:              send_messages,
 					Batchsize:            uint32(common.BszPerDevice),
-					RuntimeInMilliSec:    uint32(runtimeSpec.Runtime * iteration_per_call),
+					RuntimeInMilliSec:    uint32(runtimeSpec.Runtime * iteration_per_call), // [ms]
 					GpuMemoryInMebiBytes: 123,
 					PromptTensor:         promptTensor,
 				})
@@ -224,8 +230,7 @@ func HiveDElasticInvoke(functions []*common.Function, promptFunctions []*common.
 			goto onemore
 		}
 
-		// responses[0] = *response
-		record.ActualDuration += responses[0].DurationInMicroSec
+		record.ActualDuration += responses[0].DurationInMicroSec / 1e3 // ActualDuration is ms
 		responseTime := time.Since(curTime).Milliseconds()
 
 		previousDuration := runtimeSpec.Runtime * iteration_per_call
@@ -265,10 +270,11 @@ func HiveDElasticInvoke(functions []*common.Function, promptFunctions []*common.
 	}
 
 	record.Instance = extractInstanceName(responses[0].GetMessage())
-	record.ResponseTime = time.Since(start).Microseconds()
+	record.ResponseTime = time.Since(start).Milliseconds()
+	record.Deadline = runtimeSpec.Stats.Deadline
 
-	printDuration := int(record.ActualDuration) / runtimeSpec.Stats.Iterations / 1000
-	printResponse := int(int(record.ResponseTime) / runtimeSpec.Stats.Iterations / 1000)
+	printDuration := int(record.ActualDuration) / runtimeSpec.Stats.Iterations
+	printResponse := int(int(record.ResponseTime) / runtimeSpec.Stats.Iterations)
 	log.Debugf("**************** HiveDInvoke invocationID %s, actual duration per iteration %d [ms], response Time %d [ms]", invocationID, printDuration, printResponse-printDuration)
 
 	if strings.HasPrefix(responses[0].GetMessage(), "FAILURE - mem_alloc") {
@@ -279,7 +285,7 @@ func HiveDElasticInvoke(functions []*common.Function, promptFunctions []*common.
 
 	log.Tracef("(Replied)\t %s: %s, %.2f[ms], %d[MiB]", functions[0].Name, responses[0].Message,
 		float64(responses[0].DurationInMicroSec)/1e3, responses[0].GpuMemoryInMebiBytes)
-	log.Tracef("(E2E Latency) %s: %.2f[ms]\n", functions[0].Name, float64(record.ResponseTime)/1e3)
+	log.Tracef("(E2E Latency) %s: %.2f[ms]\n", functions[0].Name, float64(record.ResponseTime))
 	log.Tracef("Length of Prompt Tensor [%d] \t Sum of Prompt Tensor [%.2f] \n", len(responses[0].PromptGradient), sum(responses[0].PromptGradient))
 	cancelExecution()
 	return true, record

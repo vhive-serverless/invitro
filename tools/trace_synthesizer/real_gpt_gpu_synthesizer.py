@@ -19,10 +19,11 @@ if __name__ == '__main__':
     submission_time_info = ref_df.submission_time.tolist() 
     num_gpu_info = ref_df.num_gpus.tolist() 
     # import pdb; pdb.set_trace() 
+    scale = 1
     for i in range(360): 
         keys.append(i+1)
         num_jobs = sum([time_info == i for time_info in submission_time_info])
-        values.append(num_jobs)
+        values.append(int(num_jobs * scale))
     with open(f'{output_path}/invocations.csv', 'w') as f: 
         for idx, key in enumerate(keys): 
             f.write(f'{key}')
@@ -69,3 +70,4 @@ if __name__ == '__main__':
             print('process {}'.format(i))
     save_data(iteration_df, f'{output_path}/iterations.csv')
     save_data(batch_df, f'{output_path}/batch.csv')
+    print(output_path)

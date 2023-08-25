@@ -9,6 +9,7 @@ type ProbabilisticDuration []float64
 type GPTStats struct {
 	Iterations int
 	BatchSize  int
+	Deadline   int
 }
 
 type RuntimeSpecification struct {

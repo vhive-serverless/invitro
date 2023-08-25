@@ -56,6 +56,7 @@ type Function struct {
 	InvocationStats *FunctionInvocationStats
 	IterationStats  *FunctionInvocationStats
 	BatchStats      *FunctionInvocationStats
+	DeadlineStats   *FunctionInvocationStats
 	RuntimeStats    *FunctionRuntimeStats
 	MemoryStats     *FunctionMemoryStats
 
