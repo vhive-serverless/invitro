@@ -97,6 +97,7 @@ func runTraceMode(cfg *config.LoaderConfiguration, iatOnly bool, generated bool)
 	}
 
 	var iatType common.IatDistribution
+	shiftIAT := false
 	switch cfg.IATDistribution {
 	case "exponential":
 		iatType = common.Exponential
@@ -104,6 +105,12 @@ func runTraceMode(cfg *config.LoaderConfiguration, iatOnly bool, generated bool)
 		iatType = common.Uniform
 	case "equidistant":
 		iatType = common.Equidistant
+	case "uniform_shifted":
+		iatType = common.Uniform
+		shiftIAT = true
+	case "equidistant_shifted":
+		iatType = common.Equidistant
+		shiftIAT = true
 	default:
 		log.Fatal("Unsupported IAT distribution.")
 	}
@@ -135,6 +142,7 @@ func runTraceMode(cfg *config.LoaderConfiguration, iatOnly bool, generated bool)
 	experimentDriver := driver.NewDriver(&driver.DriverConfiguration{
 		LoaderConfiguration: cfg,
 		IATDistribution:     iatType,
+		ShiftIAT:            shiftIAT,
 		TraceGranularity:    traceGranularity,
 		TraceDuration:       durationToParse,
 

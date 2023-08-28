@@ -24,7 +24,7 @@ func NewSpecificationGenerator(seed int64) *SpecificationGenerator {
 //////////////////////////////////////////////////
 
 // generateIATPerGranularity generates IAT for one minute based on given number of invocations and the given distribution
-func (s *SpecificationGenerator) generateIATPerGranularity(numberOfInvocations int, iatDistribution common.IatDistribution, granularity common.TraceGranularity) ([]float64, float64) {
+func (s *SpecificationGenerator) generateIATPerGranularity(numberOfInvocations int, iatDistribution common.IatDistribution, shiftIAT bool, granularity common.TraceGranularity) ([]float64, float64) {
 	if numberOfInvocations == 0 {
 		return []float64{}, 0.0
 	}
@@ -74,7 +74,9 @@ func (s *SpecificationGenerator) generateIATPerGranularity(numberOfInvocations i
 				iatResult[i] *= 60.0
 			}
 		}
+	}
 
+	if shiftIAT {
 		// Cut the IAT array at random place to move the first invocation from the beginning of the minute
 		split := s.iatRand.Float64() * common.OneSecondInMicroseconds
 		if granularity == common.MinuteGranularity {
@@ -100,13 +102,13 @@ func (s *SpecificationGenerator) generateIATPerGranularity(numberOfInvocations i
 }
 
 // GenerateIAT generates IAT according to the given distribution. Number of minutes is the length of invocationsPerMinute array
-func (s *SpecificationGenerator) generateIAT(invocationsPerMinute []int, iatDistribution common.IatDistribution, granularity common.TraceGranularity) (common.IATMatrix, common.ProbabilisticDuration) {
+func (s *SpecificationGenerator) generateIAT(invocationsPerMinute []int, iatDistribution common.IatDistribution, shiftIAT bool, granularity common.TraceGranularity) (common.IATMatrix, common.ProbabilisticDuration) {
 	var IAT [][]float64
 	var nonScaledDuration []float64
 
 	numberOfMinutes := len(invocationsPerMinute)
 	for i := 0; i < numberOfMinutes; i++ {
-		minuteIAT, duration := s.generateIATPerGranularity(invocationsPerMinute[i], iatDistribution, granularity)
+		minuteIAT, duration := s.generateIATPerGranularity(invocationsPerMinute[i], iatDistribution, shiftIAT, granularity)
 
 		IAT = append(IAT, minuteIAT)
 		nonScaledDuration = append(nonScaledDuration, duration)
@@ -115,11 +117,11 @@ func (s *SpecificationGenerator) generateIAT(invocationsPerMinute []int, iatDist
 	return IAT, nonScaledDuration
 }
 
-func (s *SpecificationGenerator) GenerateInvocationData(function *common.Function, iatDistribution common.IatDistribution, granularity common.TraceGranularity) *common.FunctionSpecification {
+func (s *SpecificationGenerator) GenerateInvocationData(function *common.Function, iatDistribution common.IatDistribution, shiftIAT bool, granularity common.TraceGranularity) *common.FunctionSpecification {
 	invocationsPerMinute := function.InvocationStats.Invocations
 
 	// Generating IAT
-	iat, rawDuration := s.generateIAT(invocationsPerMinute, iatDistribution, granularity)
+	iat, rawDuration := s.generateIAT(invocationsPerMinute, iatDistribution, shiftIAT, granularity)
 
 	// Generating runtime specifications
 	var runtimeMatrix common.RuntimeSpecificationMatrix
