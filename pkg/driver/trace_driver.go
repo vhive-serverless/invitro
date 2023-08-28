@@ -24,6 +24,7 @@ import (
 type DriverConfiguration struct {
 	LoaderConfiguration *config.LoaderConfiguration
 	IATDistribution     common.IatDistribution
+	ShiftIAT            bool // shift the invocations inside minute
 	TraceGranularity    common.TraceGranularity
 	TraceDuration       int // in minutes
 
@@ -517,6 +518,7 @@ func (d *Driver) internalRun(iatOnly bool, generated bool) {
 			spec := d.SpecificationGenerator.GenerateInvocationData(
 				function,
 				d.Configuration.IATDistribution,
+				d.Configuration.ShiftIAT,
 				d.Configuration.TraceGranularity,
 			)
 
@@ -578,6 +580,7 @@ func (d *Driver) RunExperiment(iatOnly bool, generated bool) {
 			spec := d.SpecificationGenerator.GenerateInvocationData(
 				function,
 				d.Configuration.IATDistribution,
+				d.Configuration.ShiftIAT,
 				d.Configuration.TraceGranularity,
 			)
 			d.Configuration.Functions[i].Specification = spec

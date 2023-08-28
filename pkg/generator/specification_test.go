@@ -47,12 +47,12 @@ var testFunction = common.Function{
 - uniform distribution - spillover test, distribution test, single point
 */
 func TestSerialGenerateIAT(t *testing.T) {
-	log.SetLevel(log.DebugLevel)
 	tests := []struct {
 		testName         string
 		duration         int // s
 		invocations      []int
 		iatDistribution  common.IatDistribution
+		shiftIAT         bool
 		granularity      common.TraceGranularity
 		expectedPoints   [][]float64 // μs
 		testDistribution bool
@@ -61,6 +61,7 @@ func TestSerialGenerateIAT(t *testing.T) {
 			testName:         "no_invocations_equidistant",
 			invocations:      []int{5},
 			iatDistribution:  common.Equidistant,
+			shiftIAT:         false,
 			granularity:      common.MinuteGranularity,
 			expectedPoints:   [][]float64{},
 			testDistribution: false,
@@ -69,6 +70,16 @@ func TestSerialGenerateIAT(t *testing.T) {
 			testName:         "no_invocations_exponential",
 			invocations:      []int{5},
 			iatDistribution:  common.Exponential,
+			shiftIAT:         false,
+			granularity:      common.MinuteGranularity,
+			expectedPoints:   [][]float64{},
+			testDistribution: false,
+		},
+		{
+			testName:         "no_invocations_exponential_shift",
+			invocations:      []int{5},
+			iatDistribution:  common.Exponential,
+			shiftIAT:         true,
 			granularity:      common.MinuteGranularity,
 			expectedPoints:   [][]float64{},
 			testDistribution: false,
@@ -77,6 +88,16 @@ func TestSerialGenerateIAT(t *testing.T) {
 			testName:         "one_invocations_exponential",
 			invocations:      []int{1},
 			iatDistribution:  common.Exponential,
+			shiftIAT:         false,
+			granularity:      common.MinuteGranularity,
+			expectedPoints:   [][]float64{{0, 60000000}},
+			testDistribution: false,
+		},
+		{
+			testName:         "one_invocations_exponential_shift",
+			invocations:      []int{1},
+			iatDistribution:  common.Exponential,
+			shiftIAT:         true,
 			granularity:      common.MinuteGranularity,
 			expectedPoints:   [][]float64{{11689078.788397, 48310921.211603}},
 			testDistribution: false,
@@ -85,6 +106,7 @@ func TestSerialGenerateIAT(t *testing.T) {
 			testName:        "1min_5ipm_equidistant",
 			invocations:     []int{5},
 			iatDistribution: common.Equidistant,
+			shiftIAT:        false,
 			granularity:     common.MinuteGranularity,
 			expectedPoints: [][]float64{
 				{
@@ -102,6 +124,7 @@ func TestSerialGenerateIAT(t *testing.T) {
 			testName:        "5min_5ipm_equidistant",
 			invocations:     []int{5, 5, 5, 5, 5},
 			iatDistribution: common.Equidistant,
+			shiftIAT:        false,
 			granularity:     common.MinuteGranularity,
 			expectedPoints: [][]float64{
 				{
@@ -153,9 +176,10 @@ func TestSerialGenerateIAT(t *testing.T) {
 			testDistribution: false,
 		},
 		{
-			testName:        "1min_25ipm_uniform",
+			testName:        "1min_25ipm_uniform_shift",
 			invocations:     []int{25},
 			iatDistribution: common.Uniform,
+			shiftIAT:        true,
 			granularity:     common.MinuteGranularity,
 			expectedPoints: [][]float64{
 				{
@@ -193,6 +217,7 @@ func TestSerialGenerateIAT(t *testing.T) {
 			testName:         "1min_1000000ipm_uniform",
 			invocations:      []int{1000000},
 			iatDistribution:  common.Uniform,
+			shiftIAT:         false,
 			granularity:      common.MinuteGranularity,
 			expectedPoints:   nil,
 			testDistribution: true,
@@ -201,6 +226,45 @@ func TestSerialGenerateIAT(t *testing.T) {
 			testName:        "1min_25ipm_exponential",
 			invocations:     []int{25},
 			iatDistribution: common.Exponential,
+			shiftIAT:        false,
+			granularity:     common.MinuteGranularity,
+			expectedPoints: [][]float64{
+				{
+					0,
+					1311929.341329,
+					3685871.430916,
+					1626476.996595,
+					556382.014270,
+					30703.105102,
+					3988584.779392,
+					2092271.836277,
+					1489855.293253,
+					3025094.199801,
+					2366337.4678820,
+					40667.5994150,
+					2778945.4898700,
+					4201722.5747150,
+					5339421.1460450,
+					3362048.1584080,
+					939526.5236740,
+					1113771.3822940,
+					4439636.5676460,
+					4623026.1098310,
+					2082985.6557600,
+					45937.1189860,
+					4542253.8756200,
+					2264414.9939920,
+					3872560.8680640,
+					179575.4708620,
+				},
+			},
+			testDistribution: false,
+		},
+		{
+			testName:        "1min_25ipm_exponential_shift",
+			invocations:     []int{25},
+			iatDistribution: common.Exponential,
+			shiftIAT:        true,
 			granularity:     common.MinuteGranularity,
 			expectedPoints: [][]float64{
 				{
@@ -238,6 +302,7 @@ func TestSerialGenerateIAT(t *testing.T) {
 			testName:         "1min_1000000ipm_exponential",
 			invocations:      []int{1000000},
 			iatDistribution:  common.Exponential,
+			shiftIAT:         false,
 			granularity:      common.MinuteGranularity,
 			expectedPoints:   nil,
 			testDistribution: true,
@@ -246,6 +311,7 @@ func TestSerialGenerateIAT(t *testing.T) {
 			testName:        "2sec_5qps_equidistant",
 			invocations:     []int{5, 4, 2},
 			iatDistribution: common.Equidistant,
+			shiftIAT:        false,
 			granularity:     common.SecondGranularity,
 			expectedPoints: [][]float64{
 				{
@@ -284,7 +350,7 @@ func TestSerialGenerateIAT(t *testing.T) {
 			sg := NewSpecificationGenerator(seed)
 
 			testFunction.InvocationStats = &common.FunctionInvocationStats{Invocations: test.invocations}
-			spec := sg.GenerateInvocationData(&testFunction, test.iatDistribution, test.granularity)
+			spec := sg.GenerateInvocationData(&testFunction, test.iatDistribution, test.shiftIAT, test.granularity)
 			IAT, nonScaledDuration := spec.IAT, spec.RawDuration
 
 			failed := false
@@ -478,7 +544,7 @@ func TestGenerateExecutionSpecifications(t *testing.T) {
 				Invocations: []int{test.iterations},
 			}
 			// distribution is irrelevant here
-			spec := sg.GenerateInvocationData(&testFunction, common.Equidistant, test.granularity).RuntimeSpecification
+			spec := sg.GenerateInvocationData(&testFunction, common.Equidistant, false, test.granularity).RuntimeSpecification
 
 			for i := 0; i < test.iterations; i++ {
 				wg.Add(1)
