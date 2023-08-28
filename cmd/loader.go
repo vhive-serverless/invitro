@@ -101,16 +101,16 @@ func runTraceMode(cfg *config.LoaderConfiguration, iatOnly bool, generated bool)
 	switch cfg.IATDistribution {
 	case "exponential":
 		iatType = common.Exponential
+	case "exponential_shift":
+		iatType = common.Exponential
+		shiftIAT = true
 	case "uniform":
 		iatType = common.Uniform
-	case "equidistant":
-		iatType = common.Equidistant
-	case "uniform_shifted":
+	case "uniform_shift":
 		iatType = common.Uniform
 		shiftIAT = true
-	case "equidistant_shifted":
+	case "equidistant":
 		iatType = common.Equidistant
-		shiftIAT = true
 	default:
 		log.Fatal("Unsupported IAT distribution.")
 	}
