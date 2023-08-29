@@ -18,7 +18,7 @@ if __name__ == '__main__':
     
     
     
-    for scale in [0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5]: 
+    for scale in [0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.6, 0.7, 0.8, 0.9]: 
         keys = ['HashOwner', 'HashApp', 'HashFunction', 'Trigger']
         func_invocations = [            
             ['a4123','18ege','gpt2-base','queue'], 
@@ -84,7 +84,7 @@ if __name__ == '__main__':
                 # batch_df.iloc[row, start_index - 1+ i] = np.random.choice([32 * k for k in [1, 2, 4, 6, 8, 10, 12, 16, 20, 24, 32]])
                 # batch_df.iloc[row, start_index - 1+ i] = np.random.choice([32 * k for k in [1, 2, 4, 8, 12, 16]], p=[0.4, 0.2, 0.15, 0.15, 0.05, 0.05])
                 batch_df.iloc[row, start_index - 1+ i] = num_gpu_info[i-1] * 32
-                deadline_df.iloc[row, start_index - 1 + i] = 2 * iteration * 100
+                deadline_df.iloc[row, start_index - 1 + i] = int(1.2 * iteration * 100)
                 # np.random.choice([32 * k for k in [1, 2, 4, 8]], p=[0.4, 0.3, 0.2, 0.1])
                 # import pdb; pdb.set_trace() 
                 print('process {}'.format(i))

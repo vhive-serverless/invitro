@@ -86,3 +86,7 @@ const (
 const (
 	EmbedingDim = 32
 )
+
+const (
+	TotalGPUs = 48
+)

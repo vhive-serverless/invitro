@@ -142,12 +142,12 @@ def cal_jct(df):
     min_time = sys.maxsize
     max_time = 0
     jct_list = list() 
-    print('num of jobs == {}'.format(num_job))
+    # print('num of jobs == {}'.format(num_job))
     for idx, job in df.iterrows(): 
         jct += job.responseTime / num_job
         # jct += job.actualDuration / num_job 
         min_time = min(job.startTime, min_time)
-        max_time = max(job.responseTime, max_time)
+        max_time = max(job.startTime+job.responseTime, max_time)
         jct_list.append(job.responseTime)
     return jct, max(jct_list) # max_time - min_time
 
@@ -156,10 +156,13 @@ def cal_jct(df):
 def cal_dmr(df): 
     num_job = 1.0 * len(df)
     miss_jobs = 0 
+    print('responseTime', 'iteration', 'deadline', 'replicas')
     for idx, job in df.iterrows(): 
         if job.responseTime > job.deadline: 
             miss_jobs += 1
-            import pdb; pdb.set_trace() 
+            # import pdb; pdb.set_trace()
+            print('--')
+        print(job.responseTime/1e3, job.iteration/10, job.deadline/1e3, job.batchsize / 32)
     return miss_jobs / num_job 
 
 def cal_fft(df): 
@@ -239,8 +242,8 @@ if True:
         root = os.path.dirname(root)
     
     
-    # duration_list = [5, 10, 20, 30, 40]
-    duration_list = [10]
+    duration_list = [5] # , 10, 20] # , 30, 40]
+    # duration_list = [5]
     
     print(duration_list)
     method_list = ['perfect', 'hived_elastic', 'batch']
@@ -258,16 +261,18 @@ if True:
             }
         )
         new_template =  {
-            "norm": True, 
+            "norm": False, 
             "width": 0.3, 
             "autolabel": False, 
             'logy': 1,
             'xname': None,
         }
         template.update(new_template)
-        fig, axes = init_plot((1, 3), grid=True)
+        # load_list = [0.5, 0.6, 0.7]
+        load_list = [0.8, 0.9]
+        fig, axes = init_plot((1, len(load_list)), grid=True)
         
-    for load_idx, jobload in enumerate([0.3, 0.35, 0.4]): 
+    for load_idx, jobload in enumerate(load_list): 
         perfect_jct_list = list() 
         jct_info_by_method = list() 
         makespan_info_by_method = list()
@@ -280,14 +285,14 @@ if True:
                 makespan_list = list() 
                 
                 method_ident = method if method != 'perfect' else method_list[-1] # 'batch'
-            
-                
                 csv_name = os.path.join(root, 'data', 'out', f'real-multi-experiment-jobload-{jobload}_duration_{duration}_ClientTraining_{method_ident}.csv')
-                # print(csv_name)
                 df = pd.read_csv(csv_name)
-                print(method, csv_name)
+                # print(method)
+                # print(sorted(df.deadline.tolist()))
+                # print(method, csv_name)
                 if method != 'perfect': 
-                    df = df[df.requestedDuration > 0]
+                    print(f'processing {method}, job load {jobload}, duration {duration}')
+                    # df = df[df.requestedDuration > 0]
                     df = df[df.actualDuration > 0]
                     jct, makespan = cal_jct(df)
                     ddl_miss_rate = cal_dmr(df)
@@ -297,7 +302,8 @@ if True:
                     # print(csv_name, jct / 1000/3600)
                     makespan_list.append(makespan)
                 else: 
-                    df = df[df.requestedDuration > 0]
+                    # import pdb; pdb.set_trace() 
+                    # df = df[df.requestedDuration > 0]
                     df = df[df.actualDuration > 0 ]
                     # import pdb; pdb.set_trace() 
                     jcts = df.actualDuration.tolist() 
@@ -317,7 +323,11 @@ if True:
             
         
         import pdb; pdb.set_trace() 
+        print(slo_info_by_method)
+        # print(jct_info_by_method)
         ax = axes[load_idx]
+        if load_idx > 0: 
+            template['disable_legend'] = True 
         plot_bar_by_method(ax, slo_info_by_method, **template)
         ax.set_xticks([(i + 0.5) * len(method_list) * 0.5  for i in range(len(duration_list))])
         ax.set_xticklabels(duration_list)

@@ -38,7 +38,7 @@ func queryRemainingGPU() int {
 		panic(err.Error())
 	}
 
-	totalGPUs := 48
+	totalGPUs := common.TotalGPUs
 	usedGPUs := 0
 
 	// Get the list of Pods in the cluster
@@ -82,6 +82,14 @@ func roundToPowerOfTwo(value int) int {
 		}
 	}
 	return 1 << exponent
+}
+
+func roundUpToPowerOfTwo(value int) int {
+	roundValue := roundToPowerOfTwo(value)
+	if value > roundValue {
+		roundValue *= 2
+	}
+	return roundValue 
 }
 
 func HiveDInvoke(functions []*common.Function, promptFunctions []*common.Function, runtimeSpec *common.RuntimeSpecification, cfg *config.LoaderConfiguration, invocationID string) (bool, *mc.ExecutionRecord) {

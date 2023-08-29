@@ -1,8 +1,6 @@
 package driver
 
 import (
-	"fmt"
-
 	"github.com/eth-easl/loader/pkg/common"
 )
 
@@ -22,7 +20,7 @@ func StartsWith(str, prefix string) bool {
 func FilterByKey(functions []*common.Function, key string) []*common.Function {
 	filterFunctions := []*common.Function{}
 	for _, function := range functions {
-		fmt.Printf("funct name %s, key %s\n", function.Name, key)
+		// fmt.Printf("funct name %s, key %s\n", function.Name, key)
 		if StartsWith(function.Name, key) {
 			filterFunctions = append(filterFunctions, function)
 		}

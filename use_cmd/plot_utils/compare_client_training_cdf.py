@@ -236,7 +236,7 @@ if True:
      # [5, 10, 15]:
     jct_info_by_method = list() 
     makespan_info_by_method = list()
-    duration_list = [5, 10, 20] # 120, 150, 240] # , 180]
+    duration_list = [5]  #, 10, 20] # 120, 150, 240] # , 180]
     print(duration_list)
     method_list = ['perfect', 'hived_elastic', 'batch']
     perfect_jct_list = list() 
@@ -260,8 +260,9 @@ if True:
                 'xname': None,
             }
             template.update(new_template)
-            fig, axes = init_plot((1, 7), grid=True)
-        for load_idx, jobload in enumerate([0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5]): 
+            load_list = [0.8, 0.9]
+            fig, axes = init_plot((1, len(load_list)), grid=True)
+        for load_idx, jobload in enumerate(load_list): 
             ax = axes[load_idx]
             for method_idx, method in enumerate(method_list): 
                 method_ident = method if method != 'perfect' else method_list[-1] # 'batch'
@@ -270,8 +271,7 @@ if True:
                 df = pd.read_csv(csv_name)
                 if method != 'perfect': 
                     df = df[df.requestedDuration > 0]
-                    df = df[df.actualDuration > 0 ]
-                    
+                    df = df[df.actualDuration > 0]
                     sorted_jct_list = cal_jct(df)
                 else: 
                     df = df[df.requestedDuration > 0]

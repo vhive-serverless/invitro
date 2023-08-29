@@ -27,10 +27,8 @@ func BatchInvoke(function *common.Function, promptFunctions []*common.Function, 
 	log.Tracef("(Invoke)\t %s: %d[ms], %d[MiB]", function.Name, runtimeSpec.Runtime, runtimeSpec.Memory)
 
 	record := &mc.ExecutionRecord{
-		RequestedDuration: uint32(0),
+		RequestedDuration: uint32(runtimeSpec.Runtime * 1e3),
 	}
-	// fmt.Println("runtimeSpec.Runtime : %v", runtimeSpec.Runtime)
-	// os.Exit(0)
 
 	////////////////////////////////////
 	// INVOKE FUNCTION
@@ -66,10 +64,8 @@ func BatchInvoke(function *common.Function, promptFunctions []*common.Function, 
 	defer gRPCConnectionClose(conn)
 	if err != nil {
 		log.Debugf("Failed to establish a gRPC connection - %v\n", err)
-
 		record.ResponseTime = time.Since(start).Microseconds()
 		record.ConnectionTimeout = true
-
 		return false, record
 	}
 
@@ -168,7 +164,7 @@ func BatchInvoke(function *common.Function, promptFunctions []*common.Function, 
 			promptTensor[j] = promptTensor[j] / float32(len(responses))
 		}
 		ActualDuration += responses[0].DurationInMicroSec
-		log.Infof("ActualDuration is %d", ActualDuration)
+		// log.Infof("ActualDuration is %d", ActualDuration)
 		// curResponse := time.Since(curStart)
 		// printDuration := responses[0].DurationInMicroSec / 1000
 		// printResponse := uint32(curResponse / 1000000)
@@ -202,6 +198,8 @@ func BatchInvoke(function *common.Function, promptFunctions []*common.Function, 
 	record.Instance = extractInstanceName(responses[0].GetMessage())
 	record.ResponseTime = time.Since(start).Milliseconds()
 	record.Deadline = runtimeSpec.Stats.Deadline
+	record.BatchSize = runtimeSpec.Stats.BatchSize
+	record.Iterations = runtimeSpec.Stats.Iterations
 	record.ActualDuration = ActualDuration / 1e3 // ActualDuration is MicroSec
 	log.Debugf("gRPC requested duration %d [ms], actual duration per iteration %d [ms], iteration %d", runtimeSpec.Runtime, int(ActualDuration)/runtimeSpec.Stats.Iterations/1000, runtimeSpec.Stats.Iterations)
 
