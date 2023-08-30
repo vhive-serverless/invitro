@@ -187,6 +187,7 @@ func HiveDElasticInvoke(functions []*common.Function, promptFunctions []*common.
 		cur_iteration_per_call := min(iteration_per_call, runtimeSpec.Stats.Iterations-curIter)
 		if totalBatchSize/localGPUSet[curDeploymentGPUID] >= common.BszPerDevice {
 			accumulationSteps := totalBatchSize / localGPUSet[curDeploymentGPUID] / common.BszPerDevice
+			cur_iteration_per_call = cur_iteration_per_call * accumulationSteps // to avoid a float progress
 			equalIteration = cur_iteration_per_call / accumulationSteps
 		} else {
 			accumulationSteps := common.BszPerDevice / (totalBatchSize / localGPUSet[curDeploymentGPUID])
