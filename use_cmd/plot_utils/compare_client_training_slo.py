@@ -322,7 +322,7 @@ if True:
             slo_info_by_method.append([method, ddl_list, [0 for ddl in ddl_list]])
             
         
-        import pdb; pdb.set_trace() 
+        # import pdb; pdb.set_trace() 
         print(slo_info_by_method)
         # print(jct_info_by_method)
         ax = axes[load_idx]

@@ -88,5 +88,5 @@ const (
 )
 
 const (
-	TotalGPUs = 48
+	TotalGPUs = 32
 )

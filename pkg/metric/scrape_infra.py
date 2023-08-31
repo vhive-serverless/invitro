@@ -20,6 +20,7 @@ if __name__ == "__main__":
     query_cpu_req = 'sum(kube_pod_container_resource_requests{resource="cpu"} and on(container, pod) (kube_pod_container_status_running==1)) by (node)'
     query_cpu_lim = 'sum(kube_pod_container_resource_limits{resource="cpu"} and on(container, pod) (kube_pod_container_status_running==1)) by (node)'
     query_pod_count = 'count(kube_pod_info and on(pod) max(kube_pod_container_status_running==1) by (pod)) by(node)'
+    query_gpu_req = 'sum(kube_pod_container_resource_requests{resource="nvidia_com_gpu"} and on(container, pod) (kube_pod_container_status_running==1)) by (node)'
 
     result = {
         "master_cpu_pct": 0,
@@ -42,6 +43,7 @@ if __name__ == "__main__":
         "pod_cpu": [],
         "pod_mem": [],
         "pods": [],
+        "gpu_req": [], 
     }
 
     loader_cpu_pct, loader_mem_pct = list(
@@ -57,12 +59,14 @@ if __name__ == "__main__":
     cpu_req = os.popen(get_promql_query(query_cpu_req)()).read().strip().split('\n')
     cpu_lim = os.popen(get_promql_query(query_cpu_lim)()).read().strip().split('\n')
     pod_count = os.popen(get_promql_query(query_pod_count)()).read().strip().split('\n')
-
+    gpu_req = os.popen(get_promql_query(query_gpu_req)()).read().strip().split('\n')
+    gpu_req = gpu_req
+    # print('real gpu_req {}'.format(gpu_req))
     cpus = []
     mems = []
     counter = 0
     is_master = True
-    for abs_vals, pcts, mem_r, mem_l, cpu_r, cpu_l, pod in zip(abs_out, pcts_out, mem_req, mem_lim, cpu_req, cpu_lim, pod_count):
+    for abs_vals, pcts, mem_r, mem_l, cpu_r, cpu_l, pod, gpu in zip(abs_out, pcts_out, mem_req, mem_lim, cpu_req, cpu_lim, pod_count, gpu_req):
         if is_master:
             # Record master node.
             result['master_cpu_pct'], result['master_mem_pct'] = list(map(float, pcts[:-1].split('%')))
@@ -74,7 +78,7 @@ if __name__ == "__main__":
             result['master_cpu_lim'] = float(cpu_l)
             result['master_pods'] = int(pod)
             is_master = False
-            continue
+            # continue
 
         counter += 1
         cpu, mem = abs_vals.split(',')
@@ -89,6 +93,7 @@ if __name__ == "__main__":
         result['cpu_req'].append(float(cpu_r))
         result['cpu_lim'].append(float(cpu_l))
         result['pods'].append(int(pod))
+        result['gpu_req'].append(int(gpu))
     
 
     for pod_abs_vals in pod_abs_out:

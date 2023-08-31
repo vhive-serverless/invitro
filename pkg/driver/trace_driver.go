@@ -619,7 +619,8 @@ func (d *Driver) RunExperiment(iatOnly bool, generated bool) {
 	if d.Configuration.WithWarmup() {
 		trace.DoStaticTraceProfiling(d.Configuration.Functions)
 	}
-	if strings.Contains(d.Configuration.LoaderConfiguration.TracePath, "gpt") {
+	if strings.Contains(d.Configuration.LoaderConfiguration.TracePath, "gpt") ||
+		strings.Contains(d.Configuration.LoaderConfiguration.TracePath, "gpu") {
 		trace.ApplyResourceLimitsForGPU(d.Configuration.Functions)
 	} else {
 		trace.ApplyResourceLimits(d.Configuration.Functions)

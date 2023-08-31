@@ -238,55 +238,54 @@ if True:
     makespan_info_by_method = list()
     duration_list = [5, 10] # , 20] # 120, 150, 240] # , 180]
     print(duration_list)
-    method_list = ['perfect', 'hived_elastic', 'batch']
+    method_list = ['hived_elastic', 'batch']
     perfect_jct_list = list() 
-    for duration in duration_list:
-        if True: 
-            template.update(
-                {
-                    "norm": False, 
+    for KeyMetric in ['cpu_req', 'gpu_req']: 
+        for duration in duration_list:
+            if True: 
+                new_template =  {
+                    "norm": True, 
                     "width": 0.3, 
                     "autolabel": False, 
-                    'norm': True,
-                    'logy': 0,
-                    'barh': False,
+                    'logy': 1,
+                    'xname': None,
                 }
-            )
-            new_template =  {
-                "norm": True, 
-                "width": 0.3, 
-                "autolabel": False, 
-                'logy': 1,
-                'xname': None,
-            }
-            template.update(new_template)
-            load_list = [0.8, 0.9]
-            fig, axes = init_plot((1, len(load_list)), grid=True)
-        for load_idx, jobload in enumerate(load_list): 
-            ax = axes[load_idx]
-            for method_idx, method in enumerate(method_list): 
-                method_ident = method if method != 'perfect' else method_list[-1] # 'batch'
-                csv_name = os.path.join(root, 'data', 'out',  f'real-multi-experiment-jobload-{jobload}_duration_{duration}_ClientTraining_{method_ident}.csv')
-                # print(csv_name)
-                df = pd.read_csv(csv_name)
-                if method != 'perfect': 
-                    df = df[df.requestedDuration > 0]
-                    df = df[df.actualDuration > 0]
-                    sorted_jct_list = cal_jct(df)
-                else: 
-                    df = df[df.requestedDuration > 0]
-                    df = df[df.actualDuration > 0 ]
-                    sorted_jct_list = sorted([val for val in df.actualDuration.tolist()])
-                cumulative_prob = np.arange(1, len(sorted_jct_list) + 1) / len(sorted_jct_list)
-                mylabel = method if load_idx == 0 else None 
-                ax.plot(sorted_jct_list, cumulative_prob, label=mylabel, color=color_list[method_idx])
-            ax.set_xscale('log')
-            
-            ax.set_xlabel(f'Lat (ms) [Log Scaled], \n density={duration}, load={jobload}')
-            if load_idx == 0: 
-                ax.set_ylabel('CDF')
-        fig.legend(fontsize=template['fontsize'] - 8, loc='upper center', ncol=3, bbox_to_anchor=(0.5, 1.1), fancybox=True, shadow=False, edgecolor="white", handlelength=2) 
-        plt.savefig(f'{root}/images/cdf/jct_{duration}_load_{jobload}.jpg', bbox_inches='tight')
-        plt.close() 
-        print(f'{root}/images/cdf/jct_{duration}_load_{jobload}.jpg')
-    
+                template.update(new_template)
+                load_list = [0.3, 0.5, 0.7, 0.9]
+                fig, axes = init_plot((1, len(load_list)), grid=True)
+            for load_idx, jobload in enumerate(load_list): 
+                ax = axes[load_idx]
+                for method_idx, method in enumerate(method_list): 
+                    method_ident = method if method != 'perfect' else method_list[-1] # 'batch'
+                    filename = os.path.join(root, 'data', 'out',  f'real-multi-experiment-jobload-{jobload}_cluster_usage_{duration}_ClientTraining_{method_ident}.csv')
+                    with open(filename, 'r') as f: 
+                        lines = f.readlines()
+                    timestamp_list, gpu_util_list = list(), list() 
+                    for line in lines: 
+                        line = line.replace('null', 'None')
+                        cluster_info = eval(line)
+                        timestamp_list.append(cluster_info['timestamp'])
+                        # import pdb; pdb.set_trace() 
+                        if cluster_info[KeyMetric] is None: 
+                            gpu_util_list.append(0)
+                        elif isinstance(cluster_info[KeyMetric], list): 
+                            gpu_util_list.append(sum(cluster_info[KeyMetric]))
+                        else: 
+                            raise NotImplementedError
+                        
+                    def align_timestamp(x_list): 
+                        base_x = x_list[0]
+                        x_list = [int(int(x - base_x) / 1e6) for x in x_list]
+                        return x_list 
+                    timestamp_list = align_timestamp(timestamp_list)
+                    mylabel = method if load_idx == 0 else None 
+                    ax.plot(timestamp_list, gpu_util_list, label=mylabel, color=color_list[method_idx])
+                
+                ax.set_xlabel(f'time (s), \n density={duration}, load={jobload}')
+                if load_idx == 0: 
+                    ax.set_ylabel(f'{KeyMetric.upper()} Util')
+            fig.legend(fontsize=template['fontsize'] - 8, loc='upper center', ncol=3, bbox_to_anchor=(0.5, 1.1), fancybox=True, shadow=False, edgecolor="white", handlelength=2) 
+            plt.savefig(f'{root}/images/cdf/{KeyMetric.upper()}_util_{duration}_load_{jobload}.jpg', bbox_inches='tight')
+            plt.close() 
+            print(f'{root}/images/cdf/{KeyMetric.upper()}_util_{duration}_load_{jobload}.jpg')
+        

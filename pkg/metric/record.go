@@ -119,6 +119,7 @@ type ClusterUsage struct {
 	PodCpu          []string  `csv:"pod_cpu" json:"pod_cpu"`
 	PodMemory       []string  `csv:"pod_memory" json:"pod_mem"`
 	Pods            []int     `csv:"pods" json:"pods"`
+	GpuReq          []int     `csv:"gpu_req" json:"gpu_req"`
 }
 
 type AdfResult struct {
