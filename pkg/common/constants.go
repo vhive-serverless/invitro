@@ -72,6 +72,7 @@ const (
 const (
 	Single                string = "single"
 	Batch                 string = "batch"
+	Elastic               string = "elastic"
 	BatchPriority         string = "batch_priority"
 	PipelineBatchPriority string = "pipeline_batch_priority"
 	HiveD                 string = "hived"
@@ -88,5 +89,5 @@ const (
 )
 
 const (
-	TotalGPUs = 32
+	TotalGPUs = 40
 )

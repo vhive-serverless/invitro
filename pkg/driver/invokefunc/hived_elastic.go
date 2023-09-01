@@ -33,7 +33,7 @@ func calPriority(curIter, seconds int) int {
 	return curIter / (seconds + 1)
 }
 
-func buildGrpcClients(conn_list []*grpc.ClientConn, functions []*common.Function, runtimeSpec *common.RuntimeSpecification) [][]proto.ExecutorClient {
+func buildHiveDGrpcClients(conn_list []*grpc.ClientConn, functions []*common.Function, runtimeSpec *common.RuntimeSpecification) [][]proto.ExecutorClient {
 	grpcClients := make([][]proto.ExecutorClient, len(functions))
 	for conn_idx, conn := range conn_list {
 		if conn_idx < len(conn_list)-1 {
@@ -151,22 +151,23 @@ func HiveDElasticInvoke(functions []*common.Function, promptFunctions []*common.
 	responses := make([]proto.FaasReply, 32)
 
 	// create grpc clients
-	grpcClients := buildGrpcClients(conn_list, functions, runtimeSpec)
+	grpcClients := buildHiveDGrpcClients(conn_list, functions, runtimeSpec)
 	iteration_per_call := 100
 	send_messages := prepareMessages("Can you condense the sentence into a shorter version without losing its meaning?", iteration_per_call)
 	// iteration_per_call = 100
 
 	clusterAvailableGPUs := roundUpToPowerOfTwo(queryRemainingGPU())
 	totalBatchSize := runtimeSpec.Stats.BatchSize
-	upperboundReplicas := totalBatchSize / common.BszPerDevice * 4
+	upperboundReplicas := totalBatchSize / common.BszPerDevice // * 4
 	// upperboundReplicas := totalBatchSize / common.BszPerDevice
 	// lowerboundReplicas := upperboundReplicas
 	localGPUSet := prepareLocalGPUSet(upperboundReplicas, common.GPUPerNode)
 
 	specifiedReplicas := runtimeSpec.Stats.BatchSize / common.BszPerDevice
 	lowerboundReplicas := lowerboundReplicasToDeadline(runtimeSpec.Stats.Iterations*runtimeSpec.Runtime*specifiedReplicas, runtimeSpec.Stats.Deadline, localGPUSet)
-
-	initReplicas := roundToPowerOfTwo(max(min(queryFairGPUCount(functionKey), upperboundReplicas), lowerboundReplicas))
+	lowerboundReplicas = specifiedReplicas
+	upperboundReplicas = specifiedReplicas
+	initReplicas := specifiedReplicas // roundToPowerOfTwo(max(min(queryFairGPUCount(functionKey), upperboundReplicas), lowerboundReplicas))
 
 	fmt.Printf("invocation name %s, initReplicas %d, upperboundReplicas %d\n", invocationID, initReplicas, upperboundReplicas)
 	fmt.Printf("gpu_list %v\n", gpu_list)
@@ -281,19 +282,20 @@ func HiveDElasticInvoke(functions []*common.Function, promptFunctions []*common.
 		// update lowerbound replicas to complete it before deadline
 		record.ActualDuration += responses[0].DurationInMicroSec / 1e3 // ActualDuration is ms
 		curIter += equalIteration
-		remainingIteration := runtimeSpec.Stats.Iterations - curIter
-		laxityTime := int(int64(runtimeSpec.Stats.Deadline) - time.Since(start).Milliseconds())
-		allocatedGPUs := 0
-		if laxityTime > 0 && remainingIteration > 0 {
-			lowerboundReplicas = lowerboundReplicasToDeadlineByProfileSpeedMatrix(remainingIteration*specifiedReplicas,
-				runtimeSpec.Runtime,
-				profileSpeedMatrix,
-				laxityTime,
-				localGPUSet)
-			allocatedGPUs = roundUpToPowerOfTwo(max(min(queryFairGPUCount(functionKey), upperboundReplicas), lowerboundReplicas))
-		} else {
-			allocatedGPUs = roundUpToPowerOfTwo(lowerboundReplicas)
-		}
+		// remainingIteration := runtimeSpec.Stats.Iterations - curIter
+		// laxityTime := int(int64(runtimeSpec.Stats.Deadline) - time.Since(start).Milliseconds())
+		// allocatedGPUs := 0
+		// if laxityTime > 0 && remainingIteration > 0 {
+		// 	lowerboundReplicas = lowerboundReplicasToDeadlineByProfileSpeedMatrix(remainingIteration*specifiedReplicas,
+		// 		runtimeSpec.Runtime,
+		// 		profileSpeedMatrix,
+		// 		laxityTime,
+		// 		localGPUSet)
+		// 	allocatedGPUs = roundUpToPowerOfTwo(max(min(queryFairGPUCount(functionKey), upperboundReplicas), lowerboundReplicas))
+		// } else {
+		// 	allocatedGPUs = roundUpToPowerOfTwo(specifiedReplicas)
+		// }
+		allocatedGPUs := specifiedReplicas
 		curDeploymentGPUID = findIndex(localGPUSet, allocatedGPUs)
 		log.Debugf("allocate replicas %d, standard replicas %d", allocatedGPUs, totalBatchSize/common.BszPerDevice)
 	}

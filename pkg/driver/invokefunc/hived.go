@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os/exec"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -20,51 +19,73 @@ import (
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 
 	mc "github.com/eth-easl/loader/pkg/metric"
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/tools/clientcmd"
 )
 
 func queryRemainingGPU() int {
-	config, err := clientcmd.BuildConfigFromFlags("", filepath.Join("/users/gaow0007", ".kube", "config"))
-	if err != nil {
-		panic(err.Error())
-	}
+	usedGPU := 0
 
-	// Create a Kubernetes clientset
-	clientset, err := kubernetes.NewForConfig(config)
-	if err != nil {
-		panic(err.Error())
-	}
+	keys := []string{"gpu-1-", "gpu-2-", "gpu-4-", "gpu-8-"}
+	gpus := []int{1, 2, 4, 8}
 
-	totalGPUs := common.TotalGPUs
-	usedGPUs := 0
-
-	// Get the list of Pods in the cluster
-	pods, err := clientset.CoreV1().Pods("").List(context.Background(), metav1.ListOptions{FieldSelector: "status.phase=Running"})
-	if err != nil {
-		panic(err.Error())
-	}
-
-	for _, pod := range pods.Items {
-		if pod.Status.Phase != corev1.PodRunning {
-			continue
+	for i, key := range keys {
+		command := fmt.Sprintf("kubectl get pods | grep \"%s\" | grep \"Running|ContainersReady\" | wc -l", key)
+		result, err := exec.Command("bash", "-c", command).Output()
+		if err != nil {
+			log.Fatal(err)
 		}
-		for _, container := range pod.Spec.Containers {
-			if container.Resources.Limits != nil {
-				limits := container.Resources.Limits
-				if gpu, ok := limits["nvidia.com/gpu"]; ok {
-					// fmt.Printf("gpu %v, container %v. gpu Value %d\n", gpu, container.Name, gpu.Value())
-					usedGPUs += int(gpu.Value())
-				}
-			}
+
+		output := string(result)
+		output = strings.TrimSpace(output)
+
+		count, err := strconv.Atoi(output)
+		if err != nil {
+			log.Fatal(err)
 		}
+
+		usedGPU += gpus[i] * count
 	}
-	availabeGPUs := totalGPUs - usedGPUs
-	fmt.Printf("Total Allocatable GPUs in the cluster: %d\n", availabeGPUs)
-	return availabeGPUs
+	return common.TotalGPUs - usedGPU
 }
+
+// func queryRemainingGPU() int {
+// 	config, err := clientcmd.BuildConfigFromFlags("", filepath.Join("/users/gaow0007", ".kube", "config"))
+// 	if err != nil {
+// 		panic(err.Error())
+// 	}
+
+// 	// Create a Kubernetes clientset
+// 	clientset, err := kubernetes.NewForConfig(config)
+// 	if err != nil {
+// 		panic(err.Error())
+// 	}
+
+// 	totalGPUs := common.TotalGPUs
+// 	usedGPUs := 0
+
+// 	// Get the list of Pods in the cluster
+// 	pods, err := clientset.CoreV1().Pods("").List(context.Background(), metav1.ListOptions{FieldSelector: "status.phase=Running"})
+// 	if err != nil {
+// 		panic(err.Error())
+// 	}
+
+// 	for _, pod := range pods.Items {
+// 		if pod.Status.Phase != corev1.PodRunning {
+// 			continue
+// 		}
+// 		for _, container := range pod.Spec.Containers {
+// 			if container.Resources.Limits != nil {
+// 				limits := container.Resources.Limits
+// 				if gpu, ok := limits["nvidia.com/gpu"]; ok {
+// 					// fmt.Printf("gpu %v, container %v. gpu Value %d\n", gpu, container.Name, gpu.Value())
+// 					usedGPUs += int(gpu.Value())
+// 				}
+// 			}
+// 		}
+// 	}
+// 	availabeGPUs := totalGPUs - usedGPUs
+// 	fmt.Printf("Total Allocatable GPUs in the cluster: %d\n", availabeGPUs)
+// 	return availabeGPUs
+// }
 
 func roundToPowerOfTwo(value int) int {
 	if value == 0 {
@@ -89,7 +110,7 @@ func roundUpToPowerOfTwo(value int) int {
 	if value > roundValue {
 		roundValue *= 2
 	}
-	return roundValue 
+	return roundValue
 }
 
 func HiveDInvoke(functions []*common.Function, promptFunctions []*common.Function, runtimeSpec *common.RuntimeSpecification, cfg *config.LoaderConfiguration, invocationID string) (bool, *mc.ExecutionRecord) {

@@ -141,28 +141,6 @@ def init_plot(ncols, **kwargs):
 root = os.path.dirname(os.path.realpath(__file__))
 while not root.endswith('loader-gpt'): 
     root = os.path.dirname(root)
-        
-csv_name = 'data/real-multi-func-gputraces/example/reference_0.csv'
-
-# Read the CSV file
-data = pd.read_csv(csv_name)
-data['submission_time'] = data['submission_time'].apply(lambda x: x // 1)
-
-
-# Group the data by submission time and count the number of requests per time unit
-grouped_data = data.groupby('submission_time').size()
-
-
-# Plot the bar chart
-# grouped_data.plot(kind='bar', figsize=(8, 6), color='tab:blue')
-
-y_list = grouped_data.tolist() 
-x_list = [i for i in range(len(y_list))]
-
-
-
-
-
 
 
 inference_info = {

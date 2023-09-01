@@ -28,6 +28,8 @@ func Invoke(function *common.Function, functions []*common.Function, promptFunct
 		return invokefunc.HiveDInvoke(functions, promptFunctions, runtimeSpec, cfg, invocationID)
 	} else if client_training == common.HiveDElastic {
 		return invokefunc.HiveDElasticInvoke(functions, promptFunctions, runtimeSpec, cfg, invocationID)
+	} else if client_training == common.Elastic {
+		return invokefunc.ElasticInvoke(functions, promptFunctions, runtimeSpec, cfg, invocationID)
 	} else {
 		log.Errorf("Invalid client_training value: %s", client_training)
 		return false, nil

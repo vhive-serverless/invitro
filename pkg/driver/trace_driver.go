@@ -164,14 +164,29 @@ func composeInvocationID(timeGranularity common.TraceGranularity, minuteIndex in
 	return fmt.Sprintf("%s%d.inv%d", timePrefix, minuteIndex, invocationIndex)
 }
 
+func extractModelName(functionName string) string {
+
+	if strings.Contains(functionName, "llama-7b") {
+		return "llama-7b-"
+	}
+	if strings.Contains(functionName, "llama-13b") {
+		return "llama-13b-"
+	}
+	if strings.Contains(functionName, "gpt2-base") {
+		return "gpt2-base-"
+	}
+	if strings.Contains(functionName, "gpt2-large") {
+		return "gpt2-large-"
+	}
+	return "test"
+}
 func (d *Driver) invokeFunction(metadata *InvocationMetadata, functions []*common.Function, promptFunctions []*common.Function) {
 	defer metadata.AnnounceDoneWG.Done()
-
-	invocationID := composeInvocationID(d.Configuration.TraceGranularity, metadata.MinuteIndex, metadata.InvocationIndex)
+	invocationID := extractModelName(metadata.Function.Name) + composeInvocationID(d.Configuration.TraceGranularity, metadata.MinuteIndex, metadata.InvocationIndex)
 	success, record := Invoke(metadata.Function, functions, promptFunctions, metadata.RuntimeSpecifications, d.Configuration.LoaderConfiguration, invocationID)
 
 	record.Phase = int(metadata.Phase)
-	record.InvocationID = composeInvocationID(d.Configuration.TraceGranularity, metadata.MinuteIndex, metadata.InvocationIndex)
+	record.InvocationID = extractModelName(metadata.Function.Name) + composeInvocationID(d.Configuration.TraceGranularity, metadata.MinuteIndex, metadata.InvocationIndex)
 
 	if success {
 		atomic.AddInt64(metadata.SuccessCount, 1)
@@ -216,7 +231,7 @@ func (d *Driver) individualFunctionDriver(function *common.Function, functions [
 	startOfMinute := time.Now()
 	var previousIATSum int64
 	gpuCount := -1
-	if IsStringInList(d.Configuration.LoaderConfiguration.ClientTraining, []string{common.Single, common.HiveD, common.HiveDElastic}) {
+	if IsStringInList(d.Configuration.LoaderConfiguration.ClientTraining, []string{common.Single, common.HiveD, common.HiveDElastic, common.Elastic}) {
 		// IsStringInList(d.Configuration.LoaderConfiguration.ClientTraining); d.Configuration.LoaderConfiguration.ClientTraining == common.Single || d.Configuration.LoaderConfiguration.ClientTraining == common.HiveD {
 		parts := strings.Split(function.Name, "-")
 		gpuCount, _ = strconv.Atoi(parts[len(parts)-1])
@@ -252,7 +267,7 @@ func (d *Driver) individualFunctionDriver(function *common.Function, functions [
 
 		invokeFunctionOrNot := true
 
-		if IsStringInList(d.Configuration.LoaderConfiguration.ClientTraining, []string{common.Single, common.HiveD, common.HiveDElastic}) {
+		if IsStringInList(d.Configuration.LoaderConfiguration.ClientTraining, []string{common.Single, common.HiveD, common.HiveDElastic, common.Elastic}) {
 			// log.Infof("numberOfIssuedInvocations %d, length of invocation %d\n", numberOfIssuedInvocations, len(function.BatchStats.Invocations))
 			expectedGPUCount := function.BatchStats.Invocations[numberOfIssuedInvocations-1] / common.BszPerDevice
 			if gpuCount != expectedGPUCount {
@@ -294,7 +309,7 @@ func (d *Driver) individualFunctionDriver(function *common.Function, functions [
 
 			recordOutputChannel <- &mc.ExecutionRecord{
 				Phase:        int(currentPhase),
-				InvocationID: composeInvocationID(d.Configuration.TraceGranularity, minuteIndex, invocationIndex),
+				InvocationID: function.Name + composeInvocationID(d.Configuration.TraceGranularity, minuteIndex, invocationIndex),
 				StartTime:    time.Now().UnixNano(),
 			}
 
@@ -561,7 +576,7 @@ func (d *Driver) internalRun(iatOnly bool, generated bool) {
 				&invocationsIssued,
 				globalMetricsCollector,
 			)
-		} else if IsStringInList(d.Configuration.LoaderConfiguration.ClientTraining, []string{common.HiveD, common.HiveDElastic}) {
+		} else if IsStringInList(d.Configuration.LoaderConfiguration.ClientTraining, []string{common.HiveD, common.HiveDElastic, common.Elastic}) {
 			key_prefix := strings.Split(function.Name, "-gpu-")[0]
 			filter_functions := FilterByKey(d.Configuration.Functions, key_prefix)
 			go d.individualFunctionDriver(

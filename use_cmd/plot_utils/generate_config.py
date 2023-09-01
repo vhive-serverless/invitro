@@ -1,7 +1,7 @@
 import json
 import os, sys 
 
-for config_name in ['config_client_hived_elastic_real', 'config_client_batch_real']: 
+for config_name in ['config_client_hived_elastic_real', 'config_client_batch_real', 'config_client_elastic_real']: 
     # Read the JSON file
     with open(f'cmd/real_configs/{config_name}.json', 'r') as f:
         data = json.load(f)

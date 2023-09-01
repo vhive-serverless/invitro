@@ -118,7 +118,7 @@ def init_plot(ncols, **kwargs):
     apply_font(kwargs)
     if isinstance(ncols, tuple): 
         fig, axes = matplotlib.pyplot.subplots(ncols[0], ncols[1])
-        fig.set_size_inches(w=ncols[1]* 4*3, h=3*ncols[0])
+        fig.set_size_inches(w=ncols[1]* 5, h=3*ncols[0])
         
         axes = [axes[i] for i in range(ncols[0] * ncols[1])]
         # axes = [axes[j][i] for i in range(ncols[0]) for j in range(ncols[1])]
@@ -161,8 +161,8 @@ def cal_dmr(df):
         if job.responseTime > job.deadline: 
             miss_jobs += 1
             # import pdb; pdb.set_trace()
-            print('--')
-        print(job.responseTime/1e3, job.iteration/10, job.deadline/1e3, job.batchsize / 32)
+            # print('--')
+        # print(job.responseTime/1e3, job.iteration/10, job.deadline/1e3, job.batchsize / 32)
     return miss_jobs / num_job 
 
 def cal_fft(df): 
@@ -242,7 +242,7 @@ if True:
         root = os.path.dirname(root)
     
     
-    duration_list = [5] # , 10, 20] # , 30, 40]
+    duration_list = [10, 20] # , 10, 20] # , 30, 40]
     # duration_list = [5]
     
     print(duration_list)
@@ -269,20 +269,22 @@ if True:
         }
         template.update(new_template)
         # load_list = [0.5, 0.6, 0.7]
-        load_list = [0.8, 0.9]
+        load_list = [0.3, 0.5, 0.7]
         fig, axes = init_plot((1, len(load_list)), grid=True)
         
+    
     for load_idx, jobload in enumerate(load_list): 
         perfect_jct_list = list() 
         jct_info_by_method = list() 
         makespan_info_by_method = list()
         slo_info_by_method = list() 
         
+        
         for method in method_list: 
+            jct_list = list() 
+            ddl_list = list() 
+            makespan_list = list() 
             for duration in duration_list:
-                jct_list = list() 
-                ddl_list = list() 
-                makespan_list = list() 
                 
                 method_ident = method if method != 'perfect' else method_list[-1] # 'batch'
                 csv_name = os.path.join(root, 'data', 'out', f'real-multi-experiment-jobload-{jobload}_duration_{duration}_ClientTraining_{method_ident}.csv')
@@ -291,10 +293,20 @@ if True:
                 # print(sorted(df.deadline.tolist()))
                 # print(method, csv_name)
                 if method != 'perfect': 
-                    print(f'processing {method}, job load {jobload}, duration {duration}')
-                    # df = df[df.requestedDuration > 0]
-                    df = df[df.actualDuration > 0]
+                    # print(f'processing {method}, job load {jobload}, duration {duration}')
+                    df = df[df.requestedDuration > 0]
+                    import pdb; pdb.set_trace() 
+                    # df = df[df.actualDuration > 0]
                     jct, makespan = cal_jct(df)
+                    if method == 'hived_elastic' and False: 
+                        deadline_list = df.deadline.tolist() 
+                        response_list = df.responseTime.tolist() 
+                        invocation_list = df.invocationID.tolist() 
+                        local_duration_list = df.requestedDuration.tolist() 
+                        for deadline, response, invocation, local_duration in zip(deadline_list, response_list, invocation_list, local_duration_list): 
+                            if deadline < response: 
+                                print(deadline / 1e3, response / 1e3, invocation, local_duration / 1e3)
+                        import pdb; pdb.set_trace() 
                     ddl_miss_rate = cal_dmr(df)
                     jct_list.append(jct)
                     ddl_list.append(ddl_miss_rate)
@@ -315,12 +327,13 @@ if True:
                     ddl_list.append(ddl_miss_rate)
                     # if ddl_miss_rate >= 0.95: 
                     #     import pdb; pdb.set_trace()
+                print(f'method {method},\t jct {round(jct_list[-1], 2)}, \tslo {round(ddl_miss_rate, 2)}')
                     
             sched_verbose = ''
             jct_info_by_method.append([method, jct_list, [0 for jct in jct_list]])
             makespan_info_by_method.append([method, makespan_list, [0 for makespan in makespan_list]])
             slo_info_by_method.append([method, ddl_list, [0 for ddl in ddl_list]])
-            
+        
         
         # import pdb; pdb.set_trace() 
         print(slo_info_by_method)
@@ -331,10 +344,11 @@ if True:
         plot_bar_by_method(ax, slo_info_by_method, **template)
         ax.set_xticks([(i + 0.5) * len(method_list) * 0.5  for i in range(len(duration_list))])
         ax.set_xticklabels(duration_list)
-        ax.set_ylabel('DMR')
+        if load_idx == 0: 
+            ax.set_ylabel('DMR')
         ax.set_xlabel('job load {}'.format(jobload))
         
-    fig.legend(fontsize=template['fontsize'] - 8, loc='upper center', ncol=2, bbox_to_anchor=(0.5, 1.4), fancybox=True, shadow=False, edgecolor="white", handlelength=2) 
-    plt.savefig(f'{root}/images/client_training/ddl.jpg', bbox_inches='tight')
-    print(f'{root}/images/client_training/ddl.jpg')
+        fig.legend(fontsize=template['fontsize'] - 8, loc='upper center', ncol=3, bbox_to_anchor=(0.5, 1.2), fancybox=True, shadow=False, edgecolor="white", handlelength=2) 
+        plt.savefig(f'{root}/images/client_training/ddl_{duration}.jpg', bbox_inches='tight')
+        print(f'{root}/images/client_training/ddl_{duration}.jpg')
     

@@ -1,0 +1,19 @@
+{
+    "Seed": 42,
+    "YAMLSelector": "container",
+    "EndpointPort": 80,
+    "TracePath": "data/real-multi-func-gputraces/jobload-0.8",
+    "Granularity": "minute",
+    "OutputPathPrefix": "data/out/real-multi-experiment-jobload-0.8",
+    "ClientTraining": "elastic",
+    "IATDistribution": "exponential",
+    "ExperimentDuration": 20,
+    "WarmupDuration": 0,
+    "IsPartiallyPanic": false,
+    "EnableZipkinTracing": false,
+    "EnableMetricsScrapping": true,
+    "MetricScrapingPeriodSeconds": 5,
+    "AutoscalingMetric": "concurrency",
+    "GRPCConnectionTimeoutSeconds": 120000,
+    "GRPCFunctionTimeoutSeconds": 120000
+}

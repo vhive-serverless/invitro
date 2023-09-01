@@ -251,7 +251,7 @@ if True:
                     'xname': None,
                 }
                 template.update(new_template)
-                load_list = [0.3, 0.5, 0.7, 0.9]
+                load_list = [0.3, 0.5] # , 0.7, 0.9]
                 fig, axes = init_plot((1, len(load_list)), grid=True)
             for load_idx, jobload in enumerate(load_list): 
                 ax = axes[load_idx]
