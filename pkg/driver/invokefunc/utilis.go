@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/eth-easl/loader/pkg/common"
+	mc "github.com/eth-easl/loader/pkg/metric"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 )
@@ -63,4 +64,21 @@ func prepareMessages(message string, repeat int) string {
 		}
 	}
 	return send_messages
+}
+
+func registerJobRecord(jobRecord *mc.JobExecutionRecord,
+	startTime, computeTime, executionTime int64,
+	replica, gpuCount int,
+	startIteration, endIteration, totalIteration int,
+	batchSize int) {
+	jobRecord.StartTime = append(jobRecord.StartTime, startTime)
+	jobRecord.ComputeTime = append(jobRecord.ComputeTime, computeTime)
+	jobRecord.ExecutionTime = append(jobRecord.ExecutionTime, executionTime)
+	jobRecord.Replica = append(jobRecord.Replica, replica)
+	jobRecord.GpuCount = append(jobRecord.GpuCount, gpuCount)
+	jobRecord.StartIteration = append(jobRecord.StartIteration, startIteration)
+	jobRecord.EndIteration = append(jobRecord.EndIteration, endIteration)
+	jobRecord.TotalIteration = append(jobRecord.TotalIteration, totalIteration)
+	jobRecord.BatchSize = append(jobRecord.BatchSize, batchSize)
+
 }

@@ -10,6 +10,19 @@ type MinuteInvocationRecord struct {
 	NumColdStarts   int   `csv:"num_coldstarts"`
 }
 
+type JobExecutionRecord struct {
+	InvocationID   string  `csv:"invocationID" json:"invocationID"`
+	StartTime      []int64 `csv:"startTime" json:"startTime"`
+	Replica        []int   `csv:"replica" json:"replica"`
+	GpuCount       []int   `csv:"gpuCount" json:"gpuCount"`
+	ComputeTime    []int64 `csv:"computeTime" json:"computeTime"`
+	ExecutionTime  []int64 `csv:"executionTime" json:"executionTime"`
+	StartIteration []int   `csv:"startIteration" json:"startIteration"`
+	EndIteration   []int   `csv:"endIteration" json:"endIteration"`
+	TotalIteration []int   `csv:"totalIteration" json:"totalIteration"`
+	BatchSize      []int   `csv:"batchsize" json:"batchsize"`
+}
+
 type ExecutionRecord struct {
 	Phase        int    `csv:"phase"`
 	Instance     string `csv:"instance"`

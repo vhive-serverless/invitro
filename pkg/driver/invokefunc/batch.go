@@ -23,11 +23,24 @@ import (
 	mc "github.com/eth-easl/loader/pkg/metric"
 )
 
-func BatchInvoke(function *common.Function, promptFunctions []*common.Function, runtimeSpec *common.RuntimeSpecification, cfg *config.LoaderConfiguration, invocationID string) (bool, *mc.ExecutionRecord) {
+func BatchInvoke(function *common.Function, promptFunctions []*common.Function, runtimeSpec *common.RuntimeSpecification, cfg *config.LoaderConfiguration, invocationID string) (bool, *mc.ExecutionRecord, *mc.JobExecutionRecord) {
 	log.Tracef("(Invoke)\t %s: %d[ms], %d[MiB]", function.Name, runtimeSpec.Runtime, runtimeSpec.Memory)
 
 	record := &mc.ExecutionRecord{
 		RequestedDuration: uint32(runtimeSpec.Runtime * 1e3),
+	}
+
+	jobRecord := &mc.JobExecutionRecord{
+		InvocationID:   invocationID,
+		StartTime:      make([]int64, 0),
+		Replica:        make([]int, 0),
+		GpuCount:       make([]int, 0),
+		ComputeTime:    make([]int64, 0),
+		ExecutionTime:  make([]int64, 0),
+		StartIteration: make([]int, 0),
+		EndIteration:   make([]int, 0),
+		TotalIteration: make([]int, 0),
+		BatchSize:      make([]int, 0),
 	}
 
 	////////////////////////////////////
@@ -64,9 +77,9 @@ func BatchInvoke(function *common.Function, promptFunctions []*common.Function, 
 	defer gRPCConnectionClose(conn)
 	if err != nil {
 		log.Debugf("Failed to establish a gRPC connection - %v\n", err)
-		record.ResponseTime = time.Since(start).Microseconds()
+		record.ResponseTime = time.Since(start).Milliseconds()
 		record.ConnectionTimeout = true
-		return false, record
+		return false, record, jobRecord
 	}
 
 	executionCxt, cancelExecution := context.WithTimeout(context.Background(), time.Duration(cfg.GRPCFunctionTimeoutSeconds)*time.Second)
@@ -109,8 +122,9 @@ func BatchInvoke(function *common.Function, promptFunctions []*common.Function, 
 	// iterate over the function iterations
 	curIter := 0
 	for curIter < trainingIterations {
+		iterStart := time.Now()
+	onemore:
 		md.Set("cur", time.Now().Format("2006-01-02 15:04:05.999"))
-
 		// create a channel to wait for all function invocations to finish
 		doneChan := make(chan struct{})
 		if curIter%100 == 0 {
@@ -119,6 +133,8 @@ func BatchInvoke(function *common.Function, promptFunctions []*common.Function, 
 		// cur iteration for promput tuning priority
 		// md.Set("RIter", strconv.Itoa(runtimeSpec.Stats.Iterations-curIter))
 
+		errorOrNot := false
+		errorMessage := ""
 		// iterate over the minimum replicas
 		for replicaID := 0; replicaID < minReplicas; replicaID++ {
 			// add one to the wait group
@@ -135,7 +151,8 @@ func BatchInvoke(function *common.Function, promptFunctions []*common.Function, 
 					PromptTensor:         promptTensor,
 				})
 				if err != nil {
-					fmt.Printf("Error executing function: %v\n", err)
+					errorOrNot = errorOrNot || true
+					errorMessage = fmt.Sprintf("Error executing function: %v for replicaID %d\n", err, replicaID)
 					return
 				}
 
@@ -152,6 +169,16 @@ func BatchInvoke(function *common.Function, promptFunctions []*common.Function, 
 		// wait for all function invocations to finish
 		<-doneChan
 
+		if errorOrNot {
+			cancelExecution()
+			executionCxt, cancelExecution = context.WithTimeout(context.Background(), time.Duration(cfg.GRPCFunctionTimeoutSeconds)*time.Second)
+			executionCxt = metadata.NewOutgoingContext(executionCxt, md)
+			log.Debugf("gRPC timeout exceeded for batch scheduler in invocationID %s - %s", invocationID, errorMessage)
+			time.Sleep(time.Second * 10)
+			record.ConnectionTimeout = true
+			goto onemore
+		}
+
 		// gradient average
 		promptTensor = responses[0].PromptGradient
 		for i := 1; i < len(responses); i++ {
@@ -163,36 +190,20 @@ func BatchInvoke(function *common.Function, promptFunctions []*common.Function, 
 		for j := 0; j < len(promptTensor); j++ {
 			promptTensor[j] = promptTensor[j] / float32(len(responses))
 		}
-		ActualDuration += responses[0].DurationInMicroSec
-		// log.Infof("ActualDuration is %d", ActualDuration)
-		// curResponse := time.Since(curStart)
-		// printDuration := responses[0].DurationInMicroSec / 1000
-		// printResponse := uint32(curResponse / 1000000)
-		// if printResponse-printDuration > 10 {
-		// 	cmd := exec.Command("kubectl", "get", "pods")
-		// 	out, err := cmd.Output()
-		// 	if err != nil {
-		// 		fmt.Println("Error:", err)
-		// 	}
-		// 	// fmt.Printf("kubectl cmd info %s\n", string(out))
-		// 	cmd = exec.Command("kubectl", "get", "revisions")
-		// 	out, err = cmd.Output()
-		// 	if err != nil {
-		// 		fmt.Println("Error:", err)
-		// 	}
-		// 	fmt.Printf("kubectl get revision %s\n", string(out))
-		// 	fmt.Printf("function %s, curIter %d, computation time %d, communication time %d, minReplicas %d\n", invocationID, curIter, printDuration, printResponse-printDuration, minReplicas)
-		// }
+		ActualDuration += responses[0].DurationInMicroSec / 1e3
+		registerJobRecord(
+			jobRecord,
+			iterStart.UnixMicro(),
+			int64(responses[0].DurationInMicroSec/1e3),
+			time.Since(iterStart).Milliseconds(),
+			minReplicas,
+			minReplicas,
+			curIter,
+			curIter+iteration_per_call,
+			trainingIterations,
+			runtimeSpec.Stats.BatchSize,
+		)
 		curIter += iteration_per_call
-	}
-
-	if err != nil {
-		log.Debugf("gRPC timeout exceeded for function %s - %s", function.Name, err)
-
-		record.ResponseTime = time.Since(start).Milliseconds()
-		record.FunctionTimeout = true
-
-		return false, record
 	}
 
 	record.Instance = extractInstanceName(responses[0].GetMessage())
@@ -200,7 +211,7 @@ func BatchInvoke(function *common.Function, promptFunctions []*common.Function, 
 	record.Deadline = runtimeSpec.Stats.Deadline
 	record.BatchSize = runtimeSpec.Stats.BatchSize
 	record.Iterations = runtimeSpec.Stats.Iterations
-	record.ActualDuration = ActualDuration / 1e3 // ActualDuration is MicroSec
+	record.ActualDuration = ActualDuration // ActualDuration is MicroSec
 	log.Debugf("gRPC requested duration %d [ms], actual duration per iteration %d [ms], iteration %d", runtimeSpec.Runtime, int(ActualDuration)/runtimeSpec.Stats.Iterations/1000, runtimeSpec.Stats.Iterations)
 
 	// log.Debugf("PipelineBatchPriority gRPC requested duration %d [ms], actual duration per iteration %d [ms], iteration %d", runtimeSpec.Runtime, int(responses[0].DurationInMicroSec)/runtimeSpec.Stats.Iterations/1000, runtimeSpec.Stats.Iterations)
@@ -219,6 +230,6 @@ func BatchInvoke(function *common.Function, promptFunctions []*common.Function, 
 		float64(responses[0].DurationInMicroSec)/1e3, responses[0].GpuMemoryInMebiBytes)
 	log.Tracef("(E2E Latency) %s: %.2f[ms]\n", function.Name, float64(record.ResponseTime))
 	log.Tracef("Length of Prompt Tensor [%d] \t Sum of Prompt Tensor [%.2f] \n", len(responses[0].PromptGradient), sum(responses[0].PromptGradient))
-
-	return true, record
+	cancelExecution()
+	return true, record, jobRecord
 }

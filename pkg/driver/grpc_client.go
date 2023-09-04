@@ -13,15 +13,11 @@ import (
 	mc "github.com/eth-easl/loader/pkg/metric"
 )
 
-func Invoke(function *common.Function, functions []*common.Function, promptFunctions []*common.Function, runtimeSpec *common.RuntimeSpecification, cfg *config.LoaderConfiguration, invocationID string) (bool, *mc.ExecutionRecord) {
+func Invoke(function *common.Function, functions []*common.Function, promptFunctions []*common.Function, runtimeSpec *common.RuntimeSpecification, cfg *config.LoaderConfiguration, invocationID string) (bool, *mc.ExecutionRecord, *mc.JobExecutionRecord) {
 	client_training := cfg.ClientTraining
 	// runtimeSpec.Runtime = runtimeSpec.Runtime * 5
 	if client_training == common.Batch {
 		return invokefunc.BatchInvoke(function, promptFunctions, runtimeSpec, cfg, invocationID)
-	} else if client_training == common.BatchPriority {
-		return invokefunc.BatchPriorityInvoke(function, promptFunctions, runtimeSpec, cfg, invocationID)
-	} else if client_training == common.PipelineBatchPriority {
-		return invokefunc.PipelineBatchPriorityInvoke(function, promptFunctions, runtimeSpec, cfg, invocationID)
 	} else if client_training == common.Single {
 		return invokefunc.SingleInvoke(function, promptFunctions, runtimeSpec, cfg, invocationID)
 	} else if client_training == common.HiveD {
@@ -32,7 +28,7 @@ func Invoke(function *common.Function, functions []*common.Function, promptFunct
 		return invokefunc.ElasticInvoke(functions, promptFunctions, runtimeSpec, cfg, invocationID)
 	} else {
 		log.Errorf("Invalid client_training value: %s", client_training)
-		return false, nil
+		return false, nil, nil
 	}
 }
 

@@ -79,12 +79,14 @@ if __name__ == '__main__':
         for row in range(len(df)): 
             for i in range(1, max_requests + 1): 
                 insert_key = str(i)
-                iteration = np.random.randint(10, 100) // 10 * 100
+                iteration = np.random.randint(10, 100) // 10 * 200
                 iteration_df.iloc[row, start_index - 1 + i] = iteration
                 # batch_df.iloc[row, start_index - 1+ i] = np.random.choice([32 * k for k in [1, 2, 4, 6, 8, 10, 12, 16, 20, 24, 32]])
                 # batch_df.iloc[row, start_index - 1+ i] = np.random.choice([32 * k for k in [1, 2, 4, 8, 12, 16]], p=[0.4, 0.2, 0.15, 0.15, 0.05, 0.05])
                 batch_df.iloc[row, start_index - 1+ i] = num_gpu_info[i-1] * 32
-                deadline_df.iloc[row, start_index - 1 + i] = int(1.2 * iteration * 100)
+                # ddl_ratio = np.random.choice([0.5 + 0.1 * k for k in range(11)])
+                ddl_ratio = np.random.choice([0.5, 0.75, 1.0, 1.25, 1.5])
+                deadline_df.iloc[row, start_index - 1 + i] = int(ddl_ratio * iteration * 100)
                 # np.random.choice([32 * k for k in [1, 2, 4, 8]], p=[0.4, 0.3, 0.2, 0.1])
                 # import pdb; pdb.set_trace() 
                 print('process {}'.format(i))

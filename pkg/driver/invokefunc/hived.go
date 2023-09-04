@@ -47,46 +47,6 @@ func queryRemainingGPU() int {
 	return common.TotalGPUs - usedGPU
 }
 
-// func queryRemainingGPU() int {
-// 	config, err := clientcmd.BuildConfigFromFlags("", filepath.Join("/users/gaow0007", ".kube", "config"))
-// 	if err != nil {
-// 		panic(err.Error())
-// 	}
-
-// 	// Create a Kubernetes clientset
-// 	clientset, err := kubernetes.NewForConfig(config)
-// 	if err != nil {
-// 		panic(err.Error())
-// 	}
-
-// 	totalGPUs := common.TotalGPUs
-// 	usedGPUs := 0
-
-// 	// Get the list of Pods in the cluster
-// 	pods, err := clientset.CoreV1().Pods("").List(context.Background(), metav1.ListOptions{FieldSelector: "status.phase=Running"})
-// 	if err != nil {
-// 		panic(err.Error())
-// 	}
-
-// 	for _, pod := range pods.Items {
-// 		if pod.Status.Phase != corev1.PodRunning {
-// 			continue
-// 		}
-// 		for _, container := range pod.Spec.Containers {
-// 			if container.Resources.Limits != nil {
-// 				limits := container.Resources.Limits
-// 				if gpu, ok := limits["nvidia.com/gpu"]; ok {
-// 					// fmt.Printf("gpu %v, container %v. gpu Value %d\n", gpu, container.Name, gpu.Value())
-// 					usedGPUs += int(gpu.Value())
-// 				}
-// 			}
-// 		}
-// 	}
-// 	availabeGPUs := totalGPUs - usedGPUs
-// 	fmt.Printf("Total Allocatable GPUs in the cluster: %d\n", availabeGPUs)
-// 	return availabeGPUs
-// }
-
 func roundToPowerOfTwo(value int) int {
 	if value == 0 {
 		return 1
@@ -113,10 +73,23 @@ func roundUpToPowerOfTwo(value int) int {
 	return roundValue
 }
 
-func HiveDInvoke(functions []*common.Function, promptFunctions []*common.Function, runtimeSpec *common.RuntimeSpecification, cfg *config.LoaderConfiguration, invocationID string) (bool, *mc.ExecutionRecord) {
+func HiveDInvoke(functions []*common.Function, promptFunctions []*common.Function, runtimeSpec *common.RuntimeSpecification, cfg *config.LoaderConfiguration, invocationID string) (bool, *mc.ExecutionRecord, *mc.JobExecutionRecord) {
 
 	record := &mc.ExecutionRecord{
 		RequestedDuration: uint32(runtimeSpec.Runtime * 1e3),
+	}
+
+	jobRecord := &mc.JobExecutionRecord{
+		InvocationID:   invocationID,
+		StartTime:      make([]int64, 0),
+		Replica:        make([]int, 0),
+		GpuCount:       make([]int, 0),
+		ComputeTime:    make([]int64, 0),
+		ExecutionTime:  make([]int64, 0),
+		StartIteration: make([]int, 0),
+		EndIteration:   make([]int, 0),
+		TotalIteration: make([]int, 0),
+		BatchSize:      make([]int, 0),
 	}
 
 	////////////////////////////////////
@@ -145,7 +118,7 @@ func HiveDInvoke(functions []*common.Function, promptFunctions []*common.Functio
 			log.Debugf("Failed to establish a gRPC connection - %v\n", err)
 			record.ResponseTime = time.Since(start).Microseconds()
 			record.ConnectionTimeout = true
-			return false, record
+			return true, record, jobRecord
 		}
 		conn_list[function_idx] = conn
 		// fmt.Printf("gpu is %d, funcname %s\n", gpu_list[function_idx], function.Name)
@@ -291,7 +264,7 @@ func HiveDInvoke(functions []*common.Function, promptFunctions []*common.Functio
 	log.Tracef("(E2E Latency) %s: %.2f[ms]\n", functions[0].Name, float64(record.ResponseTime)/1e3)
 	log.Tracef("Length of Prompt Tensor [%d] \t Sum of Prompt Tensor [%.2f] \n", len(responses[0].PromptGradient), sum(responses[0].PromptGradient))
 	cancelExecution()
-	return true, record
+	return true, record, jobRecord
 }
 
 // if responseTime < int64(float64(lastResponseTime)*0.9) {

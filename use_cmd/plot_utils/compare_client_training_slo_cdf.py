@@ -242,7 +242,7 @@ if True:
         root = os.path.dirname(root)
     
     
-    duration_list = [10, 20] # , 10, 20] # , 30, 40]
+    duration_list = [5, 10] # , 20] # , 10, 20] # , 30, 40]
     # duration_list = [5]
     
     print(duration_list) # 'perfect', 
@@ -271,8 +271,8 @@ if True:
         load_list = [0.3, 0.5, 0.7]
         fig, axes = init_plot((1, len(load_list)), grid=True)
         
-        method_list = ['hived_elastic', 'batch']
-        method_list = ['hived_elastic']
+        method_list = ['elastic', 'batch']
+        # method_list = ['elastic']
         for load_idx, jobload in enumerate(load_list): 
             name_list = None 
             ax = axes[load_idx]
@@ -286,6 +286,7 @@ if True:
                     # print(f'processing {method}, job load {jobload}, duration {duration}')
                     df = df[df.requestedDuration > 0]
                     # df = df[df.actualDuration > 0]
+                    print(f'processing {method}, job load {jobload}, duration {duration}, job length {len(df)}')
                     job_name_list = df.invocationID.tolist() 
                     job_jct_list = df.responseTime.tolist() 
                     job_duration_list = df.actualDuration.tolist() 
@@ -313,7 +314,7 @@ if True:
                         ax.plot(x_list, jct_y_list, color=color_list[method_idx*3])
                         
                         # ax.plot(x_list, ddl_y_list, color=color_list[-1])
-                    if 'hived' in method: 
+                    if 'elastic' in method: 
                         if load_idx == 0:
                             ax.plot(x_list, compute_y_list, color=color_list[method_idx*3+1], label=f'{method}-comp')
                             ax.plot(x_list, ddl_y_list, color=color_list[-1], label=f'{method}-ddl')

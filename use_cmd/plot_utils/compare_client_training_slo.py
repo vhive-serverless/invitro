@@ -242,11 +242,12 @@ if True:
         root = os.path.dirname(root)
     
     
-    duration_list = [10, 20] # , 10, 20] # , 30, 40]
+    duration_list = [5, 10, 20] # , 20] # , 10, 20] # , 30, 40]
     # duration_list = [5]
     
     print(duration_list)
-    method_list = ['perfect', 'hived_elastic', 'batch']
+    method_list = ['perfect', 'batch', 'elastic'] # , 'batch']
+    # method_list = ['perfect', 'elastic']
     
     
     if True: 
@@ -294,19 +295,12 @@ if True:
                 # print(method, csv_name)
                 if method != 'perfect': 
                     # print(f'processing {method}, job load {jobload}, duration {duration}')
+                    # import pdb; pdb.set_trace() 
+                    assert len(df[df.requestedDuration > 0]) == len(df[df.actualDuration > 0]), f'request duration {len(df[df.requestedDuration > 0])}: actual duration {len(df[df.actualDuration > 0])}'
                     df = df[df.requestedDuration > 0]
-                    import pdb; pdb.set_trace() 
+                    # import pdb; pdb.set_trace() 
                     # df = df[df.actualDuration > 0]
                     jct, makespan = cal_jct(df)
-                    if method == 'hived_elastic' and False: 
-                        deadline_list = df.deadline.tolist() 
-                        response_list = df.responseTime.tolist() 
-                        invocation_list = df.invocationID.tolist() 
-                        local_duration_list = df.requestedDuration.tolist() 
-                        for deadline, response, invocation, local_duration in zip(deadline_list, response_list, invocation_list, local_duration_list): 
-                            if deadline < response: 
-                                print(deadline / 1e3, response / 1e3, invocation, local_duration / 1e3)
-                        import pdb; pdb.set_trace() 
                     ddl_miss_rate = cal_dmr(df)
                     jct_list.append(jct)
                     ddl_list.append(ddl_miss_rate)
@@ -316,7 +310,8 @@ if True:
                 else: 
                     # import pdb; pdb.set_trace() 
                     # df = df[df.requestedDuration > 0]
-                    df = df[df.actualDuration > 0 ]
+                    assert len(df[df.requestedDuration > 0]) == len(df[df.actualDuration > 0]), f'request duration {len(df[df.requestedDuration > 0])}: actual duration {len(df[df.actualDuration > 0])}'
+                    df = df[df.requestedDuration > 0 ]
                     # import pdb; pdb.set_trace() 
                     jcts = df.actualDuration.tolist() 
                     deadlines = df.deadline.tolist() 

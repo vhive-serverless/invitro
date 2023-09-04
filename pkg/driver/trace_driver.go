@@ -77,6 +77,27 @@ func (d *Driver) runCSVWriter(records chan interface{}, filename string, writerD
 	writerDone.Done()
 }
 
+func (d *Driver) runJobLogWriter(records chan interface{}, filename string, writerDone *sync.WaitGroup) {
+	log.Debugf("Starting Job Log writer for %s", filename)
+
+	file, err := os.Create(filename)
+	common.Check(err)
+	defer file.Close()
+	for record := range records {
+		byteArr, err := json.Marshal(record)
+		common.Check(err)
+
+		_, err = file.Write(byteArr)
+		common.Check(err)
+
+		_, err = file.WriteString("\n")
+		common.Check(err)
+		fmt.Println("Execute runJobLogWriter")
+	}
+	fmt.Println("Finish runJobLogWriter")
+	writerDone.Done()
+}
+
 /////////////////////////////////////////
 // METRICS SCRAPPERS
 /////////////////////////////////////////
@@ -145,8 +166,9 @@ type InvocationMetadata struct {
 	FailedCount         *int64
 	FailedCountByMinute []int64
 
-	RecordOutputChannel chan *mc.ExecutionRecord
-	AnnounceDoneWG      *sync.WaitGroup
+	RecordOutputChannel    chan *mc.ExecutionRecord
+	JobRecordOutputChannel chan *mc.JobExecutionRecord
+	AnnounceDoneWG         *sync.WaitGroup
 }
 
 func composeInvocationID(timeGranularity common.TraceGranularity, minuteIndex int, invocationIndex int) string {
@@ -183,7 +205,7 @@ func extractModelName(functionName string) string {
 func (d *Driver) invokeFunction(metadata *InvocationMetadata, functions []*common.Function, promptFunctions []*common.Function) {
 	defer metadata.AnnounceDoneWG.Done()
 	invocationID := extractModelName(metadata.Function.Name) + composeInvocationID(d.Configuration.TraceGranularity, metadata.MinuteIndex, metadata.InvocationIndex)
-	success, record := Invoke(metadata.Function, functions, promptFunctions, metadata.RuntimeSpecifications, d.Configuration.LoaderConfiguration, invocationID)
+	success, record, jobRecord := Invoke(metadata.Function, functions, promptFunctions, metadata.RuntimeSpecifications, d.Configuration.LoaderConfiguration, invocationID)
 
 	record.Phase = int(metadata.Phase)
 	record.InvocationID = extractModelName(metadata.Function.Name) + composeInvocationID(d.Configuration.TraceGranularity, metadata.MinuteIndex, metadata.InvocationIndex)
@@ -196,10 +218,11 @@ func (d *Driver) invokeFunction(metadata *InvocationMetadata, functions []*commo
 	}
 
 	metadata.RecordOutputChannel <- record
+	metadata.JobRecordOutputChannel <- jobRecord
 }
 
 func (d *Driver) individualFunctionDriver(function *common.Function, functions []*common.Function, promptFunctions []*common.Function,
-	announceFunctionDone *sync.WaitGroup, totalSuccessful *int64, totalFailed *int64, totalIssued *int64, recordOutputChannel chan *mc.ExecutionRecord) {
+	announceFunctionDone *sync.WaitGroup, totalSuccessful *int64, totalFailed *int64, totalIssued *int64, recordOutputChannel chan *mc.ExecutionRecord, jobRecordOutputChannel chan *mc.JobExecutionRecord) {
 	// for i, v := range function.InvocationStats.Invocations {
 	// 	log.Infof("InvocationStats, i == %d, v == %d", i, v)
 	// }
@@ -291,16 +314,17 @@ func (d *Driver) individualFunctionDriver(function *common.Function, functions [
 			}
 
 			go d.invokeFunction(&InvocationMetadata{
-				Function:              function,
-				RuntimeSpecifications: &runtimeSpecification[minuteIndex][invocationIndex],
-				Phase:                 currentPhase,
-				MinuteIndex:           minuteIndex,
-				InvocationIndex:       invocationIndex,
-				SuccessCount:          &successfulInvocations,
-				FailedCount:           &failedInvocations,
-				FailedCountByMinute:   failedInvocationByMinute,
-				RecordOutputChannel:   recordOutputChannel,
-				AnnounceDoneWG:        &waitForInvocations,
+				Function:               function,
+				RuntimeSpecifications:  &runtimeSpecification[minuteIndex][invocationIndex],
+				Phase:                  currentPhase,
+				MinuteIndex:            minuteIndex,
+				InvocationIndex:        invocationIndex,
+				SuccessCount:           &successfulInvocations,
+				FailedCount:            &failedInvocations,
+				FailedCountByMinute:    failedInvocationByMinute,
+				JobRecordOutputChannel: jobRecordOutputChannel,
+				RecordOutputChannel:    recordOutputChannel,
+				AnnounceDoneWG:         &waitForInvocations,
 			},
 				functions, promptFunctions)
 		} else {
@@ -312,7 +336,18 @@ func (d *Driver) individualFunctionDriver(function *common.Function, functions [
 				InvocationID: function.Name + composeInvocationID(d.Configuration.TraceGranularity, minuteIndex, invocationIndex),
 				StartTime:    time.Now().UnixNano(),
 			}
-
+			jobRecordOutputChannel <- &mc.JobExecutionRecord{
+				InvocationID:   function.Name + composeInvocationID(d.Configuration.TraceGranularity, minuteIndex, invocationIndex),
+				StartTime:      make([]int64, 0),
+				Replica:        make([]int, 0),
+				GpuCount:       make([]int, 0),
+				ComputeTime:    make([]int64, 0),
+				ExecutionTime:  make([]int64, 0),
+				StartIteration: make([]int, 0),
+				EndIteration:   make([]int, 0),
+				TotalIteration: make([]int, 0),
+				BatchSize:      make([]int, 0),
+			}
 			successfulInvocations++
 		}
 
@@ -455,7 +490,7 @@ func (d *Driver) globalTimekeeper(totalTraceDuration int, signalReady *sync.Wait
 	ticker.Stop()
 }
 
-func (d *Driver) createGlobalMetricsCollector(filename string, collector chan *mc.ExecutionRecord,
+func (d *Driver) createGlobalMetricsCollector(filename string, joblogfilename string, collector chan *mc.ExecutionRecord, joblogCollector chan *mc.JobExecutionRecord,
 	signalReady *sync.WaitGroup, signalEverythingWritten *sync.WaitGroup, totalIssuedChannel chan int64) {
 
 	// NOTE: totalNumberOfInvocations is initialized to MaxInt64 not to allow collector to complete before
@@ -464,17 +499,26 @@ func (d *Driver) createGlobalMetricsCollector(filename string, collector chan *m
 	// when all the invocations return
 	var totalNumberOfInvocations int64 = math.MaxInt64
 	var currentlyWritten int64
+	var currentlyLogWritten int64
 
 	file, err := os.Create(filename)
 	common.Check(err)
 	defer file.Close()
 
+	joblogfile, joblogerror := os.Create(joblogfilename)
+	common.Check(joblogerror)
+	defer joblogfile.Close()
+
 	signalReady.Done()
 
 	records := make(chan interface{}, 100)
+	jobrecords := make(chan interface{}, 100)
 	writerDone := sync.WaitGroup{}
 	writerDone.Add(1)
 	go d.runCSVWriter(records, filename, &writerDone)
+
+	writerDone.Add(1)
+	go d.runJobLogWriter(jobrecords, joblogfilename, &writerDone)
 
 	for {
 		select {
@@ -484,19 +528,23 @@ func (d *Driver) createGlobalMetricsCollector(filename string, collector chan *m
 			currentlyWritten++
 		case record := <-totalIssuedChannel:
 			totalNumberOfInvocations = record
-		}
 
-		if currentlyWritten == totalNumberOfInvocations {
+		case record := <-joblogCollector:
+			jobrecords <- record
+			currentlyLogWritten++
+		}
+		fmt.Println("currentlyWritten, currentlyLogWritten, totalNumberOfInvocations", currentlyWritten, currentlyLogWritten, totalNumberOfInvocations)
+		if currentlyWritten == totalNumberOfInvocations && currentlyLogWritten == totalNumberOfInvocations {
 			close(records)
+			close(jobrecords)
 			writerDone.Wait()
 			(*signalEverythingWritten).Done()
-
 			return
 		}
 	}
 }
 
-func (d *Driver) startBackgroundProcesses(allRecordsWritten *sync.WaitGroup) (*sync.WaitGroup, chan *mc.ExecutionRecord, chan int64, chan int) {
+func (d *Driver) startBackgroundProcesses(allRecordsWritten *sync.WaitGroup) (*sync.WaitGroup, chan *mc.ExecutionRecord, chan *mc.JobExecutionRecord, chan int64, chan int) {
 	auxiliaryProcessBarrier := &sync.WaitGroup{}
 
 	finishCh := make(chan int, 1)
@@ -513,12 +561,14 @@ func (d *Driver) startBackgroundProcesses(allRecordsWritten *sync.WaitGroup) (*s
 
 	globalMetricsCollector := make(chan *mc.ExecutionRecord)
 	totalIssuedChannel := make(chan int64)
-	go d.createGlobalMetricsCollector(d.outputFilename("duration"), globalMetricsCollector, auxiliaryProcessBarrier, allRecordsWritten, totalIssuedChannel)
+	joblogsMetricsCollector := make(chan *mc.JobExecutionRecord)
+
+	go d.createGlobalMetricsCollector(d.outputFilename("duration"), d.outputFilename("joblogs"), globalMetricsCollector, joblogsMetricsCollector, auxiliaryProcessBarrier, allRecordsWritten, totalIssuedChannel)
 
 	traceDurationInMinutes := d.Configuration.TraceDuration
 	go d.globalTimekeeper(traceDurationInMinutes, auxiliaryProcessBarrier)
 
-	return auxiliaryProcessBarrier, globalMetricsCollector, totalIssuedChannel, finishCh
+	return auxiliaryProcessBarrier, globalMetricsCollector, joblogsMetricsCollector, totalIssuedChannel, finishCh
 }
 
 func (d *Driver) internalRun(iatOnly bool, generated bool) {
@@ -530,7 +580,7 @@ func (d *Driver) internalRun(iatOnly bool, generated bool) {
 	allRecordsWritten := sync.WaitGroup{}
 	allRecordsWritten.Add(1)
 
-	backgroundProcessesInitializationBarrier, globalMetricsCollector, totalIssuedChannel, scraperFinishCh := d.startBackgroundProcesses(&allRecordsWritten)
+	backgroundProcessesInitializationBarrier, globalMetricsCollector, joblogMetricsCollector, totalIssuedChannel, scraperFinishCh := d.startBackgroundProcesses(&allRecordsWritten)
 
 	if !iatOnly {
 		log.Info("Generating IAT and runtime specifications for all the functions")
@@ -575,6 +625,7 @@ func (d *Driver) internalRun(iatOnly bool, generated bool) {
 				&failedInvocations,
 				&invocationsIssued,
 				globalMetricsCollector,
+				joblogMetricsCollector,
 			)
 		} else if IsStringInList(d.Configuration.LoaderConfiguration.ClientTraining, []string{common.HiveD, common.HiveDElastic, common.Elastic}) {
 			key_prefix := strings.Split(function.Name, "-gpu-")[0]
@@ -588,6 +639,7 @@ func (d *Driver) internalRun(iatOnly bool, generated bool) {
 				&failedInvocations,
 				&invocationsIssued,
 				globalMetricsCollector,
+				joblogMetricsCollector,
 			)
 		} else {
 			log.Errorf("Invalid client_training value: %s", d.Configuration.LoaderConfiguration.ClientTraining)

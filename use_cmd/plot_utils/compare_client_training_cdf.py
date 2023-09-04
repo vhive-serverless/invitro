@@ -236,9 +236,9 @@ if True:
      # [5, 10, 15]:
     jct_info_by_method = list() 
     makespan_info_by_method = list()
-    duration_list = [5, 10] # , 20] # 120, 150, 240] # , 180]
+    duration_list = [5, 10, 20] # , 20] # 120, 150, 240] # , 180]
     print(duration_list)
-    method_list = ['perfect', 'hived_elastic', 'batch']
+    method_list = ['perfect', 'elastic', 'batch']
     perfect_jct_list = list() 
     for duration in duration_list:
         if True: 
@@ -270,12 +270,12 @@ if True:
                 # print(csv_name)
                 df = pd.read_csv(csv_name)
                 if method != 'perfect': 
+                    # df = df[df.requestedDuration > 0]
                     df = df[df.requestedDuration > 0]
-                    df = df[df.actualDuration > 0]
                     sorted_jct_list = cal_jct(df)
                 else: 
+                    # df = df[df.actualDuration > 0 ]
                     df = df[df.requestedDuration > 0]
-                    df = df[df.actualDuration > 0 ]
                     sorted_jct_list = sorted([val for val in df.actualDuration.tolist()])
                 cumulative_prob = np.arange(1, len(sorted_jct_list) + 1) / len(sorted_jct_list)
                 mylabel = method if load_idx == 0 else None 

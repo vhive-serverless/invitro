@@ -20,11 +20,24 @@ import (
 	mc "github.com/eth-easl/loader/pkg/metric"
 )
 
-func SingleInvoke(function *common.Function, promptFunctions []*common.Function, runtimeSpec *common.RuntimeSpecification, cfg *config.LoaderConfiguration, invocationID string) (bool, *mc.ExecutionRecord) {
+func SingleInvoke(function *common.Function, promptFunctions []*common.Function, runtimeSpec *common.RuntimeSpecification, cfg *config.LoaderConfiguration, invocationID string) (bool, *mc.ExecutionRecord, *mc.JobExecutionRecord) {
 	log.Tracef("(Invoke)\t %s: %d[ms], %d[MiB]", function.Name, runtimeSpec.Runtime, runtimeSpec.Memory)
 
 	record := &mc.ExecutionRecord{
 		RequestedDuration: uint32(runtimeSpec.Runtime * 1e3),
+	}
+
+	jobRecord := &mc.JobExecutionRecord{
+		InvocationID:   invocationID,
+		StartTime:      make([]int64, 0),
+		Replica:        make([]int, 0),
+		GpuCount:       make([]int, 0),
+		ComputeTime:    make([]int64, 0),
+		ExecutionTime:  make([]int64, 0),
+		StartIteration: make([]int, 0),
+		EndIteration:   make([]int, 0),
+		TotalIteration: make([]int, 0),
+		BatchSize:      make([]int, 0),
 	}
 
 	////////////////////////////////////
@@ -53,7 +66,7 @@ func SingleInvoke(function *common.Function, promptFunctions []*common.Function,
 		record.ResponseTime = time.Since(start).Microseconds()
 		record.ConnectionTimeout = true
 
-		return false, record
+		return true, record, jobRecord
 	}
 
 	executionCxt, cancelExecution := context.WithTimeout(context.Background(), time.Duration(cfg.GRPCFunctionTimeoutSeconds)*time.Second)
@@ -133,5 +146,5 @@ onemore:
 	log.Tracef("(E2E Latency) %s: %.2f[ms]\n", function.Name, float64(record.ResponseTime)/1e3)
 	log.Tracef("Length of Prompt Tensor [%d] \t Sum of Prompt Tensor [%.2f] \n", len(responses[0].PromptGradient), sum(responses[0].PromptGradient))
 	cancelExecution()
-	return true, record
+	return true, record, jobRecord
 }

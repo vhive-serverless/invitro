@@ -84,17 +84,31 @@ func lowerboundReplicasToDeadlineByProfileSpeedMatrix(GPUIteration int, defaultR
 		}
 
 		if jct <= deadline {
-			return replicas
+			return min(replicas+1, GPUSet[len(GPUSet)-1])
 		}
 	}
 	return 1 // -1
 }
 
-func HiveDElasticInvoke(functions []*common.Function, promptFunctions []*common.Function, runtimeSpec *common.RuntimeSpecification, cfg *config.LoaderConfiguration, invocationID string) (bool, *mc.ExecutionRecord) {
+func HiveDElasticInvoke(functions []*common.Function, promptFunctions []*common.Function, runtimeSpec *common.RuntimeSpecification, cfg *config.LoaderConfiguration, invocationID string) (bool, *mc.ExecutionRecord, *mc.JobExecutionRecord) {
 	functionKey := invocationID
 	record := &mc.ExecutionRecord{
 		RequestedDuration: uint32(runtimeSpec.Runtime * 1e3),
 	}
+
+	jobRecord := &mc.JobExecutionRecord{
+		InvocationID:   invocationID,
+		StartTime:      make([]int64, 0),
+		Replica:        make([]int, 0),
+		GpuCount:       make([]int, 0),
+		ComputeTime:    make([]int64, 0),
+		ExecutionTime:  make([]int64, 0),
+		StartIteration: make([]int, 0),
+		EndIteration:   make([]int, 0),
+		TotalIteration: make([]int, 0),
+		BatchSize:      make([]int, 0),
+	}
+
 	profileSpeedMatrix := make(map[int]SpeedInfo)
 	////////////////////////////////////
 	// INVOKE FUNCTION
@@ -123,7 +137,7 @@ func HiveDElasticInvoke(functions []*common.Function, promptFunctions []*common.
 			record.ResponseTime = time.Since(start).Milliseconds()
 			record.ConnectionTimeout = true
 			deleteValue(functionKey)
-			return false, record
+			return true, record, jobRecord
 		}
 		conn_list[function_idx] = conn
 	}
@@ -321,7 +335,7 @@ func HiveDElasticInvoke(functions []*common.Function, promptFunctions []*common.
 	log.Tracef("Length of Prompt Tensor [%d] \t Sum of Prompt Tensor [%.2f] \n", len(responses[0].PromptGradient), sum(responses[0].PromptGradient))
 	cancelExecution()
 	deleteValue(functionKey)
-	return true, record
+	return true, record, jobRecord
 }
 
 // responseTime := time.Since(curTime).Milliseconds()

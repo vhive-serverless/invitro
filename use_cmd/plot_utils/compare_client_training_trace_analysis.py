@@ -1,4 +1,5 @@
 import os, sys
+sys.path.insert(0, './')
 import matplotlib.pyplot as plt 
 import seaborn
 import matplotlib
@@ -118,10 +119,10 @@ def init_plot(ncols, **kwargs):
     apply_font(kwargs)
     if isinstance(ncols, tuple): 
         fig, axes = matplotlib.pyplot.subplots(ncols[0], ncols[1])
-        fig.set_size_inches(w=ncols[1]* 4, h=3*ncols[0])
+        fig.set_size_inches(w=ncols[1]* 5, h=3*ncols[0])
         
         axes = [axes[i] for i in range(ncols[0] * ncols[1])]
-#         axes = [axes[j][i] for i in range(ncols[0]) for j in range(ncols[1])]
+        # axes = [axes[j][i] for i in range(ncols[0]) for j in range(ncols[1])]
         # import pdb; pdb.set_trace() 
     else: 
         fig, axes = matplotlib.pyplot.subplots(1, ncols)
@@ -144,18 +145,26 @@ def cal_jct(df):
     jct_list = list() 
     # print('num of jobs == {}'.format(num_job))
     for idx, job in df.iterrows(): 
-        # import pdb; pdb.set_trace() 
-        # print(f'actualDuration {job.actualDuration/60000}, responseTime {job.responseTime/60000}')
-        job.responseTime = job.responseTime
-        jct += job.responseTime / num_job 
+        jct += job.responseTime / num_job
         # jct += job.actualDuration / num_job 
         min_time = min(job.startTime, min_time)
-        max_time = max(job.responseTime, max_time)
+        max_time = max(job.startTime+job.responseTime, max_time)
         jct_list.append(job.responseTime)
-        # jct_list.append(job.actualDuration//1000//60)
-    # print('sorted jct list {}'.format(sorted(jct_list)))
-    return sorted(jct_list)
+    return jct, max(jct_list) # max_time - min_time
 
+
+
+def cal_dmr(df): 
+    num_job = 1.0 * len(df)
+    miss_jobs = 0 
+    print('responseTime', 'iteration', 'deadline', 'replicas')
+    for idx, job in df.iterrows(): 
+        if job.responseTime > job.deadline: 
+            miss_jobs += 1
+            # import pdb; pdb.set_trace()
+            # print('--')
+        # print(job.responseTime/1e3, job.iteration/10, job.deadline/1e3, job.batchsize / 32)
+    return miss_jobs / num_job 
 
 def cal_fft(df): 
     unfairs = 0 
@@ -164,6 +173,16 @@ def cal_fft(df):
             unfairs += 1
     num_job = len(df)
     return unfairs / num_job
+
+
+def prefix_sum(listp): 
+    new_list = list() 
+    prefix = 0 
+    for x in listp: 
+        prefix += x
+        new_list.append(prefix)
+    return new_list 
+
 
 def plot_bar_by_method(ax, info_by_method, **kwargs): 
     apply_log(ax, **kwargs)
@@ -233,60 +252,88 @@ if True:
         # print(root)
         root = os.path.dirname(root)
     
-     # [5, 10, 15]:
-    jct_info_by_method = list() 
-    makespan_info_by_method = list()
-    duration_list = [10, 20] # , 20] # 120, 150, 240] # , 180]
+    
+    duration_list = [5, 10, 20] # , 20] # , 10, 20] # , 30, 40]
+    # duration_list = [5]
+    
     print(duration_list)
-    method_list = ['elastic', 'batch']
-    perfect_jct_list = list() 
-    # for KeyMetric in ['cpu_req', 'gpu_req']: 
-    for KeyMetric in ['gpu_req']: 
-        for duration in duration_list:
-            if True: 
-                new_template =  {
-                    "norm": True, 
-                    "width": 0.3, 
-                    "autolabel": False, 
-                    'logy': 1,
-                    'xname': None,
-                }
-                template.update(new_template)
-                load_list = [0.3, 0.5, 0.7] # , 0.7, 0.9]
-                fig, axes = init_plot((1, len(load_list)), grid=True)
-            for load_idx, jobload in enumerate(load_list): 
-                ax = axes[load_idx]
-                for method_idx, method in enumerate(method_list): 
-                    method_ident = method if method != 'perfect' else method_list[-1] # 'batch'
-                    filename = os.path.join(root, 'data', 'out',  f'real-multi-experiment-jobload-{jobload}_cluster_usage_{duration}_ClientTraining_{method_ident}.csv')
-                    with open(filename, 'r') as f: 
-                        lines = f.readlines()
-                    timestamp_list, gpu_util_list = list(), list() 
-                    for line in lines: 
-                        line = line.replace('null', 'None')
-                        cluster_info = eval(line)
-                        timestamp_list.append(cluster_info['timestamp'])
-                        # import pdb; pdb.set_trace() 
-                        if cluster_info[KeyMetric] is None: 
-                            gpu_util_list.append(0)
-                        elif isinstance(cluster_info[KeyMetric], list): 
-                            gpu_util_list.append(sum(cluster_info[KeyMetric]))
-                        else: 
-                            raise NotImplementedError
-                        
-                    def align_timestamp(x_list): 
-                        base_x = x_list[0]
-                        x_list = [int(int(x - base_x) / 1e6) for x in x_list]
-                        return x_list 
-                    timestamp_list = align_timestamp(timestamp_list)
-                    mylabel = method if load_idx == 0 else None 
-                    ax.plot(timestamp_list, gpu_util_list, label=mylabel, color=color_list[method_idx])
-                
-                ax.set_xlabel(f'time (s), \n density={duration}, load={jobload}')
-                if load_idx == 0: 
-                    ax.set_ylabel(f'{KeyMetric.upper()} Util')
-            fig.legend(fontsize=template['fontsize'] - 8, loc='upper center', ncol=3, bbox_to_anchor=(0.5, 1.1), fancybox=True, shadow=False, edgecolor="white", handlelength=2) 
-            plt.savefig(f'{root}/images/cdf/{KeyMetric.upper()}_util_{duration}_load_{jobload}.jpg', bbox_inches='tight')
-            plt.close() 
-            print(f'{root}/images/cdf/{KeyMetric.upper()}_util_{duration}_load_{jobload}.jpg')
+    method_list = ['elastic'] # , 'batch']
+    
+    
+    if True: 
+        template.update(
+            {
+                "norm": False, 
+                "width": 0.3, 
+                "autolabel": False, 
+                'norm': True,
+                'logy': 0,
+                'barh': False,
+            }
+        )
+        new_template =  {
+            "norm": False, 
+            "width": 0.3, 
+            "autolabel": False, 
+            'logy': 1,
+            'xname': None,
+        }
+        template.update(new_template)
+        # load_list = [0.5, 0.6, 0.7]
+        # load_list = [0.3, 0.5, 0.7]
+        load_list = [0.7]
+        duration_list = [10]
         
+        
+    
+    for load_idx, jobload in enumerate(load_list): 
+        perfect_jct_list = list() 
+        jct_info_by_method = list() 
+        makespan_info_by_method = list()
+        slo_info_by_method = list() 
+        
+        
+        for method in method_list: 
+            jct_list = list() 
+            ddl_list = list() 
+            makespan_list = list() 
+            for duration in duration_list:
+                
+                method_ident = method if method != 'perfect' else method_list[-1] # 'batch'
+                csv_name = os.path.join(root, 'data', 'out', f'real-multi-experiment-jobload-{jobload}_duration_{duration}_ClientTraining_{method_ident}.csv')
+                df = pd.read_csv(csv_name)
+                
+                trace_name = os.path.join(root, 'data', 'out', f'real-multi-experiment-jobload-{jobload}_joblogs_{duration}_ClientTraining_{method_ident}.csv')
+                from use_cmd.plot_utils.jobtrace import JobTrace
+                job_trace = JobTrace(trace_name) 
+                if method != 'perfect': 
+                    # print(f'processing {method}, job load {jobload}, duration {duration}')
+                    # import pdb; pdb.set_trace() 
+                    assert len(df[df.requestedDuration > 0]) == len(df[df.actualDuration > 0]), f'request duration {len(df[df.requestedDuration > 0])}: actual duration {len(df[df.actualDuration > 0])}'
+                    df = df[df.requestedDuration > 0]
+                    # print('invocationID, deadline, responseTime, actualDuration')
+                    for invocationID, deadline, iteration, batchsize, responseTime, actualDuration in \
+                        zip(df.invocationID.tolist(), df.deadline.tolist(), df.iteration.tolist(), df.batchsize.tolist(), df.responseTime.tolist(), df.actualDuration.tolist()):
+                        # print(invocationID, deadline, responseTime, actualDuration)
+                        if deadline < responseTime: 
+                            fig, axes = init_plot(1, grid=True)
+                            ax = axes[0]
+
+                                
+                            computeTimeList = prefix_sum(job_trace.get_compute_time(invocation_id=invocationID))
+                            responseTimeList = prefix_sum(job_trace.get_execution_time(invocation_id=invocationID))
+                            iterationList = job_trace.get_start_teration(invocation_id=invocationID)
+                            # print(len(computeTimeList), len(responseTimeList), len(iterationList))
+                            print(len(iterationList), iteration)
+                            continue 
+                            if len(iterationList) < 2: continue 
+                            ax.plot(iterationList, computeTimeList, marker='x', color=color_list[0], label='compute in container')
+                            ax.plot(iterationList, responseTimeList, color=color_list[1], label='responseTime')
+                            ax.plot([0, max(iterationList)], [deadline, deadline], color='tab:red', label='deadline')
+                            if not os.path.exists(f'{root}/images/client_training/job_trace'): 
+                                os.makedirs(f'{root}/images/client_training/job_trace')
+                            invocation_str = invocationID.replace('.', '-')
+                            fig.legend(fontsize=template['fontsize'] - 8, loc='upper center', ncol=2, bbox_to_anchor=(0.5, 1.2), fancybox=True, shadow=False, edgecolor="white", handlelength=2) 
+                            plt.savefig(f'{root}/images/client_training/job_trace/method_{method}_jobload_{jobload}_duration_{duration}_invocation_{invocation_str}.jpg', bbox_inches='tight')
+                            plt.close() 
+                            print(f'{root}/images/client_training/job_trace/method_{method}_jobload_{jobload}_duration_{duration}_invocation_{invocation_str}.jpg')
