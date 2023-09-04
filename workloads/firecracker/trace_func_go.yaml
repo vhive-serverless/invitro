@@ -9,7 +9,6 @@ spec:
       annotations:
         autoscaling.knative.dev/initial-scale: "1"  # Should start from 0, otherwise we can't deploy more functions than the node physically permits.
         autoscaling.knative.dev/min-scale: "1"  # This parameter only has a per-revision key, so it's necessary to have here in case of the warmup messes up.
-        autoscaling.knative.dev/target-utilization-percentage: "100"  # Enforce container concurrency at any time.
         autoscaling.knative.dev/target-burst-capacity: "-1"  # Put activator always in the path explicitly.
         autoscaling.knative.dev/max-scale: "10"  # Maximum instances limit of Azure.
 
