@@ -246,7 +246,7 @@ if True:
     # duration_list = [5]
     
     print(duration_list)
-    method_list = ['perfect', 'batch', 'elastic'] # , 'batch']
+    method_list = ['perfect', 'elastic'] # ['perfect', 'batch', 'elastic'] # , 'batch']
     # method_list = ['perfect', 'elastic']
     
     

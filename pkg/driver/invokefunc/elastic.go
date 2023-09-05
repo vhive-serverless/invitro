@@ -109,8 +109,7 @@ func ElasticInvoke(functions []*common.Function, promptFunctions []*common.Funct
 
 	iteration_per_call := 100
 	send_messages := prepareMessages("Can you condense the sentence into a shorter version without losing its meaning?", iteration_per_call)
-	// iteration_per_call = 100
-
+	
 	// clusterAvailableGPUs := queryRemainingGPU()
 	totalBatchSize := runtimeSpec.Stats.BatchSize
 	upperboundReplicas := totalBatchSize / common.BszPerDevice * 4

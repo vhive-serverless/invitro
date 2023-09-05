@@ -223,13 +223,6 @@ func (d *Driver) invokeFunction(metadata *InvocationMetadata, functions []*commo
 
 func (d *Driver) individualFunctionDriver(function *common.Function, functions []*common.Function, promptFunctions []*common.Function,
 	announceFunctionDone *sync.WaitGroup, totalSuccessful *int64, totalFailed *int64, totalIssued *int64, recordOutputChannel chan *mc.ExecutionRecord, jobRecordOutputChannel chan *mc.JobExecutionRecord) {
-	// for i, v := range function.InvocationStats.Invocations {
-	// 	log.Infof("InvocationStats, i == %d, v == %d", i, v)
-	// }
-	// for i, v := range function.IterationStats.Invocations {
-	// 	log.Infof("IterationStats, i == %d, v == %d", i, v)
-	// }
-	// os.Exit(0)
 	totalTraceDuration := d.Configuration.TraceDuration
 	minuteIndex, invocationIndex := 0, 0
 
@@ -254,16 +247,19 @@ func (d *Driver) individualFunctionDriver(function *common.Function, functions [
 	startOfMinute := time.Now()
 	var previousIATSum int64
 	gpuCount := -1
-	if IsStringInList(d.Configuration.LoaderConfiguration.ClientTraining, []string{common.Single, common.HiveD, common.HiveDElastic, common.Elastic}) {
+	if IsStringInList(d.Configuration.LoaderConfiguration.ClientTraining, []string{common.Multi, common.HiveD, common.HiveDElastic, common.Elastic}) {
 		// IsStringInList(d.Configuration.LoaderConfiguration.ClientTraining); d.Configuration.LoaderConfiguration.ClientTraining == common.Single || d.Configuration.LoaderConfiguration.ClientTraining == common.HiveD {
 		parts := strings.Split(function.Name, "-")
 		gpuCount, _ = strconv.Atoi(parts[len(parts)-1])
 	} else if IsStringInList(d.Configuration.LoaderConfiguration.ClientTraining,
-		[]string{common.Batch, common.BatchPriority, common.PipelineBatchPriority}) {
+		[]string{common.Batch, common.BatchPriority, common.PipelineBatchPriority, common.GradientAccumulation}) {
+
+	} else if IsStringInList(d.Configuration.LoaderConfiguration.ClientTraining, []string{common.ServerfulOptimus}) {
 
 	} else {
 		log.Errorf("Invalid client_training value: %s", d.Configuration.LoaderConfiguration.ClientTraining)
 	}
+
 	for {
 		if minuteIndex >= totalTraceDuration {
 			// Check whether the end of trace has been reached
@@ -290,14 +286,16 @@ func (d *Driver) individualFunctionDriver(function *common.Function, functions [
 
 		invokeFunctionOrNot := true
 
-		if IsStringInList(d.Configuration.LoaderConfiguration.ClientTraining, []string{common.Single, common.HiveD, common.HiveDElastic, common.Elastic}) {
+		if IsStringInList(d.Configuration.LoaderConfiguration.ClientTraining, []string{common.Multi, common.HiveD, common.HiveDElastic, common.Elastic}) {
 			// log.Infof("numberOfIssuedInvocations %d, length of invocation %d\n", numberOfIssuedInvocations, len(function.BatchStats.Invocations))
 			expectedGPUCount := function.BatchStats.Invocations[numberOfIssuedInvocations-1] / common.BszPerDevice
 			if gpuCount != expectedGPUCount {
 				invokeFunctionOrNot = false
 			}
 			// log.Infof("d.Configuration.TestMode invokeFunctionOrNot: %v: expectedGPUCount %d, gpuCount %d", invokeFunctionOrNot, expectedGPUCount, gpuCount)
-		} else if IsStringInList(d.Configuration.LoaderConfiguration.ClientTraining, []string{common.Batch, common.BatchPriority, common.PipelineBatchPriority}) {
+		} else if IsStringInList(d.Configuration.LoaderConfiguration.ClientTraining, []string{common.Batch, common.BatchPriority, common.PipelineBatchPriority, common.GradientAccumulation}) {
+
+		} else if IsStringInList(d.Configuration.LoaderConfiguration.ClientTraining, []string{common.ServerfulOptimus}) {
 
 		} else {
 			log.Errorf("Invalid client_training value: %s", d.Configuration.LoaderConfiguration.ClientTraining)
@@ -312,9 +310,12 @@ func (d *Driver) individualFunctionDriver(function *common.Function, functions [
 				BatchSize:  function.BatchStats.Invocations[numberOfIssuedInvocations-1],
 				Deadline:   function.DeadlineStats.Invocations[numberOfIssuedInvocations-1],
 			}
-
+			invoked_function := function
+			if IsStringInList(d.Configuration.LoaderConfiguration.ClientTraining, []string{common.Batch, common.BatchPriority, common.PipelineBatchPriority, common.GradientAccumulation}) {
+				invoked_function = functions[numberOfIssuedInvocations%common.ServerfulCopyReplicas]
+			}
 			go d.invokeFunction(&InvocationMetadata{
-				Function:               function,
+				Function:               invoked_function,
 				RuntimeSpecifications:  &runtimeSpecification[minuteIndex][invocationIndex],
 				Phase:                  currentPhase,
 				MinuteIndex:            minuteIndex,
@@ -612,23 +613,14 @@ func (d *Driver) internalRun(iatOnly bool, generated bool) {
 	}
 
 	log.Infof("Starting function invocation driver\n")
-	for _, function := range d.Configuration.Functions {
-		allIndividualDriversCompleted.Add(1)
-		fmt.Printf("invoke function %v, length of prompt functions %v\n", function, len(d.Configuration.PromptFunctions))
-		if IsStringInList(d.Configuration.LoaderConfiguration.ClientTraining, []string{common.Single, common.Batch, common.BatchPriority, common.PipelineBatchPriority}) {
-			go d.individualFunctionDriver(
-				function,
-				d.Configuration.Functions,
-				d.Configuration.PromptFunctions,
-				&allIndividualDriversCompleted,
-				&successfulInvocations,
-				&failedInvocations,
-				&invocationsIssued,
-				globalMetricsCollector,
-				joblogMetricsCollector,
-			)
-		} else if IsStringInList(d.Configuration.LoaderConfiguration.ClientTraining, []string{common.HiveD, common.HiveDElastic, common.Elastic}) {
-			key_prefix := strings.Split(function.Name, "-gpu-")[0]
+	if IsStringInList(d.Configuration.LoaderConfiguration.ClientTraining, []string{common.ServerfulOptimus}) {
+		for func_idx, function := range d.Configuration.Functions {
+			if func_idx%common.ServerfulCopyReplicas == 0 {
+				continue
+			}
+			allIndividualDriversCompleted.Add(1)
+			fmt.Printf("invoke function %v, length of prompt functions %v\n", function, len(d.Configuration.PromptFunctions))
+			key_prefix := strings.Split(function.Name, "-serverfull-copy-")[0]
 			filter_functions := FilterByKey(d.Configuration.Functions, key_prefix)
 			go d.individualFunctionDriver(
 				function,
@@ -641,10 +633,42 @@ func (d *Driver) internalRun(iatOnly bool, generated bool) {
 				globalMetricsCollector,
 				joblogMetricsCollector,
 			)
-		} else {
-			log.Errorf("Invalid client_training value: %s", d.Configuration.LoaderConfiguration.ClientTraining)
 		}
+	} else {
+		for _, function := range d.Configuration.Functions {
+			allIndividualDriversCompleted.Add(1)
+			fmt.Printf("invoke function %v, length of prompt functions %v\n", function, len(d.Configuration.PromptFunctions))
+			if IsStringInList(d.Configuration.LoaderConfiguration.ClientTraining, []string{common.Batch, common.BatchPriority, common.PipelineBatchPriority, common.GradientAccumulation, common.Multi}) {
+				go d.individualFunctionDriver(
+					function,
+					d.Configuration.Functions,
+					d.Configuration.PromptFunctions,
+					&allIndividualDriversCompleted,
+					&successfulInvocations,
+					&failedInvocations,
+					&invocationsIssued,
+					globalMetricsCollector,
+					joblogMetricsCollector,
+				)
+			} else if IsStringInList(d.Configuration.LoaderConfiguration.ClientTraining, []string{common.HiveD, common.HiveDElastic, common.Elastic}) {
+				key_prefix := strings.Split(function.Name, "-gpu-")[0]
+				filter_functions := FilterByKey(d.Configuration.Functions, key_prefix)
+				go d.individualFunctionDriver(
+					function,
+					filter_functions,
+					d.Configuration.PromptFunctions,
+					&allIndividualDriversCompleted,
+					&successfulInvocations,
+					&failedInvocations,
+					&invocationsIssued,
+					globalMetricsCollector,
+					joblogMetricsCollector,
+				)
+			} else {
+				log.Errorf("Invalid client_training value: %s", d.Configuration.LoaderConfiguration.ClientTraining)
+			}
 
+		}
 	}
 
 	allIndividualDriversCompleted.Wait()

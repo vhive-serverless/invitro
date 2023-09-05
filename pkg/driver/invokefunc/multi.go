@@ -20,7 +20,7 @@ import (
 	mc "github.com/eth-easl/loader/pkg/metric"
 )
 
-func SingleInvoke(function *common.Function, promptFunctions []*common.Function, runtimeSpec *common.RuntimeSpecification, cfg *config.LoaderConfiguration, invocationID string) (bool, *mc.ExecutionRecord, *mc.JobExecutionRecord) {
+func MultiInvoke(function *common.Function, promptFunctions []*common.Function, runtimeSpec *common.RuntimeSpecification, cfg *config.LoaderConfiguration, invocationID string) (bool, *mc.ExecutionRecord, *mc.JobExecutionRecord) {
 	log.Tracef("(Invoke)\t %s: %d[ms], %d[MiB]", function.Name, runtimeSpec.Runtime, runtimeSpec.Memory)
 
 	record := &mc.ExecutionRecord{
@@ -72,7 +72,6 @@ func SingleInvoke(function *common.Function, promptFunctions []*common.Function,
 	executionCxt, cancelExecution := context.WithTimeout(context.Background(), time.Duration(cfg.GRPCFunctionTimeoutSeconds)*time.Second)
 	// defer cancelExecution()
 
-onemore:
 	promptTensor := make([]float32, 128)
 	for i := range promptTensor {
 		promptTensor[i] = 0
@@ -88,14 +87,14 @@ onemore:
 	grpcClients[0] = proto.NewExecutorClient(conn)
 	// ActualDuration := uint32(0)
 
-	iteration_per_call := 10
-	send_messages := "Can you condense the sentence into a shorter version without losing its meaning?"
-	for i := 0; i < iteration_per_call; i++ {
-		for bsz := 0; bsz < common.BszPerDevice; bsz++ {
-			send_messages = send_messages + "; Can you condense the sentence into a shorter version without losing its meaning?"
-		}
-	}
-	for curIter := 0; curIter < runtimeSpec.Stats.Iterations/iteration_per_call; curIter++ {
+	iteration_per_call := 100
+	send_messages := prepareMessages("Can you condense the sentence into a shorter version without losing its meaning?", iteration_per_call)
+
+	curIter := 0
+	trainingIterations := runtimeSpec.Stats.Iterations
+	for curIter < trainingIterations {
+		iterStart := time.Now()
+	onemore:
 		response, err := grpcClients[0].Execute(executionCxt, &proto.FaasRequest{
 			Message:              send_messages,
 			Batchsize:            uint32(common.BszPerDevice),
@@ -125,6 +124,19 @@ onemore:
 		}
 		responses[0] = *response
 		record.ActualDuration += responses[0].DurationInMicroSec
+		registerJobRecord(
+			jobRecord,
+			iterStart.UnixMicro(),
+			int64(responses[0].DurationInMicroSec/1e3),
+			time.Since(iterStart).Milliseconds(),
+			minReplicas,
+			minReplicas,
+			curIter,
+			curIter+iteration_per_call,
+			trainingIterations,
+			runtimeSpec.Stats.BatchSize,
+		)
+		curIter += iteration_per_call
 	}
 
 	record.Instance = extractInstanceName(responses[0].GetMessage())

@@ -107,6 +107,20 @@ func shadowFunctions(functions []*common.Function) []*common.Function {
 
 	return newFunctions
 }
+func serverfulFunctions(functions []*common.Function) []*common.Function {
+	newFunctions := make([]*common.Function, len(functions)*common.ServerfulCopyReplicas)
+
+	for i, f := range functions {
+		for j := 0; j < common.ServerfulCopyReplicas; j++ {
+			copy := *f                                                 // make a copy of the function
+			copy.Name = fmt.Sprintf("%s-serverful-copy-%d", f.Name, j) // update the name of the copy
+			newFunctions[i*common.ServerfulCopyReplicas+j] = &copy     // add the copy to the new slice
+			log.Infof("serverfulFunctions function name is %s", newFunctions[i*common.ServerfulCopyReplicas+j].Name)
+		}
+	}
+
+	return newFunctions
+}
 
 func runTraceMode(cfg *config.LoaderConfiguration, iatOnly bool, generated bool) {
 	durationToParse := determineDurationToParse(cfg.ExperimentDuration, cfg.WarmupDuration)
@@ -114,10 +128,12 @@ func runTraceMode(cfg *config.LoaderConfiguration, iatOnly bool, generated bool)
 	traceParser := trace.NewAzureParser(cfg.TracePath, durationToParse)
 	functions := traceParser.Parse()
 
-	if driver.IsStringInList(cfg.ClientTraining, []string{common.Single, common.HiveD, common.HiveDElastic, common.Elastic}) {
+	if driver.IsStringInList(cfg.ClientTraining, []string{common.Multi, common.HiveD, common.HiveDElastic, common.Elastic}) {
 		functions = shadowFunctions(functions)
-	} else if driver.IsStringInList(cfg.ClientTraining, []string{common.Batch, common.BatchPriority, common.PipelineBatchPriority}); cfg.ClientTraining == common.Batch || cfg.ClientTraining == common.BatchPriority || cfg.ClientTraining == common.PipelineBatchPriority {
+	} else if driver.IsStringInList(cfg.ClientTraining, []string{common.Batch, common.BatchPriority, common.PipelineBatchPriority, common.GradientAccumulation}) {
 
+	} else if driver.IsStringInList(cfg.ClientTraining, []string{common.ServerfulOptimus}) {
+		functions = serverfulFunctions(functions)
 	} else {
 		log.Errorf("Invalid client_training value: %s", cfg.ClientTraining)
 	}

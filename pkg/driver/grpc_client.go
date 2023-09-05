@@ -18,14 +18,18 @@ func Invoke(function *common.Function, functions []*common.Function, promptFunct
 	// runtimeSpec.Runtime = runtimeSpec.Runtime * 5
 	if client_training == common.Batch {
 		return invokefunc.BatchInvoke(function, promptFunctions, runtimeSpec, cfg, invocationID)
-	} else if client_training == common.Single {
-		return invokefunc.SingleInvoke(function, promptFunctions, runtimeSpec, cfg, invocationID)
+	} else if client_training == common.Multi {
+		return invokefunc.MultiInvoke(function, promptFunctions, runtimeSpec, cfg, invocationID)
+	} else if client_training == common.GradientAccumulation {
+		return invokefunc.GradientAccumulationInvoke(function, promptFunctions, runtimeSpec, cfg, invocationID)
 	} else if client_training == common.HiveD {
 		return invokefunc.HiveDInvoke(functions, promptFunctions, runtimeSpec, cfg, invocationID)
 	} else if client_training == common.HiveDElastic {
 		return invokefunc.HiveDElasticInvoke(functions, promptFunctions, runtimeSpec, cfg, invocationID)
 	} else if client_training == common.Elastic {
 		return invokefunc.ElasticInvoke(functions, promptFunctions, runtimeSpec, cfg, invocationID)
+	} else if client_training == common.ServerfulOptimus {
+		return invokefunc.ServerfulOptimusInvoke(function, promptFunctions, runtimeSpec, cfg, invocationID)
 	} else {
 		log.Errorf("Invalid client_training value: %s", client_training)
 		return false, nil, nil

@@ -242,7 +242,7 @@ if True:
         root = os.path.dirname(root)
     
     
-    duration_list = [5, 10] # , 20] # , 10, 20] # , 30, 40]
+    duration_list = [5, 10, 20] # , 20] # , 10, 20] # , 30, 40]
     # duration_list = [5]
     
     print(duration_list) # 'perfect', 
@@ -271,8 +271,8 @@ if True:
         load_list = [0.3, 0.5, 0.7]
         fig, axes = init_plot((1, len(load_list)), grid=True)
         
-        method_list = ['elastic', 'batch']
-        # method_list = ['elastic']
+        # method_list = ['elastic', 'batch']
+        method_list = ['elastic']
         for load_idx, jobload in enumerate(load_list): 
             name_list = None 
             ax = axes[load_idx]

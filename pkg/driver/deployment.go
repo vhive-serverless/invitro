@@ -40,9 +40,9 @@ func min(nums ...int) int {
 func DeployFunctions(loaderConfiguration *config.LoaderConfiguration, functions []*common.Function, yamlPath string, isPartiallyPanic bool, endpointPort int,
 	autoscalingMetric string) {
 	for i := 0; i < len(functions); i++ {
-		if IsStringInList(loaderConfiguration.ClientTraining, []string{common.Batch, common.BatchPriority, common.PipelineBatchPriority}) {
+		if IsStringInList(loaderConfiguration.ClientTraining, []string{common.Batch, common.BatchPriority, common.PipelineBatchPriority, common.GradientAccumulation, common.ServerfulOptimus}) {
 			deployOne(functions[i], yamlPath, isPartiallyPanic, endpointPort, autoscalingMetric)
-		} else if IsStringInList(loaderConfiguration.ClientTraining, []string{common.Single, common.HiveD, common.HiveDElastic, common.Elastic}) {
+		} else if IsStringInList(loaderConfiguration.ClientTraining, []string{common.Multi, common.HiveD, common.HiveDElastic, common.Elastic}) {
 			// loaderConfiguration.ClientTraining == common.Single || loaderConfiguration.ClientTraining == common.HiveD {
 
 			parts := strings.Split(functions[i].Name, "-")

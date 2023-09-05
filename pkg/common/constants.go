@@ -70,13 +70,15 @@ const (
 )
 
 const (
-	Single                string = "single"
+	GradientAccumulation  string = "gradient_accumulation"
+	Multi                 string = "multi"
 	Batch                 string = "batch"
 	Elastic               string = "elastic"
 	BatchPriority         string = "batch_priority"
 	PipelineBatchPriority string = "pipeline_batch_priority"
 	HiveD                 string = "hived"
 	HiveDElastic          string = "hived_elastic"
+	ServerfulOptimus      string = "optimus"
 )
 
 const (
@@ -90,4 +92,8 @@ const (
 
 const (
 	TotalGPUs = 40
+)
+
+const (
+	ServerfulCopyReplicas = 20
 )
