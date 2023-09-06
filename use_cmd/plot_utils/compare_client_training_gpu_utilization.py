@@ -236,9 +236,8 @@ if True:
      # [5, 10, 15]:
     jct_info_by_method = list() 
     makespan_info_by_method = list()
-    duration_list = [10, 20] # , 20] # 120, 150, 240] # , 180]
-    print(duration_list)
-    method_list = ['elastic', 'batch']
+    duration_list = [5, 10] # , 20] # , 20] # 120, 150, 240] # , 180]
+    method_list = ['perfect', 'elastic', 'batch', 'gradient_accumulation'] # , 'gradient_accumulation'] 
     perfect_jct_list = list() 
     # for KeyMetric in ['cpu_req', 'gpu_req']: 
     for KeyMetric in ['gpu_req']: 
@@ -262,6 +261,7 @@ if True:
                     with open(filename, 'r') as f: 
                         lines = f.readlines()
                     timestamp_list, gpu_util_list = list(), list() 
+                    print(filename)
                     for line in lines: 
                         line = line.replace('null', 'None')
                         cluster_info = eval(line)

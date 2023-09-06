@@ -16,16 +16,16 @@ import (
 func Invoke(function *common.Function, functions []*common.Function, promptFunctions []*common.Function, runtimeSpec *common.RuntimeSpecification, cfg *config.LoaderConfiguration, invocationID string) (bool, *mc.ExecutionRecord, *mc.JobExecutionRecord) {
 	client_training := cfg.ClientTraining
 	// runtimeSpec.Runtime = runtimeSpec.Runtime * 5
-	if client_training == common.Batch {
-		return invokefunc.BatchInvoke(function, promptFunctions, runtimeSpec, cfg, invocationID)
+	if client_training == common.Caerus {
+		return invokefunc.CaerusInvoke(function, promptFunctions, runtimeSpec, cfg, invocationID)
 	} else if client_training == common.Multi {
 		return invokefunc.MultiInvoke(function, promptFunctions, runtimeSpec, cfg, invocationID)
-	} else if client_training == common.GradientAccumulation {
-		return invokefunc.GradientAccumulationInvoke(function, promptFunctions, runtimeSpec, cfg, invocationID)
+	} else if client_training == common.Knative {
+		return invokefunc.KnativeInvoke(function, promptFunctions, runtimeSpec, cfg, invocationID)
 	} else if client_training == common.HiveD {
 		return invokefunc.HiveDInvoke(functions, promptFunctions, runtimeSpec, cfg, invocationID)
-	} else if client_training == common.HiveDElastic {
-		return invokefunc.HiveDElasticInvoke(functions, promptFunctions, runtimeSpec, cfg, invocationID)
+	} else if client_training == common.INFless {
+		return invokefunc.INFlessInvoke(functions, promptFunctions, runtimeSpec, cfg, invocationID)
 	} else if client_training == common.Elastic {
 		return invokefunc.ElasticInvoke(functions, promptFunctions, runtimeSpec, cfg, invocationID)
 	} else if client_training == common.ServerfulOptimus {

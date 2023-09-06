@@ -92,9 +92,7 @@ func (d *Driver) runJobLogWriter(records chan interface{}, filename string, writ
 
 		_, err = file.WriteString("\n")
 		common.Check(err)
-		fmt.Println("Execute runJobLogWriter")
 	}
-	fmt.Println("Finish runJobLogWriter")
 	writerDone.Done()
 }
 
@@ -247,12 +245,12 @@ func (d *Driver) individualFunctionDriver(function *common.Function, functions [
 	startOfMinute := time.Now()
 	var previousIATSum int64
 	gpuCount := -1
-	if IsStringInList(d.Configuration.LoaderConfiguration.ClientTraining, []string{common.Multi, common.HiveD, common.HiveDElastic, common.Elastic}) {
+	if IsStringInList(d.Configuration.LoaderConfiguration.ClientTraining, []string{common.Multi, common.HiveD, common.INFless, common.Elastic}) {
 		// IsStringInList(d.Configuration.LoaderConfiguration.ClientTraining); d.Configuration.LoaderConfiguration.ClientTraining == common.Single || d.Configuration.LoaderConfiguration.ClientTraining == common.HiveD {
 		parts := strings.Split(function.Name, "-")
 		gpuCount, _ = strconv.Atoi(parts[len(parts)-1])
 	} else if IsStringInList(d.Configuration.LoaderConfiguration.ClientTraining,
-		[]string{common.Batch, common.BatchPriority, common.PipelineBatchPriority, common.GradientAccumulation}) {
+		[]string{common.Caerus, common.BatchPriority, common.PipelineBatchPriority, common.Knative}) {
 
 	} else if IsStringInList(d.Configuration.LoaderConfiguration.ClientTraining, []string{common.ServerfulOptimus}) {
 
@@ -286,14 +284,14 @@ func (d *Driver) individualFunctionDriver(function *common.Function, functions [
 
 		invokeFunctionOrNot := true
 
-		if IsStringInList(d.Configuration.LoaderConfiguration.ClientTraining, []string{common.Multi, common.HiveD, common.HiveDElastic, common.Elastic}) {
+		if IsStringInList(d.Configuration.LoaderConfiguration.ClientTraining, []string{common.Multi, common.HiveD, common.INFless, common.Elastic}) {
 			// log.Infof("numberOfIssuedInvocations %d, length of invocation %d\n", numberOfIssuedInvocations, len(function.BatchStats.Invocations))
 			expectedGPUCount := function.BatchStats.Invocations[numberOfIssuedInvocations-1] / common.BszPerDevice
 			if gpuCount != expectedGPUCount {
 				invokeFunctionOrNot = false
 			}
 			// log.Infof("d.Configuration.TestMode invokeFunctionOrNot: %v: expectedGPUCount %d, gpuCount %d", invokeFunctionOrNot, expectedGPUCount, gpuCount)
-		} else if IsStringInList(d.Configuration.LoaderConfiguration.ClientTraining, []string{common.Batch, common.BatchPriority, common.PipelineBatchPriority, common.GradientAccumulation}) {
+		} else if IsStringInList(d.Configuration.LoaderConfiguration.ClientTraining, []string{common.Caerus, common.BatchPriority, common.PipelineBatchPriority, common.Knative}) {
 
 		} else if IsStringInList(d.Configuration.LoaderConfiguration.ClientTraining, []string{common.ServerfulOptimus}) {
 
@@ -311,7 +309,7 @@ func (d *Driver) individualFunctionDriver(function *common.Function, functions [
 				Deadline:   function.DeadlineStats.Invocations[numberOfIssuedInvocations-1],
 			}
 			invoked_function := function
-			if IsStringInList(d.Configuration.LoaderConfiguration.ClientTraining, []string{common.Batch, common.BatchPriority, common.PipelineBatchPriority, common.GradientAccumulation}) {
+			if IsStringInList(d.Configuration.LoaderConfiguration.ClientTraining, []string{common.ServerfulOptimus}) {
 				invoked_function = functions[numberOfIssuedInvocations%common.ServerfulCopyReplicas]
 			}
 			go d.invokeFunction(&InvocationMetadata{
@@ -534,7 +532,6 @@ func (d *Driver) createGlobalMetricsCollector(filename string, joblogfilename st
 			jobrecords <- record
 			currentlyLogWritten++
 		}
-		fmt.Println("currentlyWritten, currentlyLogWritten, totalNumberOfInvocations", currentlyWritten, currentlyLogWritten, totalNumberOfInvocations)
 		if currentlyWritten == totalNumberOfInvocations && currentlyLogWritten == totalNumberOfInvocations {
 			close(records)
 			close(jobrecords)
@@ -638,7 +635,7 @@ func (d *Driver) internalRun(iatOnly bool, generated bool) {
 		for _, function := range d.Configuration.Functions {
 			allIndividualDriversCompleted.Add(1)
 			fmt.Printf("invoke function %v, length of prompt functions %v\n", function, len(d.Configuration.PromptFunctions))
-			if IsStringInList(d.Configuration.LoaderConfiguration.ClientTraining, []string{common.Batch, common.BatchPriority, common.PipelineBatchPriority, common.GradientAccumulation, common.Multi}) {
+			if IsStringInList(d.Configuration.LoaderConfiguration.ClientTraining, []string{common.Caerus, common.BatchPriority, common.PipelineBatchPriority, common.Knative, common.Multi}) {
 				go d.individualFunctionDriver(
 					function,
 					d.Configuration.Functions,
@@ -650,7 +647,7 @@ func (d *Driver) internalRun(iatOnly bool, generated bool) {
 					globalMetricsCollector,
 					joblogMetricsCollector,
 				)
-			} else if IsStringInList(d.Configuration.LoaderConfiguration.ClientTraining, []string{common.HiveD, common.HiveDElastic, common.Elastic}) {
+			} else if IsStringInList(d.Configuration.LoaderConfiguration.ClientTraining, []string{common.HiveD, common.INFless, common.Elastic}) {
 				key_prefix := strings.Split(function.Name, "-gpu-")[0]
 				filter_functions := FilterByKey(d.Configuration.Functions, key_prefix)
 				go d.individualFunctionDriver(

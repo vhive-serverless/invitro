@@ -246,7 +246,7 @@ if True:
     # duration_list = [5]
     
     print(duration_list)
-    method_list = ['perfect', 'elastic'] # ['perfect', 'batch', 'elastic'] # , 'batch']
+    method_list = ['perfect', 'elastic', 'batch', 'gradient_accumulation'] # ['perfect', 'batch', 'elastic'] # , 'batch']
     # method_list = ['perfect', 'elastic']
     
     
@@ -289,6 +289,7 @@ if True:
                 
                 method_ident = method if method != 'perfect' else method_list[-1] # 'batch'
                 csv_name = os.path.join(root, 'data', 'out', f'real-multi-experiment-jobload-{jobload}_duration_{duration}_ClientTraining_{method_ident}.csv')
+                print(csv_name)
                 df = pd.read_csv(csv_name)
                 # print(method)
                 # print(sorted(df.deadline.tolist()))

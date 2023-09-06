@@ -128,9 +128,9 @@ func runTraceMode(cfg *config.LoaderConfiguration, iatOnly bool, generated bool)
 	traceParser := trace.NewAzureParser(cfg.TracePath, durationToParse)
 	functions := traceParser.Parse()
 
-	if driver.IsStringInList(cfg.ClientTraining, []string{common.Multi, common.HiveD, common.HiveDElastic, common.Elastic}) {
+	if driver.IsStringInList(cfg.ClientTraining, []string{common.Multi, common.HiveD, common.INFless, common.Elastic}) {
 		functions = shadowFunctions(functions)
-	} else if driver.IsStringInList(cfg.ClientTraining, []string{common.Batch, common.BatchPriority, common.PipelineBatchPriority, common.GradientAccumulation}) {
+	} else if driver.IsStringInList(cfg.ClientTraining, []string{common.Caerus, common.BatchPriority, common.PipelineBatchPriority, common.Knative}) {
 
 	} else if driver.IsStringInList(cfg.ClientTraining, []string{common.ServerfulOptimus}) {
 		functions = serverfulFunctions(functions)

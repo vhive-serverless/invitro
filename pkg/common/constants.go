@@ -70,14 +70,14 @@ const (
 )
 
 const (
-	GradientAccumulation  string = "gradient_accumulation"
+	Knative               string = "knative"
 	Multi                 string = "multi"
-	Batch                 string = "batch"
+	Caerus                string = "caerus"
 	Elastic               string = "elastic"
 	BatchPriority         string = "batch_priority"
 	PipelineBatchPriority string = "pipeline_batch_priority"
 	HiveD                 string = "hived"
-	HiveDElastic          string = "hived_elastic"
+	INFless               string = "infless"
 	ServerfulOptimus      string = "optimus"
 )
 

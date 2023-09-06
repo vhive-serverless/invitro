@@ -4,33 +4,24 @@ clean_env() {
     sleep 120 
 }
 
-for duration in 5 10 20 # 5 10 20 # 5 # 10 20 # 20 # 20 30 # 10 # 5 10 # 20 # 30 40 60 80 120 150 240 # 10 20 30 40 60 # 80 120 150 240
+for duration in 1 5 10 20 # 5 10 20 # 5 # 10 20 # 20 # 20 30 # 10 # 5 10 # 20 # 30 40 60 80 120 150 240 # 10 20 30 40 60 # 80 120 150 240
 do
     for load in 0.3 0.5 0.7 # 0.3 0.5 0.7 0.9 #  0.3 0.4 0.5 0.6 0.7 0.8 
     do 
-        # rm log/hived_elastic_log_$duration.txt
-        # go run cmd/loader.go --config cmd/real_configs/config_client_hived_elastic_real-${load}.json  \
-        #                     --overwrite_duration ${duration} 2>&1 | tee -a log/hived_elastic_log_${duration}_${load}.txt
-        # clean_env "$@"
+        # TODO: (1) elastic -> our proposed elastic and preemptive scheduler 
+        # TODO: (2) infless -> infless with slo support 
+        # TODO: (3) caerus  -> caerus aims for JCT and cost optimal 
+        # TODO: (4) knative -> for single GPU execution with long duration 
+        # TODO: (5) optimus -> serverful elastic schedulers 
+
+        for method in elastic infless caerus knative optimus 
+        do 
+            rm log/${method}_log_$duration.txt
+            go run cmd/loader.go --config cmd/real_configs/config_client_${method}_real-${load}.json  \
+                                --overwrite_duration ${duration} 2>&1 | tee -a log/${method}_log_${duration}_${load}.txt
+            clean_env "$@"
+        done 
+
         
-        rm log/elastic_log_${duration}_${load}.txt
-        go run cmd/loader.go --config cmd/real_configs/config_client_elastic_real-${load}.json  \
-                            --overwrite_duration ${duration} 2>&1 | tee -a log/elastic_log_${duration}_${load}.txt
-        clean_env "$@"
-
-        # go run cmd/loader.go --config cmd/real_configs/config_client_batch_real-${load}.json  \
-        #                     --overwrite_duration ${duration} # 2>&1 | tee -a log/batch_log_${duration}_${load}.txt
-        # clean_env "$@"
-
-        rm log/gradient_accumulation_log_${duration}_${load}.txt
-        go run cmd/loader.go --config cmd/real_configs/config_client_gradient_accumulation_real-${load}.json  \
-                            --overwrite_duration ${duration} 2>&1 | tee -a log/gradient_accumulation_log_${duration}_${load}.txt
-        clean_env "$@"
-
-        rm log/optimus_log_${duration}_${load}.txt
-        go run cmd/loader.go --config cmd/real_configs/config_client_optimus_real-${load}.json  \
-                            --overwrite_duration ${duration} 2>&1 | tee -a log/optimus_log_${duration}_${load}.txt
-        clean_env "$@"
-        # exit 
     done 
 done 

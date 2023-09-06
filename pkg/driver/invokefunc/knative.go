@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/eth-easl/loader/pkg/common"
@@ -23,7 +22,7 @@ import (
 	mc "github.com/eth-easl/loader/pkg/metric"
 )
 
-func CaerusInvoke(function *common.Function, promptFunctions []*common.Function, runtimeSpec *common.RuntimeSpecification, cfg *config.LoaderConfiguration, invocationID string) (bool, *mc.ExecutionRecord, *mc.JobExecutionRecord) {
+func KnativeInvoke(function *common.Function, promptFunctions []*common.Function, runtimeSpec *common.RuntimeSpecification, cfg *config.LoaderConfiguration, invocationID string) (bool, *mc.ExecutionRecord, *mc.JobExecutionRecord) {
 	log.Tracef("(Invoke)\t %s: %d[ms], %d[MiB]", function.Name, runtimeSpec.Runtime, runtimeSpec.Memory)
 
 	record := &mc.ExecutionRecord{
@@ -50,7 +49,17 @@ func CaerusInvoke(function *common.Function, promptFunctions []*common.Function,
 	record.StartTime = start.UnixMicro()
 
 	initPromptTensor := make([]float32, 128*common.EmbedingDim)
+	iterationScale := float32(1.0)
 	trainingIterations := runtimeSpec.Stats.Iterations
+	if cfg.WithPromptBank {
+		initPromptTensor, iterationScale = PromptBankInvoke(
+			promptFunctions,
+			runtimeSpec,
+			cfg,
+			invocationID,
+		)
+		trainingIterations = int(float32(trainingIterations) * iterationScale)
+	}
 
 	dialContext, cancelDialing := context.WithTimeout(context.Background(), time.Duration(cfg.GRPCConnectionTimeoutSeconds)*time.Second)
 	defer cancelDialing()
@@ -94,9 +103,6 @@ func CaerusInvoke(function *common.Function, promptFunctions []*common.Function,
 
 	responses := make([]proto.FaasReply, 32)
 
-	// create a wait group to wait for all goroutines to finish
-	var wg sync.WaitGroup
-
 	// create grpc clients
 	grpcClients := make([]proto.ExecutorClient, minReplicas)
 	for replicaID := 0; replicaID < minReplicas; replicaID++ {
@@ -107,7 +113,6 @@ func CaerusInvoke(function *common.Function, promptFunctions []*common.Function,
 
 	send_messages := prepareMessages("Can you condense the sentence into a shorter version without losing its meaning?", 100)
 	iteration_per_call := trainingIterations
-
 	log.Debugf("deadline is %d [ms]", runtimeSpec.Stats.Deadline)
 	// iterate over the function iterations
 	curIter := 0
@@ -116,54 +121,31 @@ func CaerusInvoke(function *common.Function, promptFunctions []*common.Function,
 	onemore:
 		md.Set("cur", time.Now().Format("2006-01-02 15:04:05.999"))
 		// create a channel to wait for all function invocations to finish
-		doneChan := make(chan struct{})
 		if curIter%100 == 0 {
 			log.Infof("Function: %s \t exuecte [%d/%d] \t replica [%d] \n", invocationID, curIter, runtimeSpec.Stats.Iterations, minReplicas)
 		}
-		// cur iteration for promput tuning priority
-		// md.Set("RIter", strconv.Itoa(runtimeSpec.Stats.Iterations-curIter))
-
 		errorOrNot := false
 		errorMessage := ""
-		// iterate over the minimum replicas
-		for replicaID := 0; replicaID < minReplicas; replicaID++ {
-			// add one to the wait group
-			wg.Add(1)
-			// execute the function asynchronously
-			go func(replicaID int) {
-				defer wg.Done()
-				// execute the function and store the response
-				response, err := grpcClients[replicaID].Execute(executionCxt, &proto.FaasRequest{
-					Message:              send_messages,
-					Batchsize:            uint32(common.BszPerDevice),
-					RuntimeInMilliSec:    uint32(runtimeSpec.Runtime * iteration_per_call), // ms
-					GpuMemoryInMebiBytes: 123,
-					PromptTensor:         promptTensor,
-				})
-				if err != nil {
-					errorOrNot = errorOrNot || true
-					errorMessage = fmt.Sprintf("Error executing function: %v for replicaID %d\n", err, replicaID)
-					return
-				}
-
-				// store the response in the slice
-				responses[replicaID] = *response
-			}(replicaID)
+		response, err := grpcClients[0].Execute(executionCxt, &proto.FaasRequest{
+			Message:              send_messages,
+			Batchsize:            uint32(common.BszPerDevice),
+			RuntimeInMilliSec:    uint32(runtimeSpec.Runtime * iteration_per_call * minReplicas), // ms
+			GpuMemoryInMebiBytes: 123,
+			PromptTensor:         promptTensor,
+		})
+		if err != nil {
+			errorOrNot = errorOrNot || true
+			errorMessage = fmt.Sprintf("Error executing function: %v\n", err)
 		}
 
-		// create a goroutine to wait for all goroutines to finish
-		go func() {
-			wg.Wait()
-			close(doneChan)
-		}()
-		// wait for all function invocations to finish
-		<-doneChan
+		// store the response in the slice
+		responses[0] = *response
 
 		if errorOrNot {
 			cancelExecution()
 			executionCxt, cancelExecution = context.WithTimeout(context.Background(), time.Duration(cfg.GRPCFunctionTimeoutSeconds)*time.Second)
 			executionCxt = metadata.NewOutgoingContext(executionCxt, md)
-			log.Debugf("gRPC timeout exceeded for Caerus scheduler in invocationID %s - %s", invocationID, errorMessage)
+			log.Debugf("gRPC timeout exceeded for batch scheduler in invocationID %s - %s", invocationID, errorMessage)
 			time.Sleep(time.Second * 10)
 			record.ConnectionTimeout = true
 			goto onemore
@@ -202,8 +184,7 @@ func CaerusInvoke(function *common.Function, promptFunctions []*common.Function,
 	record.BatchSize = runtimeSpec.Stats.BatchSize
 	record.Iterations = runtimeSpec.Stats.Iterations
 	record.ActualDuration = ActualDuration // ActualDuration is MicroSec
-	log.Debugf("gRPC requested duration %d [ms], actual duration per iteration %d [ms], iteration %d", runtimeSpec.Runtime, int(ActualDuration)/runtimeSpec.Stats.Iterations/1000, runtimeSpec.Stats.Iterations)
-
+	log.Debugf("Knative gRPC requested duration %d [ms], actual duration per iteration %d [ms], iteration %d", runtimeSpec.Runtime, int(ActualDuration)/runtimeSpec.Stats.Iterations/1000, runtimeSpec.Stats.Iterations)
 	if strings.HasPrefix(responses[0].GetMessage(), "FAILURE - mem_alloc") {
 		record.MemoryAllocationTimeout = true
 	} else {

@@ -40,11 +40,9 @@ func min(nums ...int) int {
 func DeployFunctions(loaderConfiguration *config.LoaderConfiguration, functions []*common.Function, yamlPath string, isPartiallyPanic bool, endpointPort int,
 	autoscalingMetric string) {
 	for i := 0; i < len(functions); i++ {
-		if IsStringInList(loaderConfiguration.ClientTraining, []string{common.Batch, common.BatchPriority, common.PipelineBatchPriority, common.GradientAccumulation, common.ServerfulOptimus}) {
+		if IsStringInList(loaderConfiguration.ClientTraining, []string{common.Caerus, common.BatchPriority, common.PipelineBatchPriority, common.Knative, common.ServerfulOptimus}) {
 			deployOne(functions[i], yamlPath, isPartiallyPanic, endpointPort, autoscalingMetric)
-		} else if IsStringInList(loaderConfiguration.ClientTraining, []string{common.Multi, common.HiveD, common.HiveDElastic, common.Elastic}) {
-			// loaderConfiguration.ClientTraining == common.Single || loaderConfiguration.ClientTraining == common.HiveD {
-
+		} else if IsStringInList(loaderConfiguration.ClientTraining, []string{common.Multi, common.HiveD, common.INFless, common.Elastic}) {
 			parts := strings.Split(functions[i].Name, "-")
 			gpuCount, err := strconv.Atoi(parts[len(parts)-1])
 			if err == nil {
@@ -188,7 +186,7 @@ func DeployPromptFunctions(loaderConfiguration *config.LoaderConfiguration, func
 		copy.Name = fmt.Sprintf("promptbank-%s", functions[i].Name)
 		promptFunctions[i] = &copy
 
-		if IsStringInList(loaderConfiguration.ClientTraining, []string{common.Batch, common.BatchPriority, common.PipelineBatchPriority}) {
+		if IsStringInList(loaderConfiguration.ClientTraining, []string{common.Caerus, common.BatchPriority, common.PipelineBatchPriority}) {
 			deployPromptBankOne(promptFunctions[i], loaderConfiguration.PromptYamlPath, isPartiallyPanic, endpointPort, autoscalingMetric)
 		} else {
 			log.Errorf("Invalid client_training value: %s", loaderConfiguration.ClientTraining)
