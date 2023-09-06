@@ -3,16 +3,17 @@ package standard
 import (
 	"context"
 	"fmt"
+	"net"
+	"os"
+	"strconv"
+	"time"
+
 	tracing "github.com/ease-lab/vhive/utils/tracing/go"
 	util "github.com/eth-easl/loader/pkg/common"
 	"github.com/eth-easl/loader/pkg/workload/proto"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
-	"net"
-	"os"
-	"strconv"
-	"time"
 )
 
 // static double SQRTSD (double x) {
@@ -65,6 +66,17 @@ func (s *funcServer) Execute(_ context.Context, req *proto.FaasRequest) (*proto.
 	var msg string
 	start := time.Now()
 
+	f, err := os.Create("/users/Mihajlo/loader/test.txt")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	_, err = f.WriteString(hostname + "\n")
+	if err != nil {
+		log.Fatal(err)
+	}
+	f.Sync()
+
 	if serverSideCode == TraceFunction {
 		// Minimum execution time is AWS billing granularity - 1ms,
 		// as defined in SpecificationGenerator::generateExecutionSpecs
@@ -87,10 +99,10 @@ func (s *funcServer) Execute(_ context.Context, req *proto.FaasRequest) (*proto.
 				busySpin(timeLeftMilliseconds)
 			}
 
-			msg = fmt.Sprintf("OK - %s", hostname)
+			msg = fmt.Sprintf("OK asdf- %s", hostname)
 		}
 	} else {
-		msg = fmt.Sprintf("OK - EMPTY - %s", hostname)
+		msg = fmt.Sprintf("OK - EMPTY asdf- %s", hostname)
 	}
 
 	return &proto.FaasReply{

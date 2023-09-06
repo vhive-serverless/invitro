@@ -6,11 +6,11 @@
   "YAMLSelector": "container",
   "EndpointPort": 80,
 
-  "TracePath": "data/traces/example",
+  "TracePath": "data/traces/4func_ms_5.50rps",
   "Granularity": "minute",
   "OutputPathPrefix": "data/out/experiment",
   "IATDistribution": "exponential",
-  "ExperimentDuration": 45,
+  "ExperimentDuration": 15,
   "WarmupDuration": 0,
 
   "IsPartiallyPanic": false,

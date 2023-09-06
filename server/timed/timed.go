@@ -4,12 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	util "github.com/eth-easl/loader/pkg/common"
-	"github.com/eth-easl/loader/pkg/workload/proto"
 	"net"
 	"os"
+	"os/exec"
 	"strconv"
 	"time"
+
+	util "github.com/eth-easl/loader/pkg/common"
+	"github.com/eth-easl/loader/pkg/workload/proto"
 
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
@@ -45,6 +47,7 @@ func (s *funcServer) Execute(ctx context.Context, req *proto.FaasRequest) (*prot
 		//* Some of the durations were incorrectly recorded as 0 in the trace.
 		return &proto.FaasReply{}, errors.New("non-positive execution time")
 	}
+
 
 	//* To avoid unecessary overheads, memory allocation is at the granularity of os pages.
 	delta := 2 //* Emperical skewness.
