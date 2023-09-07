@@ -61,8 +61,8 @@ trace-container:
 	docker build --build-arg FUNC_TYPE=TRACE \
 		--build-arg FUNC_PORT=80 \
 		-f Dockerfile.trace \
-		-t cvetkovic/trace_function .
-	docker push cvetkovic/trace_function:latest
+		-t lightxyz/trace_function .
+	docker push lightxyz/trace_function:latest
 
 # Used for measuring cold start latency
 empty-firecracker:
