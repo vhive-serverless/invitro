@@ -66,17 +66,6 @@ func (s *funcServer) Execute(_ context.Context, req *proto.FaasRequest) (*proto.
 	var msg string
 	start := time.Now()
 
-	f, err := os.Create("/users/Mihajlo/loader/test.txt")
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	_, err = f.WriteString(hostname + "\n")
-	if err != nil {
-		log.Fatal(err)
-	}
-	f.Sync()
-
 	if serverSideCode == TraceFunction {
 		// Minimum execution time is AWS billing granularity - 1ms,
 		// as defined in SpecificationGenerator::generateExecutionSpecs
