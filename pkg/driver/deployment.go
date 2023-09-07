@@ -47,7 +47,7 @@ func deployOne(function *common.Function, yamlPath string, isPartiallyPanic bool
 	var cpuLimit int
 	if CPUScheduler == "memory" {
 		cpuRequest = function.CPURequestsMilli
-		cpuLimit = function.CPULimitsMilli
+		cpuLimit = 1000
 	} else if CPUScheduler == "runtime" {
 		var cpu float64
 		switch runtime := function.RuntimeStats.Average; {
