@@ -12,6 +12,7 @@
  "EnableZipkinTracing": false,
  "EnableMetricsScrapping": false,
  "AutoscalingMetric": "concurrency",
+ "CPUScheduler": "memory",
  "MetricScrapingPeriodSeconds": 60,
  "GRPCConnectionTimeoutSeconds": 60,
  "GRPCFunctionTimeoutSeconds": 900

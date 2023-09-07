@@ -35,6 +35,8 @@ type LoaderConfiguration struct {
 	MetricScrapingPeriodSeconds int    `json:"MetricScrapingPeriodSeconds"`
 	AutoscalingMetric           string `json:"AutoscalingMetric"`
 
+	CPUScheduler string `json:"CPUScheduler"`
+
 	GRPCConnectionTimeoutSeconds int `json:"GRPCConnectionTimeoutSeconds"`
 	GRPCFunctionTimeoutSeconds   int `json:"GRPCFunctionTimeoutSeconds"`
 }
@@ -69,6 +71,7 @@ type Driver struct {
 	SeparateIATGeneration       bool   `json:"separateIATGeneration"`
 	AutoscalingMetric           string `json:"AutoscalingMetric"`
 	Granularity                 string `json:"Granularity"`
+	CPUScheduler                string `json:"CPUScheduler`
 	loaderConfig                loaderConfig
 }
 
@@ -169,6 +172,8 @@ func (d *Driver) createLoaderConfig(functionNumber int) loaderConfig {
 		EnableMetricsScrapping:      d.EnableMetricsScrapping,
 		MetricScrapingPeriodSeconds: d.MetricScrapingPeriodSeconds,
 		AutoscalingMetric:           d.AutoscalingMetric,
+
+		CPUScheduler: d.CPUScheduler,
 
 		GRPCConnectionTimeoutSeconds: 60,
 		GRPCFunctionTimeoutSeconds:   900,

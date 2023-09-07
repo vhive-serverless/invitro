@@ -23,14 +23,14 @@ var (
 )
 
 func DeployFunctionsKnative(functions []*common.Function, yamlPath string, isPartiallyPanic bool, endpointPort int,
-	autoscalingMetric string) {
+	autoscalingMetric string, CPUScheduler string) {
 	for i := 0; i < len(functions); i++ {
-		deployOne(functions[i], yamlPath, isPartiallyPanic, endpointPort, autoscalingMetric)
+		deployOne(functions[i], yamlPath, isPartiallyPanic, endpointPort, autoscalingMetric, CPUScheduler)
 	}
 }
 
 func deployOne(function *common.Function, yamlPath string, isPartiallyPanic bool, endpointPort int,
-	autoscalingMetric string) bool {
+	autoscalingMetric string, CPUScheduler string) bool {
 	panicWindow := "\"10.0\""
 	panicThreshold := "\"200.0\""
 	if isPartiallyPanic {
@@ -43,6 +43,33 @@ func deployOne(function *common.Function, yamlPath string, isPartiallyPanic bool
 		// for rps mode use the average runtime in milliseconds to determine how many requests a pod can process per
 		// second, then round to an integer as that is what the knative config expects
 	}
+	var cpuRequest int
+	var cpuLimit int
+	if CPUScheduler == "memory" {
+		cpuRequest = function.CPURequestsMilli
+		cpuLimit = function.CPULimitsMilli
+	} else if CPUScheduler == "runtime" {
+		var cpu float64
+		switch runtime := function.RuntimeStats.Average; {
+		case runtime < 100:
+			cpu = 1
+		case runtime < 300:
+			cpu = 0.9
+		case runtime < 500:
+			cpu = 0.8
+		case runtime < 750:
+			cpu = 0.7
+		case runtime < 1000:
+			cpu = 0.6
+		default:
+			cpu = 0.5
+		}
+		cpuRequest = int(cpu * 1000)
+		cpuLimit = 1000
+	} else {
+		cpuRequest = 100
+		cpuLimit = 1000
+	}
 
 	cmd := exec.Command(
 		"bash",
@@ -50,8 +77,8 @@ func deployOne(function *common.Function, yamlPath string, isPartiallyPanic bool
 		yamlPath,
 		function.Name,
 
-		strconv.Itoa(function.CPURequestsMilli)+"m",
-		strconv.Itoa(function.CPULimitsMilli)+"m",
+		strconv.Itoa(cpuRequest)+"m",
+		strconv.Itoa(cpuLimit)+"m",
 		strconv.Itoa(function.MemoryRequestsMiB)+"Mi",
 		strconv.Itoa(function.InitialScale),
 

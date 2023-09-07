@@ -31,6 +31,8 @@ var loaderCfg = loaderConfig{
 		EnableMetricsScrapping:      false,
 		MetricScrapingPeriodSeconds: 60,
 
+		CPUScheduler: "memory",
+
 		GRPCConnectionTimeoutSeconds: 60,
 		GRPCFunctionTimeoutSeconds:   900,
 	},
@@ -57,6 +59,7 @@ var testDriver = Driver{
 	PartiallyPanic:         false,
 	EnableZipkinTracing:    false,
 	EnableMetricsScrapping: false,
+	CPUScheduler:           "memory",
 	AutoscalingMetric:      "concurrency",
 	SeparateIATGeneration:  false,
 	loaderConfig:           loaderCfg,

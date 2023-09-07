@@ -606,7 +606,8 @@ func (d *Driver) RunExperiment(iatOnly bool, generated bool) {
 			d.Configuration.YAMLPath,
 			d.Configuration.LoaderConfiguration.IsPartiallyPanic,
 			d.Configuration.LoaderConfiguration.EndpointPort,
-			d.Configuration.LoaderConfiguration.AutoscalingMetric)
+			d.Configuration.LoaderConfiguration.AutoscalingMetric,
+			d.Configuration.LoaderConfiguration.CPUScheduler)
 	} else if d.Configuration.LoaderConfiguration.Platform == "OpenWhisk" {
 		DeployFunctionsOpenWhisk(d.Configuration.Functions)
 	}

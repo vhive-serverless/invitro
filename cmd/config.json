@@ -8,7 +8,7 @@
 
   "TracePath": "data/traces/4func_ms_5.50rps",
   "Granularity": "minute",
-  "OutputPathPrefix": "data/out/experiment",
+  "OutputPathPrefix": "data/out/runtime",
   "IATDistribution": "exponential",
   "ExperimentDuration": 15,
   "WarmupDuration": 0,
@@ -18,6 +18,8 @@
   "EnableMetricsScrapping": false,
   "MetricScrapingPeriodSeconds": 15,
   "AutoscalingMetric": "concurrency",
+
+  "CPUScheduler": "runtime",
 
   "GRPCConnectionTimeoutSeconds": 60,
   "GRPCFunctionTimeoutSeconds": 900

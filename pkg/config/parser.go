@@ -28,6 +28,8 @@ type LoaderConfiguration struct {
 	MetricScrapingPeriodSeconds int    `json:"MetricScrapingPeriodSeconds"`
 	AutoscalingMetric           string `json:"AutoscalingMetric"`
 
+	CPUScheduler string `json:"CPUScheduler`
+
 	GRPCConnectionTimeoutSeconds int `json:"GRPCConnectionTimeoutSeconds"`
 	GRPCFunctionTimeoutSeconds   int `json:"GRPCFunctionTimeoutSeconds"`
 }
