@@ -88,10 +88,10 @@ func (s *funcServer) Execute(_ context.Context, req *proto.FaasRequest) (*proto.
 				busySpin(timeLeftMilliseconds)
 			}
 
-			msg = fmt.Sprintf("OK asdf- %s", hostname)
+			msg = fmt.Sprintf("OK - %s", hostname)
 		}
 	} else {
-		msg = fmt.Sprintf("OK - EMPTY asdf- %s", hostname)
+		msg = fmt.Sprintf("OK - EMPTY - %s", hostname)
 	}
 
 	return &proto.FaasReply{
