@@ -1,3 +1,27 @@
+/*
+ * MIT License
+ *
+ * Copyright (c) 2023 EASL and the vHive community
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
+
 package driver
 
 import (
@@ -139,9 +163,9 @@ type InvocationMetadata struct {
 	MinuteIndex     int
 	InvocationIndex int
 
-	SuccessCount           *int64
-	FailedCount            *int64
-	FailedCountByMinute    []int64
+	SuccessCount        *int64
+	FailedCount         *int64
+	FailedCountByMinute []int64
 
 	RecordOutputChannel chan *mc.ExecutionRecord
 	AnnounceDoneWG      *sync.WaitGroup
@@ -235,16 +259,16 @@ func (d *Driver) individualFunctionDriver(function *common.Function, announceFun
 			waitForInvocations.Add(1)
 
 			go d.invokeFunction(&InvocationMetadata{
-				Function:               function,
-				RuntimeSpecifications:  &runtimeSpecification[minuteIndex][invocationIndex],
-				Phase:                  currentPhase,
-				MinuteIndex:            minuteIndex,
-				InvocationIndex:        invocationIndex,
-				SuccessCount:           &successfulInvocations,
-				FailedCount:            &failedInvocations,
-				FailedCountByMinute:    failedInvocationByMinute,
-				RecordOutputChannel:    recordOutputChannel,
-				AnnounceDoneWG:         &waitForInvocations,
+				Function:              function,
+				RuntimeSpecifications: &runtimeSpecification[minuteIndex][invocationIndex],
+				Phase:                 currentPhase,
+				MinuteIndex:           minuteIndex,
+				InvocationIndex:       invocationIndex,
+				SuccessCount:          &successfulInvocations,
+				FailedCount:           &failedInvocations,
+				FailedCountByMinute:   failedInvocationByMinute,
+				RecordOutputChannel:   recordOutputChannel,
+				AnnounceDoneWG:        &waitForInvocations,
 			})
 		} else {
 			// To be used from within the Golang testing framework
