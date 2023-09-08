@@ -29,9 +29,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/eth-easl/loader/pkg/common"
-	"github.com/eth-easl/loader/pkg/config"
-	"github.com/eth-easl/loader/pkg/workload/proto"
+	"github.com/vhive-serverless/loader/pkg/common"
+	"github.com/vhive-serverless/loader/pkg/config"
+	"github.com/vhive-serverless/loader/pkg/workload/proto"
 
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
@@ -39,7 +39,7 @@ import (
 
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 
-	mc "github.com/eth-easl/loader/pkg/metric"
+	mc "github.com/vhive-serverless/loader/pkg/metric"
 )
 
 func Invoke(function *common.Function, runtimeSpec *common.RuntimeSpecification, cfg *config.LoaderConfiguration) (bool, *mc.ExecutionRecord) {

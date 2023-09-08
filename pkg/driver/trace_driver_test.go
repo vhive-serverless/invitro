@@ -32,11 +32,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eth-easl/loader/pkg/common"
-	"github.com/eth-easl/loader/pkg/metric"
-	"github.com/eth-easl/loader/pkg/workload/standard"
 	"github.com/gocarina/gocsv"
 	"github.com/sirupsen/logrus"
+	"github.com/vhive-serverless/loader/pkg/common"
+	"github.com/vhive-serverless/loader/pkg/metric"
+	"github.com/vhive-serverless/loader/pkg/workload/standard"
 )
 
 func createTestDriver() *Driver {

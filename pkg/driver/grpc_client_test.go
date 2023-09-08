@@ -30,10 +30,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eth-easl/loader/pkg/common"
-	"github.com/eth-easl/loader/pkg/config"
-	"github.com/eth-easl/loader/pkg/workload/standard"
 	"github.com/sirupsen/logrus"
+	"github.com/vhive-serverless/loader/pkg/common"
+	"github.com/vhive-serverless/loader/pkg/config"
+	"github.com/vhive-serverless/loader/pkg/workload/standard"
 )
 
 func createFakeLoaderConfiguration() *config.LoaderConfiguration {

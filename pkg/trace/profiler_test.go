@@ -25,7 +25,7 @@
 package trace
 
 import (
-	"github.com/eth-easl/loader/pkg/common"
+	"github.com/vhive-serverless/loader/pkg/common"
 	"testing"
 )
 

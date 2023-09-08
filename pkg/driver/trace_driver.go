@@ -36,13 +36,13 @@ import (
 
 	"strconv"
 
-	"github.com/eth-easl/loader/pkg/common"
-	"github.com/eth-easl/loader/pkg/config"
-	"github.com/eth-easl/loader/pkg/generator"
-	mc "github.com/eth-easl/loader/pkg/metric"
-	"github.com/eth-easl/loader/pkg/trace"
 	"github.com/gocarina/gocsv"
 	log "github.com/sirupsen/logrus"
+	"github.com/vhive-serverless/loader/pkg/common"
+	"github.com/vhive-serverless/loader/pkg/config"
+	"github.com/vhive-serverless/loader/pkg/generator"
+	mc "github.com/vhive-serverless/loader/pkg/metric"
+	"github.com/vhive-serverless/loader/pkg/trace"
 )
 
 type DriverConfiguration struct {

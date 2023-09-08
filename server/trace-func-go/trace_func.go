@@ -26,8 +26,8 @@ package main
 
 import (
 	"flag"
-	"github.com/eth-easl/loader/pkg/workload/standard"
 	log "github.com/sirupsen/logrus"
+	"github.com/vhive-serverless/loader/pkg/workload/standard"
 	"os"
 	"strconv"
 )

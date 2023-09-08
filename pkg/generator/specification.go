@@ -27,8 +27,8 @@ package generator
 import (
 	"math/rand"
 
-	"github.com/eth-easl/loader/pkg/common"
 	log "github.com/sirupsen/logrus"
+	"github.com/vhive-serverless/loader/pkg/common"
 )
 
 type SpecificationGenerator struct {

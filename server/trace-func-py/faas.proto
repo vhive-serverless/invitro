@@ -6,7 +6,7 @@
 */
 syntax = "proto3";
 
-option go_package = "github.com/eth-easl/loader/pkg/faas";
+option go_package = "github.com/vhive-serverless/loader/pkg/faas";
 
 package faasfunction;
 

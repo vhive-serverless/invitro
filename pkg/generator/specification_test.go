@@ -32,8 +32,8 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/eth-easl/loader/pkg/common"
 	log "github.com/sirupsen/logrus"
+	"github.com/vhive-serverless/loader/pkg/common"
 )
 
 var testFunction = common.Function{
