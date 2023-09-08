@@ -9,7 +9,7 @@ require (
 	github.com/sfreiberg/simplessh v0.0.0-20220719182921-185eafd40485
 	github.com/sirupsen/logrus v1.9.0
 	golang.org/x/sys v0.9.0
-	gonum.org/v1/gonum v0.13.0
+	gonum.org/v1/gonum v0.14.0
 	gonum.org/v1/plot v0.13.0
 	google.golang.org/grpc v1.56.1
 )
