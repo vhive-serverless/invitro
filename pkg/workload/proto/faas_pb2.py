@@ -40,9 +40,9 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   name='server/faas.proto',
   package='faas',
   syntax='proto3',
-  serialized_options=b'Z!github.com/eth-easl/loader/server',
+  serialized_options=b'Z!github.com/vhive-serverless/loader/server',
   create_key=_descriptor._internal_create_key,
-  serialized_pb=b'\n\x11server/faas.proto\x12\x04\x66\x61\x61s\"T\n\x0b\x46\x61\x61sRequest\x12\x0f\n\x07message\x18\x01 \x01(\t\x12\x19\n\x11runtimeInMilliSec\x18\x02 \x01(\r\x12\x19\n\x11memoryInMebiBytes\x18\x03 \x01(\r\"Q\n\tFaasReply\x12\x0f\n\x07message\x18\x01 \x01(\t\x12\x1a\n\x12\x64urationInMicroSec\x18\x02 \x01(\r\x12\x17\n\x0fmemoryUsageInKb\x18\x03 \x01(\r2;\n\x08\x45xecutor\x12/\n\x07\x45xecute\x12\x11.faas.FaasRequest\x1a\x0f.faas.FaasReply\"\x00\x42#Z!github.com/eth-easl/loader/serverb\x06proto3'
+  serialized_pb=b'\n\x11server/faas.proto\x12\x04\x66\x61\x61s\"T\n\x0b\x46\x61\x61sRequest\x12\x0f\n\x07message\x18\x01 \x01(\t\x12\x19\n\x11runtimeInMilliSec\x18\x02 \x01(\r\x12\x19\n\x11memoryInMebiBytes\x18\x03 \x01(\r\"Q\n\tFaasReply\x12\x0f\n\x07message\x18\x01 \x01(\t\x12\x1a\n\x12\x64urationInMicroSec\x18\x02 \x01(\r\x12\x17\n\x0fmemoryUsageInKb\x18\x03 \x01(\r2;\n\x08\x45xecutor\x12/\n\x07\x45xecute\x12\x11.faas.FaasRequest\x1a\x0f.faas.FaasReply\"\x00\x42#Z!github.com/vhive-serverless/loader/serverb\x06proto3'
 )
 
 

@@ -1,4 +1,4 @@
-module github.com/eth-easl/loader
+module github.com/vhive-serverless/loader
 
 go 1.19
 

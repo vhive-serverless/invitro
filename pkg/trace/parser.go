@@ -27,8 +27,8 @@ package trace
 import (
 	"encoding/csv"
 	"fmt"
-	"github.com/eth-easl/loader/pkg/common"
 	"github.com/gocarina/gocsv"
+	"github.com/vhive-serverless/loader/pkg/common"
 	"io"
 	"math/rand"
 	"os"

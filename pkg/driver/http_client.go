@@ -34,10 +34,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/eth-easl/loader/pkg/common"
-	"github.com/eth-easl/loader/pkg/config"
-	mc "github.com/eth-easl/loader/pkg/metric"
 	log "github.com/sirupsen/logrus"
+	"github.com/vhive-serverless/loader/pkg/common"
+	"github.com/vhive-serverless/loader/pkg/config"
+	mc "github.com/vhive-serverless/loader/pkg/metric"
 )
 
 type ActivationMetadata struct {

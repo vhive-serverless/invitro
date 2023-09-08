@@ -46,9 +46,9 @@ is then the duration of the measurement phase + the duration of the warmup phase
 "outputDir": The local output directory on the machine running the experiment driver, this is where experiment results
 will be saved.  
 "YAMLSelector": Which yaml specification to use, supported values are 
-"[wimpy](https://github.com/eth-easl/loader/blob/main/workloads/container/wimpy.yaml)", 
-"[container](https://github.com/eth-easl/loader/blob/main/workloads/container/trace_func_go.yaml)" and 
-"[firecracker](https://github.com/eth-easl/loader/blob/main/workloads/firecracker/trace_func_go.yaml)".  
+"[wimpy](https://github.com/vhive-serverless/loader/blob/main/workloads/container/wimpy.yaml)", 
+"[container](https://github.com/vhive-serverless/loader/blob/main/workloads/container/trace_func_go.yaml)" and 
+"[firecracker](https://github.com/vhive-serverless/loader/blob/main/workloads/firecracker/trace_func_go.yaml)".  
 "IATDistribution": The IAT distribution that the loader will use when sending invocations to the worker node(s).
 Supported values are "exponential", "uniform" and "equidistant".  
 "loaderOutputPath": The output path for the experiment results on the loader node.  

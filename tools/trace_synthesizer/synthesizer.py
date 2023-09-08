@@ -56,7 +56,7 @@ def generate(args):
     lenHashes = 64
     sampleCount = 1
     # needs to be > 0 to work with loader implementation on loader_unit_tests branch
-    # see https://github.com/eth-easl/loader/blob/acdcde214d7a08d3603011ec5c9d28885ab3e986/pkg/generator/specification.go#L189
+    # see https://github.com/vhive-serverless/loader/blob/acdcde214d7a08d3603011ec5c9d28885ab3e986/pkg/generator/specification.go#L189
     for i in range(functions):
         hashFunction.append(hash_generator(lenHashes))
         hashOwner.append(hash_generator(lenHashes))

@@ -32,7 +32,7 @@ import (
 	"regexp"
 	"strconv"
 
-	"github.com/eth-easl/loader/pkg/common"
+	"github.com/vhive-serverless/loader/pkg/common"
 
 	log "github.com/sirupsen/logrus"
 )

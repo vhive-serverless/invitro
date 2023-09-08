@@ -28,8 +28,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	util "github.com/eth-easl/loader/pkg/common"
-	"github.com/eth-easl/loader/pkg/workload/proto"
+	util "github.com/vhive-serverless/loader/pkg/common"
+	"github.com/vhive-serverless/loader/pkg/workload/proto"
 	"net"
 	"time"
 

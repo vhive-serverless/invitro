@@ -30,10 +30,10 @@ import (
 	"os"
 	"time"
 
-	"github.com/eth-easl/loader/pkg/common"
-	"github.com/eth-easl/loader/pkg/config"
-	"github.com/eth-easl/loader/pkg/driver"
-	"github.com/eth-easl/loader/pkg/trace"
+	"github.com/vhive-serverless/loader/pkg/common"
+	"github.com/vhive-serverless/loader/pkg/config"
+	"github.com/vhive-serverless/loader/pkg/driver"
+	"github.com/vhive-serverless/loader/pkg/trace"
 
 	log "github.com/sirupsen/logrus"
 
