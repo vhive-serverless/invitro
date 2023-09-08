@@ -255,10 +255,9 @@ func (d *Driver) individualFunctionDriver(function *common.Function, announceFun
 
 	if d.Configuration.WithWarmup() {
 		currentPhase = common.WarmupPhase
-		// skip the first minute because of profiling
-		minuteIndex = 1
+		minuteIndex = 0
 
-		log.Infof("Warmup phase has started.")
+		log.Info("Profiling phase for 1 minute, no downscaling below initial scale.")
 	}
 
 	startOfMinute := time.Now()
@@ -374,6 +373,12 @@ func (d *Driver) proceedToNextMinute(function *common.Function, minuteIndex *int
 	*invocationIndex = 0
 	*previousIATSum = 0
 
+	if d.Configuration.WithWarmup() && *minuteIndex == 1 {
+		log.Info("profiling phase is done, updating deployments to allow downscaling below initial scale.")
+		if d.Configuration.LoaderConfiguration.Platform == "Knative" {
+			UpdateFunctionKnative(function, d.Configuration.YAMLPath, d.Configuration.LoaderConfiguration.EndpointPort)
+		}
+	}
 	if d.Configuration.WithWarmup() && *minuteIndex == (d.Configuration.LoaderConfiguration.WarmupDuration+1) {
 		*currentPhase = common.ExecutionPhase
 		log.Infof("Warmup phase has finished. Starting the execution phase.")

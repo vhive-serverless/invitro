@@ -55,6 +55,7 @@ func DeployFunctionsKnative(functions []*common.Function, yamlPath string, isPar
 
 func deployOne(function *common.Function, yamlPath string, isPartiallyPanic bool, endpointPort int,
 	autoscalingMetric string) bool {
+
 	panicWindow := "\"10.0\""
 	panicThreshold := "\"200.0\""
 	if isPartiallyPanic {
@@ -77,7 +78,7 @@ func deployOne(function *common.Function, yamlPath string, isPartiallyPanic bool
 		strconv.Itoa(function.CPURequestsMilli)+"m",
 		strconv.Itoa(function.CPULimitsMilli)+"m",
 		strconv.Itoa(function.MemoryRequestsMiB)+"Mi",
-		strconv.Itoa(function.InitialScale),
+		"\""+strconv.Itoa(function.InitialScale)+"\"",
 
 		panicWindow,
 		panicThreshold,
@@ -108,6 +109,40 @@ func deployOne(function *common.Function, yamlPath string, isPartiallyPanic bool
 	function.Endpoint = fmt.Sprintf("%s:%d", function.Endpoint, endpointPort)
 
 	log.Debugf("Deployed function on %s\n", function.Endpoint)
+	return true
+}
+
+func UpdateFunctionKnative(function *common.Function, yamlPath string, endpointPort int) bool {
+
+	cmd := exec.Command(
+		"bash",
+		"./pkg/driver/update_deployment.sh",
+		yamlPath,
+		function.Name,
+	)
+
+	stdoutStderr, err := cmd.CombinedOutput()
+	log.Debug("CMD response: ", string(stdoutStderr))
+
+	if err != nil {
+		// TODO: there should be a toggle to turn off deployment because if this is fatal then we cannot test the thing locally
+		log.Warnf("Failed to update deployment of function %s: %v\n%s\n", function.Name, err, stdoutStderr)
+
+		return false
+	}
+
+	if endpoint := urlRegex.FindStringSubmatch(string(stdoutStderr))[1]; endpoint != function.Endpoint {
+		// TODO: check when this situation happens
+		log.Debugf("Update function endpoint to %s\n", endpoint)
+		function.Endpoint = endpoint
+	} else {
+		function.Endpoint = fmt.Sprintf("%s.%s.%s", function.Name, namespace, bareMetalLbGateway)
+	}
+
+	// adding port to the endpoint
+	function.Endpoint = fmt.Sprintf("%s:%d", function.Endpoint, endpointPort)
+
+	log.Debugf("Updated deployment of function on %s\n", function.Endpoint)
 	return true
 }
 
