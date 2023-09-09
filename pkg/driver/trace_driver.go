@@ -368,6 +368,12 @@ func (d *Driver) individualFunctionDriver(function *common.Function, functions [
 				break
 			}
 		}
+		if time.Now().Second()%10 == 0 {
+			red := "\033[32m"
+			reset := "\033[0m"
+			message := fmt.Sprintf("\t numberOfIssuedInvocations %d, successfulInvocations %d", numberOfIssuedInvocations, successfulInvocations)
+			log.Debugf(red + message + reset)
+		}
 	}
 
 	waitForInvocations.Wait()
@@ -612,12 +618,12 @@ func (d *Driver) internalRun(iatOnly bool, generated bool) {
 	log.Infof("Starting function invocation driver\n")
 	if IsStringInList(d.Configuration.LoaderConfiguration.ClientTraining, []string{common.ServerfulOptimus}) {
 		for func_idx, function := range d.Configuration.Functions {
-			if func_idx%common.ServerfulCopyReplicas == 0 {
+			if func_idx%common.ServerfulCopyReplicas != 0 {
 				continue
 			}
 			allIndividualDriversCompleted.Add(1)
 			fmt.Printf("invoke function %v, length of prompt functions %v\n", function, len(d.Configuration.PromptFunctions))
-			key_prefix := strings.Split(function.Name, "-serverfull-copy-")[0]
+			key_prefix := strings.Split(function.Name, "-serverful-copy-")[0]
 			filter_functions := FilterByKey(d.Configuration.Functions, key_prefix)
 			go d.individualFunctionDriver(
 				function,

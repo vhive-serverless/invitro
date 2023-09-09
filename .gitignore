@@ -8,6 +8,7 @@ use_cmd/__pycache__
 tmp
 data/out
 data/out-window-1min
+data/out-bak
 data/traces/*
 data/logs
 images/*

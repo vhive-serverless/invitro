@@ -165,28 +165,20 @@ func INFlessInvoke(functions []*common.Function, promptFunctions []*common.Funct
 
 	// create grpc clients
 	grpcClients := buildHiveDGrpcClients(conn_list, functions, runtimeSpec)
-	send_messages := prepareMessages("Can you condense the sentence into a shorter version without losing its meaning?", 100)
-	iteration_per_call := trainingIterations
 
-	clusterAvailableGPUs := roundUpToPowerOfTwo(queryRemainingGPU())
+	// training hyper parameters
+	send_messages := prepareMessages("Can you condense the sentence into a shorter version without losing its meaning?", 100) // communication overhead
 	totalBatchSize := runtimeSpec.Stats.BatchSize
-	upperboundReplicas := totalBatchSize / common.BszPerDevice // * 4
-	// upperboundReplicas := totalBatchSize / common.BszPerDevice
-	// lowerboundReplicas := upperboundReplicas
+	upperboundReplicas := totalBatchSize / common.BszPerDevice * 4
 	localGPUSet := prepareLocalGPUSet(upperboundReplicas, common.GPUPerNode)
+	specifiedReplicas := totalBatchSize / common.BszPerDevice
 
-	specifiedReplicas := runtimeSpec.Stats.BatchSize / common.BszPerDevice
 	lowerboundReplicas := lowerboundReplicasToDeadline(runtimeSpec.Stats.Iterations*runtimeSpec.Runtime*specifiedReplicas, runtimeSpec.Stats.Deadline, localGPUSet)
-	lowerboundReplicas = specifiedReplicas
-	upperboundReplicas = specifiedReplicas
-	initReplicas := specifiedReplicas // roundToPowerOfTwo(max(min(queryFairGPUCount(functionKey), upperboundReplicas), lowerboundReplicas))
-
-	fmt.Printf("invocation name %s, initReplicas %d, upperboundReplicas %d\n", invocationID, initReplicas, upperboundReplicas)
-	fmt.Printf("gpu_list %v\n", gpu_list)
-	fmt.Printf("prepareLocalGPUSet %v\n", localGPUSet)
-	fmt.Printf("clusterAvailableGPUs %v\n", clusterAvailableGPUs)
+	initReplicas := lowerboundReplicas // roundToPowerOfTwo(max(min(queryFairGPUCount(functionKey), upperboundReplicas), lowerboundReplicas))
 	maxDeploymentGPUID := findIndex(localGPUSet, initReplicas)
 	curDeploymentGPUID := maxDeploymentGPUID
+
+	iteration_per_call := trainingIterations / specifiedReplicas * lowerboundReplicas
 	curIter := 0
 	for curIter < trainingIterations {
 		// create a wait group to wait for all goroutines to finish
@@ -195,11 +187,9 @@ func INFlessInvoke(functions []*common.Function, promptFunctions []*common.Funct
 	onemore:
 		doneChan := make(chan struct{})
 		deploymentFuncID := min(findIndex(localGPUSet, localGPUSet[curDeploymentGPUID]), len(gpu_list)-1)
-		curReplicas := localGPUSet[curDeploymentGPUID]
 		grpcReplicas := localGPUSet[curDeploymentGPUID] / gpu_list[deploymentFuncID]
 		errorOrNot := false
 		for replicaID := 0; replicaID < grpcReplicas; replicaID++ {
-
 			// add one to the wait group
 			wg.Add(1)
 			// execute the function asynchronously
@@ -233,18 +223,21 @@ func INFlessInvoke(functions []*common.Function, promptFunctions []*common.Funct
 		<-doneChan
 		if errorOrNot {
 			cancelExecution()
-			executionCxt, cancelExecution = context.WithTimeout(context.Background(), time.Duration(leaseTime)*time.Second)
-			// priority := calPriority(curIter, int(time.Since(start).Seconds()))
-			priority := 0
-			md := metadata.New(map[string]string{"GPTName": uuid.String(), "RIter": strconv.Itoa(priority)})
-			executionCxt = metadata.NewOutgoingContext(executionCxt, md)
 
-			log.Debugf("curReplicas %d, lowerboundReplicas %d", curReplicas, lowerboundReplicas)
+			executionCxt, cancelExecution = context.WithTimeout(context.Background(), time.Duration(leaseTime)*time.Second)
+			executionCxt = metadata.NewOutgoingContext(executionCxt, md)
 			allocatedGPUs := roundToPowerOfTwo(max(min(queryFairGPUCount(functionKey), upperboundReplicas), lowerboundReplicas))
+
+			laxityTime := int(int64(runtimeSpec.Stats.Deadline) - time.Since(start).Milliseconds())
+			if laxityTime > 0 {
+				lowerboundReplicas = lowerboundReplicasToDeadline(trainingIterations*runtimeSpec.Runtime*specifiedReplicas, laxityTime, localGPUSet)
+			} else {
+				allocatedGPUs = 1
+			}
+
 			curDeploymentGPUID = findIndex(localGPUSet, allocatedGPUs)
 
-			log.Debugf("gRPC timeout exceeded for INFless invocationID %s, curDeploymentGPUID %d - %s", invocationID, curDeploymentGPUID, "error")
-			log.Debugf("**************** gRPC timeout exceeded INFless invocationID %s, curIter %d,  priority %d", invocationID, curIter, priority)
+			log.Debugf("gRPC timeout exceeded for INFless invocationID %s, expected allocatedGPUs %d - %s, elapsed time %f seconds since start,  %f seconds since iteration start", invocationID, allocatedGPUs, "error", time.Since(start).Seconds(), time.Since(onceCallStart).Seconds())
 
 			cmd := exec.Command("kubectl", "get", "pods")
 			out, err := cmd.Output()
@@ -259,7 +252,7 @@ func INFlessInvoke(functions []*common.Function, promptFunctions []*common.Funct
 			}
 			fmt.Printf("kubectl get revision %s\n", string(out))
 			fmt.Printf("**************** time sleep 10 seconds\n")
-			time.Sleep(time.Second * 2)
+			time.Sleep(time.Second * time.Duration(2))
 			record.ConnectionTimeout = true
 			goto onemore
 		}
@@ -279,9 +272,6 @@ func INFlessInvoke(functions []*common.Function, promptFunctions []*common.Funct
 		// update lowerbound replicas to complete it before deadline
 		record.ActualDuration += responses[0].DurationInMicroSec / 1e3 // ActualDuration is ms
 		curIter += iteration_per_call
-		allocatedGPUs := specifiedReplicas
-		curDeploymentGPUID = findIndex(localGPUSet, allocatedGPUs)
-		log.Debugf("allocate replicas %d, standard replicas %d", allocatedGPUs, totalBatchSize/common.BszPerDevice)
 	}
 
 	record.Instance = extractInstanceName(responses[0].GetMessage())
