@@ -23,6 +23,21 @@ type JobExecutionRecord struct {
 	BatchSize      []int   `csv:"batchsize" json:"batchsize"`
 }
 
+type JobSchedRequest struct {
+	InvocationID      string `csv:"invocationID" json:"invocationID"`
+	Replica           uint32 `csv:"replica" json:"replica"`
+	BatchSize         uint32 `csv:"batchsize" json:"batchsize"`
+	RuntimeInMilliSec uint32 `csv:"runtimeInMilliSec" json:"runtimeInMilliSec"`
+	Iterations        uint32 `csv:"iteration" json:"iteration"`
+	Deadline          int32  `csv:"deadline" json:"deadline"`
+	PrevReplica       uint32 `csv:"prevReplica" json:"prevReplica"`
+}
+
+type JobSchedReply struct {
+	InvocationIDs []string `csv:"invocationID" json:"invocationID"`
+	Replicas      []uint32 `csv:"replica" json:"replica"`
+}
+
 type ExecutionRecord struct {
 	Phase        int    `csv:"phase"`
 	Instance     string `csv:"instance"`

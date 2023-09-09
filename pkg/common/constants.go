@@ -3,6 +3,7 @@ package common
 const (
 	FunctionNamePrefix      = "gpttrace-func"
 	OneSecondInMicroseconds = 1_000_000.0
+	OneSecondInMilliseconds = 1_000
 )
 
 const (
@@ -95,5 +96,9 @@ const (
 )
 
 const (
-	ServerfulCopyReplicas = 20
+	ServerfulCopyReplicas = 4
+)
+
+const (
+	OptimusInterval = 5
 )

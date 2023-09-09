@@ -13,9 +13,9 @@ import (
 	mc "github.com/eth-easl/loader/pkg/metric"
 )
 
-func Invoke(function *common.Function, functions []*common.Function, promptFunctions []*common.Function, runtimeSpec *common.RuntimeSpecification, cfg *config.LoaderConfiguration, invocationID string) (bool, *mc.ExecutionRecord, *mc.JobExecutionRecord) {
+func Invoke(function *common.Function, functions []*common.Function, promptFunctions []*common.Function, runtimeSpec *common.RuntimeSpecification, cfg *config.LoaderConfiguration, invocationID string,
+	jobSchedOutputChannel chan *mc.JobSchedRequest, jobSchedInputChannel chan *mc.JobSchedReply) (bool, *mc.ExecutionRecord, *mc.JobExecutionRecord) {
 	client_training := cfg.ClientTraining
-	// runtimeSpec.Runtime = runtimeSpec.Runtime * 5
 	if client_training == common.Caerus {
 		return invokefunc.CaerusInvoke(function, promptFunctions, runtimeSpec, cfg, invocationID)
 	} else if client_training == common.Multi {
@@ -29,7 +29,7 @@ func Invoke(function *common.Function, functions []*common.Function, promptFunct
 	} else if client_training == common.Elastic {
 		return invokefunc.ElasticInvoke(functions, promptFunctions, runtimeSpec, cfg, invocationID)
 	} else if client_training == common.ServerfulOptimus {
-		return invokefunc.ServerfulOptimusInvoke(function, promptFunctions, runtimeSpec, cfg, invocationID)
+		return invokefunc.ServerfulOptimusInvoke(function, promptFunctions, runtimeSpec, cfg, invocationID, jobSchedOutputChannel, jobSchedInputChannel)
 	} else {
 		log.Errorf("Invalid client_training value: %s", client_training)
 		return false, nil, nil

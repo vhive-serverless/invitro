@@ -23,7 +23,9 @@ import (
 	mc "github.com/eth-easl/loader/pkg/metric"
 )
 
-func ServerfulOptimusInvoke(function *common.Function, promptFunctions []*common.Function, runtimeSpec *common.RuntimeSpecification, cfg *config.LoaderConfiguration, invocationID string) (bool, *mc.ExecutionRecord, *mc.JobExecutionRecord) {
+func ServerfulOptimusInvoke(function *common.Function, promptFunctions []*common.Function,
+	runtimeSpec *common.RuntimeSpecification, cfg *config.LoaderConfiguration, invocationID string,
+	jobSchedOutputChannel chan *mc.JobSchedRequest, jobSchedInputChannel chan *mc.JobSchedReply) (bool, *mc.ExecutionRecord, *mc.JobExecutionRecord) {
 	log.Tracef("(Invoke)\t %s: %d[ms], %d[MiB]", function.Name, runtimeSpec.Runtime, runtimeSpec.Memory)
 
 	record := &mc.ExecutionRecord{
@@ -43,6 +45,15 @@ func ServerfulOptimusInvoke(function *common.Function, promptFunctions []*common
 		BatchSize:      make([]int, 0),
 	}
 
+	jobSchedRequeset := &mc.JobSchedRequest{
+		InvocationID:      invocationID,
+		Replica:           uint32(0),
+		BatchSize:         uint32(runtimeSpec.Stats.BatchSize),
+		Iterations:        uint32(runtimeSpec.Stats.Iterations),
+		Deadline:          int32(runtimeSpec.Stats.Deadline),
+		RuntimeInMilliSec: uint32(runtimeSpec.Runtime),
+		PrevReplica:       uint32(0),
+	}
 	////////////////////////////////////
 	// INVOKE FUNCTION
 	////////////////////////////////////
@@ -50,18 +61,7 @@ func ServerfulOptimusInvoke(function *common.Function, promptFunctions []*common
 	record.StartTime = start.UnixMicro()
 
 	initPromptTensor := make([]float32, 128*common.EmbedingDim)
-	iterationScale := float32(1.0)
 	trainingIterations := runtimeSpec.Stats.Iterations
-	if cfg.WithPromptBank {
-		initPromptTensor, iterationScale = PromptBankInvoke(
-			promptFunctions,
-			runtimeSpec,
-			cfg,
-			invocationID,
-		)
-		trainingIterations = int(float32(trainingIterations) * iterationScale)
-	}
-
 	dialContext, cancelDialing := context.WithTimeout(context.Background(), time.Duration(cfg.GRPCConnectionTimeoutSeconds)*time.Second)
 	defer cancelDialing()
 
@@ -96,13 +96,13 @@ func ServerfulOptimusInvoke(function *common.Function, promptFunctions []*common
 		}
 	}
 
-	minReplicas := runtimeSpec.Stats.BatchSize / common.BszPerDevice
+	minReplicas := common.TotalGPUs
 	// add http header for scheduler
 	uuid := uuid.New()
 	md := metadata.New(map[string]string{"GPTName": uuid.String(), "Replicas": strconv.Itoa(minReplicas), "RIter": "0", "cur": time.Now().Format("2006-01-02 15:04:05.999")})
 	executionCxt = metadata.NewOutgoingContext(executionCxt, md)
 
-	responses := make([]proto.FaasReply, 32)
+	responses := make([]proto.FaasReply, common.TotalGPUs)
 
 	// create a wait group to wait for all goroutines to finish
 	var wg sync.WaitGroup
@@ -117,24 +117,67 @@ func ServerfulOptimusInvoke(function *common.Function, promptFunctions []*common
 
 	iteration_per_call := 100
 	send_messages := prepareMessages("Can you condense the sentence into a shorter version without losing its meaning?", iteration_per_call)
+	specifiedReplicas := runtimeSpec.Stats.BatchSize / common.BszPerDevice
+	red := "\033[32m"
+	reset := "\033[0m"
 
-	log.Debugf("deadline is %d [ms]", runtimeSpec.Stats.Deadline)
+	message := fmt.Sprintf("starting process %v", invocationID)
+	fmt.Println(red + message + reset)
+
 	// iterate over the function iterations
 	curIter := 0
 	for curIter < trainingIterations {
 		iterStart := time.Now()
 	onemore:
-		md.Set("cur", time.Now().Format("2006-01-02 15:04:05.999"))
+		for {
+			seconds := time.Now().Second()
+			if seconds%common.OptimusInterval == 0 {
+				setSchedJobCount(invocationID)
+				jobSchedRequeset.PrevReplica = uint32(minReplicas)
+				jobSchedRequeset.Deadline = int32(int64(runtimeSpec.Stats.Deadline) - time.Since(start).Milliseconds())
+				jobSchedRequeset.Iterations = uint32(trainingIterations - curIter)
+				jobSchedOutputChannel <- jobSchedRequeset
+				jobSchedReply := <-jobSchedInputChannel
+				removeSchedJobCount(invocationID) // TODO:
+				// if invocationID != jobSchedReply.InvocationID {
+				// 	record.ResponseTime = time.Since(start).Milliseconds()
+				// 	record.ConnectionTimeout = true
+				// 	message := fmt.Sprintf("---  \t \t my invocation %s jobSchedReply %s", invocationID, jobSchedReply.InvocationID)
+				// 	fmt.Println(red + message + reset)
+				// 	cancelExecution()
+				// 	return false, record, jobRecord
+				// }
+				minReplicas = -1
+				for idx, jobInvocationID := range jobSchedReply.InvocationIDs {
+					if jobInvocationID == invocationID {
+						minReplicas = int(jobSchedReply.Replicas[idx])
+					}
+				}
+				message := fmt.Sprintf("---  \t \t %s, receive %d", invocationID, minReplicas)
+				fmt.Println(red + message + reset)
+				if minReplicas == -1 {
+					record.ResponseTime = time.Since(start).Milliseconds()
+					record.ConnectionTimeout = true
+					message := fmt.Sprintf("---  \t \t %s does not exist in reply", invocationID)
+					fmt.Println(red + message + reset)
+
+					cancelExecution()
+					return false, record, jobRecord
+				}
+				break
+			}
+			time.Sleep(1 * time.Second)
+		}
+		if minReplicas == 0 {
+			time.Sleep(common.OptimusInterval * time.Second)
+			goto onemore
+		}
 		// create a channel to wait for all function invocations to finish
 		doneChan := make(chan struct{})
-		if curIter%100 == 0 {
-			log.Infof("Function: %s \t exuecte [%d/%d] \t replica [%d] \n", invocationID, curIter, runtimeSpec.Stats.Iterations, minReplicas)
-		}
-		// cur iteration for promput tuning priority
-		// md.Set("RIter", strconv.Itoa(runtimeSpec.Stats.Iterations-curIter))
-
 		errorOrNot := false
 		errorMessage := ""
+		iteration_per_call = common.OptimusInterval * common.OneSecondInMilliseconds / runtimeSpec.Runtime
+
 		// iterate over the minimum replicas
 		for replicaID := 0; replicaID < minReplicas; replicaID++ {
 			// add one to the wait group
@@ -169,6 +212,9 @@ func ServerfulOptimusInvoke(function *common.Function, promptFunctions []*common
 		// wait for all function invocations to finish
 		<-doneChan
 
+		message := fmt.Sprintf("---  \t \t invocation %s complete replica %d", invocationID, minReplicas)
+		fmt.Println(red + message + reset)
+
 		if errorOrNot {
 			cancelExecution()
 			executionCxt, cancelExecution = context.WithTimeout(context.Background(), time.Duration(cfg.GRPCFunctionTimeoutSeconds)*time.Second)
@@ -191,6 +237,7 @@ func ServerfulOptimusInvoke(function *common.Function, promptFunctions []*common
 			promptTensor[j] = promptTensor[j] / float32(len(responses))
 		}
 		ActualDuration += responses[0].DurationInMicroSec / 1e3
+		equalIteration := iteration_per_call * minReplicas / specifiedReplicas
 		registerJobRecord(
 			jobRecord,
 			iterStart.UnixMicro(),
@@ -199,11 +246,11 @@ func ServerfulOptimusInvoke(function *common.Function, promptFunctions []*common
 			minReplicas,
 			minReplicas,
 			curIter,
-			curIter+iteration_per_call,
+			curIter+equalIteration,
 			trainingIterations,
 			runtimeSpec.Stats.BatchSize,
 		)
-		curIter += iteration_per_call
+		curIter += equalIteration
 	}
 
 	record.Instance = extractInstanceName(responses[0].GetMessage())
@@ -213,12 +260,6 @@ func ServerfulOptimusInvoke(function *common.Function, promptFunctions []*common
 	record.Iterations = runtimeSpec.Stats.Iterations
 	record.ActualDuration = ActualDuration // ActualDuration is MicroSec
 	log.Debugf("gRPC requested duration %d [ms], actual duration per iteration %d [ms], iteration %d", runtimeSpec.Runtime, int(ActualDuration)/runtimeSpec.Stats.Iterations/1000, runtimeSpec.Stats.Iterations)
-
-	// log.Debugf("PipelineBatchPriority gRPC requested duration %d [ms], actual duration per iteration %d [ms], iteration %d", runtimeSpec.Runtime, int(responses[0].DurationInMicroSec)/runtimeSpec.Stats.Iterations/1000, runtimeSpec.Stats.Iterations)
-	// printDuration := int(ActualDuration) / runtimeSpec.Stats.Iterations
-	// printResponse := int(int(record.ResponseTime) / runtimeSpec.Stats.Iterations)
-	// log.Debugf("print minReplicas %d, iterations %d ", minReplicas, runtimeSpec.Stats.Iterations)
-	// log.Debugf("**************** On Batch gRPC actual duration per iteration %d [ms], response Time %d [ms]", printDuration, printResponse-printDuration)
 
 	if strings.HasPrefix(responses[0].GetMessage(), "FAILURE - mem_alloc") {
 		record.MemoryAllocationTimeout = true

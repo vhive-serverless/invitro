@@ -2,7 +2,7 @@ import json
 import os, sys 
 
 for config_name in ['config_client_infless_real', 'config_client_caerus_real', \
-                'config_client_elastic_real', 'config_client_knative_real', 'config_client_optimus_real']: 
+                'config_client_elastic_real', 'config_client_knative_real', 'config_client_elastic_flow_real']: 
     # Read the JSON file
     with open(f'cmd/real_configs/{config_name}.json', 'r') as f:
         data = json.load(f)

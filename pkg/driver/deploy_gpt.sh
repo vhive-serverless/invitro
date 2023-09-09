@@ -22,7 +22,8 @@ export AUTOSCALING_TARGET=${12}
 echo $@
 # exit 
 # echo "run here"
-# cat $CONFIG_FILE | envsubst | cat
+# cat $CONFIG_FILE | envsubst | cat 
+# exit 
 cat $CONFIG_FILE | envsubst | kn service apply $FUNC_NAME --scale-init $INIT_SCALE --concurrency-target 1 --wait-timeout 2000000 -f /dev/stdin
 
 

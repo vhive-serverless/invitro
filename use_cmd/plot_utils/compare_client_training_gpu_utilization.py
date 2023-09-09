@@ -236,8 +236,8 @@ if True:
      # [5, 10, 15]:
     jct_info_by_method = list() 
     makespan_info_by_method = list()
-    duration_list = [5, 10] # , 20] # , 20] # 120, 150, 240] # , 180]
-    method_list = ['perfect', 'elastic', 'batch', 'gradient_accumulation'] # , 'gradient_accumulation'] 
+    duration_list = [5, 10, 20]
+    method_list = ['perfect', 'elastic', 'optimus']
     perfect_jct_list = list() 
     # for KeyMetric in ['cpu_req', 'gpu_req']: 
     for KeyMetric in ['gpu_req']: 

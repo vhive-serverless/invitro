@@ -14,6 +14,11 @@ var (
 	rwMutex           = sync.RWMutex{}
 )
 
+var (
+	traceInSched = make(map[string]int)
+	rwTraceMutex = sync.RWMutex{}
+)
+
 type PTInfo struct {
 	Deadline  time.Time
 	Iteration int
@@ -50,6 +55,24 @@ func queryFairGPUCount(key string) int {
 		return 0
 	}
 	return int(math.Ceil(float64(common.TotalGPUs*value) / float64(totalRequestedGPU)))
+}
+
+func setSchedJobCount(key string) {
+	rwTraceMutex.Lock()
+	traceInSched[key] = 1
+	rwTraceMutex.Unlock()
+}
+
+func removeSchedJobCount(key string) {
+	rwTraceMutex.Lock()
+	delete(traceInSched, key)
+	rwTraceMutex.Unlock()
+}
+
+func QueryJobInScheduleCount() int {
+	rwTraceMutex.RLock()
+	defer rwTraceMutex.RUnlock()
+	return len(traceInSched)
 }
 
 // func calculateJobWeight() {

@@ -166,6 +166,8 @@ type InvocationMetadata struct {
 
 	RecordOutputChannel    chan *mc.ExecutionRecord
 	JobRecordOutputChannel chan *mc.JobExecutionRecord
+	JobSchedOutputChannel  chan *mc.JobSchedRequest
+	JobSchedInputChannel   chan *mc.JobSchedReply
 	AnnounceDoneWG         *sync.WaitGroup
 }
 
@@ -203,7 +205,7 @@ func extractModelName(functionName string) string {
 func (d *Driver) invokeFunction(metadata *InvocationMetadata, functions []*common.Function, promptFunctions []*common.Function) {
 	defer metadata.AnnounceDoneWG.Done()
 	invocationID := extractModelName(metadata.Function.Name) + composeInvocationID(d.Configuration.TraceGranularity, metadata.MinuteIndex, metadata.InvocationIndex)
-	success, record, jobRecord := Invoke(metadata.Function, functions, promptFunctions, metadata.RuntimeSpecifications, d.Configuration.LoaderConfiguration, invocationID)
+	success, record, jobRecord := Invoke(metadata.Function, functions, promptFunctions, metadata.RuntimeSpecifications, d.Configuration.LoaderConfiguration, invocationID, metadata.JobSchedOutputChannel, metadata.JobSchedInputChannel)
 
 	record.Phase = int(metadata.Phase)
 	record.InvocationID = extractModelName(metadata.Function.Name) + composeInvocationID(d.Configuration.TraceGranularity, metadata.MinuteIndex, metadata.InvocationIndex)
@@ -220,7 +222,8 @@ func (d *Driver) invokeFunction(metadata *InvocationMetadata, functions []*commo
 }
 
 func (d *Driver) individualFunctionDriver(function *common.Function, functions []*common.Function, promptFunctions []*common.Function,
-	announceFunctionDone *sync.WaitGroup, totalSuccessful *int64, totalFailed *int64, totalIssued *int64, recordOutputChannel chan *mc.ExecutionRecord, jobRecordOutputChannel chan *mc.JobExecutionRecord) {
+	announceFunctionDone *sync.WaitGroup, totalSuccessful *int64, totalFailed *int64, totalIssued *int64,
+	recordOutputChannel chan *mc.ExecutionRecord, jobRecordOutputChannel chan *mc.JobExecutionRecord, jobSchedRequest chan *mc.JobSchedRequest, jobSchedReply chan *mc.JobSchedReply) {
 	totalTraceDuration := d.Configuration.TraceDuration
 	minuteIndex, invocationIndex := 0, 0
 
@@ -324,6 +327,8 @@ func (d *Driver) individualFunctionDriver(function *common.Function, functions [
 				JobRecordOutputChannel: jobRecordOutputChannel,
 				RecordOutputChannel:    recordOutputChannel,
 				AnnounceDoneWG:         &waitForInvocations,
+				JobSchedOutputChannel:  jobSchedRequest,
+				JobSchedInputChannel:   jobSchedReply,
 			},
 				functions, promptFunctions)
 		} else {
@@ -580,6 +585,11 @@ func (d *Driver) internalRun(iatOnly bool, generated bool) {
 
 	backgroundProcessesInitializationBarrier, globalMetricsCollector, joblogMetricsCollector, totalIssuedChannel, scraperFinishCh := d.startBackgroundProcesses(&allRecordsWritten)
 
+	var jobSchedRequest chan *mc.JobSchedRequest = nil
+	var jobSchedReply chan *mc.JobSchedReply = nil
+	if IsStringInList(d.Configuration.LoaderConfiguration.ClientTraining, []string{common.ServerfulOptimus}) {
+		jobSchedRequest, jobSchedReply = d.startSchedBackgroundProcesses(&allRecordsWritten)
+	}
 	if !iatOnly {
 		log.Info("Generating IAT and runtime specifications for all the functions")
 		for i, function := range d.Configuration.Functions {
@@ -612,12 +622,12 @@ func (d *Driver) internalRun(iatOnly bool, generated bool) {
 	log.Infof("Starting function invocation driver\n")
 	if IsStringInList(d.Configuration.LoaderConfiguration.ClientTraining, []string{common.ServerfulOptimus}) {
 		for func_idx, function := range d.Configuration.Functions {
-			if func_idx%common.ServerfulCopyReplicas == 0 {
+			if func_idx%common.ServerfulCopyReplicas != 0 {
 				continue
 			}
 			allIndividualDriversCompleted.Add(1)
 			fmt.Printf("invoke function %v, length of prompt functions %v\n", function, len(d.Configuration.PromptFunctions))
-			key_prefix := strings.Split(function.Name, "-serverfull-copy-")[0]
+			key_prefix := strings.Split(function.Name, "-serverful-copy-")[0]
 			filter_functions := FilterByKey(d.Configuration.Functions, key_prefix)
 			go d.individualFunctionDriver(
 				function,
@@ -629,6 +639,8 @@ func (d *Driver) internalRun(iatOnly bool, generated bool) {
 				&invocationsIssued,
 				globalMetricsCollector,
 				joblogMetricsCollector,
+				jobSchedRequest,
+				jobSchedReply,
 			)
 		}
 	} else {
@@ -646,6 +658,8 @@ func (d *Driver) internalRun(iatOnly bool, generated bool) {
 					&invocationsIssued,
 					globalMetricsCollector,
 					joblogMetricsCollector,
+					jobSchedRequest,
+					jobSchedReply,
 				)
 			} else if IsStringInList(d.Configuration.LoaderConfiguration.ClientTraining, []string{common.HiveD, common.INFless, common.Elastic}) {
 				key_prefix := strings.Split(function.Name, "-gpu-")[0]
@@ -660,6 +674,8 @@ func (d *Driver) internalRun(iatOnly bool, generated bool) {
 					&invocationsIssued,
 					globalMetricsCollector,
 					joblogMetricsCollector,
+					jobSchedRequest,
+					jobSchedReply,
 				)
 			} else {
 				log.Errorf("Invalid client_training value: %s", d.Configuration.LoaderConfiguration.ClientTraining)
@@ -674,7 +690,7 @@ func (d *Driver) internalRun(iatOnly bool, generated bool) {
 
 		totalIssuedChannel <- atomic.LoadInt64(&invocationsIssued)
 		scraperFinishCh <- 0 // Ask the scraper to finish metrics collection
-
+		SetFinish()
 		allRecordsWritten.Wait()
 	}
 

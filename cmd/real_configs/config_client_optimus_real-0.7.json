@@ -11,7 +11,7 @@
     "WarmupDuration": 0,
     "IsPartiallyPanic": false,
     "EnableZipkinTracing": false,
-    "EnableMetricsScrapping": true,
+    "EnableMetricsScrapping": false,
     "MetricScrapingPeriodSeconds": 5,
     "AutoscalingMetric": "concurrency",
     "GRPCConnectionTimeoutSeconds": 120000,
