@@ -15,7 +15,7 @@ spec:
         autoscaling.knative.dev/target-utilization-percentage: "50"  # Enforce container concurrency at any time.
         autoscaling.knative.dev/target-burst-capacity: "-1"  # Put activator always in the path explicitly.
         autoscaling.knative.dev/max-scale: "200"  # Maximum instances limit of Azure.
-        autoscaling.knative.dev/window: "10s" # decrease it to expediate the response speed
+        autoscaling.knative.dev/window: "6s" # decrease it to expediate the response speed
 
         autoscaling.knative.dev/panic-window-percentage: $PANIC_WINDOW
         autoscaling.knative.dev/panic-threshold-percentage: $PANIC_THRESHOLD

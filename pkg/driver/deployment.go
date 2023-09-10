@@ -40,7 +40,7 @@ func min(nums ...int) int {
 func DeployFunctions(loaderConfiguration *config.LoaderConfiguration, functions []*common.Function, yamlPath string, isPartiallyPanic bool, endpointPort int,
 	autoscalingMetric string) {
 	for i := 0; i < len(functions); i++ {
-		if IsStringInList(loaderConfiguration.ClientTraining, []string{common.Caerus, common.BatchPriority, common.PipelineBatchPriority, common.Knative, common.ServerfulOptimus}) {
+		if IsStringInList(loaderConfiguration.ClientTraining, []string{common.Caerus, common.BatchPriority, common.PipelineBatchPriority, common.Knative, common.ElasticFlow}) {
 			deployOne(functions[i], yamlPath, isPartiallyPanic, endpointPort, autoscalingMetric)
 		} else if IsStringInList(loaderConfiguration.ClientTraining, []string{common.Multi, common.HiveD, common.INFless, common.Elastic}) {
 			parts := strings.Split(functions[i].Name, "-")

@@ -31,6 +31,7 @@ type JobSchedRequest struct {
 	Iterations        uint32 `csv:"iteration" json:"iteration"`
 	Deadline          int32  `csv:"deadline" json:"deadline"`
 	PrevReplica       uint32 `csv:"prevReplica" json:"prevReplica"`
+	AvailableGPU      uint32 `csv:"availableGPU" json:"availableGPU"`
 }
 
 type JobSchedReply struct {

@@ -19,6 +19,12 @@ var (
 	rwTraceMutex = sync.RWMutex{}
 )
 
+var (
+	resourceInUsed      = make(map[string]int)
+	totalResourceInUsed = 0
+	rwResourceMutex     = sync.RWMutex{}
+)
+
 type PTInfo struct {
 	Deadline  time.Time
 	Iteration int
@@ -73,6 +79,26 @@ func QueryJobInScheduleCount() int {
 	rwTraceMutex.RLock()
 	defer rwTraceMutex.RUnlock()
 	return len(traceInSched)
+}
+
+func setJobUsedResource(key string, replica int) {
+	rwTraceMutex.Lock()
+	resourceInUsed[key] = replica
+	totalResourceInUsed += replica
+	rwTraceMutex.Unlock()
+}
+
+func removeJobUsedResource(key string) {
+	rwTraceMutex.Lock()
+	totalResourceInUsed -= resourceInUsed[key]
+	delete(resourceInUsed, key)
+	rwTraceMutex.Unlock()
+}
+
+func QueryResourceUsed() int {
+	rwTraceMutex.RLock()
+	defer rwTraceMutex.RUnlock()
+	return totalResourceInUsed
 }
 
 // func calculateJobWeight() {

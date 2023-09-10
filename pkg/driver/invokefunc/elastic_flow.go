@@ -23,7 +23,7 @@ import (
 	mc "github.com/eth-easl/loader/pkg/metric"
 )
 
-func ServerfulOptimusInvoke(function *common.Function, promptFunctions []*common.Function,
+func ElasticFlowInvoke(function *common.Function, promptFunctions []*common.Function,
 	runtimeSpec *common.RuntimeSpecification, cfg *config.LoaderConfiguration, invocationID string,
 	jobSchedOutputChannel chan *mc.JobSchedRequest, jobSchedInputChannel chan *mc.JobSchedReply) (bool, *mc.ExecutionRecord, *mc.JobExecutionRecord) {
 	log.Tracef("(Invoke)\t %s: %d[ms], %d[MiB]", function.Name, runtimeSpec.Runtime, runtimeSpec.Memory)
@@ -53,6 +53,7 @@ func ServerfulOptimusInvoke(function *common.Function, promptFunctions []*common
 		Deadline:          int32(runtimeSpec.Stats.Deadline),
 		RuntimeInMilliSec: uint32(runtimeSpec.Runtime),
 		PrevReplica:       uint32(0),
+		AvailableGPU:      uint32(common.TotalGPUs),
 	}
 	////////////////////////////////////
 	// INVOKE FUNCTION
@@ -96,7 +97,7 @@ func ServerfulOptimusInvoke(function *common.Function, promptFunctions []*common
 		}
 	}
 
-	minReplicas := common.TotalGPUs
+	minReplicas := 0
 	// add http header for scheduler
 	uuid := uuid.New()
 	md := metadata.New(map[string]string{"GPTName": uuid.String(), "Replicas": strconv.Itoa(minReplicas), "RIter": "0", "cur": time.Now().Format("2006-01-02 15:04:05.999")})
@@ -108,8 +109,8 @@ func ServerfulOptimusInvoke(function *common.Function, promptFunctions []*common
 	var wg sync.WaitGroup
 
 	// create grpc clients
-	grpcClients := make([]proto.ExecutorClient, minReplicas)
-	for replicaID := 0; replicaID < minReplicas; replicaID++ {
+	grpcClients := make([]proto.ExecutorClient, common.TotalGPUs)
+	for replicaID := 0; replicaID < common.TotalGPUs; replicaID++ {
 		grpcClients[replicaID] = proto.NewExecutorClient(conn)
 	}
 
@@ -131,7 +132,7 @@ func ServerfulOptimusInvoke(function *common.Function, promptFunctions []*common
 	onemore:
 		for {
 			seconds := time.Now().Second()
-			if seconds%common.OptimusInterval == 0 {
+			if seconds%common.ElasticFlowInterval == 0 {
 				setSchedJobCount(invocationID)
 				jobSchedRequeset.PrevReplica = uint32(minReplicas)
 				jobSchedRequeset.Deadline = int32(int64(runtimeSpec.Stats.Deadline) - time.Since(start).Milliseconds())
@@ -169,14 +170,14 @@ func ServerfulOptimusInvoke(function *common.Function, promptFunctions []*common
 			time.Sleep(1 * time.Second)
 		}
 		if minReplicas == 0 {
-			time.Sleep(common.OptimusInterval * time.Second)
+			time.Sleep(common.ElasticFlowInterval * time.Second)
 			goto onemore
 		}
 		// create a channel to wait for all function invocations to finish
 		doneChan := make(chan struct{})
 		errorOrNot := false
 		errorMessage := ""
-		iteration_per_call = common.OptimusInterval * common.OneSecondInMilliseconds / runtimeSpec.Runtime
+		iteration_per_call = common.ElasticFlowInterval * common.OneSecondInMilliseconds / runtimeSpec.Runtime
 
 		// iterate over the minimum replicas
 		for replicaID := 0; replicaID < minReplicas; replicaID++ {

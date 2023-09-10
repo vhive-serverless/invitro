@@ -79,7 +79,7 @@ const (
 	PipelineBatchPriority string = "pipeline_batch_priority"
 	HiveD                 string = "hived"
 	INFless               string = "infless"
-	ServerfulOptimus      string = "optimus"
+	ElasticFlow           string = "elastic_flow"
 )
 
 const (
@@ -100,5 +100,6 @@ const (
 )
 
 const (
-	OptimusInterval = 5
+	ElasticFlowInterval = 5
+	INFlessInterval     = 1
 )

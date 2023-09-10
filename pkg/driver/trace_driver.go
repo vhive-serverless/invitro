@@ -255,7 +255,7 @@ func (d *Driver) individualFunctionDriver(function *common.Function, functions [
 	} else if IsStringInList(d.Configuration.LoaderConfiguration.ClientTraining,
 		[]string{common.Caerus, common.BatchPriority, common.PipelineBatchPriority, common.Knative}) {
 
-	} else if IsStringInList(d.Configuration.LoaderConfiguration.ClientTraining, []string{common.ServerfulOptimus}) {
+	} else if IsStringInList(d.Configuration.LoaderConfiguration.ClientTraining, []string{common.ElasticFlow}) {
 
 	} else {
 		log.Errorf("Invalid client_training value: %s", d.Configuration.LoaderConfiguration.ClientTraining)
@@ -296,7 +296,7 @@ func (d *Driver) individualFunctionDriver(function *common.Function, functions [
 			// log.Infof("d.Configuration.TestMode invokeFunctionOrNot: %v: expectedGPUCount %d, gpuCount %d", invokeFunctionOrNot, expectedGPUCount, gpuCount)
 		} else if IsStringInList(d.Configuration.LoaderConfiguration.ClientTraining, []string{common.Caerus, common.BatchPriority, common.PipelineBatchPriority, common.Knative}) {
 
-		} else if IsStringInList(d.Configuration.LoaderConfiguration.ClientTraining, []string{common.ServerfulOptimus}) {
+		} else if IsStringInList(d.Configuration.LoaderConfiguration.ClientTraining, []string{common.ElasticFlow}) {
 
 		} else {
 			log.Errorf("Invalid client_training value: %s", d.Configuration.LoaderConfiguration.ClientTraining)
@@ -312,7 +312,7 @@ func (d *Driver) individualFunctionDriver(function *common.Function, functions [
 				Deadline:   function.DeadlineStats.Invocations[numberOfIssuedInvocations-1],
 			}
 			invoked_function := function
-			if IsStringInList(d.Configuration.LoaderConfiguration.ClientTraining, []string{common.ServerfulOptimus}) {
+			if IsStringInList(d.Configuration.LoaderConfiguration.ClientTraining, []string{common.ElasticFlow}) {
 				invoked_function = functions[numberOfIssuedInvocations%common.ServerfulCopyReplicas]
 			}
 			go d.invokeFunction(&InvocationMetadata{
@@ -593,7 +593,7 @@ func (d *Driver) internalRun(iatOnly bool, generated bool) {
 
 	var jobSchedRequest chan *mc.JobSchedRequest = nil
 	var jobSchedReply chan *mc.JobSchedReply = nil
-	if IsStringInList(d.Configuration.LoaderConfiguration.ClientTraining, []string{common.ServerfulOptimus}) {
+	if IsStringInList(d.Configuration.LoaderConfiguration.ClientTraining, []string{common.ElasticFlow, common.Elastic, common.INFless}) {
 		jobSchedRequest, jobSchedReply = d.startSchedBackgroundProcesses(&allRecordsWritten)
 	}
 	if !iatOnly {
@@ -626,7 +626,7 @@ func (d *Driver) internalRun(iatOnly bool, generated bool) {
 	}
 
 	log.Infof("Starting function invocation driver\n")
-	if IsStringInList(d.Configuration.LoaderConfiguration.ClientTraining, []string{common.ServerfulOptimus}) {
+	if IsStringInList(d.Configuration.LoaderConfiguration.ClientTraining, []string{common.ElasticFlow}) {
 		for func_idx, function := range d.Configuration.Functions {
 			if func_idx%common.ServerfulCopyReplicas != 0 {
 				continue

@@ -25,11 +25,11 @@ func Invoke(function *common.Function, functions []*common.Function, promptFunct
 	} else if client_training == common.HiveD {
 		return invokefunc.HiveDInvoke(functions, promptFunctions, runtimeSpec, cfg, invocationID)
 	} else if client_training == common.INFless {
-		return invokefunc.INFlessInvoke(functions, promptFunctions, runtimeSpec, cfg, invocationID)
+		return invokefunc.INFlessInvoke(functions, promptFunctions, runtimeSpec, cfg, invocationID, jobSchedOutputChannel, jobSchedInputChannel)
 	} else if client_training == common.Elastic {
-		return invokefunc.ElasticInvoke(functions, promptFunctions, runtimeSpec, cfg, invocationID)
-	} else if client_training == common.ServerfulOptimus {
-		return invokefunc.ServerfulOptimusInvoke(function, promptFunctions, runtimeSpec, cfg, invocationID, jobSchedOutputChannel, jobSchedInputChannel)
+		return invokefunc.ElasticInvoke(functions, promptFunctions, runtimeSpec, cfg, invocationID, jobSchedOutputChannel, jobSchedInputChannel)
+	} else if client_training == common.ElasticFlow {
+		return invokefunc.ElasticFlowInvoke(function, promptFunctions, runtimeSpec, cfg, invocationID, jobSchedOutputChannel, jobSchedInputChannel)
 	} else {
 		log.Errorf("Invalid client_training value: %s", client_training)
 		return false, nil, nil

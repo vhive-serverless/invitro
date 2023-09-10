@@ -132,7 +132,7 @@ func runTraceMode(cfg *config.LoaderConfiguration, iatOnly bool, generated bool)
 		functions = shadowFunctions(functions)
 	} else if driver.IsStringInList(cfg.ClientTraining, []string{common.Caerus, common.BatchPriority, common.PipelineBatchPriority, common.Knative}) {
 
-	} else if driver.IsStringInList(cfg.ClientTraining, []string{common.ServerfulOptimus}) {
+	} else if driver.IsStringInList(cfg.ClientTraining, []string{common.ElasticFlow}) {
 		functions = serverfulFunctions(functions)
 	} else {
 		log.Errorf("Invalid client_training value: %s", cfg.ClientTraining)

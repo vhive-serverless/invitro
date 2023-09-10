@@ -24,12 +24,14 @@ service Executor {
 }
 
 message SchedRequest {
-  string invocationName = 1;           // Text message field.
-  uint32 batchsize = 2;         // batch size 
-  uint32 runtimeInMilliSec = 3; // Execution runtime [ms].
-  uint32 iterations = 4;        // remaining iterations 
-  int32 deadline = 5;         // deadline 
-  uint32 prevReplica = 6; // prevReplica
+  string schedAlg = 1; 
+  string invocationName = 2;           // Text message field.
+  uint32 batchsize = 3;         // batch size 
+  uint32 runtimeInMilliSec = 4; // Execution runtime [ms].
+  uint32 iterations = 5;        // remaining iterations 
+  int32 deadline = 6;         // deadline 
+  uint32 prevReplica = 7; // prevReplica
+  uint32 availableGPU = 8; // avaliable number of GPUs 
 }
 
 message SchedReply {

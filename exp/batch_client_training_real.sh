@@ -4,9 +4,9 @@ clean_env() {
     sleep 120 
 }
 
-for duration in 20 # 5 10 20 # 5 10 20 # 5 # 10 20 # 20 # 20 30 # 10 # 5 10 # 20 # 30 40 60 80 120 150 240 # 10 20 30 40 60 # 80 120 150 240
+for duration in 1 # 5 10 20 40 60 # 5 10 20 # 5 # 10 20 # 20 # 20 30 # 10 # 5 10 # 20 # 30 40 60 80 120 150 240 # 10 20 30 40 60 # 80 120 150 240
 do
-    for load in 0.7 # 0.3 0.5 0.7 # 0.3 0.5 0.7 0.9 #  0.3 0.4 0.5 0.6 0.7 0.8 
+    for load in 0.3 # 0.5 0.7
     do 
         # TODO: (1) elastic -> our proposed elastic and preemptive scheduler 
         # TODO: (2) infless -> infless with slo support 
@@ -14,7 +14,7 @@ do
         # TODO: (4) knative -> for single GPU execution with long duration 
         # TODO: (5) optimus -> serverful elastic schedulers 
 
-        for method in infless caerus knative elastic # optimus 
+        for method in infless # elastic # optimus # infless caerus knative 
         do 
             rm log/${method}_log_${duration}_${load}.txt
             go run cmd/loader.go --config cmd/real_configs/config_client_${method}_real-${load}.json  \

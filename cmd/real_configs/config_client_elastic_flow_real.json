@@ -7,7 +7,7 @@
   "TracePath": "data/real-multi-func-gputraces/example",
   "Granularity": "minute",
   "OutputPathPrefix": "data/out/real-multi-experiment",
-  "ClientTraining": "optimus", 
+  "ClientTraining": "elastic_flow", 
   "IATDistribution": "exponential",
   "ExperimentDuration": 20,
   "WarmupDuration": 0,

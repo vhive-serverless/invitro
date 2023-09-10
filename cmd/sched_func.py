@@ -39,14 +39,18 @@ class Executor(sched_pb2_grpc.Executor):
         start = time.time()
         job_infos = list() 
         name_keys = list() 
+        remaining_gpus = 0 
+        sched_alg = None 
         for request in request_iterator:
             job_infos.append(Job(name=request.invocationName, batchsize=request.batchsize, \
                             deadline=request.deadline, iterations=request.iterations, prevReplica=request.prevReplica))
             name_keys.append(request.invocationName)
-        sched_alg = 'elastic_flow'
+            remaining_gpus = request.availableGPU
+            sched_alg = request.schedAlg
+            
+        print(f"sched_alg {sched_alg}, remaining_gpus {remaining_gpus}")
         if sched_alg in ['elastic_flow', 'infless']: 
             num_replicas = {name:0 for name in name_keys}
-            remaining_gpus = TotalGPU 
             desired_replicas = {job.name:job.batchsize // 32 for job in job_infos}
             
             allocation_set = [1, 2] + [i * 4 for i in range(1, TotalGPU//4+1)]
