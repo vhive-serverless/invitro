@@ -31,7 +31,6 @@ export CPU_REQUEST=$3
 export CPU_LIMITS=$4
 export MEMORY_REQUESTS=$5
 export INIT_SCALE=$6
-
 export MIN_SCALE=$6 # minimum scale is the same as initial scale during profiling
 
 export PANIC_WINDOW=$7

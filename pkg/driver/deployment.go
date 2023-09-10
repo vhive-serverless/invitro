@@ -112,12 +112,11 @@ func deployOne(function *common.Function, yamlPath string, isPartiallyPanic bool
 	return true
 }
 
-func UpdateFunctionKnative(function *common.Function, yamlPath string, endpointPort int) bool {
+func UpdateFunctionKnative(function *common.Function, endpointPort int) bool {
 
 	cmd := exec.Command(
 		"bash",
 		"./pkg/driver/update_deployment.sh",
-		yamlPath,
 		function.Name,
 	)
 

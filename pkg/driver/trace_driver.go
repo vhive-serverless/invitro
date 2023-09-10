@@ -376,7 +376,7 @@ func (d *Driver) proceedToNextMinute(function *common.Function, minuteIndex *int
 	if d.Configuration.WithWarmup() && *minuteIndex == 1 {
 		log.Info("profiling phase is done, updating deployments to allow downscaling below initial scale.")
 		if d.Configuration.LoaderConfiguration.Platform == "Knative" {
-			UpdateFunctionKnative(function, d.Configuration.YAMLPath, d.Configuration.LoaderConfiguration.EndpointPort)
+			UpdateFunctionKnative(function, d.Configuration.LoaderConfiguration.EndpointPort)
 		}
 	}
 	if d.Configuration.WithWarmup() && *minuteIndex == (d.Configuration.LoaderConfiguration.WarmupDuration+1) {

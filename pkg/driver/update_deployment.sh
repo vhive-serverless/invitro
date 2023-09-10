@@ -24,7 +24,6 @@
 # SOFTWARE.
 #
 
-CONFIG_FILE=$1
-export FUNC_NAME=$2
+export FUNC_NAME=$1
 
 kn service update $FUNC_NAME --scale-min 0 --scale-init 0

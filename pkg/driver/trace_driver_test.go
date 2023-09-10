@@ -318,9 +318,9 @@ func TestDriverCompletely(t *testing.T) {
 				record := records[i]
 
 				if test.withWarmup {
-					if i < 5 && record.Phase != int(common.WarmupPhase) {
+					if i < 10 && record.Phase != int(common.WarmupPhase) {
 						t.Error("Invalid record phase in warmup.")
-					} else if i > 5 && record.Phase != int(common.ExecutionPhase) {
+					} else if i >= 10 && record.Phase != int(common.ExecutionPhase) {
 						t.Error("Invalid record phase in execution phase.")
 					}
 				}
@@ -342,7 +342,7 @@ func TestDriverCompletely(t *testing.T) {
 
 			expectedInvocations := 5
 			if test.withWarmup {
-				expectedInvocations = 10
+				expectedInvocations = 15
 			}
 
 			if !(successfulInvocation == expectedInvocations && failedInvocations == 0) {
