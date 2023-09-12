@@ -25,9 +25,10 @@
 package trace
 
 import (
+	"math"
+
 	log "github.com/sirupsen/logrus"
 	"github.com/vhive-serverless/loader/pkg/common"
-	"math"
 )
 
 func DoStaticTraceProfiling(functions []*common.Function) {
@@ -43,6 +44,7 @@ func ApplyResourceLimits(functions []*common.Function) {
 	for i := 0; i < len(functions); i++ {
 		memoryPct100 := int(functions[i].MemoryStats.Percentile100)
 		cpuShare := ConvertMemoryToCpu(memoryPct100)
+		// cpuShare := ConvertExecutionTimeToCpu(functions[i])
 
 		functions[i].CPURequestsMilli = cpuShare / common.OvercommitmentRatio
 		functions[i].MemoryRequestsMiB = memoryPct100 / common.OvercommitmentRatio
@@ -66,6 +68,26 @@ func ConvertMemoryToCpu(memoryRequest int) int {
 		cpuRequest = 1
 	default:
 		cpuRequest = 2
+	}
+
+	return int(cpuRequest * 1000)
+}
+
+func ConvertExecutionTimeToCpu(function *common.Function) int {
+	var cpuRequest float32
+	switch executionTime := function.RuntimeStats.Average; {
+	case executionTime < 100:
+		cpuRequest = 1
+	case executionTime < 200:
+		cpuRequest = 0.9
+	case executionTime < 300:
+		cpuRequest = 0.8
+	case executionTime < 400:
+		cpuRequest = 0.7
+	case executionTime < 500:
+		cpuRequest = 0.6
+	default:
+		cpuRequest = 0.5
 	}
 
 	return int(cpuRequest * 1000)
