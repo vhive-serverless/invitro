@@ -53,7 +53,7 @@ func ElasticFlowInvoke(function *common.Function, promptFunctions []*common.Func
 		Deadline:          int32(runtimeSpec.Stats.Deadline),
 		RuntimeInMilliSec: uint32(runtimeSpec.Runtime),
 		PrevReplica:       uint32(0),
-		AvailableGPU:      uint32(common.TotalGPUs),
+		AvailableGPU:      common.TotalGPUs,
 	}
 	////////////////////////////////////
 	// INVOKE FUNCTION

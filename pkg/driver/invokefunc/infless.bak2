@@ -239,7 +239,7 @@ func INFlessInvoke(functions []*common.Function, promptFunctions []*common.Funct
 				if err != nil {
 					red := "\033[32m"
 					reset := "\033[0m"
-					message := fmt.Sprintf("Error executing function replicaID: %d: %v\n", replicaID, err)
+					message := fmt.Sprintf("Error executing function %d: %v\n", replicaID, err)
 					fmt.Printf(red + message + reset)
 					errorOrNot = errorOrNot || true
 					return

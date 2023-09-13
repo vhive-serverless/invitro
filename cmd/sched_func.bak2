@@ -77,6 +77,9 @@ class Executor(sched_pb2_grpc.Executor):
                         allocated_replicas = num_replica
                         break 
                 
+                if 'llama-7b' not in job.name: 
+                    allocated_replicas = 0 
+                
                 num_replicas[job.name] = allocated_replicas
                 
                 job_infos.remove(job)
@@ -87,7 +90,7 @@ class Executor(sched_pb2_grpc.Executor):
                 #     self.llama_cnt += allocated_replicas
             # print_red_text("llama_cnt replicas {}".format(self.llama_cnt))
             for name in name_keys: 
-                if num_replicas[name] == 0 and remaining_gpus > 0: 
+                if num_replicas[name] == 0 and remaining_gpus > 0 and 'llama-7b' in name: 
                     num_replicas[name] = min(desired_replicas[name], remaining_gpus)
                     remaining_gpus -= num_replicas[name]
                     # if 'llama' in name: 

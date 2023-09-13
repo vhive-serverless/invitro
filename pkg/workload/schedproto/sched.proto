@@ -31,7 +31,7 @@ message SchedRequest {
   uint32 iterations = 5;        // remaining iterations 
   int32 deadline = 6;         // deadline 
   uint32 prevReplica = 7; // prevReplica
-  uint32 availableGPU = 8; // avaliable number of GPUs 
+  int32 availableGPU = 8; // avaliable number of GPUs 
 }
 
 message SchedReply {

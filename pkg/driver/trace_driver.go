@@ -373,12 +373,12 @@ func (d *Driver) individualFunctionDriver(function *common.Function, functions [
 				break
 			}
 		}
-		if time.Now().Second()%10 == 0 {
-			red := "\033[32m"
-			reset := "\033[0m"
-			message := fmt.Sprintf("\t numberOfIssuedInvocations %d, successfulInvocations %d", numberOfIssuedInvocations, successfulInvocations)
-			log.Debugf(red + message + reset)
-		}
+		// if time.Now().Second()%10 == 0 {
+		// 	red := "\033[32m"
+		// 	reset := "\033[0m"
+		// 	message := fmt.Sprintf("\t numberOfIssuedInvocations %d, successfulInvocations %d", numberOfIssuedInvocations, successfulInvocations)
+		// 	log.Debugf(red + message + reset)
+		// }
 	}
 
 	waitForInvocations.Wait()

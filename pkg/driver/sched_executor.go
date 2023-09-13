@@ -37,8 +37,8 @@ func (d *Driver) createElasticFlowSchedExecutor(filename string, jobschedrequest
 				if curRequestCount == invokefunc.QueryJobInScheduleCount() {
 					break
 				} else {
-					message := fmt.Sprintf("curRequestCount == %d, %d", curRequestCount, invokefunc.QueryJobInScheduleCount())
-					fmt.Println(red + message + reset)
+					// message := fmt.Sprintf("curRequestCount == %d, %d", curRequestCount, invokefunc.QueryJobInScheduleCount())
+					// fmt.Println(red + message + reset)
 				}
 				select {
 				case request := <-jobschedrequest:
@@ -114,10 +114,95 @@ func (d *Driver) createINFlessSchedExecutor(filename string, jobschedrequest cha
 	client := schedproto.NewExecutorClient(conn)
 	var schedDone bool = false
 	var curRequestCount int = 0
+	for !schedDone {
+		{
+			requests := make([]*schedproto.SchedRequest, 0)
+			curRequestCount = 0
+			for {
+				if curRequestCount == invokefunc.QueryJobInScheduleCount() {
+					break
+				} else {
+					// message := fmt.Sprintf("curRequestCount == %d, %d", curRequestCount, invokefunc.QueryJobInScheduleCount())
+					// fmt.Println(red + message + reset)
+				}
+				select {
+				case request := <-jobschedrequest:
+					// fmt.Println(red + "This text will be printed in red color!" + reset)
+					curRequestCount++
+					newSchedRequest := &schedproto.SchedRequest{
+						SchedAlg:          d.Configuration.LoaderConfiguration.ClientTraining,
+						InvocationName:    request.InvocationID,
+						Batchsize:         request.BatchSize,
+						RuntimeInMilliSec: request.RuntimeInMilliSec,
+						Iterations:        request.Iterations,
+						Deadline:          request.Deadline,
+						PrevReplica:       request.PrevReplica,
+						AvailableGPU:      int32(common.TotalGPUs - invokefunc.QueryResourceUsed()),
+					}
+					requests = append(requests, newSchedRequest)
+				} // end of select
+			}
+
+			if curRequestCount > 0 {
+				responseStream, err := client.ExecuteStream(context.Background())
+				if err != nil {
+					fmt.Println("Failed to execute stream request:", err)
+					return
+				}
+				for _, request := range requests {
+					err := responseStream.Send(request)
+					if err != nil {
+						fmt.Println("Failed to send request:", err)
+						continue
+					}
+				}
+				responseStream.CloseSend()
+				response, err := responseStream.CloseAndRecv()
+				for i := 0; i < len(requests); i++ {
+					jobreply := &mc.JobSchedReply{
+						InvocationIDs: response.InvocationName,
+						Replicas:      response.Replica,
+					}
+					// message := fmt.Sprintf("InvocationIDs : %v, Replicas: %v", jobreply.InvocationIDs, jobreply.Replicas)
+					// fmt.Println(red + message + reset)
+
+					jobschedreply <- jobreply
+					if err != nil {
+						log.Fatalf("Failed to receive response: %v", err)
+					}
+					// message := fmt.Sprintf("i == %d, response == %v", i, response)
+					// fmt.Println(red + message + reset)
+				}
+				curRequestCount = 0
+			}
+		}
+
+		time.Sleep(time.Duration(10) * time.Millisecond)
+		if QueryFinish() {
+			close(jobschedreply)
+			close(jobschedrequest)
+			break
+		}
+	}
+}
+
+func (d *Driver) createElasticSchedExecutor(filename string, jobschedrequest chan *mc.JobSchedRequest, jobschedreply chan *mc.JobSchedReply) {
+	conn, err := grpc.Dial("localhost:50051", grpc.WithInsecure())
+	if err != nil {
+		fmt.Println("Failed to connect to server:", err)
+		return
+	}
+	red := "\033[31m"
+	reset := "\033[0m"
+	fmt.Println(red + "Starting create SchedExecutor" + reset)
+	defer conn.Close()
+	client := schedproto.NewExecutorClient(conn)
+	var schedDone bool = false
+	var curRequestCount int = 0
 	var seconds int = 0
 	for !schedDone {
 		seconds = time.Now().Second()
-		if seconds%common.INFlessInterval == 0 {
+		if seconds%common.ElasticInterval == 0 {
 			requests := make([]*schedproto.SchedRequest, 0)
 			curRequestCount = 0
 			for {
@@ -195,6 +280,8 @@ func (d *Driver) startSchedBackgroundProcesses(allRecordsWritten *sync.WaitGroup
 		go d.createElasticFlowSchedExecutor(d.outputFilename("sched"), jobSchedRequest, jobSchedReply)
 	} else if IsStringInList(d.Configuration.LoaderConfiguration.ClientTraining, []string{common.INFless}) {
 		go d.createINFlessSchedExecutor(d.outputFilename("sched"), jobSchedRequest, jobSchedReply)
+	} else if IsStringInList(d.Configuration.LoaderConfiguration.ClientTraining, []string{common.Elastic}) {
+		go d.createElasticSchedExecutor(d.outputFilename("sched"), jobSchedRequest, jobSchedReply)
 	}
 
 	return jobSchedRequest, jobSchedReply

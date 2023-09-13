@@ -199,7 +199,12 @@ func INFlessInvoke(functions []*common.Function, promptFunctions []*common.Funct
 					minReplicas = int(jobSchedReply.Replicas[idx])
 				}
 			}
-
+			if strings.Contains(invocationID, "gpt2-large") && (minReplicas > 0) {
+				red := "\033[33m"
+				reset := "\033[0m"
+				message := fmt.Sprintf("invocationID: %s, minReplicas %d", invocationID, minReplicas)
+				fmt.Printf(red + message + reset)
+			}
 			if minReplicas == -1 {
 				record.ResponseTime = time.Since(start).Milliseconds()
 				record.ConnectionTimeout = true
@@ -218,63 +223,67 @@ func INFlessInvoke(functions []*common.Function, promptFunctions []*common.Funct
 		grpcReplicas := localGPUSet[curDeploymentGPUID] / gpu_list[deploymentFuncID]
 		errorOrNot := false
 		iteration_per_call := trainingIterations * specifiedReplicas / localGPUSet[curDeploymentGPUID]
+		for i := 0; i < 20; i++ {
+			doneChan := make(chan struct{})
 
-		doneChan := make(chan struct{})
-
-		for replicaID := 0; replicaID < grpcReplicas; replicaID++ {
-			// add one to the wait group
-			wg.Add(1)
-			// execute the function asynchronously
-			go func(replicaID int) {
-				defer wg.Done()
-				// execute the function and store the response
-				rep_start := time.Now()
-				response, err := grpcClients[deploymentFuncID][replicaID].Execute(executionCxt, &proto.FaasRequest{
-					Message:              send_messages,
-					Batchsize:            uint32(common.BszPerDevice),
-					RuntimeInMilliSec:    uint32(runtimeSpec.Runtime * iteration_per_call), // [ms]
-					GpuMemoryInMebiBytes: 123,
-					PromptTensor:         promptTensor,
-				})
-				if err != nil {
-					red := "\033[32m"
+			for replicaID := 0; replicaID < grpcReplicas; replicaID++ {
+				// add one to the wait group
+				wg.Add(1)
+				// execute the function asynchronously
+				go func(replicaID int) {
+					defer wg.Done()
+					// execute the function and store the response
+					rep_start := time.Now()
+					response, err := grpcClients[deploymentFuncID][replicaID].Execute(executionCxt, &proto.FaasRequest{
+						Message:              send_messages,
+						Batchsize:            uint32(common.BszPerDevice),
+						RuntimeInMilliSec:    uint32(runtimeSpec.Runtime * iteration_per_call), // [ms]
+						GpuMemoryInMebiBytes: 123,
+						PromptTensor:         promptTensor,
+					})
+					if err != nil {
+						red := "\033[32m"
+						reset := "\033[0m"
+						message := fmt.Sprintf("Error executing function %d: %v\n", replicaID, err)
+						fmt.Printf(red + message + reset)
+						errorOrNot = errorOrNot || true
+						return
+					}
+					red := "\033[34m"
 					reset := "\033[0m"
-					message := fmt.Sprintf("Error executing function replicaID: %d: %v\n", replicaID, err)
+					message := fmt.Sprintf("replicaID %d: time %f, since start %f \n", replicaID, time.Since(rep_start).Seconds(), time.Since(start).Seconds())
 					fmt.Printf(red + message + reset)
-					errorOrNot = errorOrNot || true
-					return
-				}
-				red := "\033[34m"
+					// store the response in the slice
+					responses[replicaID] = *response
+				}(replicaID)
+			}
+
+			// create a goroutine to wait for all goroutines to finish
+			go func() {
+				wg.Wait()
+				close(doneChan)
+			}()
+			// wait for all function invocations to finish
+			<-doneChan
+			removeJobUsedResource(invocationID) // TODO: key step
+			if errorOrNot {
+				cancelExecution()
+
+				executionCxt, cancelExecution = context.WithTimeout(context.Background(), time.Duration(leaseTime)*time.Second)
+				executionCxt = metadata.NewOutgoingContext(executionCxt, md)
+				red := "\033[32m"
 				reset := "\033[0m"
-				message := fmt.Sprintf("replicaID %d: time %f, since start %f \n", replicaID, time.Since(rep_start).Seconds(), time.Since(start).Seconds())
+				message := fmt.Sprintf("gRPC timeout exceeded for INFless invocationID %s - %s, elapsed time %f seconds since start,  %f seconds since iteration start, trainingIterations %d, RuntimeInMilliSec %d, minReplicas %d",
+					invocationID, "error", time.Since(start).Seconds(), time.Since(onceCallStart).Seconds(), trainingIterations, uint32(runtimeSpec.Runtime*iteration_per_call), minReplicas)
 				fmt.Printf(red + message + reset)
-				// store the response in the slice
-				responses[replicaID] = *response
-			}(replicaID)
-		}
-
-		// create a goroutine to wait for all goroutines to finish
-		go func() {
-			wg.Wait()
-			close(doneChan)
-		}()
-		// wait for all function invocations to finish
-		<-doneChan
-		removeJobUsedResource(invocationID) // TODO: key step
-		if errorOrNot {
-			cancelExecution()
-
-			executionCxt, cancelExecution = context.WithTimeout(context.Background(), time.Duration(leaseTime)*time.Second)
-			executionCxt = metadata.NewOutgoingContext(executionCxt, md)
-			red := "\033[32m"
-			reset := "\033[0m"
-			message := fmt.Sprintf("gRPC timeout exceeded for INFless invocationID %s - %s, elapsed time %f seconds since start,  %f seconds since iteration start, trainingIterations %d, RuntimeInMilliSec %d, minReplicas %d",
-				invocationID, "error", time.Since(start).Seconds(), time.Since(onceCallStart).Seconds(), trainingIterations, uint32(runtimeSpec.Runtime*iteration_per_call), minReplicas)
-			fmt.Printf(red + message + reset)
-			// log.Debugf("gRPC timeout exceeded for INFless invocationID %s - %s, elapsed time %f seconds since start,  %f seconds since iteration start, trainingIterations %d",
-			// 	invocationID, "error", time.Since(start).Seconds(), time.Since(onceCallStart).Seconds(), trainingIterations)
-			record.ConnectionTimeout = true
-			goto onemore
+				// log.Debugf("gRPC timeout exceeded for INFless invocationID %s - %s, elapsed time %f seconds since start,  %f seconds since iteration start, trainingIterations %d",
+				// 	invocationID, "error", time.Since(start).Seconds(), time.Since(onceCallStart).Seconds(), trainingIterations)
+				record.ConnectionTimeout = true
+				goto onemore
+			}
+			// time.Sleep(time.Duration(0.1) * time.Second)
+			time.Sleep(time.Duration(200) * time.Millisecond)
+			fmt.Println("--------------------------------------------------------------------------")
 		}
 
 		registerJobRecord(

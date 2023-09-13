@@ -74,7 +74,7 @@ func ElasticInvoke(functions []*common.Function, promptFunctions []*common.Funct
 		Deadline:          int32(runtimeSpec.Stats.Deadline),
 		RuntimeInMilliSec: uint32(runtimeSpec.Runtime),
 		PrevReplica:       uint32(0),
-		AvailableGPU:      uint32(common.TotalGPUs),
+		AvailableGPU:      common.TotalGPUs,
 	}
 	fmt.Println("jobSchedRequeset == ", jobSchedRequeset)
 	////////////////////////////////////

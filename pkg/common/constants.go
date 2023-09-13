@@ -100,6 +100,8 @@ const (
 )
 
 const (
-	ElasticFlowInterval = 5
-	INFlessInterval     = 1
+	ElasticFlowInterval      = 5
+	INFlessInterval          = 1
+	ElasticInterval          = 1
+	ElasticExecutionInterval = 5
 )
