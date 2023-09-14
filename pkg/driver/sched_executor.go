@@ -78,8 +78,8 @@ func (d *Driver) createElasticFlowSchedExecutor(filename string, jobschedrequest
 						InvocationIDs: response.InvocationName,
 						Replicas:      response.Replica,
 					}
-					message := fmt.Sprintf("InvocationIDs : %v, Replicas: %v", jobreply.InvocationIDs, jobreply.Replicas)
-					fmt.Println(red + message + reset)
+					// message := fmt.Sprintf("InvocationIDs : %v, Replicas: %v", jobreply.InvocationIDs, jobreply.Replicas)
+					// fmt.Println(red + message + reset)
 
 					jobschedreply <- jobreply
 					if err != nil {
@@ -207,8 +207,8 @@ func (d *Driver) createElasticSchedExecutor(filename string, jobschedrequest cha
 				if curRequestCount == invokefunc.QueryJobInScheduleCount() {
 					break
 				} else {
-					message := fmt.Sprintf("curRequestCount == %d, %d", curRequestCount, invokefunc.QueryJobInScheduleCount())
-					fmt.Println(red + message + reset)
+					// message := fmt.Sprintf("curRequestCount == %d, %d", curRequestCount, invokefunc.QueryJobInScheduleCount())
+					// fmt.Println(red + message + reset)
 				}
 				select {
 				case request := <-jobschedrequest:
@@ -243,18 +243,17 @@ func (d *Driver) createElasticSchedExecutor(filename string, jobschedrequest cha
 				}
 				responseStream.CloseSend()
 				response, err := responseStream.CloseAndRecv()
+				if err != nil {
+					log.Fatalf("Failed to receive response: %v", err)
+				}
 				for i := 0; i < len(requests); i++ {
 					jobreply := &mc.JobSchedReply{
 						InvocationIDs: response.InvocationName,
 						Replicas:      response.Replica,
 					}
-					message := fmt.Sprintf("InvocationIDs : %v, Replicas: %v", jobreply.InvocationIDs, jobreply.Replicas)
-					fmt.Println(red + message + reset)
-
+					// message := fmt.Sprintf("InvocationIDs : %v, Replicas: %v", jobreply.InvocationIDs, jobreply.Replicas)
+					// fmt.Println(red + message + reset)
 					jobschedreply <- jobreply
-					if err != nil {
-						log.Fatalf("Failed to receive response: %v", err)
-					}
 					// message := fmt.Sprintf("i == %d, response == %v", i, response)
 					// fmt.Println(red + message + reset)
 				}
