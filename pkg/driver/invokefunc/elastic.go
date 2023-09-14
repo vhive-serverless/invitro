@@ -3,7 +3,6 @@ package invokefunc
 import (
 	"context"
 	"fmt"
-	"os/exec"
 	"strconv"
 	"strings"
 	"sync"
@@ -74,7 +73,7 @@ func ElasticInvoke(functions []*common.Function, promptFunctions []*common.Funct
 		Deadline:          int32(runtimeSpec.Stats.Deadline),
 		RuntimeInMilliSec: uint32(runtimeSpec.Runtime),
 		PrevReplica:       uint32(0),
-		AvailableGPU:      common.TotalGPUs,
+		AvailableGPU:      int32(common.TotalGPUs),
 	}
 	fmt.Println("jobSchedRequeset == ", jobSchedRequeset)
 	////////////////////////////////////
@@ -123,17 +122,14 @@ func ElasticInvoke(functions []*common.Function, promptFunctions []*common.Funct
 	grpcClients := buildGrpcClients(conn, common.TotalGPUs, runtimeSpec)
 
 	// training hyper parameters
-	iteration_per_call := 100
-	send_messages := prepareMessages("Can you condense the sentence into a shorter version without losing its meaning?", 100) // communication overhead
-	totalBatchSize := runtimeSpec.Stats.BatchSize
-	specifiedReplicas := totalBatchSize / common.BszPerDevice
-	upperboundReplicas := common.TotalGPUs
-	rangeGPUSet := prepareRangeGPUSet(common.TotalGPUs, common.GPUPerNode)
+	var totalBatchSize int
+	var minReplicas int
 
-	lowerboundReplicas := lowerboundReplicasToDeadline(runtimeSpec.Stats.Iterations*runtimeSpec.Runtime*specifiedReplicas, runtimeSpec.Stats.Deadline, rangeGPUSet)
-	initReplicas := lowerboundReplicas
-	maxDeploymentGPUID := findIndex(rangeGPUSet, initReplicas)
-	curDeploymentGPUID := maxDeploymentGPUID
+	send_messages := prepareMessages("Can you condense the sentence into a shorter version without losing its meaning?", 100) // communication overhead
+	totalBatchSize = runtimeSpec.Stats.BatchSize
+	specifiedReplicas := totalBatchSize / common.BszPerDevice
+	// rangeGPUSet := prepareRangeGPUSet(common.TotalGPUs, common.GPUPerNode)
+	iteration_per_call := 100
 
 	curIter := 0
 	trainingIterations := runtimeSpec.Stats.Iterations
@@ -143,27 +139,51 @@ func ElasticInvoke(functions []*common.Function, promptFunctions []*common.Funct
 		onceCallStart := time.Now()
 		var wg sync.WaitGroup
 	onemore:
-		doneChan := make(chan struct{})
-		curReplicas := rangeGPUSet[curDeploymentGPUID]
-		equalIteration := 0
-		cur_iteration_per_call := min(iteration_per_call, trainingIterations-curIter)
-		if totalBatchSize/rangeGPUSet[curDeploymentGPUID] >= common.BszPerDevice {
-			accumulationSteps := totalBatchSize / rangeGPUSet[curDeploymentGPUID] / common.BszPerDevice
-			cur_iteration_per_call = cur_iteration_per_call * accumulationSteps // to avoid a float progress
-			equalIteration = cur_iteration_per_call / accumulationSteps
-		} else {
-			accumulationSteps := common.BszPerDevice / (totalBatchSize / rangeGPUSet[curDeploymentGPUID])
-			if cur_iteration_per_call*accumulationSteps+curIter > trainingIterations {
-				cur_iteration_per_call = (trainingIterations - curIter) / accumulationSteps
+		for {
+			setSchedJobCount(invocationID)
+			jobSchedRequeset.PrevReplica = uint32(minReplicas)
+			red := "\033[32m"
+			reset := "\033[0m"
+			jobSchedRequeset.Deadline = int32(int64(runtimeSpec.Stats.Deadline) - time.Since(start).Milliseconds())
+			message := fmt.Sprintf("invocationID: %s, jobSchedRequeset.Deadline: %d, send deadline %d", invocationID, jobSchedRequeset.Deadline, jobSchedRequeset.Deadline)
+			fmt.Println(red + message + reset)
+
+			jobSchedRequeset.Iterations = uint32(trainingIterations - curIter)
+			jobSchedOutputChannel <- jobSchedRequeset
+			jobSchedReply := <-jobSchedInputChannel
+			removeSchedJobCount(invocationID)
+			minReplicas = -1
+			for idx, jobInvocationID := range jobSchedReply.InvocationIDs {
+				if jobInvocationID == invocationID {
+					minReplicas = int(jobSchedReply.Replicas[idx])
+				}
 			}
-			equalIteration = cur_iteration_per_call * accumulationSteps
+
+			if minReplicas == -1 {
+				record.ResponseTime = time.Since(start).Milliseconds()
+				record.ConnectionTimeout = true
+				cancelExecution()
+				return false, record, jobRecord
+			}
+			setJobUsedResource(invocationID, minReplicas)
+			break
 		}
+		if minReplicas == 0 {
+			time.Sleep(common.ElasticInterval * time.Second)
+			goto onemore
+		}
+		doneChan := make(chan struct{})
+		errorOrNot := false
+
+		iteration_per_call = common.ElasticExecutionInterval * common.OneSecondInMilliseconds / runtimeSpec.Runtime
+		cur_iteration_per_call := min(iteration_per_call, trainingIterations-curIter)
+		equalIteration := cur_iteration_per_call / specifiedReplicas * minReplicas
+
+		// * minReplicas / specifiedReplicas
 		log.Debugf("############### invocation name %s, cur_iteration_per_call %d, equalIteration %d, curIteration %d, totalIteration %d",
 			invocationID, cur_iteration_per_call, equalIteration, curIter, trainingIterations)
 
-		grpcReplicas := rangeGPUSet[curDeploymentGPUID]
-		errorOrNot := false
-		for replicaID := 0; replicaID < grpcReplicas; replicaID++ {
+		for replicaID := 0; replicaID < minReplicas; replicaID++ {
 
 			// add one to the wait group
 			wg.Add(1)
@@ -196,6 +216,7 @@ func ElasticInvoke(functions []*common.Function, promptFunctions []*common.Funct
 		}()
 		// wait for all function invocations to finish
 		<-doneChan
+		removeJobUsedResource(invocationID) // TODO: key step
 		if errorOrNot {
 			cancelExecution()
 			executionCxt, cancelExecution = context.WithTimeout(context.Background(), time.Duration(leaseTime)*time.Second)
@@ -204,37 +225,18 @@ func ElasticInvoke(functions []*common.Function, promptFunctions []*common.Funct
 			md := metadata.New(map[string]string{"GPTName": uuid.String(), "RIter": strconv.Itoa(priority)})
 			executionCxt = metadata.NewOutgoingContext(executionCxt, md)
 
-			log.Debugf("curReplicas %d, lowerboundReplicas %d", curReplicas, lowerboundReplicas)
-			allocatedGPUs := max(min(queryFairGPUCount(functionKey), upperboundReplicas), lowerboundReplicas)
-			curDeploymentGPUID = findIndex(rangeGPUSet, allocatedGPUs)
-
-			log.Debugf("gRPC timeout exceeded for Elastic invocationID %s, expected allocatedGPUs %d - %s, elapsed time %f seconds since start,  %f seconds since iteration start", invocationID, allocatedGPUs, "error", time.Since(start).Seconds(), time.Since(onceCallStart).Seconds())
-
-			cmd := exec.Command("kubectl", "get", "pods")
-			out, err := cmd.Output()
-			if err != nil {
-				fmt.Println("Error:", err)
-			}
-			fmt.Printf("kubectl get pods %s\n", string(out))
-			cmd = exec.Command("kubectl", "get", "revisions")
-			out, err = cmd.Output()
-			if err != nil {
-				fmt.Println("Error:", err)
-			}
-			fmt.Printf("kubectl get revision %s\n", string(out))
-			fmt.Printf("**************** time sleep 10 seconds\n")
-			time.Sleep(time.Second * time.Duration(2))
+			log.Debugf("gRPC timeout exceeded for Elastic invocationID %s, expected allocatedGPUs %d - %s, elapsed time %f seconds since start,  %f seconds since iteration start", invocationID, minReplicas, "error", time.Since(start).Seconds(), time.Since(onceCallStart).Seconds())
 			record.ConnectionTimeout = true
 			goto onemore
 		}
 		// update speed info matrix
 		callRuntime := time.Since(onceCallStart).Milliseconds()
-		if speedInfo, ok := profileSpeedMatrix[rangeGPUSet[curDeploymentGPUID]]; ok {
+		if speedInfo, ok := profileSpeedMatrix[minReplicas]; ok {
 			speedInfo.iteration = cur_iteration_per_call
 			speedInfo.runtime = callRuntime
-			profileSpeedMatrix[rangeGPUSet[curDeploymentGPUID]] = speedInfo
+			profileSpeedMatrix[minReplicas] = speedInfo
 		} else {
-			profileSpeedMatrix[rangeGPUSet[curDeploymentGPUID]] = SpeedInfo{
+			profileSpeedMatrix[minReplicas] = SpeedInfo{
 				iteration: cur_iteration_per_call,
 				runtime:   callRuntime,
 			}
@@ -247,8 +249,8 @@ func ElasticInvoke(functions []*common.Function, promptFunctions []*common.Funct
 			iterStart.UnixMicro(),
 			int64(responses[0].DurationInMicroSec/1e3),
 			time.Since(iterStart).Milliseconds(),
-			grpcReplicas,
-			grpcReplicas,
+			minReplicas,
+			minReplicas,
 			curIter,
 			curIter+equalIteration,
 			trainingIterations,
@@ -256,21 +258,6 @@ func ElasticInvoke(functions []*common.Function, promptFunctions []*common.Funct
 		)
 
 		curIter += equalIteration
-		remainingIteration := runtimeSpec.Stats.Iterations - curIter
-		laxityTime := int(int64(runtimeSpec.Stats.Deadline) - time.Since(start).Milliseconds())
-		var allocatedGPUs int
-		if laxityTime > 0 && remainingIteration > 0 {
-			lowerboundReplicas = lowerboundReplicasToDeadlineByProfileSpeedMatrix(remainingIteration*specifiedReplicas,
-				runtimeSpec.Runtime,
-				profileSpeedMatrix,
-				laxityTime,
-				rangeGPUSet)
-			allocatedGPUs = roundUpToPowerOfTwo(max(min(queryFairGPUCount(functionKey), upperboundReplicas), lowerboundReplicas))
-		} else {
-			allocatedGPUs = 1
-		}
-		curDeploymentGPUID = findIndex(rangeGPUSet, allocatedGPUs)
-		// log.Debugf("allocate replicas %d, standard replicas %d, laxityTime %d ", allocatedGPUs, totalBatchSize/common.BszPerDevice, laxityTime)
 	}
 
 	record.Instance = extractInstanceName(responses[0].GetMessage())

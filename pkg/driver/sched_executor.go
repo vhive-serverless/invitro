@@ -199,10 +199,8 @@ func (d *Driver) createElasticSchedExecutor(filename string, jobschedrequest cha
 	client := schedproto.NewExecutorClient(conn)
 	var schedDone bool = false
 	var curRequestCount int = 0
-	var seconds int = 0
 	for !schedDone {
-		seconds = time.Now().Second()
-		if seconds%common.ElasticInterval == 0 {
+		{
 			requests := make([]*schedproto.SchedRequest, 0)
 			curRequestCount = 0
 			for {
@@ -224,7 +222,7 @@ func (d *Driver) createElasticSchedExecutor(filename string, jobschedrequest cha
 						Iterations:        request.Iterations,
 						Deadline:          request.Deadline,
 						PrevReplica:       request.PrevReplica,
-						AvailableGPU:      uint32(common.TotalGPUs - invokefunc.QueryResourceUsed()),
+						AvailableGPU:      int32(common.TotalGPUs - invokefunc.QueryResourceUsed()),
 					}
 					requests = append(requests, newSchedRequest)
 				} // end of select
@@ -264,7 +262,7 @@ func (d *Driver) createElasticSchedExecutor(filename string, jobschedrequest cha
 			}
 		}
 
-		time.Sleep(time.Duration(1) * time.Second)
+		time.Sleep(time.Duration(10) * time.Millisecond)
 		if QueryFinish() {
 			close(jobschedreply)
 			close(jobschedrequest)
