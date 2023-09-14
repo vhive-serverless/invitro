@@ -1,10 +1,11 @@
 {
   "Seed": 42,
 
+  "Platform": "Knative",
   "YAMLSelector": "cm",
   "EndpointPort": 80,
 
-  "TracePath": "data/traces/cold_start_25",
+  "TracePath": "data/traces/example",
   "Granularity": "minute",
   "OutputPathPrefix": "data/out/experiment",
   "IATDistribution": "exponential",
