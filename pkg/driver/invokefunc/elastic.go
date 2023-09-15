@@ -228,7 +228,6 @@ func ElasticInvoke(functions []*common.Function, promptFunctions []*common.Funct
 		<-doneChan
 		removeJobUsedResource(invocationID) // TODO: key step
 		if errorOrNot {
-<<<<<<< HEAD
 			elapsed_time := time.Since(start).Seconds()
 			if elapsed_time >= float64(nextCreateGRPC) {
 				nextCreateGRPC += leaseTime
@@ -236,20 +235,11 @@ func ElasticInvoke(functions []*common.Function, promptFunctions []*common.Funct
 				executionCxt, cancelExecution = context.WithTimeout(context.Background(), time.Duration(leaseTime)*time.Second)
 				executionCxt = metadata.NewOutgoingContext(executionCxt, md)
 			}
-=======
-			cancelExecution()
-			executionCxt, cancelExecution = context.WithTimeout(context.Background(), time.Duration(leaseTime)*time.Second)
-			executionCxt = metadata.NewOutgoingContext(executionCxt, md)
->>>>>>> 486ee6f81ec78dbe934964000ca0d8dbedd6a029
 
 			red := "\033[32m"
 			reset := "\033[0m"
 			message := fmt.Sprintf("gRPC timeout exceeded for Elastic (Ours) invocationID %s - %s, elapsed time %f seconds since start,  %f seconds since iteration start, trainingIterations %d, RuntimeInMilliSec %d, minReplicas %d",
-<<<<<<< HEAD
 				invocationID, "error", elapsed_time, time.Since(onceCallStart).Seconds(), trainingIterations, uint32(runtimeSpec.Runtime*iteration_per_call), minReplicas)
-=======
-				invocationID, "error", time.Since(start).Seconds(), time.Since(onceCallStart).Seconds(), trainingIterations, uint32(runtimeSpec.Runtime*iteration_per_call), minReplicas)
->>>>>>> 486ee6f81ec78dbe934964000ca0d8dbedd6a029
 			fmt.Printf(red + message + reset)
 			record.ConnectionTimeout = true
 			waitBackFill += 10
