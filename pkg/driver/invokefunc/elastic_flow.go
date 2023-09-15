@@ -83,7 +83,8 @@ func ElasticFlowInvoke(function *common.Function, promptFunctions []*common.Func
 		return false, record, jobRecord
 	}
 
-	executionCxt, cancelExecution := context.WithTimeout(context.Background(), time.Duration(cfg.GRPCFunctionTimeoutSeconds)*time.Second)
+	leaseTime := 900
+	executionCxt, cancelExecution := context.WithTimeout(context.Background(), time.Duration(leaseTime)*time.Second)
 	defer cancelExecution()
 
 	promptTensor := make([]float32, 128*common.EmbedingDim)
@@ -127,47 +128,44 @@ func ElasticFlowInvoke(function *common.Function, promptFunctions []*common.Func
 
 	// iterate over the function iterations
 	curIter := 0
+	waitBackFill := 0
+	nextCreateGRPC := leaseTime
 	for curIter < trainingIterations {
 		iterStart := time.Now()
 	onemore:
-		for {
-			seconds := time.Now().Second()
-			if seconds%common.ElasticFlowInterval == 0 {
-				setSchedJobCount(invocationID)
-				jobSchedRequeset.PrevReplica = uint32(minReplicas)
-				jobSchedRequeset.Deadline = int32(int64(runtimeSpec.Stats.Deadline) - time.Since(start).Milliseconds())
-				jobSchedRequeset.Iterations = uint32(trainingIterations - curIter)
-				jobSchedOutputChannel <- jobSchedRequeset
-				jobSchedReply := <-jobSchedInputChannel
-				removeSchedJobCount(invocationID) // TODO:
-				// if invocationID != jobSchedReply.InvocationID {
-				// 	record.ResponseTime = time.Since(start).Milliseconds()
-				// 	record.ConnectionTimeout = true
-				// 	message := fmt.Sprintf("---  \t \t my invocation %s jobSchedReply %s", invocationID, jobSchedReply.InvocationID)
-				// 	fmt.Println(red + message + reset)
-				// 	cancelExecution()
-				// 	return false, record, jobRecord
-				// }
-				minReplicas = -1
-				for idx, jobInvocationID := range jobSchedReply.InvocationIDs {
-					if jobInvocationID == invocationID {
-						minReplicas = int(jobSchedReply.Replicas[idx])
-					}
+		{
+			setSchedJobCount(invocationID)
+			jobSchedRequeset.PrevReplica = uint32(minReplicas)
+			jobSchedRequeset.Deadline = int32(int64(runtimeSpec.Stats.Deadline) - time.Since(start).Milliseconds())
+			jobSchedRequeset.Iterations = uint32(trainingIterations - curIter)
+			jobSchedOutputChannel <- jobSchedRequeset
+			jobSchedReply := <-jobSchedInputChannel
+			removeSchedJobCount(invocationID) // TODO:
+			// if invocationID != jobSchedReply.InvocationID {
+			// 	record.ResponseTime = time.Since(start).Milliseconds()
+			// 	record.ConnectionTimeout = true
+			// 	message := fmt.Sprintf("---  \t \t my invocation %s jobSchedReply %s", invocationID, jobSchedReply.InvocationID)
+			// 	fmt.Println(red + message + reset)
+			// 	cancelExecution()
+			// 	return false, record, jobRecord
+			// }
+			minReplicas = -1
+			for idx, jobInvocationID := range jobSchedReply.InvocationIDs {
+				if jobInvocationID == invocationID {
+					minReplicas = int(jobSchedReply.Replicas[idx])
 				}
-				message := fmt.Sprintf("---  \t \t %s, receive %d", invocationID, minReplicas)
-				fmt.Println(red + message + reset)
-				if minReplicas == -1 {
-					record.ResponseTime = time.Since(start).Milliseconds()
-					record.ConnectionTimeout = true
-					message := fmt.Sprintf("---  \t \t %s does not exist in reply", invocationID)
-					fmt.Println(red + message + reset)
-
-					cancelExecution()
-					return false, record, jobRecord
-				}
-				break
 			}
-			time.Sleep(1 * time.Second)
+			message := fmt.Sprintf("---  \t \t %s, receive %d", invocationID, minReplicas)
+			fmt.Println(red + message + reset)
+			if minReplicas == -1 {
+				record.ResponseTime = time.Since(start).Milliseconds()
+				record.ConnectionTimeout = true
+				message := fmt.Sprintf("---  \t \t %s does not exist in reply", invocationID)
+				fmt.Println(red + message + reset)
+
+				cancelExecution()
+				return false, record, jobRecord
+			}
 		}
 		if minReplicas == 0 {
 			time.Sleep(common.ElasticFlowInterval * time.Second)
@@ -217,14 +215,21 @@ func ElasticFlowInvoke(function *common.Function, promptFunctions []*common.Func
 		fmt.Println(red + message + reset)
 
 		if errorOrNot {
-			cancelExecution()
-			executionCxt, cancelExecution = context.WithTimeout(context.Background(), time.Duration(cfg.GRPCFunctionTimeoutSeconds)*time.Second)
-			executionCxt = metadata.NewOutgoingContext(executionCxt, md)
-			log.Debugf("gRPC timeout exceeded for batch scheduler in invocationID %s - %s", invocationID, errorMessage)
-			time.Sleep(time.Second * 10)
+			elapsed_time := time.Since(start).Seconds()
+			if elapsed_time >= float64(nextCreateGRPC) {
+				nextCreateGRPC += leaseTime
+				cancelExecution()
+				executionCxt, cancelExecution = context.WithTimeout(context.Background(), time.Duration(leaseTime)*time.Second)
+				executionCxt = metadata.NewOutgoingContext(executionCxt, md)
+			}
+
+			log.Debugf("gRPC timeout exceeded for elastic flow scheduler in invocationID %s - %s", invocationID, errorMessage)
 			record.ConnectionTimeout = true
+			waitBackFill += 10
+			time.Sleep(time.Duration(waitBackFill) * time.Millisecond)
 			goto onemore
 		}
+		waitBackFill = waitBackFill / 2
 
 		// gradient average
 		promptTensor = responses[0].PromptGradient

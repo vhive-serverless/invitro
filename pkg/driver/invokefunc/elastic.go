@@ -133,6 +133,8 @@ func ElasticInvoke(functions []*common.Function, promptFunctions []*common.Funct
 
 	curIter := 0
 	trainingIterations := runtimeSpec.Stats.Iterations
+	waitBackFill := 0
+	nextCreateGRPC := leaseTime
 	for curIter < trainingIterations {
 		// create a wait group to wait for all goroutines to finish
 		iterStart := time.Now()
@@ -142,11 +144,11 @@ func ElasticInvoke(functions []*common.Function, promptFunctions []*common.Funct
 		for {
 			setSchedJobCount(invocationID)
 			jobSchedRequeset.PrevReplica = uint32(minReplicas)
-			red := "\033[32m"
-			reset := "\033[0m"
 			jobSchedRequeset.Deadline = int32(int64(runtimeSpec.Stats.Deadline) - time.Since(start).Milliseconds())
-			message := fmt.Sprintf("invocationID: %s, jobSchedRequeset.Deadline: %d, send deadline %d", invocationID, jobSchedRequeset.Deadline, jobSchedRequeset.Deadline)
-			fmt.Println(red + message + reset)
+			// red := "\033[32m"
+			// reset := "\033[0m"
+			// message := fmt.Sprintf("invocationID: %s, jobSchedRequeset.Deadline: %d, send deadline %d", invocationID, jobSchedRequeset.Deadline, jobSchedRequeset.Deadline)
+			// fmt.Println(red + message + reset)
 
 			jobSchedRequeset.Iterations = uint32(trainingIterations - curIter)
 			jobSchedOutputChannel <- jobSchedRequeset
@@ -180,8 +182,8 @@ func ElasticInvoke(functions []*common.Function, promptFunctions []*common.Funct
 		equalIteration := cur_iteration_per_call / specifiedReplicas * minReplicas
 
 		// * minReplicas / specifiedReplicas
-		log.Debugf("############### invocation name %s, cur_iteration_per_call %d, equalIteration %d, curIteration %d, totalIteration %d",
-			invocationID, cur_iteration_per_call, equalIteration, curIter, trainingIterations)
+		// log.Debugf("############### invocation name %s, cur_iteration_per_call %d, equalIteration %d, curIteration %d, totalIteration %d",
+		// 	invocationID, cur_iteration_per_call, equalIteration, curIter, trainingIterations)
 
 		for replicaID := 0; replicaID < minReplicas; replicaID++ {
 
@@ -191,6 +193,7 @@ func ElasticInvoke(functions []*common.Function, promptFunctions []*common.Funct
 			go func(replicaID int) {
 				defer wg.Done()
 				// execute the function and store the response
+				rep_start := time.Now()
 				response, err := grpcClients[replicaID].Execute(executionCxt, &proto.FaasRequest{
 					Message:              send_messages,
 					Batchsize:            uint32(common.BszPerDevice),
@@ -199,10 +202,17 @@ func ElasticInvoke(functions []*common.Function, promptFunctions []*common.Funct
 					PromptTensor:         promptTensor,
 				})
 				if err != nil {
-					fmt.Printf("Error executing function: %v\n", err)
+					red := "\033[32m"
+					reset := "\033[0m"
+					message := fmt.Sprintf("Error executing function replicaID: %d: %v\n", replicaID, err)
+					fmt.Printf(red + message + reset)
 					errorOrNot = errorOrNot || true
 					return
 				}
+				red := "\033[34m"
+				reset := "\033[0m"
+				message := fmt.Sprintf("replicaID %d: time %f, since start %f \n", replicaID, time.Since(rep_start).Seconds(), time.Since(start).Seconds())
+				fmt.Printf(red + message + reset)
 
 				// store the response in the slice
 				responses[replicaID] = *response
@@ -218,17 +228,25 @@ func ElasticInvoke(functions []*common.Function, promptFunctions []*common.Funct
 		<-doneChan
 		removeJobUsedResource(invocationID) // TODO: key step
 		if errorOrNot {
-			cancelExecution()
-			executionCxt, cancelExecution = context.WithTimeout(context.Background(), time.Duration(leaseTime)*time.Second)
-			// priority := calPriority(curIter, int(time.Since(start).Seconds()))
-			priority := 0
-			md := metadata.New(map[string]string{"GPTName": uuid.String(), "RIter": strconv.Itoa(priority)})
-			executionCxt = metadata.NewOutgoingContext(executionCxt, md)
+			elapsed_time := time.Since(start).Seconds()
+			if elapsed_time >= float64(nextCreateGRPC) {
+				nextCreateGRPC += leaseTime
+				cancelExecution()
+				executionCxt, cancelExecution = context.WithTimeout(context.Background(), time.Duration(leaseTime)*time.Second)
+				executionCxt = metadata.NewOutgoingContext(executionCxt, md)
+			}
 
-			log.Debugf("gRPC timeout exceeded for Elastic invocationID %s, expected allocatedGPUs %d - %s, elapsed time %f seconds since start,  %f seconds since iteration start", invocationID, minReplicas, "error", time.Since(start).Seconds(), time.Since(onceCallStart).Seconds())
+			red := "\033[32m"
+			reset := "\033[0m"
+			message := fmt.Sprintf("gRPC timeout exceeded for Elastic (Ours) invocationID %s - %s, elapsed time %f seconds since start,  %f seconds since iteration start, trainingIterations %d, RuntimeInMilliSec %d, minReplicas %d",
+				invocationID, "error", elapsed_time, time.Since(onceCallStart).Seconds(), trainingIterations, uint32(runtimeSpec.Runtime*iteration_per_call), minReplicas)
+			fmt.Printf(red + message + reset)
 			record.ConnectionTimeout = true
+			waitBackFill += 10
+			time.Sleep(time.Duration(waitBackFill) * time.Millisecond)
 			goto onemore
 		}
+		waitBackFill = waitBackFill / 2
 		// update speed info matrix
 		callRuntime := time.Since(onceCallStart).Milliseconds()
 		if speedInfo, ok := profileSpeedMatrix[minReplicas]; ok {
@@ -275,7 +293,19 @@ func ElasticInvoke(functions []*common.Function, promptFunctions []*common.Funct
 	log.Tracef("(Replied)\t %s: %s, %.2f[ms], %d[MiB]", functions[0].Name, responses[0].Message,
 		float64(responses[0].DurationInMicroSec)/1e3, responses[0].GpuMemoryInMebiBytes)
 	log.Tracef("(E2E Latency) %s: %.2f[ms]\n", functions[0].Name, float64(record.ResponseTime))
+	if int64(runtimeSpec.Stats.Deadline) < record.ResponseTime {
+		red := "\033[35m"
+		reset := "\033[0m"
+		message := fmt.Sprintf("Elastic (Ours) invocationID (%s) miss its deadline [%d] response time [%d]", invocationID, runtimeSpec.Stats.Deadline, record.ResponseTime)
+		fmt.Println(red + message + reset)
+	} else {
+		red := "\033[35m"
+		reset := "\033[0m"
+		message := fmt.Sprintf("Elastic (Ours) invocationID (%s) satisfy its deadline", invocationID)
+		fmt.Println(red + message + reset)
+	}
 	log.Tracef("Length of Prompt Tensor [%d] \t Sum of Prompt Tensor [%.2f] \n", len(responses[0].PromptGradient), sum(responses[0].PromptGradient))
+
 	cancelExecution()
 	deleteValue(functionKey)
 	return true, record, jobRecord

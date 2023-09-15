@@ -180,12 +180,14 @@ func INFlessInvoke(functions []*common.Function, promptFunctions []*common.Funct
 	localGPUSet := prepareRangeGPUSet(upperboundReplicas, common.GPUPerNode)
 
 	curIter := 0
+	waitBackFill := 0
+	nextCreateGRPC := leaseTime
 	for curIter < trainingIterations {
 		// create a wait group to wait for all goroutines to finish
 		onceCallStart := time.Now()
 		var wg sync.WaitGroup
 	onemore:
-		for {
+		{
 			setSchedJobCount(invocationID)
 			jobSchedRequeset.PrevReplica = uint32(minReplicas)
 			jobSchedRequeset.Deadline = int32(int64(runtimeSpec.Stats.Deadline) - time.Since(start).Milliseconds())
@@ -207,7 +209,6 @@ func INFlessInvoke(functions []*common.Function, promptFunctions []*common.Funct
 				return false, record, jobRecord
 			}
 			setJobUsedResource(invocationID, minReplicas)
-			break
 		}
 		if minReplicas == 0 {
 			time.Sleep(common.INFlessInterval * time.Second)
@@ -262,18 +263,26 @@ func INFlessInvoke(functions []*common.Function, promptFunctions []*common.Funct
 		<-doneChan
 		removeJobUsedResource(invocationID) // TODO: key step
 		if errorOrNot {
-			cancelExecution()
+			elapsed_time := time.Since(start).Seconds()
+			if elapsed_time >= float64(nextCreateGRPC) {
+				nextCreateGRPC += leaseTime
+				cancelExecution()
+				executionCxt, cancelExecution = context.WithTimeout(context.Background(), time.Duration(leaseTime)*time.Second)
+				executionCxt = metadata.NewOutgoingContext(executionCxt, md)
+			}
 
-			executionCxt, cancelExecution = context.WithTimeout(context.Background(), time.Duration(leaseTime)*time.Second)
-			executionCxt = metadata.NewOutgoingContext(executionCxt, md)
 			red := "\033[32m"
 			reset := "\033[0m"
+
 			message := fmt.Sprintf("gRPC timeout exceeded for INFless invocationID %s - %s, elapsed time %f seconds since start,  %f seconds since iteration start, trainingIterations %d, RuntimeInMilliSec %d, minReplicas %d",
-				invocationID, "error", time.Since(start).Seconds(), time.Since(onceCallStart).Seconds(), trainingIterations, uint32(runtimeSpec.Runtime*iteration_per_call), minReplicas)
+				invocationID, "error", elapsed_time, time.Since(onceCallStart).Seconds(), trainingIterations, uint32(runtimeSpec.Runtime*iteration_per_call), minReplicas)
 			fmt.Printf(red + message + reset)
 			// log.Debugf("gRPC timeout exceeded for INFless invocationID %s - %s, elapsed time %f seconds since start,  %f seconds since iteration start, trainingIterations %d",
 			// 	invocationID, "error", time.Since(start).Seconds(), time.Since(onceCallStart).Seconds(), trainingIterations)
+
 			record.ConnectionTimeout = true
+			waitBackFill += 10
+			time.Sleep(time.Duration(waitBackFill) * time.Millisecond)
 			goto onemore
 		}
 
