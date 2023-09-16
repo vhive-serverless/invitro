@@ -28,7 +28,7 @@ spec:
       nodeSelector:
         loader-nodetype: worker
       containers:
-        - image: gaow0007/trace_function_gpt:latest
+        - image: gaow0007/trace_function_gpt_with_dataset:latest
           imagePullPolicy: Always  # No need if the tag is `latest`.
           ports:
             - name: h2c  # For gRPC support

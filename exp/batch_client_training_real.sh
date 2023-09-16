@@ -6,7 +6,7 @@ clean_env() {
 
 for duration in 60 # 20 40 60 # 5 10 20 # 5 # 10 20 # 20 # 20 30 # 10 # 5 10 # 20 # 30 40 60 80 120 150 240 # 10 20 30 40 60 # 80 120 150 240
 do
-    for load in 0.7 # 0.3 0.5 0.7
+    for load in 0.3 0.5 0.7
     do 
         # TODO: (1) elastic -> our proposed elastic and preemptive scheduler 
         # TODO: (2) infless -> infless with slo support 

@@ -133,12 +133,9 @@ func ElasticInvoke(functions []*common.Function, promptFunctions []*common.Funct
 
 	curIter := 0
 	trainingIterations := runtimeSpec.Stats.Iterations
-<<<<<<< HEAD
-	waitBackFill := 0 
-=======
 	waitBackFill := 0
->>>>>>> 738c493fc0ed3e569b1722cb2ac2d677e557921e
 	nextCreateGRPC := leaseTime
+	lastErrorTime := time.Now()
 	for curIter < trainingIterations {
 		// create a wait group to wait for all goroutines to finish
 		iterStart := time.Now()
@@ -208,7 +205,7 @@ func ElasticInvoke(functions []*common.Function, promptFunctions []*common.Funct
 				if err != nil {
 					red := "\033[32m"
 					reset := "\033[0m"
-					message := fmt.Sprintf("Error executing function replicaID: %d: %v\n", replicaID, err)
+					message := fmt.Sprintf("\tError executing function replicaID: %d: %v\n", replicaID, err)
 					fmt.Printf(red + message + reset)
 					errorOrNot = errorOrNot || true
 					return
@@ -242,15 +239,12 @@ func ElasticInvoke(functions []*common.Function, promptFunctions []*common.Funct
 
 			red := "\033[32m"
 			reset := "\033[0m"
-			message := fmt.Sprintf("gRPC timeout exceeded for Elastic (Ours) invocationID %s - %s, elapsed time %f seconds since start,  %f seconds since iteration start, trainingIterations %d, RuntimeInMilliSec %d, minReplicas %d",
-				invocationID, "error", elapsed_time, time.Since(onceCallStart).Seconds(), trainingIterations, uint32(runtimeSpec.Runtime*iteration_per_call), minReplicas)
+			message := fmt.Sprintf("gRPC timeout exceeded for Elastic (Ours) invocationID %s - %s, elapsed time %f seconds since start,  %f seconds since iteration start, %f seconds since last error, trainingIterations %d, RuntimeInMilliSec %d, minReplicas %d, waitBackFill %d [ms]",
+				invocationID, "error", elapsed_time, time.Since(onceCallStart).Seconds(), time.Since(lastErrorTime).Seconds(), trainingIterations, uint32(runtimeSpec.Runtime*iteration_per_call), minReplicas, waitBackFill)
+			lastErrorTime = time.Now()
 			fmt.Printf(red + message + reset)
 			record.ConnectionTimeout = true
-<<<<<<< HEAD
-			waitBackFill += 10 
-=======
 			waitBackFill += 10
->>>>>>> 738c493fc0ed3e569b1722cb2ac2d677e557921e
 			time.Sleep(time.Duration(waitBackFill) * time.Millisecond)
 			goto onemore
 		}
