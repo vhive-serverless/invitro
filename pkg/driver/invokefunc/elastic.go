@@ -133,7 +133,11 @@ func ElasticInvoke(functions []*common.Function, promptFunctions []*common.Funct
 
 	curIter := 0
 	trainingIterations := runtimeSpec.Stats.Iterations
+<<<<<<< HEAD
 	waitBackFill := 0 
+=======
+	waitBackFill := 0
+>>>>>>> 738c493fc0ed3e569b1722cb2ac2d677e557921e
 	nextCreateGRPC := leaseTime
 	for curIter < trainingIterations {
 		// create a wait group to wait for all goroutines to finish
@@ -242,7 +246,11 @@ func ElasticInvoke(functions []*common.Function, promptFunctions []*common.Funct
 				invocationID, "error", elapsed_time, time.Since(onceCallStart).Seconds(), trainingIterations, uint32(runtimeSpec.Runtime*iteration_per_call), minReplicas)
 			fmt.Printf(red + message + reset)
 			record.ConnectionTimeout = true
+<<<<<<< HEAD
 			waitBackFill += 10 
+=======
+			waitBackFill += 10
+>>>>>>> 738c493fc0ed3e569b1722cb2ac2d677e557921e
 			time.Sleep(time.Duration(waitBackFill) * time.Millisecond)
 			goto onemore
 		}

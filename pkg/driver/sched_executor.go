@@ -27,10 +27,8 @@ func (d *Driver) createElasticFlowSchedExecutor(filename string, jobschedrequest
 	client := schedproto.NewExecutorClient(conn)
 	var schedDone bool = false
 	var curRequestCount int = 0
-	var seconds int = 0
 	for !schedDone {
-		seconds = time.Now().Second()
-		if seconds%common.ElasticFlowInterval == 0 {
+		{
 			requests := make([]*schedproto.SchedRequest, 0)
 			curRequestCount = 0
 			for {
@@ -92,7 +90,7 @@ func (d *Driver) createElasticFlowSchedExecutor(filename string, jobschedrequest
 			}
 		}
 
-		time.Sleep(1 * time.Second)
+		time.Sleep(time.Duration(10) * time.Millisecond)
 		if QueryFinish() {
 			close(jobschedreply)
 			close(jobschedrequest)
