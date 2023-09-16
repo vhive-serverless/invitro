@@ -242,12 +242,12 @@ if True:
         root = os.path.dirname(root)
     
     
-    duration_list = [5] # , 10, 20] # , 10, 20] # , 30, 40]
+    duration_list = [5, 10, 20] # , 10, 20] # , 30, 40]
     # duration_list = [5]
     
     print(duration_list)
     # method_list = ['perfect', 'elastic', 'batch', 'gradient_accumulation'] # ['perfect', 'batch', 'elastic'] # , 'batch']
-    method_list = ['perfect', 'infless', 'elastic_flow', 'elastic']
+    method_list = ['perfect', 'elastic']
     # method_list = ['perfect', 'elastic']
     
     
@@ -271,7 +271,7 @@ if True:
         }
         template.update(new_template)
         # load_list = [0.5, 0.6, 0.7]
-        load_list = [0.5, 0.5]
+        load_list = [0.3, 0.5, 0.7]
         fig, axes = init_plot((1, len(load_list)), grid=True)
         
     

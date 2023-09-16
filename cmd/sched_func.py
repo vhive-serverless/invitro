@@ -1,3 +1,4 @@
+# python cmd/sched_func.py 2>&1 | tee -a exam.log
 import os, sys
 sys.path.insert(0, './pkg/workload/schedproto')
 import time 

@@ -133,6 +133,8 @@ func ElasticInvoke(functions []*common.Function, promptFunctions []*common.Funct
 
 	curIter := 0
 	trainingIterations := runtimeSpec.Stats.Iterations
+	waitBackFill := 0 
+	nextCreateGRPC := leaseTime
 	for curIter < trainingIterations {
 		// create a wait group to wait for all goroutines to finish
 		iterStart := time.Now()
@@ -226,18 +228,25 @@ func ElasticInvoke(functions []*common.Function, promptFunctions []*common.Funct
 		<-doneChan
 		removeJobUsedResource(invocationID) // TODO: key step
 		if errorOrNot {
-			cancelExecution()
-			executionCxt, cancelExecution = context.WithTimeout(context.Background(), time.Duration(leaseTime)*time.Second)
-			executionCxt = metadata.NewOutgoingContext(executionCxt, md)
+			elapsed_time := time.Since(start).Seconds()
+			if elapsed_time >= float64(nextCreateGRPC) {
+				nextCreateGRPC += leaseTime
+				cancelExecution()
+				executionCxt, cancelExecution = context.WithTimeout(context.Background(), time.Duration(leaseTime)*time.Second)
+				executionCxt = metadata.NewOutgoingContext(executionCxt, md)
+			}
 
 			red := "\033[32m"
 			reset := "\033[0m"
 			message := fmt.Sprintf("gRPC timeout exceeded for Elastic (Ours) invocationID %s - %s, elapsed time %f seconds since start,  %f seconds since iteration start, trainingIterations %d, RuntimeInMilliSec %d, minReplicas %d",
-				invocationID, "error", time.Since(start).Seconds(), time.Since(onceCallStart).Seconds(), trainingIterations, uint32(runtimeSpec.Runtime*iteration_per_call), minReplicas)
+				invocationID, "error", elapsed_time, time.Since(onceCallStart).Seconds(), trainingIterations, uint32(runtimeSpec.Runtime*iteration_per_call), minReplicas)
 			fmt.Printf(red + message + reset)
 			record.ConnectionTimeout = true
+			waitBackFill += 10 
+			time.Sleep(time.Duration(waitBackFill) * time.Millisecond)
 			goto onemore
 		}
+		waitBackFill = waitBackFill / 2
 		// update speed info matrix
 		callRuntime := time.Since(onceCallStart).Milliseconds()
 		if speedInfo, ok := profileSpeedMatrix[minReplicas]; ok {
@@ -287,7 +296,7 @@ func ElasticInvoke(functions []*common.Function, promptFunctions []*common.Funct
 	if int64(runtimeSpec.Stats.Deadline) < record.ResponseTime {
 		red := "\033[35m"
 		reset := "\033[0m"
-		message := fmt.Sprintf("Elastic (Ours) invocationID (%s) miss its deadline", invocationID)
+		message := fmt.Sprintf("Elastic (Ours) invocationID (%s) miss its deadline [%d] response time [%d]", invocationID, runtimeSpec.Stats.Deadline, record.ResponseTime)
 		fmt.Println(red + message + reset)
 	} else {
 		red := "\033[35m"
