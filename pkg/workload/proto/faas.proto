@@ -13,7 +13,7 @@
 */
 syntax = "proto3";
 
-option go_package = "github.com/eth-easl/loader/workload/proto";
+option go_package = "github.com/vhive-serverless/loader/workload/proto";
 
 package faas;
 
