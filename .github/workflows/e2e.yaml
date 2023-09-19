@@ -55,6 +55,8 @@ jobs:
           KNATIVE_DOMAIN=$INGRESS_HOST.sslip.io
           kubectl patch configmap -n knative-serving config-domain -p "{\"data\": {\"$KNATIVE_DOMAIN\": \"\"}}"
           kubectl patch configmap -n knative-serving config-autoscaler -p "{\"data\": {\"allow-zero-initial-scale\": \"true\"}}"
+          kubectl patch configmap -n knative-serving config-features -p "{\"data\": {\"kubernetes.podspec-nodeselector\": \"enabled\"}}"
+          kubectl label node knative-control-plane loader-nodetype=worker
 
       - name: Build and run loader
         run: go run cmd/loader.go --config cmd/config.json
