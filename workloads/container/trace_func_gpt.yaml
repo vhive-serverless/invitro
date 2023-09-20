@@ -17,7 +17,7 @@ spec:
         autoscaling.knative.dev/max-scale: "200"  # Maximum instances limit of Azure.
         autoscaling.knative.dev/window: "10s" # decrease it to expediate the response speed
         autoscaling.knative.dev/scale-down-delay: "10s"
-        autoscaling.knative.dev/metric-aggregation-algorithm: "max"
+        autoscaling.knative.dev/metric-aggregation-algorithm: "linear"
 
         autoscaling.knative.dev/panic-window-percentage: $PANIC_WINDOW
         autoscaling.knative.dev/panic-threshold-percentage: $PANIC_THRESHOLD
@@ -38,9 +38,9 @@ spec:
               value: "102"
             - name: ENABLE_TRACING
               value: "false"
-          volumeMounts:
-            - name: promptbank-pvc
-              mountPath: /app/fileshare/
+          # volumeMounts:
+          #   - name: promptbank-pvc
+          #     mountPath: /app/fileshare/
           resources:
             limits:
               cpu: $CPU_LIMITS
@@ -50,7 +50,7 @@ spec:
               memory: $MEMORY_REQUESTS
               nvidia.com/gpu: $GPU_REQUEST
 
-      volumes:
-      - name: promptbank-pvc
-        persistentVolumeClaim: 
-          claimName: my-pvc
+      # volumes:
+      # - name: promptbank-pvc
+      #   persistentVolumeClaim: 
+      #     claimName: my-pvc

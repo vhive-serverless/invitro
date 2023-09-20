@@ -4,9 +4,9 @@ clean_env() {
     sleep 300 
 }
 
-for duration in 60 # 20 40 60 # 5 10 20 # 5 # 10 20 # 20 # 20 30 # 10 # 5 10 # 20 # 30 40 60 80 120 150 240 # 10 20 30 40 60 # 80 120 150 240
+for duration in 1 # 20 40 60 # 5 10 20 # 5 # 10 20 # 20 # 20 30 # 10 # 5 10 # 20 # 30 40 60 80 120 150 240 # 10 20 30 40 60 # 80 120 150 240
 do
-    for load in 0.3 0.5 0.7
+    for load in 0.3 # 0.5 0.7
     do 
         # TODO: (1) elastic -> our proposed elastic and preemptive scheduler 
         # TODO: (2) infless -> infless with slo support 
@@ -19,7 +19,8 @@ do
             rm log/${method}_log_${duration}_${load}.txt
             go run cmd/loader.go --config cmd/real_configs/config_client_${method}_real-${load}.json  \
                                 --overwrite_duration ${duration} # 2>&1 | tee -a log/${method}_log_${duration}_${load}.txt
-            clean_env "$@" 
+            exit 
+            # clean_env "$@" 
             # exit 
         done 
         
