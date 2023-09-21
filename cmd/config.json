@@ -10,7 +10,7 @@
   "Granularity": "minute",
   "OutputPathPrefix": "data/out/experiment",
   "IATDistribution": "exponential",
-  "ExperimentDuration": 45,
+  "ExperimentDuration": 2,
   "WarmupDuration": 0,
 
   "IsPartiallyPanic": false,
