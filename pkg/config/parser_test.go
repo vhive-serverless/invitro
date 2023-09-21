@@ -51,7 +51,7 @@ func TestConfigParser(t *testing.T) {
 		!strings.HasPrefix(config.OutputPathPrefix, "data/out/experiment") ||
 		config.Granularity != "minute" ||
 		config.IATDistribution != "exponential" ||
-		config.ExperimentDuration != 45 ||
+		config.ExperimentDuration != 2 ||
 		config.WarmupDuration != 0 ||
 		config.IsPartiallyPanic != false ||
 		config.EnableZipkinTracing != false ||
