@@ -19,8 +19,9 @@ do
             rm log/${method}_log_${duration}_${load}.txt
             go run cmd/loader.go --config cmd/real_configs/config_client_${method}_real-${load}.json  \
                                 --overwrite_duration ${duration} # 2>&1 | tee -a log/${method}_log_${duration}_${load}.txt
+            
+	        clean_env "$@"
             result=$(kubectl get pods)
-	    clean_env "$@"
             while [[ $result == *"-gpu-"* ]] ; do 
                 clean_env "$@" 
                 result=$(kubectl get pods)
