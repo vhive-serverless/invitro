@@ -4,6 +4,8 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/eth-easl/loader/pkg/common"
@@ -107,6 +109,7 @@ func shadowFunctions(functions []*common.Function) []*common.Function {
 
 	return newFunctions
 }
+
 func serverfulFunctions(functions []*common.Function) []*common.Function {
 	newFunctions := make([]*common.Function, len(functions)*common.ServerfulCopyReplicas)
 
@@ -122,25 +125,65 @@ func serverfulFunctions(functions []*common.Function) []*common.Function {
 	return newFunctions
 }
 
+func sharingFunctions(functions []*common.Function) []*common.Function {
+	newFunctions := make([]*common.Function, len(functions))
+	newStrings := make([]string, 0)
+	var firstFuncName = ""
+	for idx, f := range functions {
+		parts := strings.Split(f.Name, "-")
+		combined := strings.Join(parts[:2], "-")
+		newStrings = append(newStrings, combined)
+		if idx == 0 {
+			firstFuncName = combined
+		}
+		fmt.Println("endingpoint :", f.Endpoint)
+	}
+	sharingEndpoint := functions[0].Endpoint
+	// combinedName := "[" + strings.Join(newStrings, "-") + "]"
+	combinedName := strings.Join(newStrings, "-")
+	// copy := *functions[0]
+	// copy.Name = strings.Replace(functions[0].Name, firstFuncName, combinedName, -1)
+	for idx, f := range functions {
+		copy := *f // make a copy of the function
+		copy.UniqueName = copy.Name
+		copy.Name = strings.Replace(functions[0].Name, firstFuncName, combinedName, -1) + "-" + strconv.Itoa(idx)
+
+		copy.Endpoint = sharingEndpoint
+		newFunctions[idx] = &copy // add the copy to the new slice
+		log.Infof("sharing function name is %s", newFunctions[idx].Name)
+	}
+
+	return newFunctions
+}
+
 func runTraceMode(cfg *config.LoaderConfiguration, iatOnly bool, generated bool) {
 	durationToParse := determineDurationToParse(cfg.ExperimentDuration, cfg.WarmupDuration)
 
 	traceParser := trace.NewAzureParser(cfg.TracePath, durationToParse)
 	functions := traceParser.Parse()
-
-	if driver.IsStringInList(cfg.ClientTraining, []string{common.Multi, common.HiveD, common.INFless, common.Elastic}) {
-		functions = shadowFunctions(functions)
-	} else if driver.IsStringInList(cfg.ClientTraining, []string{common.Caerus, common.BatchPriority, common.PipelineBatchPriority, common.Knative}) {
-
-	} else if driver.IsStringInList(cfg.ClientTraining, []string{common.ElasticFlow}) {
-		functions = serverfulFunctions(functions)
+	if cfg.ContainerSharing {
+		if driver.IsStringInList(cfg.ClientTraining, []string{common.Multi, common.HiveD, common.INFless, common.Elastic}) {
+			functions = shadowFunctions(functions)
+			functions = sharingFunctions(functions)
+		}
 	} else {
-		log.Errorf("Invalid client_training value: %s", cfg.ClientTraining)
+		if driver.IsStringInList(cfg.ClientTraining, []string{common.Multi, common.HiveD, common.INFless, common.Elastic}) {
+			functions = shadowFunctions(functions)
+		} else if driver.IsStringInList(cfg.ClientTraining, []string{common.Caerus, common.BatchPriority, common.PipelineBatchPriority, common.Knative}) {
+
+		} else if driver.IsStringInList(cfg.ClientTraining, []string{common.ElasticFlow}) {
+			functions = serverfulFunctions(functions)
+		} else {
+			log.Errorf("Invalid client_training value: %s", cfg.ClientTraining)
+		}
 	}
 
 	log.Infof("Traces contain the following %d functions:\n", len(functions))
 	for _, function := range functions {
 		fmt.Printf("\t%s\n", function.Name)
+		if len(function.Name) < 1 {
+			function.UniqueName = function.Name
+		}
 	}
 
 	var iatType common.IatDistribution
@@ -163,6 +206,8 @@ func runTraceMode(cfg *config.LoaderConfiguration, iatOnly bool, generated bool)
 		yamlSpecificationPath = "workloads/container/trace_func_gpt.yaml"
 	case "container-gpu":
 		yamlSpecificationPath = "workloads/container/trace_func_gpt_gpu.yaml"
+	case "container-dataset":
+		yamlSpecificationPath = "workloads/container/trace_func_gpt_with_dataset.yaml"
 	case "firecracker":
 		yamlSpecificationPath = "workloads/firecracker/trace_func_go.yaml"
 	default:

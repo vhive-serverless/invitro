@@ -204,11 +204,11 @@ func extractModelName(functionName string) string {
 }
 func (d *Driver) invokeFunction(metadata *InvocationMetadata, functions []*common.Function, promptFunctions []*common.Function) {
 	defer metadata.AnnounceDoneWG.Done()
-	invocationID := extractModelName(metadata.Function.Name) + composeInvocationID(d.Configuration.TraceGranularity, metadata.MinuteIndex, metadata.InvocationIndex)
+	invocationID := extractModelName(metadata.Function.UniqueName) + composeInvocationID(d.Configuration.TraceGranularity, metadata.MinuteIndex, metadata.InvocationIndex)
 	success, record, jobRecord := Invoke(metadata.Function, functions, promptFunctions, metadata.RuntimeSpecifications, d.Configuration.LoaderConfiguration, invocationID, metadata.JobSchedOutputChannel, metadata.JobSchedInputChannel)
 
 	record.Phase = int(metadata.Phase)
-	record.InvocationID = extractModelName(metadata.Function.Name) + composeInvocationID(d.Configuration.TraceGranularity, metadata.MinuteIndex, metadata.InvocationIndex)
+	record.InvocationID = extractModelName(metadata.Function.UniqueName) + composeInvocationID(d.Configuration.TraceGranularity, metadata.MinuteIndex, metadata.InvocationIndex)
 
 	if success {
 		atomic.AddInt64(metadata.SuccessCount, 1)
@@ -250,7 +250,7 @@ func (d *Driver) individualFunctionDriver(function *common.Function, functions [
 	gpuCount := -1
 	if IsStringInList(d.Configuration.LoaderConfiguration.ClientTraining, []string{common.Multi, common.HiveD, common.INFless, common.Elastic}) {
 		// IsStringInList(d.Configuration.LoaderConfiguration.ClientTraining); d.Configuration.LoaderConfiguration.ClientTraining == common.Single || d.Configuration.LoaderConfiguration.ClientTraining == common.HiveD {
-		parts := strings.Split(function.Name, "-")
+		parts := strings.Split(function.UniqueName, "-")
 		gpuCount, _ = strconv.Atoi(parts[len(parts)-1])
 	} else if IsStringInList(d.Configuration.LoaderConfiguration.ClientTraining,
 		[]string{common.Caerus, common.BatchPriority, common.PipelineBatchPriority, common.Knative}) {
@@ -337,11 +337,11 @@ func (d *Driver) individualFunctionDriver(function *common.Function, functions [
 
 			recordOutputChannel <- &mc.ExecutionRecord{
 				Phase:        int(currentPhase),
-				InvocationID: function.Name + composeInvocationID(d.Configuration.TraceGranularity, minuteIndex, invocationIndex),
+				InvocationID: function.UniqueName + composeInvocationID(d.Configuration.TraceGranularity, minuteIndex, invocationIndex),
 				StartTime:    time.Now().UnixNano(),
 			}
 			jobRecordOutputChannel <- &mc.JobExecutionRecord{
-				InvocationID:   function.Name + composeInvocationID(d.Configuration.TraceGranularity, minuteIndex, invocationIndex),
+				InvocationID:   function.UniqueName + composeInvocationID(d.Configuration.TraceGranularity, minuteIndex, invocationIndex),
 				StartTime:      make([]int64, 0),
 				Replica:        make([]int, 0),
 				GpuCount:       make([]int, 0),
@@ -383,7 +383,7 @@ func (d *Driver) individualFunctionDriver(function *common.Function, functions [
 
 	waitForInvocations.Wait()
 
-	log.Debugf("All the invocations for function %s have been completed.\n", function.Name)
+	log.Debugf("All the invocations for function %s have been completed.\n", function.UniqueName)
 	announceFunctionDone.Done()
 
 	atomic.AddInt64(totalSuccessful, successfulInvocations)
@@ -397,7 +397,7 @@ func (d *Driver) proceedToNextMinute(function *common.Function, minuteIndex *int
 	if d.Configuration.TraceGranularity == common.MinuteGranularity {
 		if !isRequestTargetAchieved(function.InvocationStats.Invocations[*minuteIndex], *invocationIndex, common.RequestedVsIssued) {
 			// Not fatal because we want to keep the measurements to be written to the output file
-			log.Warnf("Relative difference between requested and issued number of invocations is greater than %.2f%%. Terminating function driver for %s!\n", common.RequestedVsIssuedTerminateThreshold*100, function.Name)
+			log.Warnf("Relative difference between requested and issued number of invocations is greater than %.2f%%. Terminating function driver for %s!\n", common.RequestedVsIssuedTerminateThreshold*100, function.UniqueName)
 
 			return true
 		}
@@ -406,7 +406,7 @@ func (d *Driver) proceedToNextMinute(function *common.Function, minuteIndex *int
 			notFailedCount := function.InvocationStats.Invocations[i] - int(atomic.LoadInt64(&failedInvocationByMinute[i]))
 			if !isRequestTargetAchieved(function.InvocationStats.Invocations[i], notFailedCount, common.IssuedVsFailed) {
 				// Not fatal because we want to keep the measurements to be written to the output file
-				log.Warnf("Percentage of failed request is greater than %.2f%%. Terminating function driver for %s!\n", common.FailedTerminateThreshold*100, function.Name)
+				log.Warnf("Percentage of failed request is greater than %.2f%%. Terminating function driver for %s!\n", common.FailedTerminateThreshold*100, function.UniqueName)
 
 				return true
 			}
