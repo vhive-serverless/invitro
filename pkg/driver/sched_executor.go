@@ -50,7 +50,7 @@ func (d *Driver) createElasticFlowSchedExecutor(filename string, jobschedrequest
 						Iterations:        request.Iterations,
 						Deadline:          request.Deadline,
 						PrevReplica:       request.PrevReplica,
-						AvailableGPU:      request.AvailableGPU,
+						AvailableGPU:      int32(common.TotalGPUs - invokefunc.QueryResourceUsed()),
 					}
 					requests = append(requests, newSchedRequest)
 				} // end of select

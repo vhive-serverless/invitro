@@ -179,9 +179,9 @@ func runTraceMode(cfg *config.LoaderConfiguration, iatOnly bool, generated bool)
 		log.Fatal("Invalid trace granularity parameter.")
 	}
 
-	if cfg.ClientTraining == common.INFless {
-		yamlSpecificationPath = "workloads/container//trace_func_gpt_scale_constraint.yaml"
-	}
+	// if cfg.ClientTraining == common.INFless {
+	// 	yamlSpecificationPath = "workloads/container//trace_func_gpt_scale_constraint.yaml"
+	// }
 	log.Infof("Using %s as a service YAML specification file.\n", yamlSpecificationPath)
 	experimentDriver := driver.NewDriver(&driver.DriverConfiguration{
 		LoaderConfiguration: cfg,
