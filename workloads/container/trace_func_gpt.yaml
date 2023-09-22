@@ -17,7 +17,8 @@ spec:
         autoscaling.knative.dev/max-scale: "200"  # Maximum instances limit of Azure.
         autoscaling.knative.dev/window: "10s" # decrease it to expediate the response speed
         autoscaling.knative.dev/scale-down-delay: "10s"
-        autoscaling.knative.dev/metric-aggregation-algorithm: "max"
+        autoscaling.knative.dev/metric-aggregation-algorithm: "linear"
+        autoscaling.knative.dev/scale-to-zero-pod-grace-period: "10s"
 
         autoscaling.knative.dev/panic-window-percentage: $PANIC_WINDOW
         autoscaling.knative.dev/panic-threshold-percentage: $PANIC_THRESHOLD

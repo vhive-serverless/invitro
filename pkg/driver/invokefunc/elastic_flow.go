@@ -120,7 +120,7 @@ func ElasticFlowInvoke(function *common.Function, promptFunctions []*common.Func
 	iteration_per_call := 100
 	send_messages := prepareMessages("Can you condense the sentence into a shorter version without losing its meaning?", iteration_per_call)
 	specifiedReplicas := runtimeSpec.Stats.BatchSize / common.BszPerDevice
-	red := "\033[32m"
+	red := "\033[31m"
 	reset := "\033[0m"
 
 	message := fmt.Sprintf("starting process %v", invocationID)
@@ -129,6 +129,7 @@ func ElasticFlowInvoke(function *common.Function, promptFunctions []*common.Func
 	// iterate over the function iterations
 	curIter := 0
 	waitBackFill := 0
+	lastErrorTime := time.Now()
 	nextCreateGRPC := leaseTime
 	for curIter < trainingIterations {
 		iterStart := time.Now()
@@ -222,10 +223,14 @@ func ElasticFlowInvoke(function *common.Function, promptFunctions []*common.Func
 				executionCxt, cancelExecution = context.WithTimeout(context.Background(), time.Duration(leaseTime)*time.Second)
 				executionCxt = metadata.NewOutgoingContext(executionCxt, md)
 			}
-
-			log.Debugf("gRPC timeout exceeded for elastic flow scheduler in invocationID %s - %s", invocationID, errorMessage)
+			// message := fmt.Sprintf("gRPC timeout exceeded for ElasticFlow invocationID %s - %s, elapsed time %f seconds since start, trainingIterations %d, RuntimeInMilliSec %d, minReplicas %d",
+			// 	invocationID, errorMessage, elapsed_time, trainingIterations, uint32(runtimeSpec.Runtime*iteration_per_call), minReplicas)
+			message := fmt.Sprintf("gRPC timeout exceeded for ElasticFlow invocationID %s - %s, elapsed time %f seconds since start, %f seconds since last error, trainingIterations %d, RuntimeInMilliSec %d, minReplicas %d, waitBackFill %d [ms]",
+				invocationID, errorMessage, elapsed_time, time.Since(lastErrorTime).Seconds(), trainingIterations, uint32(runtimeSpec.Runtime*iteration_per_call), minReplicas, waitBackFill)
+			lastErrorTime = time.Now()
+			log.Debugf(message)
 			record.ConnectionTimeout = true
-			waitBackFill += 10
+			waitBackFill += 100
 			time.Sleep(time.Duration(waitBackFill) * time.Millisecond)
 			goto onemore
 		}

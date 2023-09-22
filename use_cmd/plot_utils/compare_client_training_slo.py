@@ -242,13 +242,13 @@ if True:
         root = os.path.dirname(root)
     
     
-    duration_list = [5, 10, 20] # , 10, 20] # , 30, 40]
+    duration_list = [5, 10, 20, 40] # , 10, 20] # , 30, 40]
     
     print(duration_list)
     # method_list = ['perfect', 'elastic', 'batch', 'gradient_accumulation'] # ['perfect', 'batch', 'elastic'] # , 'batch']
-    method_list = ['perfect', 'infless', 'elastic_flow']
-    # method_list = ['perfect', 'elastic']
-    
+    # method_list = ['perfect', 'elastic', 'elastic_flow',  'infless']
+    # method_list = ['elastic', 'infless', 'elastic_flow']
+    method_list = ['infless',  'elastic', 'elastic+containerSharing']
     
     if True: 
         template.update(
@@ -288,9 +288,25 @@ if True:
             for duration in duration_list:
                 
                 method_ident = method if method != 'perfect' else method_list[-1] # 'batch'
-                csv_name = os.path.join(root, 'data', 'out', f'real-multi-experiment-jobload-{jobload}_duration_{duration}_ClientTraining_{method_ident}.csv')
+                if method_ident == 'elastic+containerSharing': 
+                    csv_name = os.path.join('/users/gaow0007/', 'out', f'real-multi-experiment-jobload-{jobload}_duration_{duration}_ClientTraining_elastic.csv')
+                else: 
+                    csv_name = os.path.join(root, 'data', 'out', f'real-multi-experiment-jobload-{jobload}_duration_{duration}_ClientTraining_{method_ident}.csv')
+                
+                try : 
+                    df = pd.read_csv(csv_name)
+                except: 
+                    df = None 
+                    
+                if df is None: 
+                    jct_list.append(jct)
+                    ddl_list.append(1.0)
+                    # print(csv_name, ' length ', len(df))
+                    # print(csv_name, jct / 1000/3600)
+                    makespan_list.append(makespan)
+                    continue 
                 print(csv_name)
-                df = pd.read_csv(csv_name)
+                
                 # print(method)
                 # print(sorted(df.deadline.tolist()))
                 # print(method, csv_name)
@@ -343,6 +359,7 @@ if True:
         if load_idx == 0: 
             ax.set_ylabel('DMR')
         ax.set_xlabel('job load {}'.format(jobload))
+        ax.set_ylim(0, 0.2)
         
         fig.legend(fontsize=template['fontsize'] - 8, loc='upper center', ncol=3, bbox_to_anchor=(0.5, 1.2), fancybox=True, shadow=False, edgecolor="white", handlelength=2) 
         plt.savefig(f'{root}/images/client_training/ddl_{duration}.jpg', bbox_inches='tight')

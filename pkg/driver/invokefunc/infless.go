@@ -3,6 +3,7 @@ package invokefunc
 import (
 	"context"
 	"fmt"
+	"os/exec"
 	"strconv"
 	"strings"
 	"sync"
@@ -173,18 +174,24 @@ func INFlessInvoke(functions []*common.Function, promptFunctions []*common.Funct
 	var upperboundReplicas int
 	var minReplicas int
 	var specifiedReplicas int
-	send_messages := prepareMessages("Can you condense the sentence into a shorter version without losing its meaning?", 100) // communication overhead
+	// send_messages := prepareMessages("Can you condense the sentence into a shorter version without losing its meaning?", 100) // communication overhead
 	totalBatchSize = runtimeSpec.Stats.BatchSize
 	upperboundReplicas = common.TotalGPUs
 	specifiedReplicas = totalBatchSize / common.BszPerDevice
 	localGPUSet := prepareRangeGPUSet(upperboundReplicas, common.GPUPerNode)
+
+	red := "\033[31m"
+	reset := "\033[0m"
+
+	message := fmt.Sprintf("starting process %v", invocationID)
+	fmt.Println(red + message + reset)
 
 	curIter := 0
 	waitBackFill := 0
 	nextCreateGRPC := leaseTime
 	for curIter < trainingIterations {
 		// create a wait group to wait for all goroutines to finish
-		onceCallStart := time.Now()
+
 		var wg sync.WaitGroup
 	onemore:
 		{
@@ -221,7 +228,7 @@ func INFlessInvoke(functions []*common.Function, promptFunctions []*common.Funct
 		iteration_per_call := trainingIterations * specifiedReplicas / localGPUSet[curDeploymentGPUID]
 
 		doneChan := make(chan struct{})
-
+		onceCallStart := time.Now()
 		for replicaID := 0; replicaID < grpcReplicas; replicaID++ {
 			// add one to the wait group
 			wg.Add(1)
@@ -230,6 +237,7 @@ func INFlessInvoke(functions []*common.Function, promptFunctions []*common.Funct
 				defer wg.Done()
 				// execute the function and store the response
 				rep_start := time.Now()
+				send_messages := fmt.Sprintf("invocationId %s - ReplicaID: %d", invocationID, replicaID)
 				response, err := grpcClients[deploymentFuncID][replicaID].Execute(executionCxt, &proto.FaasRequest{
 					Message:              send_messages,
 					Batchsize:            uint32(common.BszPerDevice),
@@ -247,7 +255,7 @@ func INFlessInvoke(functions []*common.Function, promptFunctions []*common.Funct
 				}
 				red := "\033[34m"
 				reset := "\033[0m"
-				message := fmt.Sprintf("replicaID %d: time %f, since start %f \n", replicaID, time.Since(rep_start).Seconds(), time.Since(start).Seconds())
+				message := fmt.Sprintf("replicaID-Invocation %d-%s: time %f, since start %f \n", replicaID, invocationID, time.Since(rep_start).Seconds(), time.Since(start).Seconds())
 				fmt.Printf(red + message + reset)
 				// store the response in the slice
 				responses[replicaID] = *response
@@ -279,9 +287,21 @@ func INFlessInvoke(functions []*common.Function, promptFunctions []*common.Funct
 			fmt.Printf(red + message + reset)
 			// log.Debugf("gRPC timeout exceeded for INFless invocationID %s - %s, elapsed time %f seconds since start,  %f seconds since iteration start, trainingIterations %d",
 			// 	invocationID, "error", time.Since(start).Seconds(), time.Since(onceCallStart).Seconds(), trainingIterations)
+			cmd := exec.Command("kubectl", "get", "pods")
+			out, err := cmd.Output()
+			if err != nil {
+				fmt.Println("Error:", err)
+			}
+			fmt.Printf("kubectl get pods %s\n", string(out))
+			cmd = exec.Command("kubectl", "get", "revisions")
+			out, err = cmd.Output()
+			if err != nil {
+				fmt.Println("Error:", err)
+			}
+			fmt.Printf("kubectl get revision %s\n", string(out))
 
 			record.ConnectionTimeout = true
-			waitBackFill += 10
+			waitBackFill += 100
 			time.Sleep(time.Duration(waitBackFill) * time.Millisecond)
 			goto onemore
 		}
