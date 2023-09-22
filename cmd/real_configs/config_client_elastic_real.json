@@ -9,6 +9,7 @@
   "OutputPathPrefix": "data/out/real-multi-experiment",
   "ClientTraining": "elastic", 
   "IATDistribution": "exponential",
+  "ContainerSharing": true, 
   "ExperimentDuration": 20,
   "WarmupDuration": 0,
 

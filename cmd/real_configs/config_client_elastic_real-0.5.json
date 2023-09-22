@@ -7,6 +7,7 @@
     "OutputPathPrefix": "data/out/real-multi-experiment-jobload-0.5",
     "ClientTraining": "elastic",
     "IATDistribution": "exponential",
+    "ContainerSharing": true,
     "ExperimentDuration": 20,
     "WarmupDuration": 0,
     "IsPartiallyPanic": false,
