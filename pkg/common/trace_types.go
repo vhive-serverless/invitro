@@ -47,8 +47,9 @@ type FunctionMemoryStats struct {
 }
 
 type Function struct {
-	Name     string
-	Endpoint string
+	Name       string
+	UniqueName string
+	Endpoint   string
 
 	// From the static trace profiler
 	InitialScale int

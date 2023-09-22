@@ -8,6 +8,9 @@ import (
 	"sync"
 	"time"
 
+	// "os"
+	"os/exec"
+
 	"github.com/eth-easl/loader/pkg/common"
 	"github.com/eth-easl/loader/pkg/config"
 	"github.com/eth-easl/loader/pkg/workload/proto"
@@ -48,6 +51,8 @@ func ElasticInvoke(functions []*common.Function, promptFunctions []*common.Funct
 	record := &mc.ExecutionRecord{
 		RequestedDuration: uint32(runtimeSpec.Runtime * 1e3),
 	}
+	// runtimeSpec.Stats.Deadline *= 2
+	// runtimeSpec.Runtime *= 2
 
 	jobRecord := &mc.JobExecutionRecord{
 		InvocationID:   invocationID,
@@ -61,7 +66,7 @@ func ElasticInvoke(functions []*common.Function, promptFunctions []*common.Funct
 		TotalIteration: make([]int, 0),
 		BatchSize:      make([]int, 0),
 	}
-
+	fmt.Println(functions)
 	function := functions[0]
 	profileSpeedMatrix := make(map[int]SpeedInfo)
 
@@ -108,7 +113,7 @@ func ElasticInvoke(functions []*common.Function, promptFunctions []*common.Funct
 	executionCxt, cancelExecution := context.WithTimeout(context.Background(), time.Duration(leaseTime)*time.Second)
 	// add http header for scheduler
 	uuid := uuid.New()
-	priority := calPriority(10, 1)
+	priority := int(time.Now().Unix())
 	md := metadata.New(map[string]string{"GPTName": uuid.String(), "RIter": strconv.Itoa(priority)})
 	executionCxt = metadata.NewOutgoingContext(executionCxt, md)
 
@@ -125,7 +130,7 @@ func ElasticInvoke(functions []*common.Function, promptFunctions []*common.Funct
 	var totalBatchSize int
 	var minReplicas int
 
-	send_messages := prepareMessages("Can you condense the sentence into a shorter version without losing its meaning?", 100) // communication overhead
+	send_messages := "cmv-0" // prepareMessages("Can you condense the sentence into a shorter version without losing its meaning?", 100) // communication overhead
 	totalBatchSize = runtimeSpec.Stats.BatchSize
 	specifiedReplicas := totalBatchSize / common.BszPerDevice
 	// rangeGPUSet := prepareRangeGPUSet(common.TotalGPUs, common.GPUPerNode)
@@ -135,6 +140,7 @@ func ElasticInvoke(functions []*common.Function, promptFunctions []*common.Funct
 	trainingIterations := runtimeSpec.Stats.Iterations
 	waitBackFill := 0
 	nextCreateGRPC := leaseTime
+	lastErrorTime := time.Now()
 	for curIter < trainingIterations {
 		// create a wait group to wait for all goroutines to finish
 		iterStart := time.Now()
@@ -193,7 +199,7 @@ func ElasticInvoke(functions []*common.Function, promptFunctions []*common.Funct
 			go func(replicaID int) {
 				defer wg.Done()
 				// execute the function and store the response
-				rep_start := time.Now()
+				// rep_start := time.Now()
 				response, err := grpcClients[replicaID].Execute(executionCxt, &proto.FaasRequest{
 					Message:              send_messages,
 					Batchsize:            uint32(common.BszPerDevice),
@@ -204,15 +210,15 @@ func ElasticInvoke(functions []*common.Function, promptFunctions []*common.Funct
 				if err != nil {
 					red := "\033[32m"
 					reset := "\033[0m"
-					message := fmt.Sprintf("Error executing function replicaID: %d: %v\n", replicaID, err)
+					message := fmt.Sprintf("\tError executing function replicaID: %d: %v\n", replicaID, err)
 					fmt.Printf(red + message + reset)
 					errorOrNot = errorOrNot || true
 					return
 				}
-				red := "\033[34m"
-				reset := "\033[0m"
-				message := fmt.Sprintf("replicaID %d: time %f, since start %f \n", replicaID, time.Since(rep_start).Seconds(), time.Since(start).Seconds())
-				fmt.Printf(red + message + reset)
+				// red := "\033[34m"
+				// reset := "\033[0m"
+				// message := fmt.Sprintf("replicaID %d: time %f, since start %f \n", replicaID, time.Since(rep_start).Seconds(), time.Since(start).Seconds())
+				// fmt.Printf(red + message + reset)
 
 				// store the response in the slice
 				responses[replicaID] = *response
@@ -232,18 +238,35 @@ func ElasticInvoke(functions []*common.Function, promptFunctions []*common.Funct
 			if elapsed_time >= float64(nextCreateGRPC) {
 				nextCreateGRPC += leaseTime
 				cancelExecution()
+				priority := 0
+				md := metadata.New(map[string]string{"GPTName": uuid.String(), "RIter": strconv.Itoa(priority)})
 				executionCxt, cancelExecution = context.WithTimeout(context.Background(), time.Duration(leaseTime)*time.Second)
 				executionCxt = metadata.NewOutgoingContext(executionCxt, md)
 			}
 
 			red := "\033[32m"
 			reset := "\033[0m"
-			message := fmt.Sprintf("gRPC timeout exceeded for Elastic (Ours) invocationID %s - %s, elapsed time %f seconds since start,  %f seconds since iteration start, trainingIterations %d, RuntimeInMilliSec %d, minReplicas %d",
-				invocationID, "error", elapsed_time, time.Since(onceCallStart).Seconds(), trainingIterations, uint32(runtimeSpec.Runtime*iteration_per_call), minReplicas)
+			message := fmt.Sprintf("gRPC timeout exceeded for Elastic (Ours) invocationID %s - %s, elapsed time %f seconds since start,  %f seconds since iteration start, %f seconds since last error, trainingIterations %d, RuntimeInMilliSec %d, minReplicas %d, waitBackFill %d [ms]",
+				invocationID, "error", elapsed_time, time.Since(onceCallStart).Seconds(), time.Since(lastErrorTime).Seconds(), trainingIterations, uint32(runtimeSpec.Runtime*iteration_per_call), minReplicas, waitBackFill)
+			lastErrorTime = time.Now()
 			fmt.Printf(red + message + reset)
 			record.ConnectionTimeout = true
-			waitBackFill += 10
+			waitBackFill += 100
 			time.Sleep(time.Duration(waitBackFill) * time.Millisecond)
+
+			cmd := exec.Command("kubectl", "get", "pods")
+			out, err := cmd.Output()
+			if err != nil {
+				fmt.Println("Error:", err)
+			}
+			// fmt.Printf("kubectl get pods %s\n", string(out))
+			fmt.Printf("kubectl get pods %s\n", string(out))
+			cmd = exec.Command("kubectl", "get", "revisions")
+			out, err = cmd.Output()
+			if err != nil {
+				fmt.Println("Error:", err)
+			}
+			fmt.Printf("kubectl get revision %s\n", string(out))
 			goto onemore
 		}
 		waitBackFill = waitBackFill / 2
@@ -290,9 +313,9 @@ func ElasticInvoke(functions []*common.Function, promptFunctions []*common.Funct
 		record.ActualMemoryUsage = common.Kib2Mib(responses[0].GpuMemoryInMebiBytes)
 	}
 
-	log.Tracef("(Replied)\t %s: %s, %.2f[ms], %d[MiB]", functions[0].Name, responses[0].Message,
+	log.Tracef("(Replied)\t %s: %s, %.2f[ms], %d[MiB]", functions[0].UniqueName, responses[0].Message,
 		float64(responses[0].DurationInMicroSec)/1e3, responses[0].GpuMemoryInMebiBytes)
-	log.Tracef("(E2E Latency) %s: %.2f[ms]\n", functions[0].Name, float64(record.ResponseTime))
+	log.Tracef("(E2E Latency) %s: %.2f[ms]\n", functions[0].UniqueName, float64(record.ResponseTime))
 	if int64(runtimeSpec.Stats.Deadline) < record.ResponseTime {
 		red := "\033[35m"
 		reset := "\033[0m"

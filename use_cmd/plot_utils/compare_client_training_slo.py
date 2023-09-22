@@ -249,6 +249,14 @@ if True:
     # method_list = ['perfect', 'elastic', 'elastic_flow',  'infless']
     # method_list = ['elastic', 'infless', 'elastic_flow']
     method_list = ['infless',  'elastic', 'elastic+containerSharing']
+    duration_list = [5, 10, 20, 40, 60] # , 10, 20] # , 30, 40]
+    # duration_list = [5]
+    
+    print(duration_list)
+    # method_list = ['perfect', 'elastic', 'batch', 'gradient_accumulation'] # ['perfect', 'batch', 'elastic'] # , 'batch']
+    method_list = ['perfect',  'elastic', 'elastic_flow']
+    # method_list = ['perfect', 'elastic']
+    
     
     if True: 
         template.update(

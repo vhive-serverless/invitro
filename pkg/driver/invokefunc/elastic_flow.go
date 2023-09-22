@@ -141,23 +141,14 @@ func ElasticFlowInvoke(function *common.Function, promptFunctions []*common.Func
 			jobSchedRequeset.Iterations = uint32(trainingIterations - curIter)
 			jobSchedOutputChannel <- jobSchedRequeset
 			jobSchedReply := <-jobSchedInputChannel
-			removeSchedJobCount(invocationID) // TODO:
-			// if invocationID != jobSchedReply.InvocationID {
-			// 	record.ResponseTime = time.Since(start).Milliseconds()
-			// 	record.ConnectionTimeout = true
-			// 	message := fmt.Sprintf("---  \t \t my invocation %s jobSchedReply %s", invocationID, jobSchedReply.InvocationID)
-			// 	fmt.Println(red + message + reset)
-			// 	cancelExecution()
-			// 	return false, record, jobRecord
-			// }
+			removeSchedJobCount(invocationID) 
+
 			minReplicas = -1
 			for idx, jobInvocationID := range jobSchedReply.InvocationIDs {
 				if jobInvocationID == invocationID {
 					minReplicas = int(jobSchedReply.Replicas[idx])
 				}
 			}
-			message := fmt.Sprintf("---  \t \t %s, receive %d", invocationID, minReplicas)
-			fmt.Println(red + message + reset)
 			if minReplicas == -1 {
 				record.ResponseTime = time.Since(start).Milliseconds()
 				record.ConnectionTimeout = true
@@ -167,10 +158,15 @@ func ElasticFlowInvoke(function *common.Function, promptFunctions []*common.Func
 				cancelExecution()
 				return false, record, jobRecord
 			}
+			setJobUsedResource(invocationID, minReplicas)
 		}
 		if minReplicas == 0 {
 			time.Sleep(common.ElasticFlowInterval * time.Second)
 			goto onemore
+		}
+		if minReplicas > 0 {
+			message := fmt.Sprintf("---  \t \t %s, receive %d", invocationID, minReplicas)
+			fmt.Println(red + message + reset)
 		}
 		// create a channel to wait for all function invocations to finish
 		doneChan := make(chan struct{})
@@ -211,7 +207,7 @@ func ElasticFlowInvoke(function *common.Function, promptFunctions []*common.Func
 		}()
 		// wait for all function invocations to finish
 		<-doneChan
-
+		removeJobUsedResource(invocationID) // TODO: key step
 		message := fmt.Sprintf("---  \t \t invocation %s complete replica %d", invocationID, minReplicas)
 		fmt.Println(red + message + reset)
 
