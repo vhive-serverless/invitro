@@ -242,7 +242,7 @@ if True:
         root = os.path.dirname(root)
     
     
-    duration_list = [5, 10, 20] # , 10, 20] # , 30, 40]
+    duration_list = [5, 10, 20, 40, 60] # , 10, 20] # , 30, 40]
     # duration_list = [5]
     
     print(duration_list)

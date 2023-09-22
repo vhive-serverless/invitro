@@ -20,6 +20,7 @@ type LoaderConfiguration struct {
 	ExperimentDuration int    `json:"ExperimentDuration"`
 	WarmupDuration     int    `json:"WarmupDuration"`
 	ClientTraining     string `json:"ClientTraining"`
+	ContainerSharing   bool   `json:"ContainerSharing"`
 
 	IsPartiallyPanic            bool   `json:"IsPartiallyPanic"`
 	EnableZipkinTracing         bool   `json:"EnableZipkinTracing"`
