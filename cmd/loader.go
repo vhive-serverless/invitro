@@ -181,7 +181,7 @@ func runTraceMode(cfg *config.LoaderConfiguration, iatOnly bool, generated bool)
 	log.Infof("Traces contain the following %d functions:\n", len(functions))
 	for _, function := range functions {
 		fmt.Printf("\t%s\n", function.Name)
-		if len(function.Name) < 1 {
+		if len(function.UniqueName) < 1 {
 			function.UniqueName = function.Name
 		}
 	}

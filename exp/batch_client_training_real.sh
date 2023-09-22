@@ -14,12 +14,12 @@ do
         # TODO: (4) knative -> for single GPU execution with long duration 
         # TODO: (5) optimus -> serverful elastic schedulers 
 
-        for method in elastic # elastic_flow infless # elastic_flow
+        for method in infless # elastic_flow infless # elastic_flow
         do 
             rm log/${method}_log_${duration}_${load}.txt
             go run cmd/loader.go --config cmd/real_configs/config_client_${method}_real-${load}.json  \
                                 --overwrite_duration ${duration} # 2>&1 | tee -a log/${method}_log_${duration}_${load}.txt
-            
+                                
 	        clean_env "$@"
             result=$(kubectl get pods)
             while [[ $result == *"-gpu-"* ]] ; do 
