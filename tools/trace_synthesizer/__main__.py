@@ -117,6 +117,7 @@ def main():
         '-o',
         '--output',
         required=True,
+        type=str,
         metavar='path',
         help='Output path for the resulting trace'
     )
@@ -125,6 +126,7 @@ def main():
         '-m',
         '--mode',
         required=True,
+        type=int,
         metavar='integer',
         help='Normal [0]; RPS sweep [1]; Burst [2]'
     )
