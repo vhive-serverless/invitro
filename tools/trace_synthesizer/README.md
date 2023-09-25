@@ -12,7 +12,8 @@ Further the user can specify the execution time of the function(s), as well as t
 These are used to generate the memory and durations csv files. Like in the decommissioned RPS mode,
 the user can also specify the number of functions, which will simply be functions with different names,
 which then use different instances. All functions have the same execution time, memory footprint and RPS.  
-From within the trace_synthesizer folder, use:
+
+From within the `trace_synthesizer` folder, use:
 
 
 ```console
@@ -43,10 +44,9 @@ optional arguments:
 ```
 
 
-
 ### Example
 
 ```bash
-python3 trace_synthesizer generate -f 2 -b 10 -t 20 -s 5 -dur 3 -e 500 -m 350 -o example 
+python3 . generate -f 2 -b 10 -t 20 -s 5 -dur 3 -e 500 -mem 350 -o example -m 0
 ```
 
