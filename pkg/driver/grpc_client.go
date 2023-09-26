@@ -43,7 +43,7 @@ import (
 )
 
 func Invoke(function *common.Function, runtimeSpec *common.RuntimeSpecification, cfg *config.LoaderConfiguration) (bool, *mc.ExecutionRecord) {
-	log.Tracef("(Invoke)\t %s: %d[ms], %d[MiB]", function.Name, runtimeSpec.Runtime, runtimeSpec.Memory)
+	log.Tracef("( GRPC Invoke)\t %s: %d[ms], %d[MiB]", function.Name, runtimeSpec.Runtime, runtimeSpec.Memory)
 
 	record := &mc.ExecutionRecord{
 		ExecutionRecordBase: mc.ExecutionRecordBase{

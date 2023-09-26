@@ -48,7 +48,7 @@ type ActivationMetadata struct {
 }
 
 func InvokeOpenWhisk(function *common.Function, runtimeSpec *common.RuntimeSpecification, cfg *config.LoaderConfiguration, AnnouceDoneExe *sync.WaitGroup, ReadOpenWhiskMetadata *sync.Mutex) (bool, *mc.ExecutionRecordOpenWhisk) {
-	log.Tracef("(Invoke)\t %s: %d[ms], %d[MiB]", function.Name, runtimeSpec.Runtime, runtimeSpec.Memory)
+	log.Tracef("(HTTP Invoke)\t %s: %d[ms], %d[MiB]", function.Name, runtimeSpec.Runtime, runtimeSpec.Memory)
 
 	record := &mc.ExecutionRecordOpenWhisk{
 		ExecutionRecordBase: mc.ExecutionRecordBase{
