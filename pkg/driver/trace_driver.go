@@ -307,6 +307,8 @@ func (d *Driver) individualFunctionDriver(function *common.Function, announceFun
 			if !d.Configuration.TestMode {
 				waitForInvocations.Add(1)
 
+				rprint := &runtimeSpecification[minuteIndex][invocationIndex]
+				log.Printf(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>Requeste time and meme %d %d", rprint.Runtime, rprint.Memory)
 				go d.invokeFunction(&InvocationMetadata{
 					Function:              function,
 					RuntimeSpecifications: &runtimeSpecification[minuteIndex][invocationIndex],
