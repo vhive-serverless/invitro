@@ -89,8 +89,8 @@ func main() {
 		log.Fatal("Runtime duration should be longer, at least a minute.")
 	}
 
-	if cfg.Platform != "Knative" && cfg.Platform != "OpenWhisk" {
-		log.Fatal("Unsupported platform! Supported platforms are [Knative, OpenWhisk]")
+	if cfg.Platform != "Knative" && cfg.Platform != "OpenWhisk" && cfg.Platform != "AWSLambda" {
+		log.Fatal("Unsupported platform! Supported platforms are [Knative, OpenWhisk, AWSLambda]")
 	}
 
 	runTraceMode(&cfg, *iatGeneration, *generated)

@@ -3,7 +3,7 @@
 | Parameter name               | Data type | Possible values                                                     | Default value       | Description                                                                     |
 |------------------------------|-----------|---------------------------------------------------------------------|---------------------|---------------------------------------------------------------------------------|
 | Seed                         | int64     | any                                                                 | 42                  | Seed for specification generator (for reproducibility)                          |
-| Platform                     | string    | Knative, OpenWhisk                                                  | Knative             | The serverless platform the functions will be executed on                       |
+| Platform                     | string    | Knative, OpenWhisk, AWSLambda                                       | Knative             | The serverless platform the functions will be executed on                       |
 | YAMLSelector                 | string    | wimpy, container, firecracker                                       | container           | Service YAML depending on sandbox type                                          |
 | EndpointPort                 | int       | > 0                                                                 | 80                  | Port to be appended to the service URL                                          |
 | TracePath                    | string    | string                                                              | data/traces         | Folder with Azure trace dimensions (invocations.csv, durations.csv, memory.csv) |

@@ -55,7 +55,7 @@ const (
 const EXEC_UNIT int = 1e2
 
 var hostname string
-var iterationsMultiplier int
+var IterationsMultiplier int
 var serverSideCode FunctionType
 
 type FunctionType int
@@ -78,11 +78,25 @@ type funcServer struct {
 }
 
 func busySpin(runtimeMilli uint32) {
-	totalIterations := iterationsMultiplier * int(runtimeMilli)
+	totalIterations := IterationsMultiplier * int(runtimeMilli)
 
 	for i := 0; i < totalIterations; i++ {
 		takeSqrts()
 	}
+}
+
+func TraceFunctionExecution(start time.Time, timeLeftMilliseconds uint32) (msg string) {
+	timeConsumedMilliseconds := uint32(time.Since(start).Milliseconds())
+	if timeConsumedMilliseconds < timeLeftMilliseconds {
+		timeLeftMilliseconds -= timeConsumedMilliseconds
+		if timeLeftMilliseconds > 0 {
+			busySpin(timeLeftMilliseconds)
+		}
+
+		msg = fmt.Sprintf("OK - %s", hostname)
+	}
+
+	return msg
 }
 
 func (s *funcServer) Execute(_ context.Context, req *proto.FaasRequest) (*proto.FaasReply, error) {
@@ -103,16 +117,7 @@ func (s *funcServer) Execute(_ context.Context, req *proto.FaasRequest) (*proto.
 		//memory := make([]byte, toAllocate)
 		// NOTE: the following statement to make sure the compiler does not treat the allocation as dead code
 		//log.Debugf("Allocated memory size: %d\n", len(memory))
-
-		timeConsumedMilliseconds := uint32(time.Since(start).Milliseconds())
-		if timeConsumedMilliseconds < timeLeftMilliseconds {
-			timeLeftMilliseconds -= timeConsumedMilliseconds
-			if timeLeftMilliseconds > 0 {
-				busySpin(timeLeftMilliseconds)
-			}
-
-			msg = fmt.Sprintf("OK - %s", hostname)
-		}
+		msg = TraceFunctionExecution(start, timeLeftMilliseconds)
 	} else {
 		msg = fmt.Sprintf("OK - EMPTY - %s", hostname)
 	}
@@ -126,13 +131,13 @@ func (s *funcServer) Execute(_ context.Context, req *proto.FaasRequest) (*proto.
 
 func readEnvironmentalVariables() {
 	if _, ok := os.LookupEnv("ITERATIONS_MULTIPLIER"); ok {
-		iterationsMultiplier, _ = strconv.Atoi(os.Getenv("ITERATIONS_MULTIPLIER"))
+		IterationsMultiplier, _ = strconv.Atoi(os.Getenv("ITERATIONS_MULTIPLIER"))
 	} else {
 		// Cloudlab xl170 benchmark @ 1 second function execution time
-		iterationsMultiplier = 102
+		IterationsMultiplier = 102
 	}
 
-	log.Infof("ITERATIONS_MULTIPLIER = %d\n", iterationsMultiplier)
+	log.Infof("ITERATIONS_MULTIPLIER = %d\n", IterationsMultiplier)
 
 	var err error
 	hostname, err = os.Hostname()

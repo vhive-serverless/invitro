@@ -96,3 +96,7 @@ Network Trash Folder
 Temporary Items
 .apdisk
 .venv
+
+# Serverless Framework Deployment
+serverless.yml
+.serverless

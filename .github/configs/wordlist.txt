@@ -71,6 +71,7 @@ autostart
 avi
 AVI
 aws
+AWSLambda
 backend
 Backend
 backends
@@ -663,6 +664,7 @@ WithInsecure
 WithUnaryInterceptor
 WoNDP
 WOOT
+WSL
 XDT
 xl
 xml
