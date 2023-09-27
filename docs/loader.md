@@ -9,14 +9,13 @@ can choose the APT cluster `d430` node.
 
 ## Create a cluster
 
-First, configure `script/setup/setup.cfg`. You can specify there which vHive branch to use, loader branch, operation mode
-(sandbox type), maximum number of pods per node, and the Github token. All these configurations are mandatory.
-We currently support the following modes: containerd (`container`), Firecracker (`firecracker`), and Firecracker with
-snapshots (`firecracker_snapshots`).
-The token needs `repo` and `admin:public_key` permissions and will be used for adding SSH key to the user's account for
-purpose of cloning Github private repositories.
-Loader will be cloned on every node specified as argument of the cluster create script. The same holds for Kubernetes
-API server certificate.
+### vHive cluster
+
+First, configure `script/setup/setup.cfg`. You can specify there which vHive branch to use, loader branch, operation
+mode (sandbox type), and maximum number of pods per node. All these configurations are mandatory. We currently support
+the following modes: containerd (`container`), Firecracker (`firecracker`), and Firecracker with
+snapshots (`firecracker_snapshots`).Loader will be cloned on every node specified as argument of the cluster create
+script. The same holds for Kubernetes API server certificate.
 
 * To create a multi-node cluster, specify the node addresses as the arguments and run the following command:
 
@@ -25,7 +24,8 @@ $ bash ./scripts/setup/create_multinode.sh <master_node@IP> <loader_node@IP> <wo
 ```
 
 This command will create the following setup: control plane is placed on master node, loader node is used for running
-loader and monitoring pods (mostly, Prometheus, if enabled in setup config), workers are used purely for working pods. In
+loader and monitoring pods (mostly, Prometheus, if enabled in setup config), workers are used purely for working pods.
+In
 this setup, neither control plane nor workers are affected by loader and monitoring, creating more reliable measurements
 of performance.
 
@@ -37,6 +37,10 @@ $ bash ./scripts/setup/create_singlenode_container.sh <node@IP>
 
 This mode is only for debugging purposes, and there is no guarantees of isolation between the loader and the master-node
 components.
+
+### OpenWhisk cluster
+
+See the instructions located in `openwhisk_setup/README.md`.
 
 ### Check cluster health (on the master node)
 
@@ -152,9 +156,11 @@ the address of the loader node that you are running the experiment on and any ex
 Note that you need to have the relevant trace files on the machine running the experiment driver, they will then get
 transferred to the loader node.  
 Then run the following command to launch an experiment:
+
 ```bash
 $ go run experiment_driver.go -c driverConfig.json
 ```
+
 For more details take a look at the README in the tools/driver folder.
 
 ---
