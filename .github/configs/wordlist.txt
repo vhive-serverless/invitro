@@ -739,3 +739,8 @@ generateTimeline
 ipynb
 plotTimeline
 InVitro
+Vitro
+EASL
+Zürich
+Cvetković
+Lazar
