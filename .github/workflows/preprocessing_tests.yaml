@@ -1,0 +1,48 @@
+name: Preprocessing tests
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'sampler/preprocess.py'
+      - 'sampler/tests/preprocess_test.py'
+      - 'sampler/__main__.py'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'sampler/preprocess.py'
+      - 'sampler/tests/preprocess_test.py'
+      - 'sampler/__main__.py'
+  workflow_dispatch:
+
+jobs:
+  preprocessing:
+    name: Sampler preprocessing tests
+    runs-on: ubuntu-20.04
+    strategy:
+      fail-fast: false
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v3
+        with:
+          lfs: 'true'
+
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - uses: actions/cache@v3
+        with:
+          path: ${{ env.pythonLocation }}
+          key: ${{ env.pythonLocation }}-${{ hashFiles('setup.py') }}-${{ hashFiles('requirements.txt') }}
+
+      - name: Install requirements
+        run: pip install -r ./requirements.txt
+
+      - name: Preprocessing trace
+        run: |
+          tar -xzvf sampler/tests/inputs/original.tar.gz -C sampler/tests/inputs/
+          python3 -m sampler preprocess --trace sampler/tests/inputs/original --output sampler/tests/preprocessed -s 00:02:00 -dur 3
