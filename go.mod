@@ -19,6 +19,7 @@ require github.com/stretchr/testify v1.8.0
 require (
 	git.sr.ht/~sbinet/gg v0.4.1 // indirect
 	github.com/ajstarks/svgo v0.0.0-20211024235047-1546f124cd8b // indirect
+	github.com/aws/aws-lambda-go v1.41.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/davidmz/go-pageant v1.0.2 // indirect
 	github.com/go-fonts/liberation v0.3.1 // indirect
