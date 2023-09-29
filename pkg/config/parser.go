@@ -55,6 +55,13 @@ type LoaderConfiguration struct {
 
 	GRPCConnectionTimeoutSeconds int `json:"GRPCConnectionTimeoutSeconds"`
 	GRPCFunctionTimeoutSeconds   int `json:"GRPCFunctionTimeoutSeconds"`
+
+	BackgroundCommands []Command `json:"BackgroundCommands"`
+}
+
+type Command struct {
+	Timestamp int64  `json:"Timestamp"`
+	Command   string `json:"Command"`
 }
 
 func ReadConfigurationFile(path string) LoaderConfiguration {
