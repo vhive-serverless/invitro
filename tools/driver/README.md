@@ -58,7 +58,7 @@ value of 10.0 to the maximum value of 100.0, and it modifies the
 [panic-threshold-percentage](https://knative.dev/docs/serving/autoscaling/kpa-specific/#panic-mode-threshold)
 from the default value of 200.0 to the maximum value of 1000.0.  
 "EnableZipkinTracing": Whether to enable Zipkin Tracing. Calls 
-[InitBasicTracer](https://github.com/vhive-serverless/vHive/blob/030c56e16a28ca431d3dfe0a21ff63f55912ef5a/utils/tracing/go/tracing.go#L81) 
+[InitBasicTracer](https://github.com/vhive-serverless/vSwarm/blob/2843380021a4443187f8773554fa1896b7d1287d/utils/tracing/go/tracing.go#L79)
 to initialise an OpenTelemetry tracer.  
 "EnableMetricsScrapping": Whether to enable Metrics Scraping.  
 "MetricScrapingPeriodSeconds": The interval at which metrics scraping occurs, in seconds.  
