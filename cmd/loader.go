@@ -37,7 +37,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 
-	tracer "github.com/ease-lab/vhive/utils/tracing/go"
+	tracer "github.com/vhive-serverless/vSwarm/utils/tracing/go"
 )
 
 const (
