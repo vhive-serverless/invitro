@@ -35,6 +35,7 @@ import (
 	"github.com/vhive-serverless/loader/pkg/driver/failure"
 	"math"
 	"os"
+	"os/exec"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -520,6 +521,24 @@ func (d *Driver) startBackgroundProcesses(allRecordsWritten *sync.WaitGroup) (*s
 		allRecordsWritten.Add(1)
 		metricsScrapper := d.CreateMetricsScrapper(time.Second*time.Duration(d.Configuration.LoaderConfiguration.MetricScrapingPeriodSeconds), auxiliaryProcessBarrier, finishCh, allRecordsWritten)
 		go metricsScrapper()
+	}
+
+	for _, cmd := range d.Configuration.LoaderConfiguration.BackgroundCommands {
+		allRecordsWritten.Add(1)
+
+		go func(cmd config.Command) {
+			time.Sleep(time.Duration(cmd.Timestamp) * time.Second)
+
+			log.Debugf("Executing background command: %s", cmd.Command)
+
+			output, err := exec.Command("bash", "-c", cmd.Command).CombinedOutput()
+			log.Debug(string(output))
+			if err != nil {
+				log.Errorf("Failed to execute background command: %s", err)
+			}
+
+			allRecordsWritten.Done()
+		}(cmd)
 	}
 
 	auxiliaryProcessBarrier.Add(2)
