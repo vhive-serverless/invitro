@@ -35,9 +35,8 @@ You can also talk to us in our [Slack space](https://join.slack.com/t/vhivetutor
 InVitro is free. We publish the code under the terms of the MIT License that allows distribution, modification, and commercial use.
 This software, however, comes without any warranty or liability.
 
-The software is maintained at the [EASL lab](https://systems.ethz.ch/research/easl.html) at ETH Zürich.
-
+The software is maintained by the [EASL lab](https://systems.ethz.ch/research/easl.html) at ETH Zürich.
 
 ## Maintainers
 
-* [Lazar Cvetković](https://github.com/cvetkovic) 
+* [Lazar Cvetkovic](https://github.com/cvetkovic) - lazar.cvetkovic@inf.ethz.ch
