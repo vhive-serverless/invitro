@@ -8,18 +8,22 @@ require (
 	github.com/golang/protobuf v1.5.3
 	github.com/sfreiberg/simplessh v0.0.0-20220719182921-185eafd40485
 	github.com/sirupsen/logrus v1.9.0
-	golang.org/x/sys v0.9.0
-	gonum.org/v1/gonum v0.13.0
-	gonum.org/v1/plot v0.13.0
+	golang.org/x/sys v0.11.0
+	gonum.org/v1/gonum v0.14.0
+	gonum.org/v1/plot v0.14.0
 	google.golang.org/grpc v1.56.1
 )
 
-require github.com/stretchr/testify v1.8.0
+require (
+	github.com/aws/aws-lambda-go v1.41.0
+	github.com/stretchr/testify v1.8.0
+	gopkg.in/yaml.v3 v3.0.1
+)
 
 require (
-	git.sr.ht/~sbinet/gg v0.4.1 // indirect
+	git.sr.ht/~sbinet/gg v0.5.0 // indirect
 	github.com/ajstarks/svgo v0.0.0-20211024235047-1546f124cd8b // indirect
-	github.com/aws/aws-lambda-go v1.41.0 // indirect
+	github.com/campoy/embedmd v1.0.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/davidmz/go-pageant v1.0.2 // indirect
 	github.com/go-fonts/liberation v0.3.1 // indirect
@@ -30,8 +34,7 @@ require (
 	github.com/pkg/sftp v1.13.4 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	golang.org/x/crypto v0.0.0-20220411220226-7b82a4e95df4 // indirect
-	golang.org/x/image v0.7.0 // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
+	golang.org/x/image v0.11.0 // indirect
 )
 
 require (
@@ -45,7 +48,7 @@ require (
 	go.opentelemetry.io/otel/sdk v0.20.0 // indirect
 	go.opentelemetry.io/otel/trace v0.20.0 // indirect
 	golang.org/x/net v0.9.0 // indirect
-	golang.org/x/text v0.9.0 // indirect
+	golang.org/x/text v0.12.0 // indirect
 	google.golang.org/genproto v0.0.0-20230410155749-daa745c078e1 // indirect
 	google.golang.org/protobuf v1.30.0 // indirect
 )
