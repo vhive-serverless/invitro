@@ -66,14 +66,15 @@ def test_input_cleaning():
     # - The function "fe" has duplicated contains a duplicate function
     # - The function "ff" (app "ad") is not in run df although "ad" app is in both dfs
     # - The function "fg" is not in run df
+    # - The function "fh" has an average execution time of 0 ms
     inv_df = pd.DataFrame(
         {
-            "HashApp": ["aa", "ab", "ac", "ad", "ad", "ad", "ad", "ae"],
-            "HashFunction": ["fa", "fb", "fc", "fd", "fe", "fe", "ff", "fg"],
-            "HashOwner": ["oa", "oa", "ob", "ob", "ob", "oc", "oc", "od"],
-            "Trigger": ["tr", "tr", "tr", "tr", "tr", "tr", "tr", "tr"],
-            "118": [0, 1, 2, 3, 4, 5, 6, 7],
-            "119": [0, 1, 2, 3, 4, 5, 6, 7],
+            "HashApp": ["aa", "ab", "ac", "ad", "ad", "ad", "ad", "ae", "af"],
+            "HashFunction": ["fa", "fb", "fc", "fd", "fe", "fe", "ff", "fg", "fh"],
+            "HashOwner": ["oa", "oa", "ob", "ob", "ob", "oc", "oc", "od", "oe"],
+            "Trigger": ["tr", "tr", "tr", "tr", "tr", "tr", "tr", "tr", "tr"],
+            "118": [0, 1, 2, 3, 4, 5, 6, 7, 8],
+            "119": [0, 1, 2, 3, 4, 5, 6, 7, 8],
         }
     )
 
@@ -115,17 +116,18 @@ def test_input_cleaning():
     )
 
     # Corruptions:
-    # - The last 2 rows have duplicate HashFunction
+    # - The HashFunction "fd" is duplicated
     # - Function "fa" is not in run df
     # - The app "ab" is not in mem df
+    # - The app "af" has an average execution time of 0 ms
     run_df = pd.DataFrame(
         {
-            "HashFunction": ["fa", "fb", "fe", "fd", "fd"],
-            "HashOwner": ["oa", "oa", "ob", "ob", "oc"],
-            "HashApp": ["aa", "ab", "ad", "ad", "ad"],
-            "Average": [10, 20, 30, 40, 50],
-            "Count": [1, 1, 1, 1, 1],
-            "Minimum": [4, 6, 8, 10, 12],
+            "HashFunction": ["fa", "fb", "fe", "fd", "fd", "fh"],
+            "HashOwner": ["oa", "oa", "ob", "ob", "oc", "oe"],
+            "HashApp": ["aa", "ab", "ad", "ad", "ad", "af"],
+            "Average": [10, 20, 30, 40, 50, 0],
+            "Count": [1, 1, 1, 1, 1, 1],
+            "Minimum": [4, 6, 8, 10, 12, 0],
         }
     )
 

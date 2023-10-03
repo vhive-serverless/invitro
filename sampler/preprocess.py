@@ -77,6 +77,8 @@ def transform_dfs(
 
     inv_df = remove_uninvoked(inv_df=inv_df)
 
+    run_df = remove_zero_duration(run_df=run_df)
+
     inv_df, mem_df, run_df = get_intersections(inv_df=inv_df, mem_df=mem_df, run_df=run_df)
 
     mem_df = build_mem_func_df(mem_df=mem_df, run_df=run_df)
@@ -113,6 +115,13 @@ def remove_uninvoked(inv_df: pd.DataFrame) -> pd.DataFrame:
 
     return inv_df_cleaned
 
+# Removes functions with an average execution time of 0 ms
+# Respective entries from memory and invocations dataframes will be filtered in get_instersection()
+def remove_zero_duration(run_df: pd.DataFrame) -> pd.DataFrame:
+    zero_duration = run_df.Average == 0
+    run_df_cleaned = run_df[~zero_duration]
+
+    return run_df_cleaned
 
 # Expands memory file with per-function memory usage (instead of the per-app as in the original trace)
 # Each function of an app uses proportional fraction of memory
