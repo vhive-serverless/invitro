@@ -1,14 +1,14 @@
 {
   "Seed": 42,
 
-  "Platform": "Knative",
+  "Platform": "Dirigent",
   "YAMLSelector": "cm",
   "EndpointPort": 80,
 
   "TracePath": "data/traces/example",
   "Granularity": "minute",
   "OutputPathPrefix": "data/out/experiment",
-  "IATDistribution": "exponential",
+  "IATDistribution": "equidistant",
   "ExperimentDuration": 5,
   "WarmupDuration": 0,
 
@@ -18,6 +18,6 @@
   "MetricScrapingPeriodSeconds": 15,
   "AutoscalingMetric": "concurrency",
 
-  "GRPCConnectionTimeoutSeconds": 5,
+  "GRPCConnectionTimeoutSeconds": 15,
   "GRPCFunctionTimeoutSeconds": 900
 }

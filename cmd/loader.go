@@ -27,6 +27,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"golang.org/x/exp/slices"
 	"os"
 	"time"
 
@@ -89,8 +90,15 @@ func main() {
 		log.Fatal("Runtime duration should be longer, at least a minute.")
 	}
 
-	if cfg.Platform != "Knative" && cfg.Platform != "OpenWhisk" && cfg.Platform != "AWSLambda" {
-		log.Fatal("Unsupported platform! Supported platforms are [Knative, OpenWhisk, AWSLambda]")
+	supportedPlatforms := []string{
+		"Knative",
+		"OpenWhisk",
+		"AWSLambda",
+		"Dirigent",
+	}
+
+	if !slices.Contains(supportedPlatforms, cfg.Platform) {
+		log.Fatal("Unsupported platform! Supported platforms are [Knative, OpenWhisk, AWSLambda, Dirigent]")
 	}
 
 	runTraceMode(&cfg, *iatGeneration, *generated)
