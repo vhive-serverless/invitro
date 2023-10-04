@@ -42,7 +42,7 @@ import (
 	mc "github.com/vhive-serverless/loader/pkg/metric"
 )
 
-func Invoke(function *common.Function, runtimeSpec *common.RuntimeSpecification, cfg *config.LoaderConfiguration) (bool, *mc.ExecutionRecord) {
+func InvokeGRPC(function *common.Function, runtimeSpec *common.RuntimeSpecification, cfg *config.LoaderConfiguration) (bool, *mc.ExecutionRecord) {
 	log.Tracef("(Invoke)\t %s: %d[ms], %d[MiB]", function.Name, runtimeSpec.Runtime, runtimeSpec.Memory)
 
 	record := &mc.ExecutionRecord{

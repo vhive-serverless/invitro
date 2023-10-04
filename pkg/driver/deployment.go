@@ -52,16 +52,17 @@ var (
 
 func DeployFunctions(functions []*common.Function, yamlPath string, isPartiallyPanic bool, endpointPort int, autoscalingMetric string) {
 	for i := 0; i < len(functions); i++ {
-		switch yamlPath {
-		case "cm":
-			deployCM(functions[i])
-		default:
-			deployOne(functions[i], yamlPath, isPartiallyPanic, endpointPort, autoscalingMetric)
-		}
+		deployKnative(functions[i], yamlPath, isPartiallyPanic, endpointPort, autoscalingMetric)
 	}
 }
 
-func deployCM(function *common.Function) {
+func DeployDirigent(functions []*common.Function) {
+	for i := 0; i < len(functions); i++ {
+		deployDirigent(functions[i])
+	}
+}
+
+func deployDirigent(function *common.Function) {
 	payload := url.Values{
 		"name":             {function.Name},
 		"image":            {"docker.io/cvetkovic/empty_function:latest"},
@@ -90,7 +91,7 @@ func deployCM(function *common.Function) {
 	function.Endpoint = endpoints[rand.Intn(len(endpoints))]
 }
 
-func deployOne(function *common.Function, yamlPath string, isPartiallyPanic bool, endpointPort int,
+func deployKnative(function *common.Function, yamlPath string, isPartiallyPanic bool, endpointPort int,
 	autoscalingMetric string) bool {
 	panicWindow := "\"10.0\""
 	panicThreshold := "\"200.0\""

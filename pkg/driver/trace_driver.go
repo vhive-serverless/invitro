@@ -204,15 +204,16 @@ func (d *Driver) invokeFunction(metadata *InvocationMetadata) {
 
 	var success bool
 
-	if d.Configuration.LoaderConfiguration.Platform == "Knative" {
+	switch d.Configuration.LoaderConfiguration.Platform {
+	case "Knative":
 		var record *mc.ExecutionRecord
-		success, record = Invoke(metadata.Function, metadata.RuntimeSpecifications, d.Configuration.LoaderConfiguration)
+		success, record = InvokeGRPC(metadata.Function, metadata.RuntimeSpecifications, d.Configuration.LoaderConfiguration)
 
 		record.Phase = int(metadata.Phase)
 		record.InvocationID = composeInvocationID(d.Configuration.TraceGranularity, metadata.MinuteIndex, metadata.InvocationIndex)
 
 		metadata.RecordOutputChannel <- record
-	} else if d.Configuration.LoaderConfiguration.Platform == "OpenWhisk" {
+	case "OpenWhisk":
 		var record *mc.ExecutionRecordOpenWhisk
 		success, record = InvokeOpenWhisk(metadata.Function, metadata.RuntimeSpecifications, d.Configuration.LoaderConfiguration, metadata.AnnounceDoneExe, metadata.ReadOpenWhiskMetadata)
 
@@ -220,7 +221,7 @@ func (d *Driver) invokeFunction(metadata *InvocationMetadata) {
 		record.InvocationID = composeInvocationID(d.Configuration.TraceGranularity, metadata.MinuteIndex, metadata.InvocationIndex)
 
 		metadata.RecordOutputChannel <- record
-	} else if d.Configuration.LoaderConfiguration.Platform == "AWSLambda" {
+	case "AWSLambda":
 		var record *mc.ExecutionRecord
 		success, record = InvokeAWSLambda(metadata.Function, metadata.RuntimeSpecifications, d.Configuration.LoaderConfiguration, metadata.AnnounceDoneExe)
 
@@ -228,6 +229,16 @@ func (d *Driver) invokeFunction(metadata *InvocationMetadata) {
 		record.InvocationID = composeInvocationID(d.Configuration.TraceGranularity, metadata.MinuteIndex, metadata.InvocationIndex)
 
 		metadata.RecordOutputChannel <- record
+	case "Dirigent":
+		var record *mc.ExecutionRecord
+		success, record = InvokeDirigent(metadata.Function, metadata.RuntimeSpecifications, d.Configuration.LoaderConfiguration)
+
+		record.Phase = int(metadata.Phase)
+		record.InvocationID = composeInvocationID(d.Configuration.TraceGranularity, metadata.MinuteIndex, metadata.InvocationIndex)
+
+		metadata.RecordOutputChannel <- record
+	default:
+		log.Fatal("Unsupported platform.")
 	}
 
 	if success {
@@ -633,17 +644,21 @@ func (d *Driver) RunExperiment(iatOnly bool, generated bool) {
 
 	trace.ApplyResourceLimits(d.Configuration.Functions)
 
-	// Deploy functions
-	if d.Configuration.LoaderConfiguration.Platform == "Knative" {
+	switch d.Configuration.LoaderConfiguration.Platform {
+	case "Knative":
 		DeployFunctions(d.Configuration.Functions,
 			d.Configuration.YAMLPath,
 			d.Configuration.LoaderConfiguration.IsPartiallyPanic,
 			d.Configuration.LoaderConfiguration.EndpointPort,
 			d.Configuration.LoaderConfiguration.AutoscalingMetric)
-	} else if d.Configuration.LoaderConfiguration.Platform == "OpenWhisk" {
+	case "OpenWhisk":
 		DeployFunctionsOpenWhisk(d.Configuration.Functions)
-	} else if d.Configuration.LoaderConfiguration.Platform == "AWSLambda" {
+	case "AWSLambda":
 		DeployFunctionsAWSLambda(d.Configuration.Functions)
+	case "Dirigent":
+		DeployDirigent(d.Configuration.Functions)
+	default:
+		log.Fatal("Unsupported platform.")
 	}
 
 	// Generate load
