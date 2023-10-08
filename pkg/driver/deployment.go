@@ -64,7 +64,7 @@ func DeployFunctions(functions []*common.Function, yamlPath string, isPartiallyP
 func deployCM(function *common.Function) {
 	payload := url.Values{
 		"name":             {function.Name},
-		"image":            {"docker.io/cvetkovic/trace_function:latest"},
+		"image":            {"docker.io/cvetkovic/empty_function:latest"},
 		"port_forwarding":  {"80", "tcp"},
 		"requested_cpu":    {strconv.Itoa(function.CPURequestsMilli)},
 		"requested_memory": {strconv.Itoa(function.MemoryRequestsMiB)},
