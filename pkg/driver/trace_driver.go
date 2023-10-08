@@ -626,7 +626,7 @@ func (d *Driver) RunExperiment(iatOnly bool, generated bool) {
 	trace.ApplyResourceLimits(d.Configuration.Functions)
 
 	if d.Configuration.LoaderConfiguration.Platform == "Knative" {
-		DeployFunctionsKnative(d.Configuration.Functions,
+		DeployFunctions(d.Configuration.Functions,
 			d.Configuration.YAMLPath,
 			d.Configuration.LoaderConfiguration.IsPartiallyPanic,
 			d.Configuration.LoaderConfiguration.EndpointPort,
