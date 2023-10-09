@@ -1,0 +1,26 @@
+###################################################
+# SAMPLER - TRACE PREPROCESSING
+###################################################
+# t -- path to the trace; 
+# o -- preprocessed trace output; 
+# s -- start time; 
+# dur -- duration
+###################################################
+python3 -m sampler preprocess -t data/azure/ -o out/ -s 00:00:00 -dur 5
+
+###################################################
+# SAMPLER - TRACE SAMPLING
+###################################################
+# t -- source trace; 
+# o -- output path; 
+# min -- min sample size; 
+# st -- number of function in sample size during sampling; 
+# max -- maximum sample size; 
+# tr -- number of trials for each sample size
+###################################################
+python3 -m sampler sample -t out -o final -min 10 -st 10 -max 50 -tr 5
+
+###################################################
+# LOAD GENERATOR
+###################################################
+go run cmd/loader.go --config cmd/config.json --verbosity trace
