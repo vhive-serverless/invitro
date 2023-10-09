@@ -34,6 +34,14 @@ updates:
         update-types: [ "version-update:semver-patch" ]
 
   - package-ecosystem: "gomod"
+    directory: "/tools/generateTimeline/"
+    schedule:
+      interval: "weekly"
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-patch"]
+
+  - package-ecosystem: "gomod"
     directory: "/tools/helloworld"
     schedule:
       interval: "weekly"
@@ -47,9 +55,20 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    ignore:
+      - dependency-name: "*"
+        update-types: [ "version-update:semver-patch" ]
 
   - package-ecosystem: "pip"
     directory: "/tools/trace_synthesizer/"
+    schedule:
+      interval: "weekly"
+    ignore:
+      - dependency-name: "*"
+        update-types: [ "version-update:semver-patch" ]
+
+  - package-ecosystem: "pip"
+    directory: "/sampler/"
     schedule:
       interval: "weekly"
     ignore:
