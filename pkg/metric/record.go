@@ -45,6 +45,7 @@ type ExecutionRecordBase struct {
 	Phase        int    `csv:"phase"`
 	Instance     string `csv:"instance"`
 	InvocationID string `csv:"invocationID"`
+	FunctionHash string `csv:"functionHash"`
 	StartTime    int64  `csv:"startTime"`
 
 	// Measurements in microseconds

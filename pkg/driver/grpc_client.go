@@ -103,6 +103,7 @@ func Invoke(function *common.Function, runtimeSpec *common.RuntimeSpecification,
 	}
 
 	record.Instance = extractInstanceName(response.GetMessage())
+	record.FunctionHash = function.Name
 	record.ResponseTime = time.Since(start).Microseconds()
 	record.ActualDuration = response.DurationInMicroSec
 
