@@ -62,9 +62,50 @@ func DeployFunctions(functions []*common.Function, yamlPath string, isPartiallyP
 }
 
 func deployCM(function *common.Function) {
+	image := "docker.io/cvetkovic/trac_function:latest"
+	if strings.HasPrefix(function.Name, "trace-func-0-") {
+		image = "silintl/serverless-mfa-api-go"
+
+	} else if strings.HasPrefix(function.Name, "trace-func-1-") {
+		image = "estellapaula/pyaes"
+
+	} else if strings.HasPrefix(function.Name, "trace-func-2-") {
+		image = "estellapaula/lr_training_l3"
+
+	} else if strings.HasPrefix(function.Name, "trace-func-3-") {
+		image = "estellapaula/json_serdes_s3"
+
+	} else if strings.HasPrefix(function.Name, "trace-func-4-") {
+		image = "estellapaula/image_rotate"
+
+	} else if strings.HasPrefix(function.Name, "trace-func-5-") {
+		image = "estellapaula/hello_gpu"
+
+	} else if strings.HasPrefix(function.Name, "trace-func-6-") {
+		image = "rocker/ml-verse"
+
+	} else if strings.HasPrefix(function.Name, "trace-func-7-") {
+		image = "estellapaula/grpc"
+
+	} else if strings.HasPrefix(function.Name, "trace-func-8-") {
+		image = "rocker/ml"
+
+	} else if strings.HasPrefix(function.Name, "trace-func-9-") {
+		image = "softinstigate/serverless"
+
+	} else if strings.HasPrefix(function.Name, "trace-func-10-") {
+		image = "halternz/serverless:latest"
+
+	} else if strings.HasPrefix(function.Name, "trace-func-11-") {
+		image = "rocker/ml-verse"
+
+	} else {
+		image = "estellapaula/video_processing"
+	}
+
 	payload := url.Values{
 		"name":             {function.Name},
-		"image":            {"docker.io/cvetkovic/empty_function:latest"},
+		"image":            {image},
 		"port_forwarding":  {"80", "tcp"},
 		"requested_cpu":    {strconv.Itoa(function.CPURequestsMilli)},
 		"requested_memory": {strconv.Itoa(function.MemoryRequestsMiB)},
