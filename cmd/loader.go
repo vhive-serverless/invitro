@@ -149,8 +149,6 @@ func runTraceMode(cfg *config.LoaderConfiguration, iatOnly bool, generated bool)
 
 	var yamlSpecificationPath string
 	switch cfg.YAMLSelector {
-	case "cm":
-		yamlSpecificationPath = "cm"
 	case "wimpy":
 		yamlSpecificationPath = "workloads/container/wimpy.yaml"
 	case "container":
@@ -158,7 +156,9 @@ func runTraceMode(cfg *config.LoaderConfiguration, iatOnly bool, generated bool)
 	case "firecracker":
 		yamlSpecificationPath = "workloads/firecracker/trace_func_go.yaml"
 	default:
-		log.Fatal("Invalid 'YAMLSelector' parameter.")
+		if cfg.Platform != "Dirigent" {
+			log.Fatal("Invalid 'YAMLSelector' parameter.")
+		}
 	}
 
 	var traceGranularity common.TraceGranularity

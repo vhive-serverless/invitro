@@ -64,11 +64,13 @@ func DeployDirigent(functions []*common.Function) {
 
 func deployDirigent(function *common.Function) {
 	payload := url.Values{
-		"name":             {function.Name},
-		"image":            {"docker.io/cvetkovic/empty_function:latest"},
-		"port_forwarding":  {"80", "tcp"},
-		"requested_cpu":    {strconv.Itoa(function.CPURequestsMilli)},
-		"requested_memory": {strconv.Itoa(function.MemoryRequestsMiB)},
+		"name":                {function.Name},
+		"image":               {"docker.io/cvetkovic/dirigent_empty_function:latest"},
+		"port_forwarding":     {"80", "tcp"},
+		"scaling_upper_bound": {"1"},
+		"scaling_lower_bound": {"0"},
+		"requested_cpu":       {strconv.Itoa(function.CPURequestsMilli)},
+		"requested_memory":    {strconv.Itoa(function.MemoryRequestsMiB)},
 	}
 
 	log.Debug(payload)
@@ -85,7 +87,7 @@ func deployDirigent(function *common.Function) {
 	}
 
 	endpoints := strings.Split(string(body), ";")
-	if endpoints == nil || len(endpoints) == 0 {
+	if len(endpoints) == 0 {
 		log.Fatal("Function registration returned no data plane(s).")
 	}
 	function.Endpoint = endpoints[rand.Intn(len(endpoints))]

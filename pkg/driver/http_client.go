@@ -38,7 +38,6 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"github.com/vhive-serverless/loader/pkg/common"
-	"github.com/vhive-serverless/loader/pkg/config"
 	mc "github.com/vhive-serverless/loader/pkg/metric"
 )
 
@@ -54,25 +53,24 @@ type HTTPResBody struct {
 	MemoryUsageInKb    uint32 `json:"MemoryUsageInKb"`
 }
 
-func InvokeOpenWhisk(function *common.Function, runtimeSpec *common.RuntimeSpecification, cfg *config.LoaderConfiguration, AnnounceDoneExe *sync.WaitGroup, ReadOpenWhiskMetadata *sync.Mutex) (bool, *mc.ExecutionRecordOpenWhisk) {
+func InvokeOpenWhisk(function *common.Function, runtimeSpec *common.RuntimeSpecification, AnnounceDoneExe *sync.WaitGroup, ReadOpenWhiskMetadata *sync.Mutex) (bool, *mc.ExecutionRecord) {
 	log.Tracef("(Invoke)\t %s: %d[ms], %d[MiB]", function.Name, runtimeSpec.Runtime, runtimeSpec.Memory)
 
 	success, executionRecordBase, res := httpInvocation("", function, AnnounceDoneExe, true)
 
 	executionRecordBase.RequestedDuration = uint32(runtimeSpec.Runtime * 1e3)
-	record := &mc.ExecutionRecordOpenWhisk{ExecutionRecordBase: *executionRecordBase}
+	record := &mc.ExecutionRecord{ExecutionRecordBase: *executionRecordBase}
 
 	if !success {
 		return false, record
 	}
 
-	record.HttpStatusCode = res.StatusCode
-	record.ActivationID = res.Header.Get("X-Openwhisk-Activation-Id")
+	activationID := res.Header.Get("X-Openwhisk-Activation-Id")
 
 	ReadOpenWhiskMetadata.Lock()
 
 	//read data from OpenWhisk based on the activation ID
-	cmd := exec.Command("wsk", "-i", "activation", "get", record.ActivationID)
+	cmd := exec.Command("wsk", "-i", "activation", "get", activationID)
 	var out bytes.Buffer
 	cmd.Stdout = &out
 	err := cmd.Run()
@@ -94,9 +92,9 @@ func InvokeOpenWhisk(function *common.Function, runtimeSpec *common.RuntimeSpeci
 	}
 
 	record.ActualDuration = activationMetadata.Duration * 1000 //ms to micro sec
-	record.StartType = activationMetadata.StartType
+	/*record.StartType = activationMetadata.StartType
 	record.InitTime = activationMetadata.InitTime * 1000 //ms to micro sec
-	record.WaitTime = activationMetadata.WaitTime * 1000 //ms to micro sec
+	record.WaitTime = activationMetadata.WaitTime * 1000 //ms to micro sec*/
 
 	logInvocationSummary(function, &record.ExecutionRecordBase, res)
 
@@ -131,7 +129,7 @@ func parseActivationMetadata(response string) (error, ActivationMetadata) {
 	return nil, result
 }
 
-func InvokeAWSLambda(function *common.Function, runtimeSpec *common.RuntimeSpecification, cfg *config.LoaderConfiguration, AnnounceDoneExe *sync.WaitGroup) (bool, *mc.ExecutionRecord) {
+func InvokeAWSLambda(function *common.Function, runtimeSpec *common.RuntimeSpecification, AnnounceDoneExe *sync.WaitGroup) (bool, *mc.ExecutionRecord) {
 	log.Tracef("(Invoke)\t %s: %d[ms], %d[MiB]", function.Name, runtimeSpec.Runtime, runtimeSpec.Memory)
 
 	dataString := fmt.Sprintf(`{"RuntimeInMilliSec": %d, "MemoryInMebiBytes": %d}`, runtimeSpec.Runtime, runtimeSpec.Memory)
