@@ -211,3 +211,5 @@ ENV/
 # IDE settings
 .vscode/
 .idea/
+
+tools/plotter/test-out

@@ -11,6 +11,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -41,9 +42,20 @@ func InvokeDirigent(function *common.Function, runtimeSpec *common.RuntimeSpecif
 		},
 	}
 
-	// TODO: add execution time and memory usage runtime args
 	req, err := http.NewRequest("GET", "http://"+function.Endpoint, nil)
+	if err != nil {
+		log.Debugf("Failed to establish a HTTP connection - %v\n", err)
+
+		record.ResponseTime = time.Since(start).Microseconds()
+		record.ConnectionTimeout = true
+
+		return false, record
+	}
+
 	req.Host = function.Name
+
+	req.Header.Set("requested_cpu", strconv.Itoa(runtimeSpec.Runtime))
+	req.Header.Set("requested_memory", strconv.Itoa(runtimeSpec.Memory))
 
 	resp, err := client.Do(req)
 	if err != nil {

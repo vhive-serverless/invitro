@@ -1,8 +1,7 @@
 {
   "Seed": 42,
 
-  "Platform": "Knative",
-  "YAMLSelector": "container",
+  "Platform": "Dirigent",
   "EndpointPort": 80,
 
   "TracePath": "data/traces/example",

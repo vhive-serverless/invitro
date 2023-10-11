@@ -47,17 +47,17 @@ func TestConfigParser(t *testing.T) {
 	if config.Seed != 42 ||
 		config.YAMLSelector != "container" ||
 		config.EndpointPort != 80 ||
-		!strings.HasPrefix(config.TracePath, "data/traces") ||
+		!strings.HasPrefix(config.TracePath, "data/traces/example") ||
 		!strings.HasPrefix(config.OutputPathPrefix, "data/out/experiment") ||
 		config.Granularity != "minute" ||
-		config.IATDistribution != "exponential" ||
-		config.ExperimentDuration != 2 ||
+		config.IATDistribution != "equidistant" ||
+		config.ExperimentDuration != 5 ||
 		config.WarmupDuration != 0 ||
 		config.IsPartiallyPanic != false ||
 		config.EnableZipkinTracing != false ||
 		config.EnableMetricsScrapping != false ||
 		config.MetricScrapingPeriodSeconds != 15 ||
-		config.GRPCConnectionTimeoutSeconds != 60 ||
+		config.GRPCConnectionTimeoutSeconds != 15 ||
 		config.GRPCFunctionTimeoutSeconds != 900 {
 
 		t.Error("Unexpected configuration read.")

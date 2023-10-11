@@ -204,42 +204,41 @@ func (d *Driver) invokeFunction(metadata *InvocationMetadata) {
 
 	var success bool
 
+	var record *mc.ExecutionRecord
 	switch d.Configuration.LoaderConfiguration.Platform {
 	case "Knative":
-		var record *mc.ExecutionRecord
-		success, record = InvokeGRPC(metadata.Function, metadata.RuntimeSpecifications, d.Configuration.LoaderConfiguration)
-
-		record.Phase = int(metadata.Phase)
-		record.InvocationID = composeInvocationID(d.Configuration.TraceGranularity, metadata.MinuteIndex, metadata.InvocationIndex)
-
-		metadata.RecordOutputChannel <- record
+		success, record = InvokeGRPC(
+			metadata.Function,
+			metadata.RuntimeSpecifications,
+			d.Configuration.LoaderConfiguration,
+		)
 	case "OpenWhisk":
-		var record *mc.ExecutionRecordOpenWhisk
-		success, record = InvokeOpenWhisk(metadata.Function, metadata.RuntimeSpecifications, d.Configuration.LoaderConfiguration, metadata.AnnounceDoneExe, metadata.ReadOpenWhiskMetadata)
-
-		record.Phase = int(metadata.Phase)
-		record.InvocationID = composeInvocationID(d.Configuration.TraceGranularity, metadata.MinuteIndex, metadata.InvocationIndex)
-
-		metadata.RecordOutputChannel <- record
+		success, record = InvokeOpenWhisk(
+			metadata.Function,
+			metadata.RuntimeSpecifications,
+			metadata.AnnounceDoneExe,
+			metadata.ReadOpenWhiskMetadata,
+		)
 	case "AWSLambda":
-		var record *mc.ExecutionRecord
-		success, record = InvokeAWSLambda(metadata.Function, metadata.RuntimeSpecifications, d.Configuration.LoaderConfiguration, metadata.AnnounceDoneExe)
-
-		record.Phase = int(metadata.Phase)
-		record.InvocationID = composeInvocationID(d.Configuration.TraceGranularity, metadata.MinuteIndex, metadata.InvocationIndex)
-
-		metadata.RecordOutputChannel <- record
+		success, record = InvokeAWSLambda(
+			metadata.Function,
+			metadata.RuntimeSpecifications,
+			metadata.AnnounceDoneExe,
+		)
 	case "Dirigent":
-		var record *mc.ExecutionRecord
-		success, record = InvokeDirigent(metadata.Function, metadata.RuntimeSpecifications, d.Configuration.LoaderConfiguration)
-
-		record.Phase = int(metadata.Phase)
-		record.InvocationID = composeInvocationID(d.Configuration.TraceGranularity, metadata.MinuteIndex, metadata.InvocationIndex)
-
-		metadata.RecordOutputChannel <- record
+		success, record = InvokeDirigent(
+			metadata.Function,
+			metadata.RuntimeSpecifications,
+			d.Configuration.LoaderConfiguration,
+		)
 	default:
 		log.Fatal("Unsupported platform.")
 	}
+
+	record.Phase = int(metadata.Phase)
+	record.InvocationID = composeInvocationID(d.Configuration.TraceGranularity, metadata.MinuteIndex, metadata.InvocationIndex)
+
+	metadata.RecordOutputChannel <- record
 
 	if success {
 		atomic.AddInt64(metadata.SuccessCount, 1)
