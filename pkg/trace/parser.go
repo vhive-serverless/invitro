@@ -95,7 +95,7 @@ func (p *AzureTraceParser) extractFunctions(invocations *[]common.FunctionInvoca
 			MemoryStats:     memoryByHashFunction[invocationStats.HashFunction],
 		}
 		oldLocation := invocationStats.HashFunction
-		newLocation := "/home/nonroot/" + function.Name
+		newLocation := function.Name
 		err := os.Rename(oldLocation, newLocation)
 		if err != nil {
 			log.Fatal(err)
