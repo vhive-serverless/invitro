@@ -94,8 +94,8 @@ func (p *AzureTraceParser) extractFunctions(invocations *[]common.FunctionInvoca
 			RuntimeStats:    runtimeByHashFunction[invocationStats.HashFunction],
 			MemoryStats:     memoryByHashFunction[invocationStats.HashFunction],
 		}
-		oldLocation := invocationStats.HashFunction
-		newLocation := function.Name
+		oldLocation := "scale_per_function" + invocationStats.HashFunction
+		newLocation := "scale_per_function" + function.Name
 		err := os.Rename(oldLocation, newLocation)
 		if err != nil {
 			log.Fatal(err)
