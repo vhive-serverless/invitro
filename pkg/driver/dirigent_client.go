@@ -3,6 +3,7 @@ package driver
 import (
 	"context"
 	"crypto/tls"
+	"fmt"
 	log "github.com/sirupsen/logrus"
 	"github.com/vhive-serverless/loader/pkg/common"
 	"github.com/vhive-serverless/loader/pkg/config"
@@ -71,7 +72,16 @@ func InvokeDirigent(function *common.Function, runtimeSpec *common.RuntimeSpecif
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil || resp == nil || resp.StatusCode != http.StatusOK {
-		log.Debugf("HTTP timeout for function %s", function.Name)
+		msg := ""
+		if err != nil {
+			msg = err.Error()
+		} else if resp == nil {
+			msg = fmt.Sprintf("empty response - status code: %d", resp.StatusCode)
+		} else if resp.StatusCode != http.StatusOK {
+			msg = fmt.Sprintf("%s - status code: %d", body, resp.StatusCode)
+		}
+
+		log.Debugf("HTTP timeout for function %s - %s", function.Name, msg)
 
 		record.ResponseTime = time.Since(start).Microseconds()
 		record.FunctionTimeout = true
