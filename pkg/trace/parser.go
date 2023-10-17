@@ -75,13 +75,31 @@ func createMemoryMap(runtime *[]common.FunctionMemoryStats) map[string]*common.F
 	return result
 }
 
-func (p *AzureTraceParser) extractFunctions(invocations *[]common.FunctionInvocationStats,
-	runtime *[]common.FunctionRuntimeStats, memory *[]common.FunctionMemoryStats) []*common.Function {
+func createDirigentMetadataMap(metadata *[]common.DirigentMetadata) map[string]*common.DirigentMetadata {
+	result := make(map[string]*common.DirigentMetadata)
+
+	for i := 0; i < len(*metadata); i++ {
+		result[(*metadata)[i].HashFunction] = &(*metadata)[i]
+	}
+
+	return result
+}
+
+func (p *AzureTraceParser) extractFunctions(
+	invocations *[]common.FunctionInvocationStats,
+	runtime *[]common.FunctionRuntimeStats,
+	memory *[]common.FunctionMemoryStats,
+	dirigentMetadata *[]common.DirigentMetadata) []*common.Function {
 
 	var result []*common.Function
 
 	runtimeByHashFunction := createRuntimeMap(runtime)
 	memoryByHashFunction := createMemoryMap(memory)
+
+	var dirigentMetadataByHashFunction map[string]*common.DirigentMetadata
+	if dirigentMetadata != nil {
+		dirigentMetadataByHashFunction = createDirigentMetadataMap(dirigentMetadata)
+	}
 
 	for i := 0; i < len(*invocations); i++ {
 		invocationStats := (*invocations)[i]
@@ -94,6 +112,10 @@ func (p *AzureTraceParser) extractFunctions(invocations *[]common.FunctionInvoca
 			MemoryStats:     memoryByHashFunction[invocationStats.HashFunction],
 		}
 
+		if dirigentMetadata != nil {
+			function.DirigentMetadata = dirigentMetadataByHashFunction[invocationStats.HashFunction]
+		}
+
 		result = append(result, function)
 	}
 
@@ -104,16 +126,18 @@ func (p *AzureTraceParser) Parse() []*common.Function {
 	invocationPath := p.DirectoryPath + "/invocations.csv"
 	runtimePath := p.DirectoryPath + "/durations.csv"
 	memoryPath := p.DirectoryPath + "/memory.csv"
+	dirigentPath := p.DirectoryPath + "/dirigent.csv"
 
 	invocationTrace := parseInvocationTrace(invocationPath, p.duration)
 	runtimeTrace := parseRuntimeTrace(runtimePath)
 	memoryTrace := parseMemoryTrace(memoryPath)
+	dirigentMetadata := parseDirigentMetadata(dirigentPath)
 
-	return p.extractFunctions(invocationTrace, runtimeTrace, memoryTrace)
+	return p.extractFunctions(invocationTrace, runtimeTrace, memoryTrace, dirigentMetadata)
 }
 
 func parseInvocationTrace(traceFile string, traceDuration int) *[]common.FunctionInvocationStats {
-	log.Debugf("Parsing function invocation trace %s (duration: %d min)", traceFile, traceDuration)
+	log.Infof("Parsing function invocation trace %s (duration: %d min)", traceFile, traceDuration)
 
 	// Fit duration on (0, 1440] interval
 	traceDuration = common.MaxOf(common.MinOf(traceDuration, 1440), 1)
@@ -198,7 +222,7 @@ func parseInvocationTrace(traceFile string, traceDuration int) *[]common.Functio
 }
 
 func parseRuntimeTrace(traceFile string) *[]common.FunctionRuntimeStats {
-	log.Debugf("Parsing function duration trace: %s\n", traceFile)
+	log.Infof("Parsing function duration trace: %s\n", traceFile)
 
 	f, err := os.Open(traceFile)
 	if err != nil {
@@ -231,4 +255,23 @@ func parseMemoryTrace(traceFile string) *[]common.FunctionMemoryStats {
 	}
 
 	return &memory
+}
+
+func parseDirigentMetadata(traceFile string) *[]common.DirigentMetadata {
+	log.Infof("Parsing Dirigent metadata: %s", traceFile)
+
+	f, err := os.Open(traceFile)
+	if err != nil {
+		log.Error("Failed to open trace memory specification file.")
+		return nil
+	}
+	defer f.Close()
+
+	var metadata []common.DirigentMetadata
+	err = gocsv.UnmarshalFile(f, &metadata)
+	if err != nil {
+		log.Fatal("Failed to parse trace runtime specification.")
+	}
+
+	return &metadata
 }
