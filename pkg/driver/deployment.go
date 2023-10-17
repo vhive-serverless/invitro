@@ -63,14 +63,18 @@ func DeployDirigent(functions []*common.Function) {
 }
 
 func deployDirigent(function *common.Function) {
+	metadata := function.DirigentMetadata
+
+	if metadata == nil {
+		log.Fatalf("No Dirigent metadata for function %s", function.Name)
+	}
+
 	payload := url.Values{
 		"name":                {function.Name},
-		"image":               {"docker.io/cvetkovic/dirigent_empty_function:latest"},
-		"port_forwarding":     {"80", "tcp"},
-		"scaling_upper_bound": {"1"},
-		"scaling_lower_bound": {"0"},
-		"requested_cpu":       {strconv.Itoa(function.CPURequestsMilli)},
-		"requested_memory":    {strconv.Itoa(function.MemoryRequestsMiB)},
+		"image":               {metadata.Image},
+		"port_forwarding":     {strconv.Itoa(metadata.Port), metadata.Protocol},
+		"scaling_upper_bound": {strconv.Itoa(metadata.ScalingUpperBound)},
+		"scaling_lower_bound": {strconv.Itoa(metadata.ScalingLowerBound)},
 	}
 
 	log.Debug(payload)

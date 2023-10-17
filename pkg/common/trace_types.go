@@ -70,6 +70,15 @@ type FunctionMemoryStats struct {
 	Percentile100 float64 `csv:"AverageAllocatedMb_pct100"`
 }
 
+type DirigentMetadata struct {
+	HashFunction      string `csv:"HashFunction"`
+	Image             string `csv:"Image"`
+	Port              int    `csv:"Port"`
+	Protocol          string `csv:"Protocol"`
+	ScalingUpperBound int    `csv:"ScalingUpperBound"`
+	ScalingLowerBound int    `csv:"ScalingLowerBound"`
+}
+
 type Function struct {
 	Name     string
 	Endpoint string
@@ -77,9 +86,10 @@ type Function struct {
 	// From the static trace profiler
 	InitialScale int
 	// From the trace
-	InvocationStats *FunctionInvocationStats
-	RuntimeStats    *FunctionRuntimeStats
-	MemoryStats     *FunctionMemoryStats
+	InvocationStats  *FunctionInvocationStats
+	RuntimeStats     *FunctionRuntimeStats
+	MemoryStats      *FunctionMemoryStats
+	DirigentMetadata *DirigentMetadata
 
 	CPURequestsMilli  int
 	MemoryRequestsMiB int

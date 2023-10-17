@@ -36,20 +36,21 @@ func TestConfigParser(t *testing.T) {
 
 	var pathToConfigFile = wd
 	if strings.HasSuffix(wd, "pkg/config") {
-		pathToConfigFile += "/../../"
+		pathToConfigFile += "/"
 	}
-	pathToConfigFile += "cmd/config.json"
+	pathToConfigFile += "test_config.json"
 
 	fmt.Println(pathToConfigFile)
 
 	config := ReadConfigurationFile(pathToConfigFile)
 
 	if config.Seed != 42 ||
+		config.Platform != "Knative" ||
 		config.YAMLSelector != "container" ||
 		config.EndpointPort != 80 ||
 		!strings.HasPrefix(config.TracePath, "data/traces/example") ||
-		!strings.HasPrefix(config.OutputPathPrefix, "data/out/experiment") ||
 		config.Granularity != "minute" ||
+		!strings.HasPrefix(config.OutputPathPrefix, "data/out/experiment") ||
 		config.IATDistribution != "equidistant" ||
 		config.ExperimentDuration != 5 ||
 		config.WarmupDuration != 0 ||
@@ -57,6 +58,7 @@ func TestConfigParser(t *testing.T) {
 		config.EnableZipkinTracing != false ||
 		config.EnableMetricsScrapping != false ||
 		config.MetricScrapingPeriodSeconds != 15 ||
+		config.AutoscalingMetric != "concurrency" ||
 		config.GRPCConnectionTimeoutSeconds != 15 ||
 		config.GRPCFunctionTimeoutSeconds != 900 {
 
