@@ -86,21 +86,14 @@ func (p *AzureTraceParser) extractFunctions(invocations *[]common.FunctionInvoca
 
 	for i := 0; i < len(*invocations); i++ {
 		invocationStats := (*invocations)[i]
+		fName := invocationStats.HashFunction[0:63]
 
 		function := &common.Function{
-			Name: fmt.Sprintf("%s-%d-%d", common.FunctionNamePrefix, i, p.functionNameGenerator.Uint64()),
+			Name: fmt.Sprintf("%s", fName),
 
 			InvocationStats: &invocationStats,
 			RuntimeStats:    runtimeByHashFunction[invocationStats.HashFunction],
 			MemoryStats:     memoryByHashFunction[invocationStats.HashFunction],
-		}
-		oldLocation := "/var/log/scale_per_function/" + invocationStats.HashFunction
-		funcName := strings.Split(function.Name, "-")
-		fName := funcName[0] + funcName[1] + funcName[2]
-		newLocation := "/var/log/scale_per_function/" + fName
-		err := os.Rename(oldLocation, newLocation)
-		if err != nil {
-			log.Info(err)
 		}
 
 		result = append(result, function)
