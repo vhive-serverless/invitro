@@ -4,8 +4,10 @@ analysis
 .idea
 tmp
 data/out
+data/azure
 data/traces/*
 !data/traces/example/
+!data/traces/reference/
 pkg/generator/*.png
 pkg/generator/*.txt
 pkg/driver/*.csv
@@ -100,10 +102,6 @@ Temporary Items
 # Serverless Framework Deployment
 serverless.yml
 .serverless
-
-data/trace/**.t
-data/**.csv
-data
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

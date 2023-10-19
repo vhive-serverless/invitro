@@ -86,11 +86,7 @@ with the smallest aggregate WD distance (mean of the invocation and resource WDs
 from the previous, larger sample; hence guaranteeing that large samples always include smaller samples that guarantees
 monotonic load increase (in terms of resource usage) when sweeping the sample size.
 
-## Getting the traces
-
-The reference traces are stored in `sampler/tests/inputs` folder of this repository, as `original.tar.gz`
-and `preprocessed.tar.gz` files stored in Git LFS. The folder contains both the preprocessed and sampled traces
-(day 1, 00:02:00-00:02:20, 64 trials; 100-1k functions with step 100 and 1k-44k with step 1k).
+### Workflow
 
 ```console
 python3 -m sampler sample -h
@@ -115,6 +111,28 @@ optional arguments:
                         Number of sampling trials for each sample size.
 ```
 
+## Reference traces
+
+The reference traces are stored in `data/reference` folder of this repository, as `preprocessed.tar.gz` and
+`sampled.tar.gz` files stored in Git LFS.
+
+`preprocessed.tar.gz` contains the preprocessed traces for the original Azure trace for day 1, 09:00:00-11:30:00 (150
+minutes total).
+
+`sampled.tar.gz` contains the sampled traces for preprocessed trace from `preprocessed.tar.gz`. Sample sizes are 50-3k
+functions with step 50 and 3k-24k with step 1k.
+
+The reference traces were obtained by running the following commands:
+
+```console
+python3 -m preprocess  -t data/azure/ -o data/reference/preprocessed_150 -s 00:09:00 -dur 150
+
+python3 -m sample -t data/reference/preprocessed_150 -o data/reference/sampled_150 -min 3000 -st 1000 -max 24000 -tr 16
+python3 -m sample -t data/reference/sampled_150/samples/3000 -o data/reference/sampled_150 -min 50 -st 50 -max 3000 -tr 16
+```
+
+## Tools
+
 ### Plotting
 
 **Note:** Currently plotting is broken and has been disabled. (issue filled)
@@ -134,8 +152,6 @@ optional arguments:
   -o path, --output path
                         Output path for the produced figures
 ```
-
-## Tools
 
 ### Timeline analysis
 
