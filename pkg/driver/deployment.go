@@ -31,6 +31,7 @@ import (
 	"os/exec"
 	"regexp"
 	"strconv"
+	"time"
 
 	"github.com/vhive-serverless/loader/pkg/common"
 
@@ -68,6 +69,8 @@ func deployOne(function *common.Function, yamlPath string, isPartiallyPanic bool
 		// second, then round to an integer as that is what the knative config expects
 	}
 
+	now := time.Now()
+	log.Infof("deploying %s at time %d", function.Name, now.Unix())
 	cmd := exec.Command(
 		"bash",
 		"./pkg/driver/deploy.sh",
