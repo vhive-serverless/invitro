@@ -646,8 +646,8 @@ func (d *Driver) RunExperiment(iatOnly bool, generated bool) {
 		DeployFunctionsAWSLambda(d.Configuration.Functions)
 	}
 
-	for time.Now().Unix() < 1698084000 {
-		time.Sleep(time.Duration(1698084000 - time.Now().Unix()))
+	for time.Now().Unix() < 1698094800 {
+		time.Sleep(time.Duration(1698094800 - time.Now().Unix()))
 	}
 	// Generate load
 	d.internalRun(iatOnly, generated)
