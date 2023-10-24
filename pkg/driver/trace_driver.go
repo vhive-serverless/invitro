@@ -30,6 +30,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -618,7 +619,7 @@ func (d *Driver) RunExperiment(iatOnly bool, generated bool) {
 			d.Configuration.Functions[i].Specification = spec
 
 			file, _ := json.MarshalIndent(spec, "", " ")
-			err := os.WriteFile("iat"+strconv.Itoa(i)+".json", file, 0644)
+			err := os.WriteFile("iat/"+function.Name+".json", file, 0644)
 			if err != nil {
 				log.Fatalf("Writing the loader config file failed: %s", err)
 			}
@@ -646,8 +647,17 @@ func (d *Driver) RunExperiment(iatOnly bool, generated bool) {
 		DeployFunctionsAWSLambda(d.Configuration.Functions)
 	}
 
-	for time.Now().Unix() < 1698094800 {
-		time.Sleep(time.Duration(1698094800 - time.Now().Unix()))
+	file, err := os.ReadFile("time.txt")
+	if err != nil {
+		log.Fatalf("error when reading time.txt: %s", err)
+	}
+	t := string(file)
+	tInt, err := strconv.Atoi(strings.Split(t, "\n")[0])
+	if err != nil {
+		log.Fatalf("error when converting time.txt to integer: %s", err)
+	}
+	for time.Now().Unix() < int64(tInt) {
+		time.Sleep(time.Duration(int64(tInt) - time.Now().Unix()))
 	}
 	// Generate load
 	d.internalRun(iatOnly, generated)
