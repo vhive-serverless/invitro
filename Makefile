@@ -1,4 +1,4 @@
-.PHONY : proto clean build run trace-firecracker trace-container wimpy
+.PHONY : proto proto-python clean build run trace-firecracker trace-container wimpy
 
 proto:
 	protoc \
@@ -11,6 +11,20 @@ proto:
 		--python_out=. \
 		--grpc_python_out=. \
 		pkg/workload/proto/faas.proto
+
+proto-python:
+	protoc \
+		--go_out=. \
+		--go_opt=paths=source_relative \
+		--go-grpc_out=. \
+		--go-grpc_opt=paths=source_relative \
+		server/trace-func-py/faas.proto
+	python3 -m grpc_tools.protoc -I . \
+		--python_out=. \
+		--grpc_python_out=. \
+		server/trace-func-py/faas.proto
+	mv server/trace_func_py/* server/trace-func-py/.
+	rm -r server/trace_func_py
 
 # make -i clean
 clean: 
@@ -63,6 +77,13 @@ trace-container:
 		-f Dockerfile.trace \
 		-t cvetkovic/trace_function .
 	docker push cvetkovic/trace_function:latest
+
+trace-container-py:
+	docker build --build-arg FUNC_TYPE=TRACE \
+		--build-arg FUNC_PORT=80 \
+		-t nehalem90/trace-func-py \
+		./server/trace-func-py/.
+	docker push nehalem90/trace-func-py:latest
 
 # Used for measuring cold start latency
 empty-firecracker:

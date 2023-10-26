@@ -1,15 +1,17 @@
-FROM alpine:3.13.5
+FROM debian:stable-slim
 
-# Install python3
-RUN apk add --no-cache py3-pip py3-grpcio py3-protobuf py3-psutil py3-numpy git && \
-    ln -sf python3 /usr/bin/python && ln -sf pip3 /usr/bin/pip
+RUN apt update -y
+RUN apt install -y python3 python3-pip
+RUN pip install grpcio grpcio-tools --break-system-packages
 
 WORKDIR /app
-COPY *.py ./
+COPY * ./
 
-# EXPOSE is primarily a no-op now.
 EXPOSE 80
 
-STOPSIGNAL SIGKILL
+ARG FUNC_TYPE
+ENV FUNC_TYPE_ENV=${FUNC_TYPE}
+ARG FUNC_PORT
+ENV FUNC_PORT_ENV=${FUNC_PORT}
 
-CMD ["python", "trace_func.py"]
+CMD ["python", "trace_func.py", "--port", ${FUNC_PORT_ENV}, "--type", ${FUNC_TYPE_ENV}]

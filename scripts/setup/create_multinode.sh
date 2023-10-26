@@ -207,7 +207,7 @@ function extend_CIDR() {
 }
 
 function clone_loader() {
-    server_exec $1 "git clone --depth=1 --branch=$LOADER_BRANCH https://github.com/vhive-serverless/invitro.git loader"
+    server_exec $1 "git clone --branch=$LOADER_BRANCH https://github.com/vhive-serverless/invitro.git loader"
     server_exec $1 'echo -en "\n\n" | sudo apt-get install -y python3-pip python-dev'
     server_exec $1 'cd; cd loader; pip install -r config/requirements.txt'
 }

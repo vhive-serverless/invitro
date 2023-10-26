@@ -3,7 +3,7 @@
 
   "Platform": "Knative",
 
-  "YAMLSelector": "container",
+  "YAMLSelector": "container_py",
   "EndpointPort": 80,
 
   "TracePath": "data/traces/example",

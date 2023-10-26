@@ -22,57 +22,71 @@
 
 from concurrent import futures
 import logging
-import datetime
 import grpc
-import math
+import argparse
+import socket
 from os import getenv
-from time import process_time_ns
-from random import seed, randrange
-from psutil import virtual_memory
-from numpy import empty, float32
+from time import process_time, perf_counter
+from math import sqrt
+from random import random
 
 import faas_pb2
 import faas_pb2_grpc
 
 class Executor(faas_pb2_grpc.Executor):
+    def __init__(self, config) -> None:
+        super().__init__()
+        self.functype = config["functype"]
+        self.iterations_multiplier = config["iterations_multiplier"]
+        self.hostname = config["hostname"]
 
     def Execute(self, request, context, **kwargs):
-        start_time = datetime.datetime.now()
-        response = execute_function(request.input, request.runtime, request.memory)
-        elapsed = datetime.datetime.now() - start_time
-        elapsed_us = int(1000000 * elapsed.total_seconds())
-        return faas_pb2.FaasReply(latency=elapsed_us, response=str(response))
+        start_time = perf_counter()
+        start_time_process = process_time()
+        if self.functype == "EMPTY":
+            response = f"OK - EMPTY - {self.hostname}"
+        else:
+            response = self.execute_function(self.hostname, start_time_process, request.runtimeInMilliSec*1000)
+        elapsed_second = perf_counter() - start_time
+        elapsed_us = elapsed_second * 1000
+        return faas_pb2.FaasReply(message=str(response), durationInMicroSec=elapsed_us, memoryUsageInKb=request.memoryInMebiBytes*1024)
 
+    def execute_function(self, hostname, start_time_process, time_to_run_milisecond):
+        current_process_time = process_time()
+        time_consumed_seconds = current_process_time - start_time_process
+        if time_consumed_seconds < (time_to_run_milisecond/1000):
+            busy_spin_until = start_time_process + time_to_run_milisecond/1000
+            self.busy_spin(busy_spin_until)
+        return f"OK - {self.hostname}"
 
-def execute_function(input, runTime, totalMem):
-    startTime = process_time_ns()
+    def busy_spin(self, busy_spin_until: float):
+        while busy_spin_until < process_time():
+            for _ in range(self.iterations_multiplier):
+                self.take_sqrts()
 
-    chunkSize = 2**10 # size of a kb or 1024
-    totalMem = totalMem*(2**10) # convert Mb to kb
-    memory = virtual_memory()
-    used = (memory.total - memory.available) // chunkSize # convert to kb
-    additional = max(1, (totalMem - used))
-    array = empty(additional*chunkSize, dtype=float32) # make an uninitialized array of that size, uninitialized to keep it fast
-    # convert to ns
-    runTime = (runTime - 1)*(10**6) # -1 because it should be slighly bellow that runtime
-    memoryIndex = 0
-    while process_time_ns() - startTime < runTime:
-        for i in range(0, chunkSize):
-            sin_i = math.sin(i)
-            cos_i = math.cos(i)
-            sqrt_i = math.sqrt(i)
-            array[memoryIndex + i] = sin_i
-        memoryIndex = (memoryIndex + chunkSize) % additional*chunkSize
-    return (process_time_ns() - startTime) // 1000
-
-def serve():
+    def take_sqrts(self):
+        temp = 0.0
+        for i in range(100):
+            tmp = random()+1
+            temp += sqrt(tmp)
+        return temp
+    
+def serve(port: int, functype: str):
+    iterations_multiplier = getenv("ITERATIONS_MULTIPLIER", 102)
+    hostname = socket.gethostname()
+    config = {  "functype": functype, 
+                "iterations_multiplier": iterations_multiplier, 
+                "hostname": hostname}
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=1))
-    faas_pb2_grpc.add_ExecutorServicer_to_server(Executor(), server)
-    server.add_insecure_port('[::]:80')
+    faas_pb2_grpc.add_ExecutorServicer_to_server(Executor(config), server)
+    server.add_insecure_port(f'[::]:{port}')
     server.start()
     server.wait_for_termination()
 
-
 if __name__ == '__main__':
     logging.basicConfig()
-    serve()
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-p', '--port', type=int, default=8081)
+    parser.add_argument('-t', '--type', type=str, default="TRACE")
+    args = parser.parse_args()
+    serve(args.port, args.type)
