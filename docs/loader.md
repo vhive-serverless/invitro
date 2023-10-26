@@ -140,8 +140,12 @@ For testing cold start performance:
 * `empty-container` - for regular containers - returns immediately
 
 ```bash
-$ make build <trace-firecracker|trace-container|empty-firecracker|empty-container>
+$ make <trace-firecracker|trace-container|empty-firecracker|empty-container>
 ```
+
+Pushing the images will require a write access to Github packages connected to this repository. Please refer to 
+[this guide](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry#authenticating-with-a-personal-access-token-classic)
+for authentication instructions.
 
 ## Clean up between runs
 

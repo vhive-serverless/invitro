@@ -53,32 +53,32 @@ trace-firecracker:
 	docker build --build-arg FUNC_TYPE=TRACE \
 		--build-arg FUNC_PORT=50051 \
 		-f Dockerfile.trace \
-		-t cvetkovic/trace_function_firecracker .
-	docker push cvetkovic/trace_function_firecracker:latest
+		-t ghcr.io/vhive-serverless/invitro_trace_function_firecracker .
+	docker push ghcr.io/vhive-serverless/invitro_trace_function_firecracker:latest
 
 # Used for replying the trace
 trace-container:
 	docker build --build-arg FUNC_TYPE=TRACE \
 		--build-arg FUNC_PORT=80 \
 		-f Dockerfile.trace \
-		-t cvetkovic/trace_function .
-	docker push cvetkovic/trace_function:latest
+		-t ghcr.io/vhive-serverless/invitro_trace_function .
+	docker push ghcr.io/vhive-serverless/invitro_trace_function:latest
 
 # Used for measuring cold start latency
 empty-firecracker:
 	docker build --build-arg FUNC_TYPE=EMPTY \
 		--build-arg FUNC_PORT=50051 \
 		-f Dockerfile.trace \
-		-t cvetkovic/empty_function_firecracker .
-	docker push cvetkovic/empty_function_firecracker:latest
+		-t ghcr.io/vhive-serverless/invitro_empty_function_firecracker:latest .
+	docker push ghcr.io/vhive-serverless/invitro_empty_function_firecracker:latest
 
 # Used for measuring cold start latency
 empty-container:
 	docker build --build-arg FUNC_TYPE=EMPTY \
 		--build-arg FUNC_PORT=80 \
 		-f Dockerfile.trace \
-		-t cvetkovic/empty_function .
-	docker push cvetkovic/empty_function:latest
+		-t ghcr.io/vhive-serverless/invitro_empty_function:latest .
+	docker push ghcr.io/vhive-serverless/invitro_empty_function:latest
 
 wimpy:
 	docker build -f Dockerfile.wimpy -t hyhe/wimpy .

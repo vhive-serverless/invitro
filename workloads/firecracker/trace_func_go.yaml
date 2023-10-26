@@ -27,7 +27,7 @@ spec:
             - name: GUEST_PORT # Port on which the firecracker-containerd container is accepting requests.
               value: "50051"
             - name: GUEST_IMAGE # Container image to use for firecracker-containerd container.
-              value: "cvetkovic/trace_function_firecracker:latest"
+              value: "ghcr.io/vhive-serverless/invitro_trace_function_firecracker:latest"
             - name: ITERATIONS_MULTIPLIER
               value: "102"
           resources:

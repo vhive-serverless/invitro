@@ -37,3 +37,5 @@ COPY --from=BUILDER /app/server/trace-func-go/server /server
 
 # Run the web service on container startup.
 CMD /server ${FUNC_PORT_ENV} ${FUNC_TYPE_ENV}
+
+LABEL org.opencontainers.image.source=https://github.com/vhive-serverless/invitro
