@@ -121,7 +121,7 @@ func runTraceMode(cfg *config.LoaderConfiguration, iatOnly bool, generated bool)
 	durationToParse := determineDurationToParse(cfg.ExperimentDuration, cfg.WarmupDuration)
 
 	traceParser := trace.NewAzureParser(cfg.TracePath, durationToParse)
-	functions := traceParser.Parse()
+	functions := traceParser.Parse(cfg.Platform)
 
 	log.Infof("Traces contain the following %d functions:\n", len(functions))
 	for _, function := range functions {
