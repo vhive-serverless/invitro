@@ -122,7 +122,7 @@ func (p *AzureTraceParser) extractFunctions(
 	return result
 }
 
-func (p *AzureTraceParser) Parse() []*common.Function {
+func (p *AzureTraceParser) Parse(platform string) []*common.Function {
 	invocationPath := p.DirectoryPath + "/invocations.csv"
 	runtimePath := p.DirectoryPath + "/durations.csv"
 	memoryPath := p.DirectoryPath + "/memory.csv"
@@ -131,7 +131,7 @@ func (p *AzureTraceParser) Parse() []*common.Function {
 	invocationTrace := parseInvocationTrace(invocationPath, p.duration)
 	runtimeTrace := parseRuntimeTrace(runtimePath)
 	memoryTrace := parseMemoryTrace(memoryPath)
-	dirigentMetadata := parseDirigentMetadata(dirigentPath)
+	dirigentMetadata := parseDirigentMetadata(dirigentPath, platform)
 
 	return p.extractFunctions(invocationTrace, runtimeTrace, memoryTrace, dirigentMetadata)
 }
@@ -257,7 +257,11 @@ func parseMemoryTrace(traceFile string) *[]common.FunctionMemoryStats {
 	return &memory
 }
 
-func parseDirigentMetadata(traceFile string) *[]common.DirigentMetadata {
+func parseDirigentMetadata(traceFile string, platform string) *[]common.DirigentMetadata {
+	if platform != "Dirigent" {
+		return nil
+	}
+
 	log.Infof("Parsing Dirigent metadata: %s", traceFile)
 
 	f, err := os.Open(traceFile)
