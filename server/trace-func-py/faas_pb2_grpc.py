@@ -2,7 +2,7 @@
 """Client and server classes corresponding to protobuf-defined services."""
 import grpc
 
-from server.trace_func_py import faas_pb2 as server_dot_trace__func__py_dot_faas__pb2
+import faas_pb2 as faas__pb2
 
 
 class ExecutorStub(object):
@@ -16,8 +16,8 @@ class ExecutorStub(object):
         """
         self.Execute = channel.unary_unary(
                 '/faas.Executor/Execute',
-                request_serializer=server_dot_trace__func__py_dot_faas__pb2.FaasRequest.SerializeToString,
-                response_deserializer=server_dot_trace__func__py_dot_faas__pb2.FaasReply.FromString,
+                request_serializer=faas__pb2.FaasRequest.SerializeToString,
+                response_deserializer=faas__pb2.FaasReply.FromString,
                 )
 
 
@@ -36,8 +36,8 @@ def add_ExecutorServicer_to_server(servicer, server):
     rpc_method_handlers = {
             'Execute': grpc.unary_unary_rpc_method_handler(
                     servicer.Execute,
-                    request_deserializer=server_dot_trace__func__py_dot_faas__pb2.FaasRequest.FromString,
-                    response_serializer=server_dot_trace__func__py_dot_faas__pb2.FaasReply.SerializeToString,
+                    request_deserializer=faas__pb2.FaasRequest.FromString,
+                    response_serializer=faas__pb2.FaasReply.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -61,7 +61,7 @@ class Executor(object):
             timeout=None,
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/faas.Executor/Execute',
-            server_dot_trace__func__py_dot_faas__pb2.FaasRequest.SerializeToString,
-            server_dot_trace__func__py_dot_faas__pb2.FaasReply.FromString,
+            faas__pb2.FaasRequest.SerializeToString,
+            faas__pb2.FaasReply.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)

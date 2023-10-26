@@ -31,8 +31,6 @@ spec:
             - name: ENABLE_TRACING
               value: "false"
           resources:
-            limits:
-              cpu: $CPU_LIMITS
             requests:
               cpu: $CPU_REQUEST
               memory: $MEMORY_REQUESTS

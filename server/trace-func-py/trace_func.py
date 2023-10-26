@@ -29,6 +29,7 @@ from os import getenv
 from time import process_time, perf_counter
 from math import sqrt
 from random import random
+import logging
 
 import faas_pb2
 import faas_pb2_grpc
@@ -46,33 +47,32 @@ class Executor(faas_pb2_grpc.Executor):
         if self.functype == "EMPTY":
             response = f"OK - EMPTY - {self.hostname}"
         else:
-            response = self.execute_function(self.hostname, start_time_process, request.runtimeInMilliSec*1000)
+            response = self.execute_function(self.hostname, start_time_process, request.runtimeInMilliSec)
         elapsed_second = perf_counter() - start_time
-        elapsed_us = elapsed_second * 1000
+        elapsed_us = int(round(elapsed_second * 1000000))
         return faas_pb2.FaasReply(message=str(response), durationInMicroSec=elapsed_us, memoryUsageInKb=request.memoryInMebiBytes*1024)
 
     def execute_function(self, hostname, start_time_process, time_to_run_milisecond):
-        current_process_time = process_time()
-        time_consumed_seconds = current_process_time - start_time_process
+        time_consumed_seconds = process_time() - start_time_process
         if time_consumed_seconds < (time_to_run_milisecond/1000):
             busy_spin_until = start_time_process + time_to_run_milisecond/1000
-            self.busy_spin(busy_spin_until)
+            tmp = self.busy_spin(busy_spin_until)
         return f"OK - {self.hostname}"
 
     def busy_spin(self, busy_spin_until: float):
-        while busy_spin_until < process_time():
+        tmp = 0.0
+        while process_time() < busy_spin_until:
             for _ in range(self.iterations_multiplier):
-                self.take_sqrts()
+                tmp = self.take_sqrts()
+        return tmp
 
     def take_sqrts(self):
-        temp = 0.0
-        for i in range(100):
-            tmp = random()+1
-            temp += sqrt(tmp)
-        return temp
-    
+        tmp = random()+1
+        tmp += sqrt(tmp)
+        return tmp
+
 def serve(port: int, functype: str):
-    iterations_multiplier = getenv("ITERATIONS_MULTIPLIER", 102)
+    iterations_multiplier = int(getenv("ITERATIONS_MULTIPLIER", "102"))
     hostname = socket.gethostname()
     config = {  "functype": functype, 
                 "iterations_multiplier": iterations_multiplier, 
@@ -84,7 +84,7 @@ def serve(port: int, functype: str):
     server.wait_for_termination()
 
 if __name__ == '__main__':
-    logging.basicConfig()
+    logging.basicConfig(level=logging.INFO)
     parser = argparse.ArgumentParser()
     parser.add_argument('-p', '--port', type=int, default=8081)
     parser.add_argument('-t', '--type', type=str, default="TRACE")

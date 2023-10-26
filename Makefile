@@ -19,12 +19,10 @@ proto-python:
 		--go-grpc_out=. \
 		--go-grpc_opt=paths=source_relative \
 		server/trace-func-py/faas.proto
-	python3 -m grpc_tools.protoc -I . \
-		--python_out=. \
-		--grpc_python_out=. \
-		server/trace-func-py/faas.proto
-	mv server/trace_func_py/* server/trace-func-py/.
-	rm -r server/trace_func_py
+	python3 -m grpc_tools.protoc -I server/trace-func-py/. \
+		--python_out=server/trace-func-py/. \
+		--grpc_python_out=server/trace-func-py/. \
+		faas.proto
 
 # make -i clean
 clean: 
