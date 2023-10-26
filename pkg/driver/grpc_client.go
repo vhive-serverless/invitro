@@ -63,11 +63,12 @@ func InvokeGRPC(function *common.Function, runtimeSpec *common.RuntimeSpecificat
 	var dialOptions []grpc.DialOption
 	dialOptions = append(dialOptions, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	dialOptions = append(dialOptions, grpc.WithBlock())
-	dialOptions = append(dialOptions, grpc.WithAuthority(function.Name))
 	if cfg.EnableZipkinTracing {
 		// NOTE: if enabled it will exclude Istio span from the Zipkin trace
 		dialOptions = append(dialOptions, grpc.WithUnaryInterceptor(otelgrpc.UnaryClientInterceptor()))
 	}
+
+	grpcStart := time.Now()
 
 	conn, err := grpc.DialContext(dialContext, function.Endpoint, dialOptions...)
 	defer gRPCConnectionClose(conn)
@@ -80,7 +81,7 @@ func InvokeGRPC(function *common.Function, runtimeSpec *common.RuntimeSpecificat
 		return false, record
 	}
 
-	record.GRPCConnectionEstablishTime = time.Since(start).Microseconds()
+	record.GRPCConnectionEstablishTime = time.Since(grpcStart).Microseconds()
 
 	grpcClient := proto.NewExecutorClient(conn)
 
