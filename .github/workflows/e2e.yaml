@@ -59,10 +59,10 @@ jobs:
           kubectl label node knative-control-plane loader-nodetype=worker
 
       - name: Build and run loader
-        run: go run cmd/loader.go --config cmd/config.json
+        run: go run cmd/loader.go --config pkg/config/test_config.json
 
       - name: Check the output
-        run: test $(grep true data/out/experiment_duration_2.csv | wc -l) -eq 0 # test the output file for errors (true means failure to invoke)
+        run: test -f "data/out/experiment_duration_5.csv" && test $(grep true data/out/experiment_duration_5.csv | wc -l) -eq 0 # test the output file for errors (true means failure to invoke)
 
       - name: Print logs
         if: ${{ always() }}
