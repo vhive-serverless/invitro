@@ -55,8 +55,10 @@ func InvokeDirigent(function *common.Function, runtimeSpec *common.RuntimeSpecif
 
 	req.Host = function.Name
 
+	req.Header.Set("workload", function.DirigentMetadata.Image)
 	req.Header.Set("requested_cpu", strconv.Itoa(runtimeSpec.Runtime))
 	req.Header.Set("requested_memory", strconv.Itoa(runtimeSpec.Memory))
+	req.Header.Set("multiplier", strconv.Itoa(function.DirigentMetadata.IterationMultiplier))
 
 	resp, err := client.Do(req)
 	if err != nil {

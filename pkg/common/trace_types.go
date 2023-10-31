@@ -71,12 +71,13 @@ type FunctionMemoryStats struct {
 }
 
 type DirigentMetadata struct {
-	HashFunction      string `csv:"HashFunction"`
-	Image             string `csv:"Image"`
-	Port              int    `csv:"Port"`
-	Protocol          string `csv:"Protocol"`
-	ScalingUpperBound int    `csv:"ScalingUpperBound"`
-	ScalingLowerBound int    `csv:"ScalingLowerBound"`
+	HashFunction        string `csv:"HashFunction"`
+	Image               string `csv:"Image"`
+	Port                int    `csv:"Port"`
+	Protocol            string `csv:"Protocol"`
+	ScalingUpperBound   int    `csv:"ScalingUpperBound"`
+	ScalingLowerBound   int    `csv:"ScalingLowerBound"`
+	IterationMultiplier int    `csv:"IterationMultiplier"`
 }
 
 type Function struct {
