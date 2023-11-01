@@ -113,7 +113,7 @@ optional arguments:
 
 ## Reference traces
 
-The reference traces are stored in `data/reference` folder of this repository, as `preprocessed.tar.gz` and
+The reference traces are stored in `data/traces/reference` folder of this repository, as `preprocessed.tar.gz` and
 `sampled.tar.gz` files stored in Git LFS.
 
 `preprocessed.tar.gz` contains the preprocessed traces for the original Azure trace for day 1, 09:00:00-11:30:00 (150

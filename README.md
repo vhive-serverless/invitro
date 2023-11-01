@@ -2,6 +2,8 @@
 
 In-Vitro is a set of tools for analyzing the performance of serverless cluster deployments. In-Vitro consists of two tools, namely sampler and loader. Sampler creates representative workload summaries (i.e., samples of functions) based on production traces. Loader reconstructs the invocation traffic based on a given trace and steers this load to the functions deployed in the studied serverless cluster. Currently, In-Vitro supports [vHive](https://github.com/vhive-serverless/vHive) and [OpenWhisk](https://openwhisk.apache.org/). Documentation on how to use the sampler and the loader can be found in the `docs` folder.
 
+Standard sampled traces are available in [data/traces/reference](data/traces/reference/) folder in this repository. The traces are sampled from the Azure Functions production traces using the [sampler](sampler) tool. More details on the sampling process can be found [here](docs/sampler.md#reference-traces).
+
 ## Reference our work
 
 ```
