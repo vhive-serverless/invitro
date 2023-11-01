@@ -532,7 +532,7 @@ func (d *Driver) startBackgroundProcesses(allRecordsWritten *sync.WaitGroup) (*s
 	return auxiliaryProcessBarrier, globalMetricsCollector, totalIssuedChannel, finishCh
 }
 
-func (d *Driver) internalRun(iatOnly bool, generated bool) {
+func (d *Driver) internalRun(generated bool) {
 	var successfulInvocations int64
 	var failedInvocations int64
 	var invocationsIssued int64
@@ -544,22 +544,6 @@ func (d *Driver) internalRun(iatOnly bool, generated bool) {
 	allRecordsWritten.Add(1)
 
 	backgroundProcessesInitializationBarrier, globalMetricsCollector, totalIssuedChannel, scraperFinishCh := d.startBackgroundProcesses(&allRecordsWritten)
-
-	if !iatOnly {
-		log.Info("Generating IAT and runtime specifications for all the functions")
-		for i, function := range d.Configuration.Functions {
-			spec := d.SpecificationGenerator.GenerateInvocationData(
-				function,
-				d.Configuration.IATDistribution,
-				d.Configuration.ShiftIAT,
-				d.Configuration.TraceGranularity,
-			)
-
-			d.Configuration.Functions[i].Specification = spec
-		}
-	}
-
-	backgroundProcessesInitializationBarrier.Wait()
 
 	if generated {
 		for i := range d.Configuration.Functions {
@@ -574,6 +558,8 @@ func (d *Driver) internalRun(iatOnly bool, generated bool) {
 			d.Configuration.Functions[i].Specification = &spec
 		}
 	}
+
+	backgroundProcessesInitializationBarrier.Wait()
 
 	log.Infof("Starting function invocation driver\n")
 	for _, function := range d.Configuration.Functions {
@@ -607,24 +593,26 @@ func (d *Driver) internalRun(iatOnly bool, generated bool) {
 }
 
 func (d *Driver) RunExperiment(iatOnly bool, generated bool) {
-	if iatOnly {
-		log.Info("Generating IAT and runtime specifications for all the functions")
-		for i, function := range d.Configuration.Functions {
-			spec := d.SpecificationGenerator.GenerateInvocationData(
-				function,
-				d.Configuration.IATDistribution,
-				d.Configuration.ShiftIAT,
-				d.Configuration.TraceGranularity,
-			)
-			d.Configuration.Functions[i].Specification = spec
+	log.Info("Generating IAT and runtime specifications for all the functions")
+	for i, function := range d.Configuration.Functions {
+		spec := d.SpecificationGenerator.GenerateInvocationData(
+			function,
+			d.Configuration.IATDistribution,
+			d.Configuration.ShiftIAT,
+			d.Configuration.TraceGranularity,
+		)
 
+		d.Configuration.Functions[i].Specification = spec
+	}
+	if iatOnly {
+		for i, function := range d.Configuration.Functions {
+			spec := d.Configuration.Functions[i].Specification
 			file, _ := json.MarshalIndent(spec, "", " ")
 			err := os.WriteFile("iat/"+function.Name+".json", file, 0644)
 			if err != nil {
 				log.Fatalf("Writing the loader config file failed: %s", err)
 			}
 		}
-
 		return
 	}
 
@@ -660,7 +648,7 @@ func (d *Driver) RunExperiment(iatOnly bool, generated bool) {
 		time.Sleep(time.Duration(int64(tInt) - time.Now().Unix()))
 	}
 	// Generate load
-	d.internalRun(iatOnly, generated)
+	d.internalRun(generated)
 
 	// Clean up
 	if d.Configuration.LoaderConfiguration.Platform == "Knative" {
