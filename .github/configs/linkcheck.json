@@ -6,9 +6,6 @@
         {
             "pattern": "^http://127.0.0.1:*"
         }
-        {
-            "pattern": "^https://github.com/vhive-serverless/loader/*"
-        }
     ],
     "replacementPatterns": [
         {
