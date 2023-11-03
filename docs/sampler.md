@@ -157,10 +157,10 @@ optional arguments:
 
 Tools that can be used to generate the timeline of a trace are available in the `tools` directory.
 
-- [`generateTimeline/generateTimeline.go`](tools/generateTimeline/generateTimeline.go) - generates a timeline of the
+- [`generateTimeline/generateTimeline.go`](/tools/generateTimeline/generateTimeline.go) - generates a timeline of the
   trace in either milliseconds or minute scale.
-- [`plotTimeline/plotting.py`](tools/plotTimeline/plotting.py) - contains scripts used to plot various trace
+- [`plotTimeline/plotting.py`](/tools/plotTimeline/plotting.py) - contains scripts used to plot various trace
   characteristics
 
 A jupyter notebook containing examples of the timeline analysis is available
-in [`plotTimeline/analysis.ipynb`](tools/plotTimeline/analysis.ipynb)
+in [`plotTimeline/analysis.ipynb`](/tools/plotTimeline/analysis.ipynb)

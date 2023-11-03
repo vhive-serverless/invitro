@@ -28,7 +28,7 @@ Standard sampled traces are available in [data/traces/reference](data/traces/ref
 
 We would be happy to answer any questions in GitHub Issues and encourage the open-source community
 to submit new Issues, assist in addressing existing issues and limitations, and contribute their code with Pull Requests.
-Please check our guide on [Contributing to vHive](https://github.com/vhive-serverless/vHive/docs/contributing_to_vhive.md) if you would like contribute.
+Please check our guide on [Contributing to vHive](https://github.com/vhive-serverless/vHive/blob/main/docs/contributing_to_vhive.md) if you would like contribute.
 You can also talk to us in our [Slack space](https://join.slack.com/t/vhivetutorials/shared_invite/zt-1fk4v71gn-nV5oev5sc9F4fePg3_OZMQ).
 
 

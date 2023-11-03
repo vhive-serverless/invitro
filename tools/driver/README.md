@@ -46,9 +46,9 @@ is then the duration of the measurement phase + the duration of the warmup phase
 "outputDir": The local output directory on the machine running the experiment driver, this is where experiment results
 will be saved.  
 "YAMLSelector": Which yaml specification to use, supported values are 
-"[wimpy](https://github.com/vhive-serverless/loader/blob/main/workloads/container/wimpy.yaml)", 
-"[container](https://github.com/vhive-serverless/loader/blob/main/workloads/container/trace_func_go.yaml)" and 
-"[firecracker](https://github.com/vhive-serverless/loader/blob/main/workloads/firecracker/trace_func_go.yaml)".  
+"[wimpy](/workloads/container/wimpy.yaml)", 
+"[container](/workloads/container/trace_func_go.yaml)" and 
+"[firecracker](/workloads/firecracker/trace_func_go.yaml)".  
 "IATDistribution": The IAT distribution that the loader will use when sending invocations to the worker node(s).
 Supported values are "exponential", "uniform" and "equidistant".  
 "loaderOutputPath": The output path for the experiment results on the loader node.  
@@ -58,7 +58,7 @@ value of 10.0 to the maximum value of 100.0, and it modifies the
 [panic-threshold-percentage](https://knative.dev/docs/serving/autoscaling/kpa-specific/#panic-mode-threshold)
 from the default value of 200.0 to the maximum value of 1000.0.  
 "EnableZipkinTracing": Whether to enable Zipkin Tracing. Calls 
-[InitBasicTracer](https://github.com/vhive-serverless/vSwarm/blob/2843380021a4443187f8773554fa1896b7d1287d/utils/tracing/go/tracing.go#L79)
+[InitBasicTracer](https://github.com/vhive-serverless/vSwarm/blob/v1.0/utils/tracing/go/tracing.go#L79)
 to initialise an OpenTelemetry tracer.  
 "EnableMetricsScrapping": Whether to enable Metrics Scraping.  
 "MetricScrapingPeriodSeconds": The interval at which metrics scraping occurs, in seconds.  
