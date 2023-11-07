@@ -24,8 +24,7 @@
 
 package common
 
-// IATMatrix - columns are minutes, rows are IATs
-type IATMatrix [][]float64
+type IATArray []float64
 
 // ProbabilisticDuration used for testing the exponential distribution
 type ProbabilisticDuration []float64
@@ -38,7 +37,8 @@ type RuntimeSpecification struct {
 type RuntimeSpecificationMatrix [][]RuntimeSpecification
 
 type FunctionSpecification struct {
-	IAT                  IATMatrix                  `json:"IAT"`
+	IAT                  IATArray                   `json:"IAT"`
+	PerMinuteCount       []int                      `json:"PerMinuteCount"`
 	RawDuration          ProbabilisticDuration      `json:"RawDuration"`
 	RuntimeSpecification RuntimeSpecificationMatrix `json:"RuntimeSpecification"`
 }

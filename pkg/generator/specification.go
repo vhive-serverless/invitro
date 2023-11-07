@@ -126,26 +126,30 @@ func (s *SpecificationGenerator) generateIATPerGranularity(numberOfInvocations i
 }
 
 // GenerateIAT generates IAT according to the given distribution. Number of minutes is the length of invocationsPerMinute array
-func (s *SpecificationGenerator) generateIAT(invocationsPerMinute []int, iatDistribution common.IatDistribution, shiftIAT bool, granularity common.TraceGranularity) (common.IATMatrix, common.ProbabilisticDuration) {
-	var IAT [][]float64
+func (s *SpecificationGenerator) generateIAT(invocationsPerMinute []int, iatDistribution common.IatDistribution,
+	shiftIAT bool, granularity common.TraceGranularity) (common.IATArray, []int, common.ProbabilisticDuration) {
+
+	var IAT []float64
+	var perMinuteCount []int
 	var nonScaledDuration []float64
 
 	numberOfMinutes := len(invocationsPerMinute)
 	for i := 0; i < numberOfMinutes; i++ {
 		minuteIAT, duration := s.generateIATPerGranularity(invocationsPerMinute[i], iatDistribution, shiftIAT, granularity)
 
-		IAT = append(IAT, minuteIAT)
+		IAT = append(IAT, minuteIAT...)
+		perMinuteCount = append(perMinuteCount, len(minuteIAT))
 		nonScaledDuration = append(nonScaledDuration, duration)
 	}
 
-	return IAT, nonScaledDuration
+	return IAT, perMinuteCount, nonScaledDuration
 }
 
 func (s *SpecificationGenerator) GenerateInvocationData(function *common.Function, iatDistribution common.IatDistribution, shiftIAT bool, granularity common.TraceGranularity) *common.FunctionSpecification {
 	invocationsPerMinute := function.InvocationStats.Invocations
 
 	// Generating IAT
-	iat, rawDuration := s.generateIAT(invocationsPerMinute, iatDistribution, shiftIAT, granularity)
+	iat, perMinuteCount, rawDuration := s.generateIAT(invocationsPerMinute, iatDistribution, shiftIAT, granularity)
 
 	// Generating runtime specifications
 	var runtimeMatrix common.RuntimeSpecificationMatrix
@@ -161,6 +165,7 @@ func (s *SpecificationGenerator) GenerateInvocationData(function *common.Functio
 
 	return &common.FunctionSpecification{
 		IAT:                  iat,
+		PerMinuteCount:       perMinuteCount,
 		RawDuration:          rawDuration,
 		RuntimeSpecification: runtimeMatrix,
 	}
