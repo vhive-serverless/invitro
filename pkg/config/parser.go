@@ -58,6 +58,9 @@ type LoaderConfiguration struct {
 	RpsMemoryMB                 int     `json:"RpsMemoryMB"`
 	RpsIterationMultiplier      int     `json:"RpsIterationMultiplier"`
 
+	RpsTarget         int `json:"RpsTarget"`
+	RpsColdStartRatio int `json:"RpsColdStartRatio"`
+
 	TracePath          string `json:"TracePath"`
 	Granularity        string `json:"Granularity"`
 	OutputPathPrefix   string `json:"OutputPathPrefix"`
