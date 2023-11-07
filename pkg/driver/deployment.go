@@ -91,18 +91,21 @@ func deployDirigent(function *common.Function) {
 
 	resp, err := http.PostForm("http://localhost:9091/registerService", payload)
 	if err != nil {
-		log.Fatal("Failed to register a service with the control plane - ", err.Error())
+		log.Error("Failed to register a service with the control plane - ", err.Error())
+		return
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		log.Fatal("Failed to read response body.")
+		log.Error("Failed to read response body.")
+		return
 	}
 
 	endpoints := strings.Split(string(body), ";")
 	if len(endpoints) == 0 {
-		log.Fatal("Function registration returned no data plane(s).")
+		log.Error("Function registration returned no data plane(s).")
+		return
 	}
 	function.Endpoint = endpoints[rand.Intn(len(endpoints))]
 }
