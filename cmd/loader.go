@@ -185,6 +185,8 @@ func runTraceMode(cfg *config.LoaderConfiguration, readIATFromFile bool, justGen
 
 	iatType, shiftIAT := parseIATDistribution(cfg)
 
+	log.Infof("Using %s as a service YAML specification file.\n", yamlPath)
+
 	experimentDriver := driver.NewDriver(&config.Configuration{
 		LoaderConfiguration:  cfg,
 		FailureConfiguration: config.ReadFailureConfiguration(*failurePath),
@@ -208,3 +210,14 @@ func runTraceMode(cfg *config.LoaderConfiguration, readIATFromFile bool, justGen
 func runRPSMode(cfg *config.LoaderConfiguration, justGenerateIAT bool) {
 	panic("Not yet implemented")
 }
+
+/*func runRPSMode(cfg *config.LoaderConfiguration) {
+	rpsTarget := cfg.RpsTarget
+	rpsColdStartRatio := cfg.RpsColdStartRatio
+
+	warmStartFunction := common.Function{
+		Name: fmt.Sprintf("warm-start-%d", rand.Int()),
+	}
+
+	experimentDriver := driver.NewDriver(&driver.DriverConfiguration{})
+}*/
