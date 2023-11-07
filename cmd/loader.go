@@ -117,6 +117,55 @@ func determineDurationToParse(runtimeDuration int, warmupDuration int) int {
 	return result
 }
 
+func parseIATDistribution(cfg *config.LoaderConfiguration) (common.IatDistribution, bool) {
+	switch cfg.IATDistribution {
+	case "exponential":
+		return common.Exponential, false
+	case "exponential_shift":
+		return common.Exponential, true
+	case "uniform":
+		return common.Uniform, false
+	case "uniform_shift":
+		return common.Uniform, true
+	case "equidistant":
+		return common.Equidistant, false
+	default:
+		log.Fatal("Unsupported IAT distribution.")
+	}
+
+	return common.Exponential, false
+}
+
+func parseYAMLSpecification(cfg *config.LoaderConfiguration) string {
+	switch cfg.YAMLSelector {
+	case "wimpy":
+		return "workloads/container/wimpy.yaml"
+	case "container":
+		return "workloads/container/trace_func_go.yaml"
+	case "firecracker":
+		return "workloads/firecracker/trace_func_go.yaml"
+	default:
+		if cfg.Platform != "Dirigent" {
+			log.Fatal("Invalid 'YAMLSelector' parameter.")
+		}
+	}
+
+	return ""
+}
+
+func parseTraceGranularity(cfg *config.LoaderConfiguration) common.TraceGranularity {
+	switch cfg.Granularity {
+	case "minute":
+		return common.MinuteGranularity
+	case "second":
+		return common.SecondGranularity
+	default:
+		log.Fatal("Invalid trace granularity parameter.")
+	}
+
+	return common.MinuteGranularity
+}
+
 func runTraceMode(cfg *config.LoaderConfiguration, iatOnly bool, generated bool) {
 	durationToParse := determineDurationToParse(cfg.ExperimentDuration, cfg.WarmupDuration)
 
@@ -128,48 +177,9 @@ func runTraceMode(cfg *config.LoaderConfiguration, iatOnly bool, generated bool)
 		fmt.Printf("\t%s\n", function.Name)
 	}
 
-	var iatType common.IatDistribution
-	shiftIAT := false
-	switch cfg.IATDistribution {
-	case "exponential":
-		iatType = common.Exponential
-	case "exponential_shift":
-		iatType = common.Exponential
-		shiftIAT = true
-	case "uniform":
-		iatType = common.Uniform
-	case "uniform_shift":
-		iatType = common.Uniform
-		shiftIAT = true
-	case "equidistant":
-		iatType = common.Equidistant
-	default:
-		log.Fatal("Unsupported IAT distribution.")
-	}
-
-	var yamlSpecificationPath string
-	switch cfg.YAMLSelector {
-	case "wimpy":
-		yamlSpecificationPath = "workloads/container/wimpy.yaml"
-	case "container":
-		yamlSpecificationPath = "workloads/container/trace_func_go.yaml"
-	case "firecracker":
-		yamlSpecificationPath = "workloads/firecracker/trace_func_go.yaml"
-	default:
-		if cfg.Platform != "Dirigent" {
-			log.Fatal("Invalid 'YAMLSelector' parameter.")
-		}
-	}
-
-	var traceGranularity common.TraceGranularity
-	switch cfg.Granularity {
-	case "minute":
-		traceGranularity = common.MinuteGranularity
-	case "second":
-		traceGranularity = common.SecondGranularity
-	default:
-		log.Fatal("Invalid trace granularity parameter.")
-	}
+	iatType, shiftIAT := parseIATDistribution(cfg)
+	yamlSpecificationPath := parseYAMLSpecification(cfg)
+	traceGranularity := parseTraceGranularity(cfg)
 
 	log.Infof("Using %s as a service YAML specification file.\n", yamlSpecificationPath)
 
@@ -188,3 +198,14 @@ func runTraceMode(cfg *config.LoaderConfiguration, iatOnly bool, generated bool)
 
 	experimentDriver.RunExperiment(iatOnly, generated)
 }
+
+/*func runRPSMode(cfg *config.LoaderConfiguration) {
+	rpsTarget := cfg.RpsTarget
+	rpsColdStartRatio := cfg.RpsColdStartRatio
+
+	warmStartFunction := common.Function{
+		Name: fmt.Sprintf("warm-start-%d", rand.Int()),
+	}
+
+	experimentDriver := driver.NewDriver(&driver.DriverConfiguration{})
+}*/

@@ -4,6 +4,9 @@
   "Platform": "Dirigent",
   "EndpointPort": 80,
 
+  "RpsTarget": 5,
+  "RpsColdStartRatio": 50,
+
   "TracePath": "data/traces/example",
   "Granularity": "minute",
   "OutputPathPrefix": "data/out/experiment",
