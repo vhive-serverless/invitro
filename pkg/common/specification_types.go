@@ -34,11 +34,11 @@ type RuntimeSpecification struct {
 	Memory  int
 }
 
-type RuntimeSpecificationMatrix [][]RuntimeSpecification
+type RuntimeSpecificationArray []RuntimeSpecification
 
 type FunctionSpecification struct {
-	IAT                  IATArray                   `json:"IAT"`
-	PerMinuteCount       []int                      `json:"PerMinuteCount"`
-	RawDuration          ProbabilisticDuration      `json:"RawDuration"`
-	RuntimeSpecification RuntimeSpecificationMatrix `json:"RuntimeSpecification"`
+	IAT                  IATArray                  `json:"IAT"`
+	PerMinuteCount       []int                     `json:"PerMinuteCount"`
+	RawDuration          ProbabilisticDuration     `json:"RawDuration"`
+	RuntimeSpecification RuntimeSpecificationArray `json:"RuntimeSpecification"`
 }

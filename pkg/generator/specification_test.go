@@ -568,7 +568,7 @@ func TestGenerateExecutionSpecifications(t *testing.T) {
 
 				index := i
 				go func() {
-					runtime, memory := spec[0][index].Runtime, spec[0][index].Memory
+					runtime, memory := spec[index].Runtime, spec[index].Memory
 
 					mutex.Lock()
 					results[common.RuntimeSpecification{Runtime: runtime, Memory: memory}] = struct{}{}

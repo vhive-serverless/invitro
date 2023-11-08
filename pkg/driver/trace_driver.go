@@ -202,7 +202,7 @@ func composeInvocationID(timeGranularity common.TraceGranularity, minuteIndex in
 	return fmt.Sprintf("%s%d.inv%d", timePrefix, minuteIndex, invocationIndex)
 }
 
-func (d *Driver) invokeFunction(metadata *InvocationMetadata) {
+func (d *Driver) invokeFunction(metadata *InvocationMetadata, iatIndex int) {
 	defer metadata.AnnounceDoneWG.Done()
 
 	var success bool
@@ -211,7 +211,7 @@ func (d *Driver) invokeFunction(metadata *InvocationMetadata) {
 	var runtimeSpecifications *common.RuntimeSpecification
 	for node != nil {
 		function := node.Value.(*common.Function)
-		runtimeSpecifications = &function.Specification.RuntimeSpecification[metadata.MinuteIndex][metadata.InvocationIndex]
+		runtimeSpecifications = &function.Specification.RuntimeSpecification[iatIndex]
 
 		success, record = d.Invoker.Invoke(function, runtimeSpecifications)
 
@@ -275,6 +275,8 @@ func (d *Driver) functionsDriver(list *list.List, announceFunctionDone *sync.Wai
 	startOfMinute := time.Now()
 	var previousIATSum int64
 
+	iatIndex := 0
+
 	for {
 		if minuteIndex >= totalTraceDuration {
 			// Check whether the end of trace has been reached
@@ -298,7 +300,14 @@ func (d *Driver) functionsDriver(list *list.List, announceFunctionDone *sync.Wai
 			continue
 		}
 
-		iat := time.Duration(IAT[minuteIndex][invocationIndex]) * time.Microsecond
+		offset := false
+		if IAT[iatIndex] < 0 {
+			IAT[iatIndex] *= -1
+			offset = true
+		}
+
+		iat := time.Duration(IAT[iatIndex]) * time.Microsecond
+		iatIndex++
 
 		currentTime := time.Now()
 		schedulingDelay := currentTime.Sub(startOfMinute).Microseconds() - previousIATSum
@@ -314,7 +323,7 @@ func (d *Driver) functionsDriver(list *list.List, announceFunctionDone *sync.Wai
 			if readyToBreak {
 				break
 			}
-		} else {
+		} else if !offset {
 			if !d.Configuration.TestMode {
 				waitForInvocations.Add(1)
 
@@ -330,7 +339,7 @@ func (d *Driver) functionsDriver(list *list.List, announceFunctionDone *sync.Wai
 					AnnounceDoneWG:        &waitForInvocations,
 					AnnounceDoneExe:       addInvocationsToGroup,
 					ReadOpenWhiskMetadata: readOpenWhiskMetadata,
-				})
+				}, iatIndex)
 			} else {
 				// To be used from within the Golang testing framework
 				log.Debugf("Test mode invocation fired.\n")
@@ -534,7 +543,7 @@ func (d *Driver) startBackgroundProcesses(allRecordsWritten *sync.WaitGroup) (*s
 	return auxiliaryProcessBarrier, globalMetricsCollector, totalIssuedChannel, finishCh
 }
 
-func (d *Driver) internalRun(iatOnly bool, generated bool) {
+func (d *Driver) internalRun(skipIATGeneration bool, readIATFromFile bool) {
 	var successfulInvocations int64
 	var failedInvocations int64
 	var invocationsIssued int64
@@ -547,7 +556,7 @@ func (d *Driver) internalRun(iatOnly bool, generated bool) {
 
 	backgroundProcessesInitializationBarrier, globalMetricsCollector, totalIssuedChannel, scraperFinishCh := d.startBackgroundProcesses(&allRecordsWritten)
 
-	if !iatOnly {
+	if !skipIATGeneration {
 		log.Info("Generating IAT and runtime specifications for all the functions")
 		for i, function := range d.Configuration.Functions {
 			// Equalising all the InvocationStats to the first function
@@ -567,7 +576,7 @@ func (d *Driver) internalRun(iatOnly bool, generated bool) {
 
 	backgroundProcessesInitializationBarrier.Wait()
 
-	if generated {
+	if readIATFromFile {
 		for i := range d.Configuration.Functions {
 			var spec common.FunctionSpecification
 
