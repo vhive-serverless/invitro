@@ -1,46 +1,69 @@
 package generator
 
 import (
-	"github.com/sirupsen/logrus"
 	"github.com/vhive-serverless/loader/pkg/common"
 	"math"
 )
 
-func generateFunctionByRPS(experimentDuration int, rpsTarget float64) common.IATArray {
-	var result []float64
+func generateFunctionByRPS(experimentDuration int, rpsTarget float64) (common.IATArray, []int) {
 	iat := 1000.0 / float64(rpsTarget) // ms
 
-	duration := 0.0
+	var iatResult []float64
+	var countResult []int
+
+	duration := 0.0 // ms
 	totalExperimentDurationMs := float64(experimentDuration * 60_000.0)
 
+	currentMinute := 0
+	currentCount := 0
+
 	for duration < totalExperimentDurationMs {
-		result = append(result, iat)
+		iatResult = append(iatResult, iat)
 		duration += iat
+		currentCount++
+
+		if int(duration)/60_000 != currentMinute {
+			countResult = append(countResult, currentCount)
+
+			currentMinute++
+			currentCount = 0
+		}
 	}
 
-	return result
+	return iatResult, countResult
 }
 
-func generateFunctionByRPSWithOffset(experimentDuration int, rpsTarget float64, offset float64) common.IATArray {
-	var res common.IATArray
+func generateFunctionByRPSWithOffset(experimentDuration int, rpsTarget float64, offset float64) (common.IATArray, []int) {
+	var resIAT common.IATArray
+	var resCount []int
+
+	iat, count := generateFunctionByRPS(experimentDuration, rpsTarget)
 
 	if offset != 0 {
-		res = append(res, -offset)
+		resIAT = append(resIAT, -offset)
+		count[0]++
 	}
-	res = append(res, generateFunctionByRPS(experimentDuration, rpsTarget)...)
 
-	return res
+	resIAT = append(resIAT, iat...)
+	resCount = append(resCount, count...)
+
+	if iat == nil {
+		resCount = append(resCount, 0)
+	}
+
+	return resIAT, resCount
 }
 
-func generateWarmStartFunction(experimentDuration int, rpsTarget float64) common.IATArray {
+func GenerateWarmStartFunction(experimentDuration int, rpsTarget float64) (common.IATArray, []int) {
 	return generateFunctionByRPS(experimentDuration, rpsTarget)
 }
 
-func generateColdStartFunctions(experimentDuration int, rpsTarget float64, cooldownSeconds int) []common.IATArray {
+func GenerateColdStartFunctions(experimentDuration int, rpsTarget float64, cooldownSeconds int) ([]common.IATArray, [][]int) {
 	iat := 1000.0 / float64(rpsTarget) // ms
+	totalFunctions := int(math.Ceil(rpsTarget * float64(cooldownSeconds)))
 
 	var functions []common.IATArray
-	totalFunctions := int(math.Ceil(rpsTarget * float64(cooldownSeconds)))
+	var countResult [][]int
 
 	for i := 0; i < totalFunctions; i++ {
 		offsetWithinBatch := 0
@@ -51,17 +74,17 @@ func generateColdStartFunctions(experimentDuration int, rpsTarget float64, coold
 		offsetBetweenFunctions := int(float64(i)/rpsTarget) * 1_000
 		offset := offsetWithinBatch + offsetBetweenFunctions
 
-		logrus.Debugf("batch offset: %3.d; function offset: %d\n", offsetWithinBatch, offsetBetweenFunctions)
-
 		var fx common.IATArray
+		var count []int
 		if rpsTarget >= 1 {
-			fx = generateFunctionByRPSWithOffset(experimentDuration, 1/float64(cooldownSeconds), float64(offset))
+			fx, count = generateFunctionByRPSWithOffset(experimentDuration, 1/float64(cooldownSeconds), float64(offset))
 		} else {
-			fx = generateFunctionByRPSWithOffset(experimentDuration, 1/(float64(totalFunctions)/rpsTarget), float64(offset))
+			fx, count = generateFunctionByRPSWithOffset(experimentDuration, 1/(float64(totalFunctions)/rpsTarget), float64(offset))
 		}
 
 		functions = append(functions, fx)
+		countResult = append(countResult, count)
 	}
 
-	return functions
+	return functions, countResult
 }

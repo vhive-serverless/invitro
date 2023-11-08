@@ -1,7 +1,6 @@
 package generator
 
 import (
-	"fmt"
 	"github.com/vhive-serverless/loader/pkg/common"
 	"math"
 	"testing"
@@ -12,19 +11,22 @@ func TestWarmStartMatrix(t *testing.T) {
 		testName           string
 		experimentDuration int
 		rpsTarget          float64
-		expected           common.IATArray
+		expectedIAT        common.IATArray
+		expectedCount      []int
 	}{
 		{
 			testName:           "2min_1rps",
 			experimentDuration: 2,
 			rpsTarget:          1,
-			expected: []float64{
+			expectedIAT: []float64{
+				// minute 1
 				1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000,
 				1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000,
 				1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000,
 				1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000,
 				1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000,
 				1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000,
+				// minute 2
 				1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000,
 				1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000,
 				1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000,
@@ -32,18 +34,21 @@ func TestWarmStartMatrix(t *testing.T) {
 				1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000,
 				1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000,
 			},
+			expectedCount: []int{60, 60},
 		},
 		{
 			testName:           "2min_0.5rps",
 			experimentDuration: 2,
 			rpsTarget:          0.5,
-			expected: []float64{
+			expectedIAT: []float64{
+				// minute 1
 				2000, 2000, 2000, 2000, 2000,
 				2000, 2000, 2000, 2000, 2000,
 				2000, 2000, 2000, 2000, 2000,
 				2000, 2000, 2000, 2000, 2000,
 				2000, 2000, 2000, 2000, 2000,
 				2000, 2000, 2000, 2000, 2000,
+				// minute 2
 				2000, 2000, 2000, 2000, 2000,
 				2000, 2000, 2000, 2000, 2000,
 				2000, 2000, 2000, 2000, 2000,
@@ -51,15 +56,19 @@ func TestWarmStartMatrix(t *testing.T) {
 				2000, 2000, 2000, 2000, 2000,
 				2000, 2000, 2000, 2000, 2000,
 			},
+			expectedCount: []int{30, 30},
 		},
 		{
 			testName:           "2min_0.125rps",
 			experimentDuration: 2,
 			rpsTarget:          0.125,
-			expected: []float64{
-				8000, 8000, 8000, 8000, 8000, 8000, 8000, 8000, 8000, 8000,
-				8000, 8000, 8000, 8000, 8000,
+			expectedIAT: []float64{
+				// minute 1
+				8000, 8000, 8000, 8000, 8000, 8000, 8000, 8000,
+				// minute 2
+				8000, 8000, 8000, 8000, 8000, 8000, 8000,
 			},
+			expectedCount: []int{8, 7},
 		},
 	}
 
@@ -67,25 +76,35 @@ func TestWarmStartMatrix(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run("warm_start"+test.testName, func(t *testing.T) {
-			matrix := generateWarmStartFunction(test.experimentDuration, test.rpsTarget)
+			matrix, minuteCount := GenerateWarmStartFunction(test.experimentDuration, test.rpsTarget)
 
-			if len(matrix) != len(test.expected) {
-				t.Errorf("Unexpected matrix size - got: %d, expected: %d", len(matrix), len(test.expected))
+			if len(matrix) != len(test.expectedIAT) {
+				t.Errorf("Unexpected IAT array size - got: %d, expected: %d", len(matrix), len(test.expectedIAT))
+			}
+			if len(minuteCount) != len(test.expectedCount) {
+				t.Errorf("Unexpected count array size - got: %d, expected: %d", len(minuteCount), len(test.expectedCount))
 			}
 
+			sum := 0.0
+			count := 0
 			currentMinute := 0
-			sum := 0
 
 			for i := 0; i < len(matrix); i++ {
-				if sum/60_000 == currentMinute {
-					fmt.Printf("\n")
+				if math.Abs(matrix[i]-test.expectedIAT[i]) > epsilon {
+					t.Error("Unexpected IAT value.")
 				}
 
-				if math.Abs(matrix[i]-test.expected[i]) > epsilon {
-					t.Error("Unexpected value.")
-				}
+				sum += matrix[i]
+				count++
 
-				sum += int(matrix[i])
+				if int(sum/60_000) != currentMinute {
+					if count != test.expectedCount[currentMinute] {
+						t.Error("Unexpected count array value.")
+					}
+
+					currentMinute = int(sum / 60_000)
+					count = 0
+				}
 			}
 		})
 	}
@@ -97,14 +116,15 @@ func TestColdStartMatrix(t *testing.T) {
 		experimentDuration int
 		rpsTarget          float64
 		cooldownSeconds    int
-		expected           []common.IATArray
+		expectedIAT        []common.IATArray
+		expectedCount      [][]int
 	}{
 		{
 			testName:           "2min_1rps",
 			experimentDuration: 2,
 			rpsTarget:          1,
 			cooldownSeconds:    10,
-			expected: []common.IATArray{
+			expectedIAT: []common.IATArray{
 				{10_000, 10_000, 10_000, 10_000, 10_000, 10_000, 10_000, 10_000, 10_000, 10_000, 10_000, 10_000},
 				{-1_000, 10_000, 10_000, 10_000, 10_000, 10_000, 10_000, 10_000, 10_000, 10_000, 10_000, 10_000, 10_000},
 				{-2_000, 10_000, 10_000, 10_000, 10_000, 10_000, 10_000, 10_000, 10_000, 10_000, 10_000, 10_000, 10_000},
@@ -116,16 +136,33 @@ func TestColdStartMatrix(t *testing.T) {
 				{-8_000, 10_000, 10_000, 10_000, 10_000, 10_000, 10_000, 10_000, 10_000, 10_000, 10_000, 10_000, 10_000},
 				{-9_000, 10_000, 10_000, 10_000, 10_000, 10_000, 10_000, 10_000, 10_000, 10_000, 10_000, 10_000, 10_000},
 			},
+			expectedCount: [][]int{
+				{6, 6},
+				{7, 6},
+				{7, 6},
+				{7, 6},
+				{7, 6},
+				{7, 6},
+				{7, 6},
+				{7, 6},
+				{7, 6},
+				{7, 6},
+			},
 		},
 		{
 			testName:           "1min_0.25rps",
 			experimentDuration: 1,
 			rpsTarget:          0.25,
 			cooldownSeconds:    10,
-			expected: []common.IATArray{
+			expectedIAT: []common.IATArray{
 				{12_000, 12_000, 12_000, 12_000, 12_000},
 				{-4_000, 12_000, 12_000, 12_000, 12_000, 12_000},
 				{-8_000, 12_000, 12_000, 12_000, 12_000, 12_000},
+			},
+			expectedCount: [][]int{
+				{5},
+				{6},
+				{6},
 			},
 		},
 		{
@@ -133,10 +170,15 @@ func TestColdStartMatrix(t *testing.T) {
 			experimentDuration: 2,
 			rpsTarget:          0.25,
 			cooldownSeconds:    10,
-			expected: []common.IATArray{
+			expectedIAT: []common.IATArray{
 				{12_000, 12_000, 12_000, 12_000, 12_000, 12_000, 12_000, 12_000, 12_000, 12_000},
 				{-4_000, 12_000, 12_000, 12_000, 12_000, 12_000, 12_000, 12_000, 12_000, 12_000, 12_000},
 				{-8_000, 12_000, 12_000, 12_000, 12_000, 12_000, 12_000, 12_000, 12_000, 12_000, 12_000},
+			},
+			expectedCount: [][]int{
+				{5, 5},
+				{6, 5},
+				{6, 5},
 			},
 		},
 		{
@@ -144,11 +186,17 @@ func TestColdStartMatrix(t *testing.T) {
 			experimentDuration: 1,
 			rpsTarget:          1.0 / 3,
 			cooldownSeconds:    10,
-			expected: []common.IATArray{
+			expectedIAT: []common.IATArray{
 				{12_000, 12_000, 12_000, 12_000, 12_000},
 				{-3_000, 12_000, 12_000, 12_000, 12_000, 12_000},
 				{-6_000, 12_000, 12_000, 12_000, 12_000, 12_000},
 				{-9_000, 12_000, 12_000, 12_000, 12_000, 12_000},
+			},
+			expectedCount: [][]int{
+				{5},
+				{6},
+				{6},
+				{6},
 			},
 		},
 		{
@@ -156,7 +204,7 @@ func TestColdStartMatrix(t *testing.T) {
 			experimentDuration: 1,
 			rpsTarget:          5,
 			cooldownSeconds:    10,
-			expected: []common.IATArray{
+			expectedIAT: []common.IATArray{
 				{10_000, 10_000, 10_000, 10_000, 10_000, 10_000},
 				{-200, 10_000, 10_000, 10_000, 10_000, 10_000, 10_000},
 				{-400, 10_000, 10_000, 10_000, 10_000, 10_000, 10_000},
@@ -217,13 +265,74 @@ func TestColdStartMatrix(t *testing.T) {
 				{-9_600, 10_000, 10_000, 10_000, 10_000, 10_000, 10_000},
 				{-9_800, 10_000, 10_000, 10_000, 10_000, 10_000, 10_000},
 			},
+			expectedCount: [][]int{
+				{6},
+				{7},
+				{7},
+				{7},
+				{7},
+
+				{7},
+				{7},
+				{7},
+				{7},
+				{7},
+
+				{7},
+				{7},
+				{7},
+				{7},
+				{7},
+
+				{7},
+				{7},
+				{7},
+				{7},
+				{7},
+
+				{7},
+				{7},
+				{7},
+				{7},
+				{7},
+
+				{7},
+				{7},
+				{7},
+				{7},
+				{7},
+
+				{7},
+				{7},
+				{7},
+				{7},
+				{7},
+
+				{7},
+				{7},
+				{7},
+				{7},
+				{7},
+
+				{7},
+				{7},
+				{7},
+				{7},
+				{7},
+
+				{7},
+				{7},
+				{7},
+				{7},
+				{7},
+			},
 		},
 		{
 			testName:           "1min_5rps_cooldown5s",
 			experimentDuration: 1,
 			rpsTarget:          5,
 			cooldownSeconds:    5,
-			expected: []common.IATArray{
+			expectedIAT: []common.IATArray{
 				{5_000, 5_000, 5_000, 5_000, 5_000, 5_000, 5_000, 5_000, 5_000, 5_000, 5_000, 5_000},
 				{-200, 5_000, 5_000, 5_000, 5_000, 5_000, 5_000, 5_000, 5_000, 5_000, 5_000, 5_000, 5_000},
 				{-400, 5_000, 5_000, 5_000, 5_000, 5_000, 5_000, 5_000, 5_000, 5_000, 5_000, 5_000, 5_000},
@@ -254,27 +363,83 @@ func TestColdStartMatrix(t *testing.T) {
 				{-4_600, 5_000, 5_000, 5_000, 5_000, 5_000, 5_000, 5_000, 5_000, 5_000, 5_000, 5_000, 5_000},
 				{-4_800, 5_000, 5_000, 5_000, 5_000, 5_000, 5_000, 5_000, 5_000, 5_000, 5_000, 5_000, 5_000},
 			},
+			expectedCount: [][]int{
+				{12},
+				{13},
+				{13},
+				{13},
+				{13},
+
+				{13},
+				{13},
+				{13},
+				{13},
+				{13},
+
+				{13},
+				{13},
+				{13},
+				{13},
+				{13},
+
+				{13},
+				{13},
+				{13},
+				{13},
+				{13},
+
+				{13},
+				{13},
+				{13},
+				{13},
+				{13},
+			},
 		},
 	}
 
 	epsilon := 0.01
 
 	for _, test := range tests {
-		t.Run("warm_start"+test.testName, func(t *testing.T) {
-			matrix := generateColdStartFunctions(test.experimentDuration, test.rpsTarget, test.cooldownSeconds)
+		t.Run("cold_start"+test.testName, func(t *testing.T) {
+			matrix, minuteCounts := GenerateColdStartFunctions(test.experimentDuration, test.rpsTarget, test.cooldownSeconds)
 
-			if len(matrix) != len(test.expected) {
-				t.Errorf("Unexpected number of functions - got: %d, expected: %d", len(matrix), len(test.expected))
+			if len(matrix) != len(test.expectedIAT) {
+				t.Errorf("Unexpected number of functions - got: %d, expected: %d", len(matrix), len(test.expectedIAT))
+			}
+			if len(minuteCounts) != len(test.expectedCount) {
+				t.Errorf("Unexpected count array size - got: %d, expected: %d", len(minuteCounts), len(test.expectedCount))
 			}
 
 			for fIndex := 0; fIndex < len(matrix); fIndex++ {
-				if len(matrix[fIndex]) != len(test.expected[fIndex]) {
-					t.Errorf("Unexpected length of function %d IAT array - got: %d, expected: %d", fIndex, len(matrix[fIndex]), len(test.expected[fIndex]))
+				sum := 0.0
+				count := 0
+				currentMinute := 0
+
+				if len(matrix[fIndex]) != len(test.expectedIAT[fIndex]) {
+					t.Errorf("Unexpected length of function %d IAT array - got: %d, expected: %d", fIndex, len(matrix[fIndex]), len(test.expectedIAT[fIndex]))
 				}
 
 				for i := 0; i < len(matrix[fIndex]); i++ {
-					if math.Abs(matrix[fIndex][i]-test.expected[fIndex][i]) > epsilon {
+					if math.Abs(matrix[fIndex][i]-test.expectedIAT[fIndex][i]) > epsilon {
 						t.Error("Unexpected value.")
+					}
+
+					if currentMinute > len(test.expectedCount[fIndex]) {
+						t.Errorf("Invalid expected count array size for function with index %d", fIndex)
+					}
+
+					if matrix[fIndex][i] >= 0 {
+						sum += matrix[fIndex][i]
+					}
+					count++
+
+					if int(sum/60_000) != currentMinute {
+						if count != test.expectedCount[fIndex][currentMinute] {
+							t.Error("Unexpected count array value.")
+						}
+
+						currentMinute = int(sum / 60_000)
+						count = 0
 					}
 				}
 			}

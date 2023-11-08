@@ -152,22 +152,16 @@ func (s *SpecificationGenerator) GenerateInvocationData(function *common.Functio
 	iat, perMinuteCount, rawDuration := s.generateIAT(invocationsPerMinute, iatDistribution, shiftIAT, granularity)
 
 	// Generating runtime specifications
-	var runtimeMatrix common.RuntimeSpecificationMatrix
+	var runtimeArray common.RuntimeSpecificationArray
 	for i := 0; i < len(invocationsPerMinute); i++ {
-		var row []common.RuntimeSpecification
-
-		for j := 0; j < invocationsPerMinute[i]; j++ {
-			row = append(row, s.generateExecutionSpecs(function))
-		}
-
-		runtimeMatrix = append(runtimeMatrix, row)
+		runtimeArray = append(runtimeArray, s.generateExecutionSpecs(function))
 	}
 
 	return &common.FunctionSpecification{
 		IAT:                  iat,
 		PerMinuteCount:       perMinuteCount,
 		RawDuration:          rawDuration,
-		RuntimeSpecification: runtimeMatrix,
+		RuntimeSpecification: runtimeArray,
 	}
 }
 
