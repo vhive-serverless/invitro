@@ -21,7 +21,7 @@
   "OutputPathPrefix": "data/out/experiment",
   "IATDistribution": "equidistant",
   "CPULimit": "1vCPU",
-  "ExperimentDuration": 1,
+  "ExperimentDuration": 2,
   "WarmupDuration": 0,
 
   "IsPartiallyPanic": false,
