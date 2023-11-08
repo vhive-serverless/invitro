@@ -268,7 +268,7 @@ func createRPSFunctions(cfg *config.LoaderConfiguration, warmFunction common.IAT
 			Port:                80,
 			Protocol:            "tcp",
 			ScalingUpperBound:   256,
-			ScalingLowerBound:   0,
+			ScalingLowerBound:   1,
 			IterationMultiplier: cfg.RpsIterationMultiplier,
 		},
 

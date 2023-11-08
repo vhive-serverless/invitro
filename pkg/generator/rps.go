@@ -6,24 +6,29 @@ import (
 )
 
 func generateFunctionByRPS(experimentDuration int, rpsTarget float64) (common.IATArray, []int) {
-	iat := 1000.0 / float64(rpsTarget) // ms
+	iat := 1000000.0 / float64(rpsTarget) // ms
 
 	var iatResult []float64
 	var countResult []int
 
 	duration := 0.0 // ms
-	totalExperimentDurationMs := float64(experimentDuration * 60_000.0)
+	totalExperimentDurationMs := float64(experimentDuration * 60_000_000.0)
 
 	currentMinute := 0
 	currentCount := 0
+
+	// beginning of each minute should have 0.0 -- see Leonid's changes
+	iatResult = append(iatResult, 0.0)
 
 	for duration < totalExperimentDurationMs {
 		iatResult = append(iatResult, iat)
 		duration += iat
 		currentCount++
 
-		if int(duration)/60_000 != currentMinute {
+		if int(duration)/60_000_000 != currentMinute {
 			countResult = append(countResult, currentCount)
+			// beginning of each minute should have 0.0 -- see Leonid's changes
+			iatResult = append(iatResult, 0.0)
 
 			currentMinute++
 			currentCount = 0
@@ -71,7 +76,7 @@ func GenerateColdStartFunctions(experimentDuration int, rpsTarget float64, coold
 			offsetWithinBatch = int(float64(i%int(rpsTarget)) * iat)
 		}
 
-		offsetBetweenFunctions := int(float64(i)/rpsTarget) * 1_000
+		offsetBetweenFunctions := int(float64(i)/rpsTarget) * 1_000_000
 		offset := offsetWithinBatch + offsetBetweenFunctions
 
 		var fx common.IATArray
