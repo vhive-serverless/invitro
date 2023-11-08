@@ -153,8 +153,10 @@ func (s *SpecificationGenerator) GenerateInvocationData(function *common.Functio
 
 	// Generating runtime specifications
 	var runtimeArray common.RuntimeSpecificationArray
-	for i := 0; i < len(invocationsPerMinute); i++ {
-		runtimeArray = append(runtimeArray, s.generateExecutionSpecs(function))
+	for i := 0; i < len(perMinuteCount); i++ {
+		for j := 0; j < perMinuteCount[i]; j++ {
+			runtimeArray = append(runtimeArray, s.generateExecutionSpecs(function))
+		}
 	}
 
 	return &common.FunctionSpecification{

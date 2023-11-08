@@ -4,7 +4,7 @@
   "Platform": "Dirigent-RPS",
   "EndpointPort": 80,
 
-  "RpsTarget": 2,
+  "RpsTarget": 0.125,
   "RpsColdStartRatioPercentage": 50,
   "CooldownSeconds": 10,
   "RpsRuntimeMs": 10,
@@ -15,6 +15,7 @@
   "Granularity": "minute",
   "OutputPathPrefix": "data/out/experiment",
   "IATDistribution": "equidistant",
+  "CPULimit": "1vCPU",
   "ExperimentDuration": 1,
   "WarmupDuration": 0,
 

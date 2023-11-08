@@ -206,26 +206,26 @@ func (d *Driver) invokeFunction(metadata *InvocationMetadata) {
 
 	var record *mc.ExecutionRecord
 	switch d.Configuration.LoaderConfiguration.Platform {
-	case "Knative":
+	case "Knative", "Knative-RPS":
 		success, record = InvokeGRPC(
 			metadata.Function,
 			metadata.RuntimeSpecifications,
 			d.Configuration.LoaderConfiguration,
 		)
-	case "OpenWhisk":
+	case "OpenWhisk", "OpenWhisk-RPS":
 		success, record = InvokeOpenWhisk(
 			metadata.Function,
 			metadata.RuntimeSpecifications,
 			metadata.AnnounceDoneExe,
 			metadata.ReadOpenWhiskMetadata,
 		)
-	case "AWSLambda":
+	case "AWSLambda", "AWSLambda-RPS":
 		success, record = InvokeAWSLambda(
 			metadata.Function,
 			metadata.RuntimeSpecifications,
 			metadata.AnnounceDoneExe,
 		)
-	case "Dirigent":
+	case "Dirigent", "Dirigent-RPS":
 		success, record = InvokeDirigent(
 			metadata.Function,
 			metadata.RuntimeSpecifications,
@@ -309,6 +309,7 @@ func (d *Driver) individualFunctionDriver(function *common.Function, announceFun
 
 		offset := false
 		if IAT[iatIndex] < 0 {
+			// do not fire an invocation for offset invocations
 			IAT[iatIndex] *= -1
 			offset = true
 		}
@@ -326,6 +327,8 @@ func (d *Driver) individualFunctionDriver(function *common.Function, announceFun
 		if function.InvocationStats.Invocations[minuteIndex] == invocationIndex || hasMinuteExpired(startOfMinute) {
 			readyToBreak := d.proceedToNextMinute(function, &minuteIndex, &invocationIndex, &startOfMinute,
 				false, &currentPhase, failedInvocationByMinute, &previousIATSum)
+
+			// TODO: what if minute expired -> rewind iatIndex
 
 			if readyToBreak {
 				break
