@@ -25,10 +25,15 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
+	"github.com/vhive-serverless/loader/pkg/generator"
 	"golang.org/x/exp/slices"
+	"math/rand"
 	"os"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/vhive-serverless/loader/pkg/common"
@@ -49,7 +54,7 @@ var (
 	configPath    = flag.String("config", "config.json", "Path to loader configuration file")
 	verbosity     = flag.String("verbosity", "info", "Logging verbosity - choose from [info, debug, trace]")
 	iatGeneration = flag.Bool("iatGeneration", false, "Generate iats only or run invocations as well")
-	generated     = flag.Bool("generated", false, "True if iats were already generated")
+	iatFromFile   = flag.Bool("generated", false, "True if iats were already generated")
 )
 
 func init() {
@@ -90,18 +95,35 @@ func main() {
 		log.Fatal("Runtime duration should be longer, at least a minute.")
 	}
 
+	if *iatGeneration {
+		durationToParse := determineDurationToParse(cfg.ExperimentDuration, cfg.WarmupDuration)
+		iatDistribution, shiftIAT := parseIATDistribution(&cfg)
+		traceParser := trace.NewAzureParser(cfg.TracePath, durationToParse)
+		functions := traceParser.Parse(cfg.Platform)
+
+		justGenerateIAT(cfg.Seed, iatDistribution, shiftIAT, parseTraceGranularity(&cfg), functions)
+	}
+
 	supportedPlatforms := []string{
 		"Knative",
+		"Knative-RPS",
 		"OpenWhisk",
+		"OpenWhisk-RPS",
 		"AWSLambda",
+		"AWSLambda-RPS",
 		"Dirigent",
+		"Dirigent-RPS",
 	}
 
 	if !slices.Contains(supportedPlatforms, cfg.Platform) {
-		log.Fatal("Unsupported platform! Supported platforms are [Knative, OpenWhisk, AWSLambda, Dirigent]")
+		log.Fatal("Unsupported platform!")
 	}
 
-	runTraceMode(&cfg, *iatGeneration, *generated)
+	if !strings.HasSuffix(cfg.Platform, "-RPS") {
+		runTraceMode(&cfg, *iatFromFile)
+	} else {
+		runRPSMode(&cfg)
+	}
 }
 
 func determineDurationToParse(runtimeDuration int, warmupDuration int) int {
@@ -166,7 +188,7 @@ func parseTraceGranularity(cfg *config.LoaderConfiguration) common.TraceGranular
 	return common.MinuteGranularity
 }
 
-func runTraceMode(cfg *config.LoaderConfiguration, iatOnly bool, generated bool) {
+func runTraceMode(cfg *config.LoaderConfiguration, readIATFromFile bool) {
 	durationToParse := determineDurationToParse(cfg.ExperimentDuration, cfg.WarmupDuration)
 
 	traceParser := trace.NewAzureParser(cfg.TracePath, durationToParse)
@@ -196,16 +218,106 @@ func runTraceMode(cfg *config.LoaderConfiguration, iatOnly bool, generated bool)
 		Functions: functions,
 	})
 
-	experimentDriver.RunExperiment(iatOnly, generated)
+	experimentDriver.RunExperiment(false, readIATFromFile)
 }
 
-/*func runRPSMode(cfg *config.LoaderConfiguration) {
-	rpsTarget := cfg.RpsTarget
-	rpsColdStartRatio := cfg.RpsColdStartRatio
+func justGenerateIAT(seed int64, iatDistribution common.IatDistribution, shiftIAT bool, traceGranularity common.TraceGranularity, functions []*common.Function) {
+	specificationGenerator := generator.NewSpecificationGenerator(seed)
 
-	warmStartFunction := common.Function{
-		Name: fmt.Sprintf("warm-start-%d", rand.Int()),
+	for i, function := range functions {
+		spec := specificationGenerator.GenerateInvocationData(
+			function,
+			iatDistribution,
+			shiftIAT,
+			traceGranularity,
+		)
+		functions[i].Specification = spec
+
+		file, _ := json.MarshalIndent(spec, "", " ")
+		err := os.WriteFile("iat"+strconv.Itoa(i)+".json", file, 0644)
+		if err != nil {
+			log.Fatalf("Writing the loader config file failed: %s", err)
+		}
+	}
+}
+
+func runRPSMode(cfg *config.LoaderConfiguration) {
+	rpsTarget := cfg.RpsTarget
+	coldStartPercentage := cfg.RpsColdStartRatioPercentage
+
+	warmStartRPS := rpsTarget * (100 - coldStartPercentage) / 100
+	coldStartRPS := rpsTarget * coldStartPercentage / 100
+
+	warmFunction, warmStartCount := generator.GenerateWarmStartFunction(cfg.ExperimentDuration, warmStartRPS)
+	coldFunctions, coldStartCount := generator.GenerateColdStartFunctions(cfg.ExperimentDuration, coldStartRPS, cfg.CooldownSeconds)
+
+	experimentDriver := driver.NewDriver(&driver.DriverConfiguration{
+		LoaderConfiguration: cfg,
+		TraceDuration:       determineDurationToParse(cfg.ExperimentDuration, cfg.WarmupDuration),
+
+		Functions: createRPSFunctions(cfg, warmFunction, warmStartCount, coldFunctions, coldStartCount),
+	})
+
+	experimentDriver.RunExperiment(true, false)
+}
+
+func createRPSFunctions(cfg *config.LoaderConfiguration, warmFunction common.IATArray, warmFunctionCount []int,
+	coldFunctions []common.IATArray, coldFunctionCount [][]int) []*common.Function {
+	var result []*common.Function
+
+	result = append(result, &common.Function{
+		Name: fmt.Sprintf("warm-function-%d", rand.Int()),
+
+		InvocationStats: &common.FunctionInvocationStats{Invocations: warmFunctionCount},
+		MemoryStats:     &common.FunctionMemoryStats{Percentile100: float64(cfg.RpsMemoryMB)},
+		DirigentMetadata: &common.DirigentMetadata{
+			Image:               "trace",
+			Port:                80,
+			Protocol:            "tcp",
+			ScalingUpperBound:   256,
+			ScalingLowerBound:   0,
+			IterationMultiplier: cfg.RpsIterationMultiplier,
+		},
+
+		Specification: &common.FunctionSpecification{
+			IAT:                  warmFunction,
+			RuntimeSpecification: createRuntimeSpecification(len(warmFunction), cfg.RpsRuntimeMs, cfg.RpsMemoryMB),
+		},
+	})
+
+	for i := 0; i < len(coldFunctions); i++ {
+		result = append(result, &common.Function{
+			Name: fmt.Sprintf("cold-function-%d", rand.Int()),
+
+			InvocationStats: &common.FunctionInvocationStats{Invocations: coldFunctionCount[i]},
+			MemoryStats:     &common.FunctionMemoryStats{Percentile100: float64(cfg.RpsMemoryMB)},
+			DirigentMetadata: &common.DirigentMetadata{
+				Image:               "trace",
+				Port:                80,
+				Protocol:            "tcp",
+				ScalingUpperBound:   1,
+				ScalingLowerBound:   0,
+				IterationMultiplier: cfg.RpsIterationMultiplier,
+			},
+
+			Specification: &common.FunctionSpecification{
+				IAT:                  coldFunctions[i],
+				RuntimeSpecification: createRuntimeSpecification(len(coldFunctions[i]), cfg.RpsRuntimeMs, cfg.RpsMemoryMB),
+			},
+		})
 	}
 
-	experimentDriver := driver.NewDriver(&driver.DriverConfiguration{})
-}*/
+	return result
+}
+
+func createRuntimeSpecification(count int, runtime, memory int) common.RuntimeSpecificationArray {
+	var result common.RuntimeSpecificationArray
+	for i := 0; i < count; i++ {
+		result = append(result, common.RuntimeSpecification{
+			Runtime: runtime,
+			Memory:  memory,
+		})
+	}
+
+	return result
+}
