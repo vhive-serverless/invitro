@@ -749,7 +749,7 @@ Cvetkovic
 cvetkovic
 ethz
 lazar
-CooldownSeconds
+RpsCooldownSeconds
 Dirigent
 RpsColdStartRatioPercentage
 RpsIterationMultiplier
@@ -757,3 +757,4 @@ RpsMemoryMB
 RpsRuntimeMs
 RpsTarget
 SQRT
+RpsImage

@@ -88,7 +88,7 @@ func CreateRPSFunctions(cfg *config.LoaderConfiguration, warmFunction common.IAT
 		InvocationStats: &common.FunctionInvocationStats{Invocations: warmFunctionCount},
 		MemoryStats:     &common.FunctionMemoryStats{Percentile100: float64(cfg.RpsMemoryMB)},
 		DirigentMetadata: &common.DirigentMetadata{
-			Image:               "trace",
+			Image:               cfg.RpsImage,
 			Port:                80,
 			Protocol:            "tcp",
 			ScalingUpperBound:   1024,
@@ -110,7 +110,7 @@ func CreateRPSFunctions(cfg *config.LoaderConfiguration, warmFunction common.IAT
 			InvocationStats: &common.FunctionInvocationStats{Invocations: coldFunctionCount[i]},
 			MemoryStats:     &common.FunctionMemoryStats{Percentile100: float64(cfg.RpsMemoryMB)},
 			DirigentMetadata: &common.DirigentMetadata{
-				Image:               "trace",
+				Image:               cfg.RpsImage,
 				Port:                80,
 				Protocol:            "tcp",
 				ScalingUpperBound:   1,

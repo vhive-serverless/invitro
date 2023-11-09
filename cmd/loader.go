@@ -248,7 +248,7 @@ func runRPSMode(cfg *config.LoaderConfiguration) {
 	coldStartRPS := rpsTarget * coldStartPercentage / 100
 
 	warmFunction, warmStartCount := generator.GenerateWarmStartFunction(cfg.ExperimentDuration, warmStartRPS)
-	coldFunctions, coldStartCount := generator.GenerateColdStartFunctions(cfg.ExperimentDuration, coldStartRPS, cfg.CooldownSeconds)
+	coldFunctions, coldStartCount := generator.GenerateColdStartFunctions(cfg.ExperimentDuration, coldStartRPS, cfg.RpsCooldownSeconds)
 
 	experimentDriver := driver.NewDriver(&driver.DriverConfiguration{
 		LoaderConfiguration: cfg,

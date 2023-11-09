@@ -42,6 +42,13 @@ import (
 func createTestDriver() *Driver {
 	cfg := createFakeLoaderConfiguration()
 
+	invocationStats := []int{
+		5, 5, 5, 5, 5,
+		5, 5, 5, 5, 5,
+		5, 5, 5, 5, 5,
+		5, 5, 5, 5, 5,
+	}
+
 	driver := NewDriver(&DriverConfiguration{
 		LoaderConfiguration: cfg,
 		IATDistribution:     common.Equidistant,
@@ -51,12 +58,7 @@ func createTestDriver() *Driver {
 			{
 				Name: "test-function",
 				InvocationStats: &common.FunctionInvocationStats{
-					Invocations: []int{
-						5, 5, 5, 5, 5,
-						5, 5, 5, 5, 5,
-						5, 5, 5, 5, 5,
-						5, 5, 5, 5, 5,
-					},
+					Invocations: invocationStats,
 				},
 				RuntimeStats: &common.FunctionRuntimeStats{
 					Average:       50,
@@ -82,6 +84,9 @@ func createTestDriver() *Driver {
 					Percentile95:  9500,
 					Percentile99:  9900,
 					Percentile100: 10000,
+				},
+				Specification: &common.FunctionSpecification{
+					PerMinuteCount: invocationStats,
 				},
 			},
 		},
@@ -394,6 +399,9 @@ func TestProceedToNextMinute(t *testing.T) {
 		Name: "test-function",
 		InvocationStats: &common.FunctionInvocationStats{
 			Invocations: []int{100, 100, 100, 100, 100},
+		},
+		Specification: &common.FunctionSpecification{
+			PerMinuteCount: []int{100, 100, 100, 100, 100},
 		},
 	}
 

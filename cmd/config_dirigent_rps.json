@@ -6,7 +6,8 @@
 
   "RpsTarget": 2,
   "RpsColdStartRatioPercentage": 50,
-  "CooldownSeconds": 10,
+  "RpsCooldownSeconds": 10,
+  "RpsImage": "empty",
   "RpsRuntimeMs": 10,
   "RpsMemoryMB": 2048,
   "RpsIterationMultiplier": 80,
