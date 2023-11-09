@@ -254,7 +254,7 @@ func (d *Driver) functionsDriver(list *list.List, announceFunctionDone *sync.Wai
 	addInvocationsToGroup.Add(numberOfInvocations)
 
 	totalTraceDuration := d.Configuration.TraceDuration
-	minuteIndex, invocationIndex := 0, 0
+	minuteIndex, invocationIndex, iatIndex := 0, 0, 0
 
 	IAT := function.Specification.IAT
 
@@ -277,8 +277,6 @@ func (d *Driver) functionsDriver(list *list.List, announceFunctionDone *sync.Wai
 	startOfMinute := time.Now()
 	var previousIATSum int64
 
-	iatIndex := 0
-
 	for {
 		if minuteIndex >= totalTraceDuration {
 			// Check whether the end of trace has been reached
@@ -286,7 +284,7 @@ func (d *Driver) functionsDriver(list *list.List, announceFunctionDone *sync.Wai
 		} else if function.InvocationStats.Invocations[minuteIndex] == 0 {
 			// Sleep for a minute if there are no invocations
 			if d.proceedToNextMinute(function, &minuteIndex, &invocationIndex,
-				&startOfMinute, true, &currentPhase, failedInvocationByMinute, &previousIATSum) {
+				&startOfMinute, true, &currentPhase, failedInvocationByMinute, &previousIATSum, &iatIndex) {
 				break
 			}
 
@@ -320,9 +318,7 @@ func (d *Driver) functionsDriver(list *list.List, announceFunctionDone *sync.Wai
 
 		if function.InvocationStats.Invocations[minuteIndex] == invocationIndex || hasMinuteExpired(startOfMinute) {
 			readyToBreak := d.proceedToNextMinute(function, &minuteIndex, &invocationIndex, &startOfMinute,
-				false, &currentPhase, failedInvocationByMinute, &previousIATSum)
-
-			// TODO: what if minute expired -> rewind iatIndex
+				false, &currentPhase, failedInvocationByMinute, &previousIATSum, &iatIndex)
 
 			if readyToBreak {
 				break
@@ -376,7 +372,7 @@ func (d *Driver) functionsDriver(list *list.List, announceFunctionDone *sync.Wai
 }
 
 func (d *Driver) proceedToNextMinute(function *common.Function, minuteIndex *int, invocationIndex *int, startOfMinute *time.Time,
-	skipMinute bool, currentPhase *common.ExperimentPhase, failedInvocationByMinute []int64, previousIATSum *int64) bool {
+	skipMinute bool, currentPhase *common.ExperimentPhase, failedInvocationByMinute []int64, previousIATSum *int64, iatIndex *int) bool {
 
 	if d.Configuration.TraceGranularity == common.MinuteGranularity {
 		if !isRequestTargetAchieved(function.InvocationStats.Invocations[*minuteIndex], *invocationIndex, common.RequestedVsIssued) {
@@ -397,6 +393,8 @@ func (d *Driver) proceedToNextMinute(function *common.Function, minuteIndex *int
 		}
 	}
 
+	// in case we need to throw out some invocations
+	*iatIndex = sumInvocationCountFromPreviousMinutes(function.InvocationStats.Invocations, *minuteIndex)
 	*minuteIndex++
 	*invocationIndex = 0
 	*previousIATSum = 0
@@ -420,6 +418,15 @@ func (d *Driver) proceedToNextMinute(function *common.Function, minuteIndex *int
 	}
 
 	return false
+}
+
+func sumInvocationCountFromPreviousMinutes(count []int, upTo int) int {
+	sum := 0
+	for i := 0; i <= upTo; i++ {
+		sum += count[i]
+	}
+
+	return sum
 }
 
 func isRequestTargetAchieved(ideal int, real int, assertType common.RuntimeAssertType) bool {
