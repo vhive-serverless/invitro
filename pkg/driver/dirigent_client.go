@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
-	"fmt"
 	log "github.com/sirupsen/logrus"
 	"github.com/vhive-serverless/loader/pkg/common"
 	"github.com/vhive-serverless/loader/pkg/config"
@@ -52,7 +51,7 @@ func InvokeDirigent(function *common.Function, runtimeSpec *common.RuntimeSpecif
 
 	req, err := http.NewRequest("GET", "http://"+function.Endpoint, nil)
 	if err != nil {
-		log.Debugf("Failed to establish a HTTP connection - %v\n", err)
+		log.Debugf("Failed to create a HTTP request - %v\n", err)
 
 		record.ResponseTime = time.Since(start).Microseconds()
 		record.ConnectionTimeout = true
@@ -69,7 +68,7 @@ func InvokeDirigent(function *common.Function, runtimeSpec *common.RuntimeSpecif
 
 	resp, err := client.Do(req)
 	if err != nil {
-		log.Debugf("Failed to establish a HTTP connection - %v\n", err)
+		log.Debugf("Failed to send an HTTP request to the server - %v\n", err)
 
 		record.ResponseTime = time.Since(start).Microseconds()
 		record.ConnectionTimeout = true
@@ -81,16 +80,13 @@ func InvokeDirigent(function *common.Function, runtimeSpec *common.RuntimeSpecif
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil || resp == nil || resp.StatusCode != http.StatusOK {
-		msg := ""
 		if err != nil {
-			msg = err.Error()
-		} else if resp == nil {
-			msg = fmt.Sprintf("empty response - status code: %d", resp.StatusCode)
+			log.Debugf("HTTP request failed - %s - %v", function.Name, err)
+		} else if resp == nil || len(body) == 0 {
+			log.Debugf("HTTP request failed - %s - empty response (status code: %d)", function.Name, resp.StatusCode)
 		} else if resp.StatusCode != http.StatusOK {
-			msg = fmt.Sprintf("%s - status code: %d", body, resp.StatusCode)
+			log.Debugf("HTTP request failed - %s - non-empty response: %v - status code: %d", function.Name, body, resp.StatusCode)
 		}
-
-		log.Debugf("HTTP timeout for function %s - %s", function.Name, msg)
 
 		record.ResponseTime = time.Since(start).Microseconds()
 		record.FunctionTimeout = true
