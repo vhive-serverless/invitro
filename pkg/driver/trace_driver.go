@@ -316,13 +316,6 @@ func (d *Driver) individualFunctionDriver(function *common.Function, announceFun
 			continue
 		}
 
-		offset := false
-		if IAT[iatIndex] < 0 {
-			// do not fire an invocation for offset invocations
-			IAT[iatIndex] *= -1
-			offset = true
-		}
-
 		iat := time.Duration(IAT[iatIndex]) * time.Microsecond
 
 		currentTime := time.Now()
@@ -339,7 +332,7 @@ func (d *Driver) individualFunctionDriver(function *common.Function, announceFun
 			if readyToBreak {
 				break
 			}
-		} else if !offset {
+		} else {
 			if !d.Configuration.TestMode {
 				waitForInvocations.Add(1)
 
