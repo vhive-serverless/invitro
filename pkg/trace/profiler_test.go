@@ -25,13 +25,15 @@
 package trace
 
 import (
-	"github.com/vhive-serverless/loader/pkg/common"
 	"testing"
+
+	"github.com/vhive-serverless/loader/pkg/common"
 )
 
 func TestStaticTraceProfiling(t *testing.T) {
 	tests := []struct {
 		testName             string
+		CPULimit             string
 		IPM                  int
 		memoryMaxPercentile  float64
 		expectedInitialScale int
@@ -39,6 +41,7 @@ func TestStaticTraceProfiling(t *testing.T) {
 	}{
 		{
 			testName:             "concurrency_30ipm",
+			CPULimit:             "GCP",
 			IPM:                  30,
 			memoryMaxPercentile:  256,
 			expectedInitialScale: 1,
@@ -46,6 +49,7 @@ func TestStaticTraceProfiling(t *testing.T) {
 		},
 		{
 			testName:             "concurrency_45ipm",
+			CPULimit:             "GCP",
 			IPM:                  45,
 			memoryMaxPercentile:  512,
 			expectedInitialScale: 2,
@@ -53,6 +57,7 @@ func TestStaticTraceProfiling(t *testing.T) {
 		},
 		{
 			testName:             "concurrency_60ipm",
+			CPULimit:             "GCP",
 			IPM:                  60,
 			memoryMaxPercentile:  1024,
 			expectedInitialScale: 2,
@@ -60,9 +65,18 @@ func TestStaticTraceProfiling(t *testing.T) {
 		},
 		{
 			testName:             "concurrency_120ipm",
+			CPULimit:             "GCP",
 			IPM:                  120,
 			memoryMaxPercentile:  2048,
 			expectedInitialScale: 4,
+			expectedCPULimits:    1000,
+		},
+		{
+			testName:             "concurrency_120ipm_1vCPU",
+			CPULimit:             "1vCPU",
+			IPM:                  30,
+			memoryMaxPercentile:  256,
+			expectedInitialScale: 1,
 			expectedCPULimits:    1000,
 		},
 	}
@@ -82,7 +96,7 @@ func TestStaticTraceProfiling(t *testing.T) {
 			}
 
 			DoStaticTraceProfiling([]*common.Function{f})
-			ApplyResourceLimits([]*common.Function{f})
+			ApplyResourceLimits([]*common.Function{f}, test.CPULimit)
 
 			if f.InitialScale != test.expectedInitialScale ||
 				f.CPULimitsMilli != test.expectedCPULimits ||

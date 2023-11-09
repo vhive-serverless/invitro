@@ -138,6 +138,7 @@ Containerd
 containerPort
 coolDownTime
 Costa
+CPULimit
 CPUs
 cpu
 CRC
@@ -632,6 +633,7 @@ ustiugov
 Ustiugov
 utils
 UUID
+vCPU
 vhive
 vHive
 vHive's
