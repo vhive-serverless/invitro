@@ -270,7 +270,7 @@ func createRPSFunctions(cfg *config.LoaderConfiguration, warmFunction common.IAT
 			Image:               "trace",
 			Port:                80,
 			Protocol:            "tcp",
-			ScalingUpperBound:   256,
+			ScalingUpperBound:   1024,
 			ScalingLowerBound:   1,
 			IterationMultiplier: cfg.RpsIterationMultiplier,
 		},

@@ -45,7 +45,7 @@ involving stable low load.
 the beginning of the minute, with `_shift` modifier, it will be shifted inside the minute to remove the burst of
 invocations from all the functions.
 
-[^4]: Limits are set by resource->limits->CPU in the service YAML. `1vCPU` means limit of 1CPU is set, at the same time
+[^4]: Limits are set by resource->limits->CPU in the service YAML. `1vCPU` means limit of 1CPU is set, at the same time 
 execution is also limited by the container concurrency limit of 1. `GCP` means limits are set to multiples of 1/12th of
 vCPU, based on the memory consumption of the function according to
 this [table](https://cloud.google.com/functions/pricing#compute_time) for Google Cloud Functions.
