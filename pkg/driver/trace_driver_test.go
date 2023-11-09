@@ -364,6 +364,7 @@ func TestDriverCompletely(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.testName, func(t *testing.T) {
 			logrus.SetLevel(logrus.DebugLevel)
+			logrus.SetFormatter(&logrus.TextFormatter{TimestampFormat: time.StampMilli, FullTimestamp: true})
 
 			driver := createTestDriver()
 			if test.withWarmup {
@@ -411,7 +412,7 @@ func TestDriverCompletely(t *testing.T) {
 					diff := (records[i+1].StartTime - records[i].StartTime) / 1_000_000 // ms
 
 					if diff > clockTolerance {
-						t.Error("Too big clock drift for the test to pass.")
+						t.Errorf("Too big clock drift for the test to pass - %d.", diff)
 					}
 				}
 			}
@@ -517,10 +518,9 @@ func TestProceedToNextMinute(t *testing.T) {
 			var failedCountByMinute = make([]int64, driver.Configuration.TraceDuration)
 			failedCountByMinute[minuteIndex] = test.failedCount
 			var iatSum int64 = 2500
-			iatIndex := 0
 
 			toBreak := driver.proceedToNextMinute(function, &minuteIndex, &invocationIndex, &startOfMinute,
-				test.skipMinute, &phase, failedCountByMinute, &iatSum, &iatIndex)
+				test.skipMinute, &phase, failedCountByMinute, &iatSum)
 
 			if toBreak != test.toBreak {
 				t.Error("Invalid response from minute cleanup procedure.")

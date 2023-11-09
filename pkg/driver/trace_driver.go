@@ -238,13 +238,13 @@ func (d *Driver) functionsDriver(list *list.List, announceFunctionDone *sync.Wai
 
 	function := list.Front().Value.(*common.Function)
 	numberOfInvocations := 0
-	for i := 0; i < len(function.InvocationStats.Invocations); i++ {
-		numberOfInvocations += function.InvocationStats.Invocations[i]
+	for i := 0; i < len(function.Specification.PerMinuteCount); i++ {
+		numberOfInvocations += function.Specification.PerMinuteCount[i]
 	}
 	addInvocationsToGroup.Add(numberOfInvocations)
 
 	totalTraceDuration := d.Configuration.TraceDuration
-	minuteIndex, invocationIndex, iatIndex := 0, 0, 0
+	minuteIndex, invocationIndex := 0, 0
 
 	IAT := function.Specification.IAT
 
@@ -256,10 +256,13 @@ func (d *Driver) functionsDriver(list *list.List, announceFunctionDone *sync.Wai
 
 	waitForInvocations := sync.WaitGroup{}
 
+	currentMinute, currentSum := 0, 0
+
 	if d.Configuration.WithWarmup() {
 		currentPhase = common.WarmupPhase
 		// skip the first minute because of profiling
 		minuteIndex = 1
+		currentMinute = 1
 
 		log.Infof("Warmup phase has started.")
 	}
@@ -268,13 +271,21 @@ func (d *Driver) functionsDriver(list *list.List, announceFunctionDone *sync.Wai
 	var previousIATSum int64
 
 	for {
+		if minuteIndex != currentMinute {
+			// postpone summation of invocation count for the beginning of each minute
+			currentSum += function.Specification.PerMinuteCount[currentMinute]
+			currentMinute = minuteIndex
+		}
+
+		iatIndex := currentSum + invocationIndex
+
 		if minuteIndex >= totalTraceDuration {
 			// Check whether the end of trace has been reached
 			break
-		} else if function.InvocationStats.Invocations[minuteIndex] == 0 {
+		} else if function.Specification.PerMinuteCount[minuteIndex] == 0 {
 			// Sleep for a minute if there are no invocations
 			if d.proceedToNextMinute(function, &minuteIndex, &invocationIndex,
-				&startOfMinute, true, &currentPhase, failedInvocationByMinute, &previousIATSum, &iatIndex) {
+				&startOfMinute, true, &currentPhase, failedInvocationByMinute, &previousIATSum) {
 				break
 			}
 
@@ -306,9 +317,9 @@ func (d *Driver) functionsDriver(list *list.List, announceFunctionDone *sync.Wai
 
 		previousIATSum += iat.Microseconds()
 
-		if function.InvocationStats.Invocations[minuteIndex] == invocationIndex || hasMinuteExpired(startOfMinute) {
+		if function.Specification.PerMinuteCount[minuteIndex] == invocationIndex || hasMinuteExpired(startOfMinute) {
 			readyToBreak := d.proceedToNextMinute(function, &minuteIndex, &invocationIndex, &startOfMinute,
-				false, &currentPhase, failedInvocationByMinute, &previousIATSum, &iatIndex)
+				false, &currentPhase, failedInvocationByMinute, &previousIATSum)
 
 			if readyToBreak {
 				break
@@ -345,7 +356,6 @@ func (d *Driver) functionsDriver(list *list.List, announceFunctionDone *sync.Wai
 
 			numberOfIssuedInvocations++
 			invocationIndex++
-			iatIndex++
 		}
 	}
 
@@ -360,10 +370,10 @@ func (d *Driver) functionsDriver(list *list.List, announceFunctionDone *sync.Wai
 }
 
 func (d *Driver) proceedToNextMinute(function *common.Function, minuteIndex *int, invocationIndex *int, startOfMinute *time.Time,
-	skipMinute bool, currentPhase *common.ExperimentPhase, failedInvocationByMinute []int64, previousIATSum *int64, iatIndex *int) bool {
+	skipMinute bool, currentPhase *common.ExperimentPhase, failedInvocationByMinute []int64, previousIATSum *int64) bool {
 
 	if d.Configuration.TraceGranularity == common.MinuteGranularity {
-		if !isRequestTargetAchieved(function.InvocationStats.Invocations[*minuteIndex], *invocationIndex, common.RequestedVsIssued) {
+		if !isRequestTargetAchieved(function.Specification.PerMinuteCount[*minuteIndex], *invocationIndex, common.RequestedVsIssued) {
 			// Not fatal because we want to keep the measurements to be written to the output file
 			log.Warnf("Relative difference between requested and issued number of invocations is greater than %.2f%%. Terminating function driver for %s!\n", common.RequestedVsIssuedTerminateThreshold*100, function.Name)
 
@@ -371,8 +381,8 @@ func (d *Driver) proceedToNextMinute(function *common.Function, minuteIndex *int
 		}
 
 		for i := 0; i <= *minuteIndex; i++ {
-			notFailedCount := function.InvocationStats.Invocations[i] - int(atomic.LoadInt64(&failedInvocationByMinute[i]))
-			if !isRequestTargetAchieved(function.InvocationStats.Invocations[i], notFailedCount, common.IssuedVsFailed) {
+			notFailedCount := function.Specification.PerMinuteCount[i] - int(atomic.LoadInt64(&failedInvocationByMinute[i]))
+			if !isRequestTargetAchieved(function.Specification.PerMinuteCount[i], notFailedCount, common.IssuedVsFailed) {
 				// Not fatal because we want to keep the measurements to be written to the output file
 				log.Warnf("Percentage of failed request is greater than %.2f%%. Terminating function driver for %s!\n", common.FailedTerminateThreshold*100, function.Name)
 
@@ -381,8 +391,6 @@ func (d *Driver) proceedToNextMinute(function *common.Function, minuteIndex *int
 		}
 	}
 
-	// in case we need to throw out some invocations
-	*iatIndex = sumInvocationCountFromPreviousMinutes(function.InvocationStats.Invocations, *minuteIndex)
 	*minuteIndex++
 	*invocationIndex = 0
 	*previousIATSum = 0
@@ -406,15 +414,6 @@ func (d *Driver) proceedToNextMinute(function *common.Function, minuteIndex *int
 	}
 
 	return false
-}
-
-func sumInvocationCountFromPreviousMinutes(count []int, upTo int) int {
-	sum := 0
-	for i := 0; i <= upTo; i++ {
-		sum += count[i]
-	}
-
-	return sum
 }
 
 func isRequestTargetAchieved(ideal int, real int, assertType common.RuntimeAssertType) bool {
