@@ -20,7 +20,7 @@ func generateFunctionByRPS(experimentDuration int, rpsTarget float64) (common.IA
 	currentMinute := 0
 	currentCount := 0
 
-	// beginning of each minute should have 0.0 -- see Leonid's changes
+	// beginning of each minute -- zero waiting for the first invocation
 	iatResult = append(iatResult, 0.0)
 
 	for duration < totalExperimentDurationMs {
@@ -30,7 +30,7 @@ func generateFunctionByRPS(experimentDuration int, rpsTarget float64) (common.IA
 
 		if int(duration)/60_000_000 != currentMinute {
 			countResult = append(countResult, currentCount)
-			// beginning of each minute should have 0.0 -- see Leonid's changes
+			// beginning of each minute should have 0.0 -- zero waiting for the first invocation
 			iatResult = append(iatResult, 0.0)
 
 			currentMinute++
@@ -117,6 +117,7 @@ func CreateRPSFunctions(cfg *config.LoaderConfiguration, warmFunction common.IAT
 
 		Specification: &common.FunctionSpecification{
 			IAT:                  warmFunction,
+			PerMinuteCount:       warmFunctionCount,
 			RuntimeSpecification: createRuntimeSpecification(len(warmFunction), cfg.RpsRuntimeMs, cfg.RpsMemoryMB),
 		},
 	})
@@ -138,6 +139,7 @@ func CreateRPSFunctions(cfg *config.LoaderConfiguration, warmFunction common.IAT
 
 			Specification: &common.FunctionSpecification{
 				IAT:                  coldFunctions[i],
+				PerMinuteCount:       coldFunctionCount[i],
 				RuntimeSpecification: createRuntimeSpecification(len(coldFunctions[i]), cfg.RpsRuntimeMs, cfg.RpsMemoryMB),
 			},
 		})
