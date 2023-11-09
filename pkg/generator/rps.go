@@ -64,7 +64,7 @@ func GenerateWarmStartFunction(experimentDuration int, rpsTarget float64) (commo
 }
 
 func GenerateColdStartFunctions(experimentDuration int, rpsTarget float64, cooldownSeconds int) ([]common.IATArray, [][]int) {
-	iat := 1000.0 / float64(rpsTarget) // ms
+	iat := 1000000.0 / float64(rpsTarget) // ms
 	totalFunctions := int(math.Ceil(rpsTarget * float64(cooldownSeconds)))
 
 	var functions []common.IATArray
