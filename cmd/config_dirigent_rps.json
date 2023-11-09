@@ -4,7 +4,7 @@
   "Platform": "Dirigent-RPS",
   "EndpointPort": 80,
 
-  "RpsTarget": 0.125,
+  "RpsTarget": 2,
   "RpsColdStartRatioPercentage": 50,
   "CooldownSeconds": 10,
   "RpsRuntimeMs": 10,

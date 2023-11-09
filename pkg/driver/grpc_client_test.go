@@ -73,7 +73,7 @@ func TestGRPCClientWithServerUnreachable(t *testing.T) {
 }
 
 func TestGRPCClientWithServerReachable(t *testing.T) {
-	address, port := "localhost", 8080
+	address, port := "localhost", 18080
 	testFunction.Endpoint = fmt.Sprintf("%s:%d", address, port)
 
 	go standard.StartGRPCServer(address, port, standard.TraceFunction, "")
@@ -106,7 +106,7 @@ func TestGRPCClientWithServerBatchWorkload(t *testing.T) {
 		t.Error(err)
 	}
 
-	address, port := "localhost", 8081
+	address, port := "localhost", 18081
 	testFunction.Endpoint = fmt.Sprintf("%s:%d", address, port)
 
 	go standard.StartGRPCServer(address, port, standard.TraceFunction, "")
