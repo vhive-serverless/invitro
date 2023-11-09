@@ -25,11 +25,12 @@ import logging
 import grpc
 import argparse
 import socket
-from os import getenv
+from os import getenv, urandom
 from time import process_time, perf_counter
 from math import sqrt
-from random import random
-import logging
+import random
+
+import mocks3
 
 import faas_pb2
 import faas_pb2_grpc
@@ -43,11 +44,21 @@ class Executor(faas_pb2_grpc.Executor):
 
     def Execute(self, request, context, **kwargs):
         start_time = perf_counter()
-        start_time_process = process_time()
+        
+        s3_server_list = ["10.0.1.4", "10.0.1.5", "10.0.1.6"]
+        s3_server_address = random.choice(s3_server_list)
+        s3_port = 60001
+        self.bucket_name = "bucket_random"
+        self.s3 = mocks3.client(s3_server_address, s3_port)
+        
         if self.functype == "EMPTY":
             response = f"OK - EMPTY - {self.hostname}"
         else:
+            
+            recv = self.s3.download_random(int(request.memoryInMebiBytes)) # Metrics are sent as bytes
+            start_time_process = process_time()
             response = self.execute_function(self.hostname, start_time_process, request.runtimeInMilliSec)
+            rtt = self.s3.upload_random(int(request.memoryInMebiBytes))  # Download 1MB
         elapsed_second = perf_counter() - start_time
         elapsed_us = int(round(elapsed_second * 1000000))
         return faas_pb2.FaasReply(message=str(response), durationInMicroSec=elapsed_us, memoryUsageInKb=request.memoryInMebiBytes*1024)
@@ -67,7 +78,7 @@ class Executor(faas_pb2_grpc.Executor):
         return tmp
 
     def take_sqrts(self):
-        tmp = random()+1
+        tmp = random.random()+1
         tmp += sqrt(tmp)
         return tmp
 

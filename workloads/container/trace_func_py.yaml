@@ -33,4 +33,4 @@ spec:
           resources:
             requests:
               cpu: $CPU_REQUEST
-              memory: $MEMORY_REQUESTS
+              # memory: $MEMORY_REQUESTS
