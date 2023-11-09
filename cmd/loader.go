@@ -28,6 +28,10 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+
+	"github.com/vhive-serverless/loader/pkg/generator"
+	"golang.org/x/exp/slices"
+
 	"os"
 	"strings"
 	"time"
@@ -36,11 +40,8 @@ import (
 	"github.com/vhive-serverless/loader/pkg/common"
 	"github.com/vhive-serverless/loader/pkg/config"
 	"github.com/vhive-serverless/loader/pkg/driver"
-	"github.com/vhive-serverless/loader/pkg/generator"
 	"github.com/vhive-serverless/loader/pkg/trace"
 	tracer "github.com/vhive-serverless/vSwarm/utils/tracing/go"
-	"golang.org/x/exp/slices"
-	"math/rand"
 	"strconv"
 )
 
@@ -251,69 +252,8 @@ func runRPSMode(cfg *config.LoaderConfiguration, readIATFromFile bool, justGener
 		LoaderConfiguration: cfg,
 		TraceDuration:       determineDurationToParse(cfg.ExperimentDuration, cfg.WarmupDuration),
 
-		Functions: createRPSFunctions(cfg, warmFunction, warmStartCount, coldFunctions, coldStartCount),
+		Functions: generator.CreateRPSFunctions(cfg, warmFunction, warmStartCount, coldFunctions, coldStartCount),
 	})
 
 	experimentDriver.RunExperiment(justGenerateIAT, readIATFromFile)
-}
-
-func createRPSFunctions(cfg *config.LoaderConfiguration, warmFunction common.IATArray, warmFunctionCount []int,
-	coldFunctions []common.IATArray, coldFunctionCount [][]int) []*common.Function {
-	var result []*common.Function
-
-	result = append(result, &common.Function{
-		Name: fmt.Sprintf("warm-function-%d", rand.Int()),
-
-		InvocationStats: &common.FunctionInvocationStats{Invocations: warmFunctionCount},
-		MemoryStats:     &common.FunctionMemoryStats{Percentile100: float64(cfg.RpsMemoryMB)},
-		DirigentMetadata: &common.DirigentMetadata{
-			Image:               "trace",
-			Port:                80,
-			Protocol:            "tcp",
-			ScalingUpperBound:   1024,
-			ScalingLowerBound:   1,
-			IterationMultiplier: cfg.RpsIterationMultiplier,
-		},
-
-		Specification: &common.FunctionSpecification{
-			IAT:                  warmFunction,
-			RuntimeSpecification: createRuntimeSpecification(len(warmFunction), cfg.RpsRuntimeMs, cfg.RpsMemoryMB),
-		},
-	})
-
-	for i := 0; i < len(coldFunctions); i++ {
-		result = append(result, &common.Function{
-			Name: fmt.Sprintf("cold-function-%d-%d", i, rand.Int()),
-
-			InvocationStats: &common.FunctionInvocationStats{Invocations: coldFunctionCount[i]},
-			MemoryStats:     &common.FunctionMemoryStats{Percentile100: float64(cfg.RpsMemoryMB)},
-			DirigentMetadata: &common.DirigentMetadata{
-				Image:               "trace",
-				Port:                80,
-				Protocol:            "tcp",
-				ScalingUpperBound:   1,
-				ScalingLowerBound:   0,
-				IterationMultiplier: cfg.RpsIterationMultiplier,
-			},
-
-			Specification: &common.FunctionSpecification{
-				IAT:                  coldFunctions[i],
-				RuntimeSpecification: createRuntimeSpecification(len(coldFunctions[i]), cfg.RpsRuntimeMs, cfg.RpsMemoryMB),
-			},
-		})
-	}
-
-	return result
-}
-
-func createRuntimeSpecification(count int, runtime, memory int) common.RuntimeSpecificationArray {
-	var result common.RuntimeSpecificationArray
-	for i := 0; i < count; i++ {
-		result = append(result, common.RuntimeSpecification{
-			Runtime: runtime,
-			Memory:  memory,
-		})
-	}
-
-	return result
 }
