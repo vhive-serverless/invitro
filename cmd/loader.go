@@ -283,7 +283,7 @@ func createRPSFunctions(cfg *config.LoaderConfiguration, warmFunction common.IAT
 
 	for i := 0; i < len(coldFunctions); i++ {
 		result = append(result, &common.Function{
-			Name: fmt.Sprintf("cold-function-%d", rand.Int()),
+			Name: fmt.Sprintf("cold-function-%d-%d", i, rand.Int()),
 
 			InvocationStats: &common.FunctionInvocationStats{Invocations: coldFunctionCount[i]},
 			MemoryStats:     &common.FunctionMemoryStats{Percentile100: float64(cfg.RpsMemoryMB)},
