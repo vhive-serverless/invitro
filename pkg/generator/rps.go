@@ -20,9 +20,6 @@ func generateFunctionByRPS(experimentDuration int, rpsTarget float64) (common.IA
 	currentMinute := 0
 	currentCount := 0
 
-	// beginning of each minute -- zero waiting for the first invocation
-	iatResult = append(iatResult, 0.0)
-
 	for duration < totalExperimentDurationMs {
 		iatResult = append(iatResult, iat)
 		duration += iat
@@ -30,8 +27,6 @@ func generateFunctionByRPS(experimentDuration int, rpsTarget float64) (common.IA
 
 		if int(duration)/60_000_000 != currentMinute {
 			countResult = append(countResult, currentCount)
-			// beginning of each minute should have 0.0 -- zero waiting for the first invocation
-			iatResult = append(iatResult, 0.0)
 
 			currentMinute++
 			currentCount = 0
@@ -42,24 +37,10 @@ func generateFunctionByRPS(experimentDuration int, rpsTarget float64) (common.IA
 }
 
 func generateFunctionByRPSWithOffset(experimentDuration int, rpsTarget float64, offset float64) (common.IATArray, []int) {
-	var resIAT common.IATArray
-	var resCount []int
-
 	iat, count := generateFunctionByRPS(experimentDuration, rpsTarget)
+	iat[0] += offset
 
-	if offset != 0 {
-		resIAT = append(resIAT, -offset)
-		count[0]++
-	}
-
-	resIAT = append(resIAT, iat...)
-	resCount = append(resCount, count...)
-
-	if iat == nil {
-		resCount = append(resCount, 0)
-	}
-
-	return resIAT, resCount
+	return iat, count
 }
 
 func GenerateWarmStartFunction(experimentDuration int, rpsTarget float64) (common.IATArray, []int) {
