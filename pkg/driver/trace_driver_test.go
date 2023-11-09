@@ -333,27 +333,32 @@ func TestDriverBackgroundProcesses(t *testing.T) {
 
 func TestDriverCompletely(t *testing.T) {
 	tests := []struct {
-		testName          string
-		withWarmup        bool
-		secondGranularity bool
+		testName            string
+		withWarmup          bool
+		secondGranularity   bool
+		expectedInvocations int
 	}{
 		{
-			testName:   "without_warmup",
-			withWarmup: false,
+			testName:            "without_warmup",
+			withWarmup:          false,
+			expectedInvocations: 5,
 		},
 		{
-			testName:   "with_warmup",
-			withWarmup: true,
+			testName:            "with_warmup",
+			withWarmup:          true,
+			expectedInvocations: 10,
 		},
 		{
-			testName:          "without_warmup_second_granularity",
-			withWarmup:        false,
-			secondGranularity: true,
+			testName:            "without_warmup_second_granularity",
+			withWarmup:          false,
+			secondGranularity:   true,
+			expectedInvocations: 6,
 		},
 		{
-			testName:          "with_warmup_second_granularity",
-			withWarmup:        true,
-			secondGranularity: true,
+			testName:            "with_warmup_second_granularity",
+			withWarmup:          true,
+			secondGranularity:   true,
+			expectedInvocations: 12,
 		},
 	}
 
@@ -413,11 +418,7 @@ func TestDriverCompletely(t *testing.T) {
 				}
 			}
 
-			expectedInvocations := 5
-			if test.withWarmup {
-				expectedInvocations = 10
-			}
-
+			expectedInvocations := test.expectedInvocations
 			if !(successfulInvocation == expectedInvocations && failedInvocations == 0) {
 				t.Error("Number of successful and failed invocations do not match.")
 			}
