@@ -315,7 +315,6 @@ func (d *Driver) individualFunctionDriver(function *common.Function, announceFun
 		}
 
 		iat := time.Duration(IAT[iatIndex]) * time.Microsecond
-		iatIndex++
 
 		currentTime := time.Now()
 		schedulingDelay := currentTime.Sub(startOfMinute).Microseconds() - previousIATSum
@@ -363,8 +362,10 @@ func (d *Driver) individualFunctionDriver(function *common.Function, announceFun
 
 				successfulInvocations++
 			}
+
 			numberOfIssuedInvocations++
 			invocationIndex++
+			iatIndex++
 		}
 	}
 
