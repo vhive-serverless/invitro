@@ -1,12 +1,15 @@
 package generator
 
 import (
+	"fmt"
 	"github.com/vhive-serverless/loader/pkg/common"
+	"github.com/vhive-serverless/loader/pkg/config"
 	"math"
+	"math/rand"
 )
 
 func generateFunctionByRPS(experimentDuration int, rpsTarget float64) (common.IATArray, []int) {
-	iat := 1000000.0 / float64(rpsTarget) // ms
+	iat := 1000000.0 / float64(rpsTarget) // μs
 
 	var iatResult []float64
 	var countResult []int
@@ -92,4 +95,65 @@ func GenerateColdStartFunctions(experimentDuration int, rpsTarget float64, coold
 	}
 
 	return functions, countResult
+}
+
+func CreateRPSFunctions(cfg *config.LoaderConfiguration, warmFunction common.IATArray, warmFunctionCount []int,
+	coldFunctions []common.IATArray, coldFunctionCount [][]int) []*common.Function {
+	var result []*common.Function
+
+	result = append(result, &common.Function{
+		Name: fmt.Sprintf("warm-function-%d", rand.Int()),
+
+		InvocationStats: &common.FunctionInvocationStats{Invocations: warmFunctionCount},
+		MemoryStats:     &common.FunctionMemoryStats{Percentile100: float64(cfg.RpsMemoryMB)},
+		DirigentMetadata: &common.DirigentMetadata{
+			Image:               "trace",
+			Port:                80,
+			Protocol:            "tcp",
+			ScalingUpperBound:   1024,
+			ScalingLowerBound:   1,
+			IterationMultiplier: cfg.RpsIterationMultiplier,
+		},
+
+		Specification: &common.FunctionSpecification{
+			IAT:                  warmFunction,
+			RuntimeSpecification: createRuntimeSpecification(len(warmFunction), cfg.RpsRuntimeMs, cfg.RpsMemoryMB),
+		},
+	})
+
+	for i := 0; i < len(coldFunctions); i++ {
+		result = append(result, &common.Function{
+			Name: fmt.Sprintf("cold-function-%d-%d", i, rand.Int()),
+
+			InvocationStats: &common.FunctionInvocationStats{Invocations: coldFunctionCount[i]},
+			MemoryStats:     &common.FunctionMemoryStats{Percentile100: float64(cfg.RpsMemoryMB)},
+			DirigentMetadata: &common.DirigentMetadata{
+				Image:               "trace",
+				Port:                80,
+				Protocol:            "tcp",
+				ScalingUpperBound:   1,
+				ScalingLowerBound:   0,
+				IterationMultiplier: cfg.RpsIterationMultiplier,
+			},
+
+			Specification: &common.FunctionSpecification{
+				IAT:                  coldFunctions[i],
+				RuntimeSpecification: createRuntimeSpecification(len(coldFunctions[i]), cfg.RpsRuntimeMs, cfg.RpsMemoryMB),
+			},
+		})
+	}
+
+	return result
+}
+
+func createRuntimeSpecification(count int, runtime, memory int) common.RuntimeSpecificationArray {
+	var result common.RuntimeSpecificationArray
+	for i := 0; i < count; i++ {
+		result = append(result, common.RuntimeSpecification{
+			Runtime: runtime,
+			Memory:  memory,
+		})
+	}
+
+	return result
 }
