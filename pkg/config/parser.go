@@ -64,7 +64,8 @@ type LoaderConfiguration struct {
 
 	RpsTarget                   float64 `json:"RpsTarget"`
 	RpsColdStartRatioPercentage float64 `json:"RpsColdStartRatioPercentage"`
-	CooldownSeconds             int     `json:"CooldownSeconds"`
+	RpsCooldownSeconds          int     `json:"RpsCooldownSeconds"`
+	RpsImage                    string  `json:"RpsImage"`
 	RpsRuntimeMs                int     `json:"RpsRuntimeMs"`
 	RpsMemoryMB                 int     `json:"RpsMemoryMB"`
 	RpsIterationMultiplier      int     `json:"RpsIterationMultiplier"`
