@@ -311,13 +311,6 @@ func (d *Driver) functionsDriver(list *list.List, announceFunctionDone *sync.Wai
 			continue
 		}
 
-		offset := false
-		if IAT[iatIndex] < 0 {
-			// do not fire an invocation for offset invocations
-			IAT[iatIndex] *= -1
-			offset = true
-		}
-
 		iat := time.Duration(IAT[iatIndex]) * time.Microsecond
 
 		currentTime := time.Now()
@@ -334,7 +327,7 @@ func (d *Driver) functionsDriver(list *list.List, announceFunctionDone *sync.Wai
 			if readyToBreak {
 				break
 			}
-		} else if !offset {
+		} else {
 			if !d.Configuration.TestMode {
 				waitForInvocations.Add(1)
 
