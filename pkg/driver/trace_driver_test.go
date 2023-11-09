@@ -441,9 +441,10 @@ func TestProceedToNextMinute(t *testing.T) {
 			var failedCountByMinute = make([]int64, driver.Configuration.TraceDuration)
 			failedCountByMinute[minuteIndex] = test.failedCount
 			var iatSum int64 = 2500
+			iatIndex := 0
 
 			toBreak := driver.proceedToNextMinute(function, &minuteIndex, &invocationIndex, &startOfMinute,
-				test.skipMinute, &phase, failedCountByMinute, &iatSum)
+				test.skipMinute, &phase, failedCountByMinute, &iatSum, &iatIndex)
 
 			if toBreak != test.toBreak {
 				t.Error("Invalid response from minute cleanup procedure.")
