@@ -300,7 +300,6 @@ func (d *Driver) functionsDriver(list *list.List, announceFunctionDone *sync.Wai
 		}
 
 		iat := time.Duration(IAT[iatIndex]) * time.Microsecond
-		iatIndex++
 
 		currentTime := time.Now()
 		schedulingDelay := currentTime.Sub(startOfMinute).Microseconds() - previousIATSum
@@ -347,8 +346,10 @@ func (d *Driver) functionsDriver(list *list.List, announceFunctionDone *sync.Wai
 
 				successfulInvocations++
 			}
+
 			numberOfIssuedInvocations++
 			invocationIndex++
+			iatIndex++
 		}
 	}
 
