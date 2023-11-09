@@ -1,5 +1,6 @@
 # Loader configuration file format
 
+<<<<<<< HEAD
 | Parameter name               | Data type | Possible values                                                                                  | Default value       | Description                                                                          |
 |------------------------------|-----------|--------------------------------------------------------------------------------------------------|---------------------|--------------------------------------------------------------------------------------|
 | Seed                         | int64     | any                                                                                              | 42                  | Seed for specification generator (for reproducibility)                               |
