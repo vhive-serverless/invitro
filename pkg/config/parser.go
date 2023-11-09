@@ -43,6 +43,7 @@ type LoaderConfiguration struct {
 	Granularity        string `json:"Granularity"`
 	OutputPathPrefix   string `json:"OutputPathPrefix"`
 	IATDistribution    string `json:"IATDistribution"`
+	CPULimit           string `json:"CPULimit"`
 	ExperimentDuration int    `json:"ExperimentDuration"`
 	WarmupDuration     int    `json:"WarmupDuration"`
 

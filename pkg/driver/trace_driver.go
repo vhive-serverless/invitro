@@ -641,7 +641,7 @@ func (d *Driver) RunExperiment(iatOnly bool, generated bool) {
 		trace.DoStaticTraceProfiling(d.Configuration.Functions)
 	}
 
-	trace.ApplyResourceLimits(d.Configuration.Functions)
+	trace.ApplyResourceLimits(d.Configuration.Functions, d.Configuration.LoaderConfiguration.CPULimit)
 
 	switch d.Configuration.LoaderConfiguration.Platform {
 	case "Knative":

@@ -25,9 +25,10 @@
 package trace
 
 import (
+	"math"
+
 	log "github.com/sirupsen/logrus"
 	"github.com/vhive-serverless/loader/pkg/common"
-	"math"
 )
 
 func DoStaticTraceProfiling(functions []*common.Function) {
@@ -39,10 +40,16 @@ func DoStaticTraceProfiling(functions []*common.Function) {
 	}
 }
 
-func ApplyResourceLimits(functions []*common.Function) {
+func ApplyResourceLimits(functions []*common.Function, CPULimit string) {
 	for i := 0; i < len(functions); i++ {
 		memoryPct100 := int(functions[i].MemoryStats.Percentile100)
-		cpuShare := ConvertMemoryToCpu(memoryPct100)
+		var cpuShare int
+		switch CPULimit {
+		case "1vCPU":
+			cpuShare = 1000
+		case "GCP":
+			cpuShare = ConvertMemoryToCpu(memoryPct100)
+		}
 
 		functions[i].CPURequestsMilli = cpuShare / common.OvercommitmentRatio
 		functions[i].MemoryRequestsMiB = memoryPct100 / common.OvercommitmentRatio

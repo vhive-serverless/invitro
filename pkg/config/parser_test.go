@@ -52,6 +52,7 @@ func TestConfigParser(t *testing.T) {
 		config.Granularity != "minute" ||
 		!strings.HasPrefix(config.OutputPathPrefix, "data/out/experiment") ||
 		config.IATDistribution != "equidistant" ||
+		config.CPULimit != "1vCPU" ||
 		config.ExperimentDuration != 5 ||
 		config.WarmupDuration != 0 ||
 		config.IsPartiallyPanic != false ||
