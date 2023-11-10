@@ -68,7 +68,7 @@ func InvokeDirigent(function *common.Function, runtimeSpec *common.RuntimeSpecif
 
 	resp, err := client.Do(req)
 	if err != nil {
-		log.Debugf("Failed to send an HTTP request to the server - %v\n", err)
+		log.Debugf("%s - Failed to send an HTTP request to the server - %v\n", function.Name, err)
 
 		record.ResponseTime = time.Since(start).Microseconds()
 		record.ConnectionTimeout = true
