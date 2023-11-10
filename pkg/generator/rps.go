@@ -14,7 +14,7 @@ func generateFunctionByRPS(experimentDuration int, rpsTarget float64) (common.IA
 	var iatResult []float64
 	var countResult []int
 
-	duration := 0.0 // ms
+	duration := 0.0 // μs
 	totalExperimentDurationMs := float64(experimentDuration * 60_000_000.0)
 
 	currentMinute := 0
@@ -25,6 +25,7 @@ func generateFunctionByRPS(experimentDuration int, rpsTarget float64) (common.IA
 		duration += iat
 		currentCount++
 
+		// count the number of invocations in minute
 		if int(duration)/60_000_000 != currentMinute {
 			countResult = append(countResult, currentCount)
 
