@@ -28,6 +28,7 @@ MASTER_NODE=$1
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" > /dev/null 2>&1 && pwd)"
 
 source "$DIR/setup.cfg"
+source "$DIR/versions.cfg"
 
 if [ "$CLUSTER_MODE" = "container" ]
 then
@@ -59,7 +60,9 @@ server_exec() {
 common_init() {
     internal_init() {
         server_exec $1 "git clone --branch=$VHIVE_BRANCH https://github.com/ease-lab/vhive"
-        server_exec $1 "cd; ./vhive/scripts/cloudlab/setup_node.sh $OPERATION_MODE"
+
+        server_exec $1 "pushd ~/vhive/scripts > /dev/null && ./install_go.sh && source /etc/profile && go build -o setup_tool && ./setup_tool setup_node ${OPERATION_MODE} && popd > /dev/null"
+        
         server_exec $1 'tmux new -s containerd -d'
         server_exec $1 'tmux send -t containerd "sudo containerd 2>&1 | tee ~/containerd_log.txt" ENTER'
         # install precise NTP clock synchronizer
@@ -68,8 +71,6 @@ common_init() {
         server_exec $1 "sudo chronyd -q \"server ops.emulab.net iburst\""
         # dump clock info
         server_exec $1 'sudo chronyc tracking'
-        # stabilize the node
-        server_exec $1 './vhive/scripts/stabilize.sh'
     }
 
     for node in "$@"
@@ -82,10 +83,6 @@ common_init() {
 
 function setup_master() {
     echo "Setting up master node: $MASTER_NODE"
-
-    server_exec "$MASTER_NODE" 'wget -q https://go.dev/dl/go1.19.4.linux-amd64.tar.gz >/dev/null'
-    server_exec "$MASTER_NODE" 'sudo rm -rf /usr/local/go && sudo tar -C /usr/local/ -xzf go1.19.4.linux-amd64.tar.gz >/dev/null'
-    server_exec "$MASTER_NODE" 'echo "export PATH=$PATH:/usr/local/go/bin" >> .profile'
 
     server_exec "$MASTER_NODE" 'tmux new -s runner -d'
     server_exec "$MASTER_NODE" 'tmux new -s kwatch -d'
@@ -100,31 +97,24 @@ function setup_master() {
 
     clone_loader $MASTER_NODE
 
-    MN_CLUSTER="./vhive/scripts/cluster/create_multinode_cluster.sh ${OPERATION_MODE}"
+    server_exec $MASTER_NODE "sudo wget -q https://github.com/mikefarah/yq/releases/download/v${YQ_VERSION}/yq_linux_amd64 -O /usr/bin/yq && sudo chmod +x /usr/bin/yq"
+    server_exec $MASTER_NODE '~/loader/scripts/setup/rewrite_yaml_files.sh'
+
+
+    MN_CLUSTER="pushd ~/vhive/scripts > /dev/null && ./setup_tool create_multinode_cluster ${OPERATION_MODE} && popd > /dev/null"
     server_exec "$MASTER_NODE" "tmux send -t master \"$MN_CLUSTER\" ENTER"
 
     # Get the join token from k8s.
-    while [ ! "$LOGIN_TOKEN" ]
-    do
+    while ! server_exec "$MASTER_NODE" "[ -e ~/vhive/scripts/masterKey.yaml ]"; do
         sleep 1
-        server_exec "$MASTER_NODE" 'tmux capture-pane -t master -b token'
-        LOGIN_TOKEN="$(server_exec "$MASTER_NODE" 'tmux show-buffer -b token | grep -B 3 "All nodes need to be joined"')"
-        echo "$LOGIN_TOKEN"
     done
-    # cut of last line
-    LOGIN_TOKEN=${LOGIN_TOKEN%[$'\t\r\n']*}
-    # remove the \
-    LOGIN_TOKEN=${LOGIN_TOKEN/\\/}
-    # remove all remaining tabs, line ends and returns
-    LOGIN_TOKEN=${LOGIN_TOKEN//[$'\t\r\n']}
-}
 
-function setup_loader() {
-    echo "Setting up loader/monitoring node: $1"
-
-    server_exec "$1" 'wget -q https://go.dev/dl/go1.20.5.linux-amd64.tar.gz >/dev/null'
-    server_exec "$1" 'sudo rm -rf /usr/local/go && sudo tar -C /usr/local/ -xzf go1.20.5.linux-amd64.tar.gz >/dev/null'
-    server_exec "$1" 'echo "export PATH=$PATH:/usr/local/go/bin" >> .profile'
+    LOGIN_TOKEN=$(server_exec "$MASTER_NODE" \
+        'awk '\''/^ApiserverAdvertiseAddress:/ {ip=$2} \
+        /^ApiserverPort:/ {port=$2} \
+        /^ApiserverToken:/ {token=$2} \
+        /^ApiserverTokenHash:/ {token_hash=$2} \
+        END {print "sudo kubeadm join " ip ":" port " --token " token " --discovery-token-ca-cert-hash " token_hash}'\'' ~/vhive/scripts/masterKey.yaml')
 }
 
 function setup_vhive_firecracker_daemon() {
@@ -144,7 +134,8 @@ function setup_workers() {
         node=$1
 
         echo "Setting up worker node: $node"
-        server_exec $node "./vhive/scripts/cluster/setup_worker_kubelet.sh $OPERATION_MODE"
+        
+        server_exec $node "pushd ~/vhive/scripts > /dev/null && ./setup_tool setup_worker_kubelet ${OPERATION_MODE} && popd > /dev/null"
 
         if [ "$OPERATION_MODE" = "" ]; then
             setup_vhive_firecracker_daemon $node
@@ -253,6 +244,17 @@ function clone_loader_on_workers() {
     rm ./id_rsa*
 }
 
+function stabilize_nodes() {
+    for node in "$@"
+    do
+        # stabilize the node
+        server_exec "$node" '~/loader/scripts/setup/stabilize.sh' &
+    done
+
+    wait
+}
+
+
 ###############################################
 ######## MAIN SETUP PROCEDURE IS BELOW ########
 ###############################################
@@ -264,12 +266,13 @@ function clone_loader_on_workers() {
     shift # make argument list only contain worker nodes (drops master node)
 
     setup_master
-    setup_loader $1
     setup_workers "$@"
 
     if [ $PODS_PER_NODE -gt 240 ]; then
         extend_CIDR "$@"
     fi
+
+    server_exec $MASTER_NODE "kubectl taint nodes \$(hostname) node-role.kubernetes.io/control-plane-"
 
     # Notify the master that all nodes have joined the cluster
     server_exec $MASTER_NODE 'tmux send -t master "y" ENTER'
@@ -285,6 +288,8 @@ function clone_loader_on_workers() {
     # Copy API server certificates from master to each worker node
     copy_k8s_certificates "$@"
     clone_loader_on_workers "$@"
+
+    stabilize_nodes "$MASTER_NODE" "$@"
 
     server_exec $MASTER_NODE 'cd loader; bash scripts/setup/patch_init_scale.sh'
 
