@@ -39,7 +39,7 @@ func InvokeDirigent(function *common.Function, runtimeSpec *common.RuntimeSpecif
 	record.StartTime = start.UnixMicro()
 
 	client := http.Client{
-		Timeout: time.Duration(cfg.GRPCConnectionTimeoutSeconds) * time.Second,
+		Timeout: time.Duration(cfg.GRPCFunctionTimeoutSeconds) * time.Second,
 		Transport: &http2.Transport{
 			AllowHTTP: true,
 			DialTLSContext: func(ctx context.Context, network, addr string, cfg *tls.Config) (net.Conn, error) {
@@ -51,7 +51,7 @@ func InvokeDirigent(function *common.Function, runtimeSpec *common.RuntimeSpecif
 
 	req, err := http.NewRequest("GET", "http://"+function.Endpoint, nil)
 	if err != nil {
-		log.Debugf("Failed to create a HTTP request - %v\n", err)
+		log.Errorf("Failed to create a HTTP request - %v\n", err)
 
 		record.ResponseTime = time.Since(start).Microseconds()
 		record.ConnectionTimeout = true
@@ -68,7 +68,7 @@ func InvokeDirigent(function *common.Function, runtimeSpec *common.RuntimeSpecif
 
 	resp, err := client.Do(req)
 	if err != nil {
-		log.Debugf("%s - Failed to send an HTTP request to the server - %v\n", function.Name, err)
+		log.Errorf("%s - Failed to send an HTTP request to the server - %v\n", function.Name, err)
 
 		record.ResponseTime = time.Since(start).Microseconds()
 		record.ConnectionTimeout = true
@@ -81,11 +81,11 @@ func InvokeDirigent(function *common.Function, runtimeSpec *common.RuntimeSpecif
 	body, err := io.ReadAll(resp.Body)
 	if err != nil || resp == nil || resp.StatusCode != http.StatusOK {
 		if err != nil {
-			log.Debugf("HTTP request failed - %s - %v", function.Name, err)
+			log.Errorf("HTTP request failed - %s - %v", function.Name, err)
 		} else if resp == nil || len(body) == 0 {
-			log.Debugf("HTTP request failed - %s - empty response (status code: %d)", function.Name, resp.StatusCode)
+			log.Errorf("HTTP request failed - %s - empty response (status code: %d)", function.Name, resp.StatusCode)
 		} else if resp.StatusCode != http.StatusOK {
-			log.Debugf("HTTP request failed - %s - non-empty response: %v - status code: %d", function.Name, body, resp.StatusCode)
+			log.Errorf("HTTP request failed - %s - non-empty response: %v - status code: %d", function.Name, body, resp.StatusCode)
 		}
 
 		record.ResponseTime = time.Since(start).Microseconds()
