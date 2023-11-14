@@ -28,6 +28,7 @@ SERVER=$1
 DIR="$(pwd)/scripts/setup/"
 
 source "$(pwd)/scripts/setup/setup.cfg"
+source "$(pwd)/scripts/setup/versions.cfg"
 
 server_exec() { 
     ssh -oStrictHostKeyChecking=no -p 22 "$SERVER" $1; 
@@ -37,22 +38,25 @@ server_exec() {
     # Spin up vHive under container mode.
     server_exec 'sudo DEBIAN_FRONTEND=noninteractive apt-get autoremove' 
     server_exec "git clone --branch=$VHIVE_BRANCH https://github.com/ease-lab/vhive"
-    server_exec 'cd vhive; ./scripts/cloudlab/setup_node.sh stock-only'
+
+    server_exec "pushd ~/vhive/scripts > /dev/null && ./install_go.sh && source /etc/profile && go build -o setup_tool && ./setup_tool setup_node stock-only && popd > /dev/null"
+
+    # Get loader and dependencies.
+    server_exec "git clone --branch=$LOADER_BRANCH https://github.com/vhive-serverless/invitro.git loader"
+    server_exec 'echo -en "\n\n" | sudo apt-get install python3-pip python-dev'
+    server_exec 'cd; cd loader; pip install -r config/requirements.txt'
+    
+    server_exec "sudo wget -q https://github.com/mikefarah/yq/releases/download/v${YQ_VERSION}/yq_linux_amd64 -O /usr/bin/yq && sudo chmod +x /usr/bin/yq"
+    server_exec '~/loader/scripts/setup/rewrite_yaml_files.sh'
+    
     server_exec 'tmux new -s runner -d'
     server_exec 'tmux new -s kwatch -d'
     server_exec 'tmux new -d -s containerd'
     server_exec 'tmux new -d -s cluster'
     server_exec 'tmux send-keys -t containerd "sudo containerd" ENTER'
     sleep 3
-    server_exec 'cd vhive; ./scripts/cluster/create_one_node_cluster.sh stock-only'
+    server_exec 'pushd ~/vhive/scripts > /dev/null && ./setup_tool create_one_node_cluster stock-only && popd > /dev/null'
     server_exec 'tmux send-keys -t cluster "watch -n 0.5 kubectl get pods -A" ENTER'
-
-    # Update golang.
-    server_exec 'wget -q https://dl.google.com/go/go1.17.linux-amd64.tar.gz'
-    server_exec 'sudo rm -rf /usr/local/go && sudo tar -C /usr/local/ -xzf go1.17.linux-amd64.tar.gz'
-    server_exec 'rm go1.17*'
-    server_exec 'echo "export PATH=$PATH:/usr/local/go/bin" >> ~/.profile'
-    server_exec 'source ~/.profile'
 
     # Setup github authentication.
     ACCESS_TOKEH="$(cat $GITHUB_TOKEN)"
@@ -64,13 +68,8 @@ server_exec() {
     server_exec 'curl -H "Authorization: token '"$ACCESS_TOKEH"'" --data "{\"title\":\"'"key:\$(hostname)"'\",\"key\":\"'"\$(cat ~/.ssh/id_rsa.pub)"'\"}" https://api.github.com/user/keys'
     # server_exec 'sleep 5'
 
-    # Get loader and dependencies.
-    server_exec "git clone --branch=$LOADER_BRANCH git@github.com:eth-easl/loader.git"
-    server_exec 'echo -en "\n\n" | sudo apt-get install python3-pip python-dev'
-    server_exec 'cd; cd loader; pip install -r config/requirements.txt'
-
     $DIR/expose_infra_metrics.sh $SERVER
 
     # Stabilize the node
-    server_exec './vhive/scripts/stabilize.sh'
+    server_exec '~/loader/scripts/setup/stabilize.sh'
 }
