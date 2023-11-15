@@ -79,7 +79,7 @@ func InvokeDirigent(function *common.Function, runtimeSpec *common.RuntimeSpecif
 	record.GRPCConnectionEstablishTime = time.Since(start).Microseconds()
 
 	body, err := io.ReadAll(resp.Body)
-	if err != nil || resp == nil || resp.StatusCode != http.StatusOK {
+	if err != nil || resp == nil || resp.StatusCode != http.StatusOK || len(body) == 0 {
 		if err != nil {
 			log.Errorf("HTTP request failed - %s - %v", function.Name, err)
 		} else if resp == nil || len(body) == 0 {
