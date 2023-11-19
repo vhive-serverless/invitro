@@ -29,6 +29,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"net"
+	"net/http"
 	"os"
 	"strings"
 	"sync"
@@ -62,6 +64,7 @@ type DriverConfiguration struct {
 type Driver struct {
 	Configuration          *DriverConfiguration
 	SpecificationGenerator *generator.SpecificationGenerator
+	HTTPClient             *http.Client
 }
 
 func NewDriver(driverConfig *DriverConfiguration) *Driver {
@@ -99,6 +102,25 @@ func (d *Driver) runCSVWriter(records chan interface{}, filename string, writerD
 	}
 
 	writerDone.Done()
+}
+
+func (d *Driver) GetHTTPClient() *http.Client {
+	if d.HTTPClient == nil {
+		d.HTTPClient = &http.Client{
+			Timeout: time.Duration(d.Configuration.LoaderConfiguration.GRPCFunctionTimeoutSeconds) * time.Second,
+			Transport: &http.Transport{
+				DialContext: (&net.Dialer{
+					Timeout: 10 * time.Second,
+				}).DialContext,
+				DisableCompression:  true,
+				IdleConnTimeout:     60 * time.Second,
+				MaxIdleConns:        3000,
+				MaxIdleConnsPerHost: 3000,
+			},
+		}
+	}
+
+	return d.HTTPClient
 }
 
 /////////////////////////////////////////
@@ -230,7 +252,7 @@ func (d *Driver) invokeFunction(metadata *InvocationMetadata) {
 		success, record = InvokeDirigent(
 			metadata.Function,
 			metadata.RuntimeSpecifications,
-			d.Configuration.LoaderConfiguration,
+			d.GetHTTPClient(),
 		)
 	default:
 		log.Fatal("Unsupported platform.")
