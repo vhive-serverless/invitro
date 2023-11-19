@@ -1,16 +1,11 @@
 package driver
 
 import (
-	"context"
-	"crypto/tls"
 	"encoding/json"
 	log "github.com/sirupsen/logrus"
 	"github.com/vhive-serverless/loader/pkg/common"
-	"github.com/vhive-serverless/loader/pkg/config"
 	mc "github.com/vhive-serverless/loader/pkg/metric"
-	"golang.org/x/net/http2"
 	"io"
-	"net"
 	"net/http"
 	"strconv"
 	"strings"
@@ -23,7 +18,7 @@ type FunctionResponse struct {
 	ExecutionTime int64  `json:"ExecutionTime"`
 }
 
-func InvokeDirigent(function *common.Function, runtimeSpec *common.RuntimeSpecification, cfg *config.LoaderConfiguration) (bool, *mc.ExecutionRecord) {
+func InvokeDirigent(function *common.Function, runtimeSpec *common.RuntimeSpecification, client *http.Client) (bool, *mc.ExecutionRecord) {
 	log.Tracef("(Invoke)\t %s: %d[ms], %d[MiB]", function.Name, runtimeSpec.Runtime, runtimeSpec.Memory)
 
 	record := &mc.ExecutionRecord{
@@ -37,17 +32,6 @@ func InvokeDirigent(function *common.Function, runtimeSpec *common.RuntimeSpecif
 	////////////////////////////////////
 	start := time.Now()
 	record.StartTime = start.UnixMicro()
-
-	client := http.Client{
-		Timeout: time.Duration(cfg.GRPCFunctionTimeoutSeconds) * time.Second,
-		Transport: &http2.Transport{
-			AllowHTTP: true,
-			DialTLSContext: func(ctx context.Context, network, addr string, cfg *tls.Config) (net.Conn, error) {
-				return net.Dial(network, addr)
-			},
-			DisableCompression: true,
-		},
-	}
 
 	req, err := http.NewRequest("GET", "http://"+function.Endpoint, nil)
 	if err != nil {
