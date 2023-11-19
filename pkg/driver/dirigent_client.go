@@ -79,6 +79,8 @@ func InvokeDirigent(function *common.Function, runtimeSpec *common.RuntimeSpecif
 	record.GRPCConnectionEstablishTime = time.Since(start).Microseconds()
 
 	body, err := io.ReadAll(resp.Body)
+	defer handleBodyClosing(resp)
+
 	if err != nil || resp == nil || resp.StatusCode != http.StatusOK || len(body) == 0 {
 		if err != nil {
 			log.Errorf("HTTP request failed - %s - %v", function.Name, err)
@@ -114,4 +116,15 @@ func InvokeDirigent(function *common.Function, runtimeSpec *common.RuntimeSpecif
 	log.Tracef("(E2E Latency) %s: %.2f[ms]\n", function.Name, float64(record.ResponseTime)/1e3)
 
 	return true, record
+}
+
+func handleBodyClosing(response *http.Response) {
+	if response == nil || response.Body == nil {
+		return
+	}
+
+	err := response.Body.Close()
+	if err != nil {
+		log.Errorf("Error closing response body - %v", err)
+	}
 }
