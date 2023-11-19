@@ -34,6 +34,8 @@ import (
 	"github.com/vhive-serverless/loader/pkg/driver/deployment"
 	"github.com/vhive-serverless/loader/pkg/driver/failure"
 	"math"
+	"net"
+	"net/http"
 	"os"
 	"strconv"
 	"strings"
@@ -57,6 +59,7 @@ type Driver struct {
 	AsyncRecords          *common.LockFreeQueue[*mc.ExecutionRecord]
 	readOpenWhiskMetadata sync.Mutex
 	allFunctionsInvoked   sync.WaitGroup
+	HTTPClient            *http.Client
 }
 
 func NewDriver(driverConfig *config.Configuration) *Driver {
@@ -103,6 +106,25 @@ func DAGCreation(functions []*common.Function) *list.List {
 		linkedList.PushBack(function)
 	}
 	return linkedList
+}
+
+func (d *Driver) GetHTTPClient() *http.Client {
+	if d.HTTPClient == nil {
+		d.HTTPClient = &http.Client{
+			Timeout: time.Duration(d.Configuration.LoaderConfiguration.GRPCFunctionTimeoutSeconds) * time.Second,
+			Transport: &http.Transport{
+				DialContext: (&net.Dialer{
+					Timeout: 10 * time.Second,
+				}).DialContext,
+				DisableCompression:  true,
+				IdleConnTimeout:     60 * time.Second,
+				MaxIdleConns:        3000,
+				MaxIdleConnsPerHost: 3000,
+			},
+		}
+	}
+
+	return d.HTTPClient
 }
 
 /////////////////////////////////////////
@@ -233,13 +255,13 @@ func (d *Driver) invokeFunction(metadata *InvocationMetadata, iatIndex int) {
 		}
 
 		node = node.Next()
-	}
 
-	if success {
-		atomic.AddInt64(metadata.SuccessCount, 1)
-	} else {
-		atomic.AddInt64(metadata.FailedCount, 1)
-		atomic.AddInt64(&metadata.FailedCountByMinute[metadata.MinuteIndex], 1)
+		if success {
+			atomic.AddInt64(metadata.SuccessCount, 1)
+		} else {
+			atomic.AddInt64(metadata.FailedCount, 1)
+			atomic.AddInt64(&metadata.FailedCountByMinute[metadata.MinuteIndex], 1)
+		}
 	}
 }
 
