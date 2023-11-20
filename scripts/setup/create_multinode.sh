@@ -35,11 +35,11 @@ then
     FIRECRACKER_SNAPSHOTS=""
 elif [ $CLUSTER_MODE = "firecracker" ]
 then
-    OPERATION_MODE=""
+    OPERATION_MODE="firecracker"
     FIRECRACKER_SNAPSHOTS=""
 elif [ $CLUSTER_MODE = "firecracker_snapshots" ]
 then
-    OPERATION_MODE=""
+    OPERATION_MODE="firecracker"
     FIRECRACKER_SNAPSHOTS="-snapshots"
 else
     echo "Unsupported cluster mode"
@@ -58,18 +58,23 @@ server_exec() {
 
 common_init() {
     internal_init() {
+        server_exec $1 'wget -q https://go.dev/dl/go1.19.4.linux-amd64.tar.gz >/dev/null'
+        server_exec $1 'sudo rm -rf /usr/local/go && sudo tar -C /usr/local/ -xzf go1.19.4.linux-amd64.tar.gz >/dev/null'
+        server_exec $1 'echo "export PATH=$PATH:/usr/local/go/bin" >> .profile'
+
         server_exec $1 "git clone --branch=$VHIVE_BRANCH https://github.com/ease-lab/vhive"
-        server_exec $1 "cd; ./vhive/scripts/cloudlab/setup_node.sh $OPERATION_MODE"
+        server_exec $1 "source .profile && cd vhive; pushd scripts && go build -o setup_tool && popd && mv scripts/setup_tool ."
+        server_exec $1 "source .profile && cd vhive; ./setup_tool setup_node $OPERATION_MODE"
+
         server_exec $1 'tmux new -s containerd -d'
         server_exec $1 'tmux send -t containerd "sudo containerd 2>&1 | tee ~/containerd_log.txt" ENTER'
+
         # install precise NTP clock synchronizer
         server_exec $1 'sudo apt-get update && sudo apt-get install -y chrony htop sysstat'
         # synchronize clock across nodes
         server_exec $1 "sudo chronyd -q \"server ops.emulab.net iburst\""
         # dump clock info
         server_exec $1 'sudo chronyc tracking'
-        # stabilize the node
-        server_exec $1 './vhive/scripts/stabilize.sh'
     }
 
     for node in "$@"
@@ -82,10 +87,6 @@ common_init() {
 
 function setup_master() {
     echo "Setting up master node: $MASTER_NODE"
-
-    server_exec "$MASTER_NODE" 'wget -q https://go.dev/dl/go1.19.4.linux-amd64.tar.gz >/dev/null'
-    server_exec "$MASTER_NODE" 'sudo rm -rf /usr/local/go && sudo tar -C /usr/local/ -xzf go1.19.4.linux-amd64.tar.gz >/dev/null'
-    server_exec "$MASTER_NODE" 'echo "export PATH=$PATH:/usr/local/go/bin" >> .profile'
 
     server_exec "$MASTER_NODE" 'tmux new -s runner -d'
     server_exec "$MASTER_NODE" 'tmux new -s kwatch -d'
@@ -100,7 +101,7 @@ function setup_master() {
 
     clone_loader $MASTER_NODE
 
-    MN_CLUSTER="./vhive/scripts/cluster/create_multinode_cluster.sh ${OPERATION_MODE}"
+    MN_CLUSTER="cd vhive; ./setup_tool create_multinode_cluster ${OPERATION_MODE}"
     server_exec "$MASTER_NODE" "tmux send -t master \"$MN_CLUSTER\" ENTER"
 
     # Get the join token from k8s.
@@ -109,14 +110,12 @@ function setup_master() {
         sleep 1
         server_exec "$MASTER_NODE" 'tmux capture-pane -t master -b token'
         LOGIN_TOKEN="$(server_exec "$MASTER_NODE" 'tmux show-buffer -b token | grep -B 3 "All nodes need to be joined"')"
-        echo "$LOGIN_TOKEN"
     done
-    # cut of last line
-    LOGIN_TOKEN=${LOGIN_TOKEN%[$'\t\r\n']*}
-    # remove the \
-    LOGIN_TOKEN=${LOGIN_TOKEN/\\/}
-    # remove all remaining tabs, line ends and returns
-    LOGIN_TOKEN=${LOGIN_TOKEN//[$'\t\r\n']}
+
+    MASTER_IP=$(server_exec $MASTER_NODE "cat ~/vhive/masterKey.yaml | grep 'ApiserverAdvertiseAddress' | awk '{print \$2}'")
+    MASTER_PORT=$(server_exec $MASTER_NODE "cat ~/vhive/masterKey.yaml | grep 'ApiserverPort' | awk '{print \$2}'")
+    MASTER_TOKEN=$(server_exec $MASTER_NODE "cat ~/vhive/masterKey.yaml | grep 'ApiserverToken' | awk '{print \$2}' | head -n 1")
+    MASTER_TOKEN_HASH=$(server_exec $MASTER_NODE "cat ~/vhive/masterKey.yaml | grep 'ApiserverTokenHash' | awk '{print \$2}'")
 }
 
 function setup_loader() {
@@ -130,7 +129,7 @@ function setup_loader() {
 function setup_vhive_firecracker_daemon() {
     node=$1
 
-    server_exec $node 'cd vhive; source /etc/profile && go build'
+    server_exec $node 'source .profile && cd vhive; go build'
     server_exec $node 'tmux new -s firecracker -d'
     server_exec $node 'tmux send -t firecracker "sudo PATH=$PATH /usr/local/bin/firecracker-containerd --config /etc/firecracker-containerd/config.toml 2>&1 | tee ~/firecracker_log.txt" ENTER'
     server_exec $node 'tmux new -s vhive -d'
@@ -144,13 +143,13 @@ function setup_workers() {
         node=$1
 
         echo "Setting up worker node: $node"
-        server_exec $node "./vhive/scripts/cluster/setup_worker_kubelet.sh $OPERATION_MODE"
+        server_exec $node "source .profile && cd vhive; ./setup_tool setup_worker_kubelet $OPERATION_MODE"
 
-        if [ "$OPERATION_MODE" = "" ]; then
+        if [ "$OPERATION_MODE" = "firecracker" ]; then
             setup_vhive_firecracker_daemon $node
         fi
 
-        server_exec $node "sudo ${LOGIN_TOKEN}"
+        server_exec $node "sudo kubeadm join ${MASTER_IP}:${MASTER_PORT} --token ${MASTER_TOKEN} --discovery-token-ca-cert-hash ${MASTER_TOKEN_HASH}"
         echo "Worker node $node has joined the cluster."
 
         # Stretch the capacity of the worker node to 240 (k8s default: 110)
@@ -160,10 +159,6 @@ function setup_workers() {
         server_exec $node "echo \"containerLogMaxSize: 512Mi\" > >(sudo tee -a /var/lib/kubelet/config.yaml >/dev/null)"
         server_exec $node 'sudo systemctl restart kubelet'
         server_exec $node 'sleep 10'
-
-        # Rejoin has to be performed although errors will be thrown. Otherwise, restarting the kubelet will cause the node unreachable for some reason
-        server_exec $node "sudo ${LOGIN_TOKEN} > /dev/null 2>&1"
-        echo "Worker node $node joined the cluster (again :P)."
     }
 
     for node in "$@"
