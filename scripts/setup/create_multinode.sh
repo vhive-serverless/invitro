@@ -157,6 +157,8 @@ function setup_workers() {
         echo "Stretching node capacity for $node."
         server_exec $node "echo \"maxPods: ${PODS_PER_NODE}\" > >(sudo tee -a /var/lib/kubelet/config.yaml >/dev/null)"
         server_exec $node "echo \"containerLogMaxSize: 512Mi\" > >(sudo tee -a /var/lib/kubelet/config.yaml >/dev/null)"
+        server_exec $node "echo \"kubeAPIQPS: 50000\" > >(sudo tee -a /var/lib/kubelet/config.yaml >/dev/null)"
+        server_exec $node "echo \"kubeAPIBurst: 100000\" > >(sudo tee -a /var/lib/kubelet/config.yaml >/dev/null)"
         server_exec $node 'sudo systemctl restart kubelet'
         server_exec $node 'sleep 10'
     }
