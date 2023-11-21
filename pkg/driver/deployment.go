@@ -27,7 +27,6 @@ package driver
 import (
 	"bytes"
 	"fmt"
-	"github.com/vhive-serverless/loader/pkg/common"
 	"io"
 	"math"
 	"math/rand"
@@ -37,6 +36,8 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/vhive-serverless/loader/pkg/common"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -97,6 +98,10 @@ func deployDirigent(function *common.Function) {
 	function.Endpoint = endpoints[rand.Intn(len(endpoints))]
 }
 
+func deployPolicyExperiment(function *common.Function) {
+
+}
+
 func deployKnative(function *common.Function, yamlPath string, isPartiallyPanic bool, endpointPort int,
 	autoscalingMetric string) bool {
 	panicWindow := "\"10.0\""
@@ -110,6 +115,28 @@ func deployKnative(function *common.Function, yamlPath string, isPartiallyPanic 
 		autoscalingTarget = int(math.Round(1000.0 / function.RuntimeStats.Average))
 		// for rps mode use the average runtime in milliseconds to determine how many requests a pod can process per
 		// second, then round to an integer as that is what the knative config expects
+	}
+
+	val := 0
+	for _, char := range function.Name {
+		val += int(char)
+	}
+	nofImages := 6
+	mod := val % nofImages
+
+	switch mod {
+	case 0:
+		exec.Command("sed", "'s/image: .*latest/image: lfavento\\/trace-5m:latest/'", yamlPath).Run()
+	case 1:
+		exec.Command("sed", "'s/image: .*latest/image: lfavento\\/trace-10m:latest/'", yamlPath).Run()
+	case 2:
+		exec.Command("sed", "'s/image: .*latest/image: lfavento\\/trace-20m:latest/'", yamlPath).Run()
+	case 3:
+		exec.Command("sed", "'s/image: .*latest/image: lfavento\\/trace-30m:latest/'", yamlPath).Run()
+	case 4:
+		exec.Command("sed", "'s/image: .*latest/image: lfavento\\/trace-40m:latest/'", yamlPath).Run()
+	case 5:
+		exec.Command("sed", "'s/image: .*latest/image: lfavento\\/trace-50m:latest/'", yamlPath).Run()
 	}
 
 	cmd := exec.Command(
