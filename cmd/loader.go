@@ -252,6 +252,8 @@ func runRPSMode(cfg *config.LoaderConfiguration, readIATFromFile bool, justGener
 		LoaderConfiguration: cfg,
 		TraceDuration:       determineDurationToParse(cfg.ExperimentDuration, cfg.WarmupDuration),
 
+		YAMLPath: parseYAMLSpecification(cfg),
+
 		Functions: generator.CreateRPSFunctions(cfg, warmFunction, warmStartCount, coldFunctions, coldStartCount),
 	})
 
