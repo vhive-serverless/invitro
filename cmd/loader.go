@@ -166,7 +166,7 @@ func parseYAMLSpecification(cfg *config.LoaderConfiguration) string {
 	case "firecracker":
 		return "workloads/firecracker/trace_func_go.yaml"
 	default:
-		if cfg.Platform != "Dirigent" {
+		if cfg.Platform != "Dirigent" && cfg.Platform != "Dirigent-RPS" {
 			log.Fatal("Invalid 'YAMLSelector' parameter.")
 		}
 	}
