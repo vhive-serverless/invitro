@@ -141,7 +141,7 @@ func deployKnative(function *common.Function, yamlPath string, isPartiallyPanic 
 	}
 	err := sed.Run()
 	if err != nil {
-		log.Warnf("Failed to alter %s content.\n", yamlPath)
+		log.Warnf("Failed to alter %s content: %v\n", yamlPath, err)
 		return false
 	}
 
