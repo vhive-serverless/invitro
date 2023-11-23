@@ -124,6 +124,9 @@ func deployKnative(function *common.Function, yamlPath string, isPartiallyPanic 
 	nofImages := 6
 	mod := val % nofImages
 
+	log.Debugf("yamlPath: %s\n", yamlPath)
+	log.Debugf("%d\n", mod)
+
 	switch mod {
 	case 0:
 		exec.Command("sed", "'s/image: .*latest/image: lfavento\\/trace-5m:latest/'", yamlPath).Run()
