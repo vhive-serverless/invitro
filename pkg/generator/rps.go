@@ -45,6 +45,10 @@ func generateFunctionByRPSWithOffset(experimentDuration int, rpsTarget float64, 
 }
 
 func GenerateWarmStartFunction(experimentDuration int, rpsTarget float64) (common.IATArray, []int) {
+	if rpsTarget == 0 {
+		return nil, nil
+	}
+
 	return generateFunctionByRPS(experimentDuration, rpsTarget)
 }
 
@@ -83,26 +87,28 @@ func CreateRPSFunctions(cfg *config.LoaderConfiguration, warmFunction common.IAT
 	coldFunctions []common.IATArray, coldFunctionCount [][]int) []*common.Function {
 	var result []*common.Function
 
-	result = append(result, &common.Function{
-		Name: fmt.Sprintf("warm-function-%d", rand.Int()),
+	if warmFunction != nil || warmFunctionCount != nil {
+		result = append(result, &common.Function{
+			Name: fmt.Sprintf("warm-function-%d", rand.Int()),
 
-		InvocationStats: &common.FunctionInvocationStats{Invocations: warmFunctionCount},
-		MemoryStats:     &common.FunctionMemoryStats{Percentile100: float64(cfg.RpsMemoryMB)},
-		DirigentMetadata: &common.DirigentMetadata{
-			Image:               cfg.RpsImage,
-			Port:                80,
-			Protocol:            "tcp",
-			ScalingUpperBound:   1024,
-			ScalingLowerBound:   1,
-			IterationMultiplier: cfg.RpsIterationMultiplier,
-		},
+			InvocationStats: &common.FunctionInvocationStats{Invocations: warmFunctionCount},
+			MemoryStats:     &common.FunctionMemoryStats{Percentile100: float64(cfg.RpsMemoryMB)},
+			DirigentMetadata: &common.DirigentMetadata{
+				Image:               cfg.RpsImage,
+				Port:                80,
+				Protocol:            "tcp",
+				ScalingUpperBound:   1024,
+				ScalingLowerBound:   1,
+				IterationMultiplier: cfg.RpsIterationMultiplier,
+			},
 
-		Specification: &common.FunctionSpecification{
-			IAT:                  warmFunction,
-			PerMinuteCount:       warmFunctionCount,
-			RuntimeSpecification: createRuntimeSpecification(len(warmFunction), cfg.RpsRuntimeMs, cfg.RpsMemoryMB),
-		},
-	})
+			Specification: &common.FunctionSpecification{
+				IAT:                  warmFunction,
+				PerMinuteCount:       warmFunctionCount,
+				RuntimeSpecification: createRuntimeSpecification(len(warmFunction), cfg.RpsRuntimeMs, cfg.RpsMemoryMB),
+			},
+		})
+	}
 
 	for i := 0; i < len(coldFunctions); i++ {
 		result = append(result, &common.Function{
