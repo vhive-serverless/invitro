@@ -199,23 +199,21 @@ func runTraceMode(cfg *config.LoaderConfiguration, readIATFromFile bool) {
 	}
 
 	iatType, shiftIAT := parseIATDistribution(cfg)
-	yamlSpecificationPath := parseYAMLSpecification(cfg)
-	traceGranularity := parseTraceGranularity(cfg)
-
-	log.Infof("Using %s as a service YAML specification file.\n", yamlSpecificationPath)
 
 	experimentDriver := driver.NewDriver(&driver.DriverConfiguration{
 		LoaderConfiguration: cfg,
 		IATDistribution:     iatType,
 		ShiftIAT:            shiftIAT,
-		TraceGranularity:    traceGranularity,
+		TraceGranularity:    parseTraceGranularity(cfg),
 		TraceDuration:       durationToParse,
 
-		YAMLPath: yamlSpecificationPath,
+		YAMLPath: parseYAMLSpecification(cfg),
 		TestMode: false,
 
 		Functions: functions,
 	})
+
+	log.Infof("Using %s as a service YAML specification file.\n", experimentDriver.Configuration.YAMLPath)
 
 	experimentDriver.RunExperiment(false, readIATFromFile)
 }
@@ -253,6 +251,8 @@ func runRPSMode(cfg *config.LoaderConfiguration) {
 	experimentDriver := driver.NewDriver(&driver.DriverConfiguration{
 		LoaderConfiguration: cfg,
 		TraceDuration:       determineDurationToParse(cfg.ExperimentDuration, cfg.WarmupDuration),
+
+		YAMLPath: parseYAMLSpecification(cfg),
 
 		Functions: generator.CreateRPSFunctions(cfg, warmFunction, warmStartCount, coldFunctions, coldStartCount),
 	})
