@@ -348,6 +348,38 @@ func (d *Driver) individualFunctionDriver(function *common.Function, announceFun
 
 		previousIATSum += iat.Microseconds()
 
+		if !d.Configuration.TestMode {
+			waitForInvocations.Add(1)
+
+			go d.invokeFunction(&InvocationMetadata{
+				Function:              function,
+				RuntimeSpecifications: &runtimeSpecification[iatIndex],
+				Phase:                 currentPhase,
+				MinuteIndex:           minuteIndex,
+				InvocationIndex:       invocationIndex,
+				SuccessCount:          &successfulInvocations,
+				FailedCount:           &failedInvocations,
+				FailedCountByMinute:   failedInvocationByMinute,
+				RecordOutputChannel:   recordOutputChannel,
+				AnnounceDoneWG:        &waitForInvocations,
+				AnnounceDoneExe:       addInvocationsToGroup,
+				ReadOpenWhiskMetadata: readOpenWhiskMetadata,
+			})
+		} else {
+			// To be used from within the Golang testing framework
+			log.Debugf("Test mode invocation fired.\n")
+
+			recordOutputChannel <- &mc.ExecutionRecordBase{
+				Phase:        int(currentPhase),
+				InvocationID: composeInvocationID(d.Configuration.TraceGranularity, minuteIndex, invocationIndex),
+				StartTime:    time.Now().UnixNano(),
+			}
+
+			successfulInvocations++
+		}
+
+		numberOfIssuedInvocations++
+
 		if function.Specification.PerMinuteCount[minuteIndex] == invocationIndex || hasMinuteExpired(startOfMinute) {
 			readyToBreak := d.proceedToNextMinute(function, &minuteIndex, &invocationIndex, &startOfMinute,
 				false, &currentPhase, failedInvocationByMinute, &previousIATSum)
@@ -356,37 +388,6 @@ func (d *Driver) individualFunctionDriver(function *common.Function, announceFun
 				break
 			}
 		} else {
-			if !d.Configuration.TestMode {
-				waitForInvocations.Add(1)
-
-				go d.invokeFunction(&InvocationMetadata{
-					Function:              function,
-					RuntimeSpecifications: &runtimeSpecification[iatIndex],
-					Phase:                 currentPhase,
-					MinuteIndex:           minuteIndex,
-					InvocationIndex:       invocationIndex,
-					SuccessCount:          &successfulInvocations,
-					FailedCount:           &failedInvocations,
-					FailedCountByMinute:   failedInvocationByMinute,
-					RecordOutputChannel:   recordOutputChannel,
-					AnnounceDoneWG:        &waitForInvocations,
-					AnnounceDoneExe:       addInvocationsToGroup,
-					ReadOpenWhiskMetadata: readOpenWhiskMetadata,
-				})
-			} else {
-				// To be used from within the Golang testing framework
-				log.Debugf("Test mode invocation fired.\n")
-
-				recordOutputChannel <- &mc.ExecutionRecordBase{
-					Phase:        int(currentPhase),
-					InvocationID: composeInvocationID(d.Configuration.TraceGranularity, minuteIndex, invocationIndex),
-					StartTime:    time.Now().UnixNano(),
-				}
-
-				successfulInvocations++
-			}
-
-			numberOfIssuedInvocations++
 			invocationIndex++
 		}
 	}
