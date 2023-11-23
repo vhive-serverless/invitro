@@ -124,22 +124,25 @@ func deployKnative(function *common.Function, yamlPath string, isPartiallyPanic 
 	nofImages := 6
 	mod := val % nofImages
 
-	log.Debugf("yamlPath: %s\n", yamlPath)
-	log.Debugf("%d\n", mod)
-
+	var sed *exec.Cmd
 	switch mod {
 	case 0:
-		exec.Command("sed", "'s/image: .*latest/image: lfavento\\/trace-5m:latest/'", yamlPath).Run()
+		sed = exec.Command("sed", "'s/image: .*latest/image: lfavento\\/trace-5m:latest/'", yamlPath)
 	case 1:
-		exec.Command("sed", "'s/image: .*latest/image: lfavento\\/trace-10m:latest/'", yamlPath).Run()
+		sed = exec.Command("sed", "'s/image: .*latest/image: lfavento\\/trace-10m:latest/'", yamlPath)
 	case 2:
-		exec.Command("sed", "'s/image: .*latest/image: lfavento\\/trace-20m:latest/'", yamlPath).Run()
+		sed = exec.Command("sed", "'s/image: .*latest/image: lfavento\\/trace-20m:latest/'", yamlPath)
 	case 3:
-		exec.Command("sed", "'s/image: .*latest/image: lfavento\\/trace-30m:latest/'", yamlPath).Run()
+		sed = exec.Command("sed", "'s/image: .*latest/image: lfavento\\/trace-30m:latest/'", yamlPath)
 	case 4:
-		exec.Command("sed", "'s/image: .*latest/image: lfavento\\/trace-40m:latest/'", yamlPath).Run()
+		sed = exec.Command("sed", "'s/image: .*latest/image: lfavento\\/trace-40m:latest/'", yamlPath)
 	case 5:
-		exec.Command("sed", "'s/image: .*latest/image: lfavento\\/trace-50m:latest/'", yamlPath).Run()
+		sed = exec.Command("sed", "'s/image: .*latest/image: lfavento\\/trace-50m:latest/'", yamlPath)
+	}
+	err := sed.Run()
+	if err != nil {
+		log.Warnf("Failed to alter %s content.\n", yamlPath)
+		return false
 	}
 
 	cmd := exec.Command(
