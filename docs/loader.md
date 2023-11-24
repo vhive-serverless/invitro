@@ -124,6 +124,10 @@ For to configure the workload for load generator, please refer to `docs/configur
 There are a couple of constants that should not be exposed to the users. They can be examined and changed
 in `pkg/common/constants.go`.
 
+Sample sizes appropriate for performance evaluation vary depending on the platform. 
+As a starting point for fine-tuning, we suggest at most 5 functions per core with SMT disabled. 
+For example, 80 functions for a 16-core node. With larger sample sizes, trace replaying may lead to failures in function invocations.
+
 ## Build the image for a synthetic function
 
 The reason for existence of Firecracker and container version is because of different ports for gRPC server. Firecracker

@@ -5,10 +5,7 @@ analysis
 tmp
 data/out
 data/azure
-data/traces/*
 !data/traces/example/
-data/traces/reference/*/*.csv
-!data/traces/reference/
 pkg/generator/*.png
 pkg/generator/*.txt
 pkg/driver/*.csv

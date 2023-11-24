@@ -108,6 +108,7 @@ def main():
     sample_parser.add_argument(
         '-orig',
         '--original_trace',
+        required=True,
         metavar='path',
         default=None,
         help='Path to the Azure (or other original) trace files, required to maximize the derived sample\'s representativity (WD from the original trace)'

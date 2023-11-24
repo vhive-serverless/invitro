@@ -12,7 +12,7 @@ git lfs install
 cd sampler
 git lfs fetch
 git lfs checkout
-pip install -r requirements.txt
+pip install -r ../requirements.txt
 ```
 
 ## Pre-processing the original trace (mandatory)
@@ -91,9 +91,9 @@ monotonic load increase (in terms of resource usage) when sweeping the sample si
 ```console
 python3 -m sampler sample -h
 
-usage: sample [-h] -t path -o path [-min integer] [-st integer] [-max integer] [-tr integer]
+usage: sample [-h] -t path -orig path -o path [-min integer] [-st integer] [-max integer] [-tr integer]
 
-optional arguments:
+options:
   -h, --help            show this help message and exit
   -t path, --source_trace path
                         Path to trace to draw samples from
@@ -113,22 +113,31 @@ optional arguments:
 
 ## Reference traces
 
-The reference traces are stored in `data/traces/reference` folder of this repository, as `preprocessed.tar.gz` and
-`sampled.tar.gz` files stored in Git LFS.
+The reference traces are stored in `data/traces/reference` folder of this repository, as `preprocessed_150.tar.gz` and
+`sampled_150.tar.gz` files stored in Git LFS.
 
-`preprocessed.tar.gz` contains the preprocessed traces for the original Azure trace for day 1, 09:00:00-11:30:00 (150
-minutes total).
+`preprocessed_150.tar.gz` contains the preprocessed traces for the original Azure trace for day 1, 09:00:00-11:30:00 (150
+minutes total). 150 minutes trace captures approximately half of all functions from original Azure trace, but makes it
+more suitable to run in shorter experiments (10 minutes - 2 hours).
 
-`sampled.tar.gz` contains the sampled traces for preprocessed trace from `preprocessed.tar.gz`. Sample sizes are 50-3k
-functions with step 50 and 3k-24k with step 1k.
+`sampled_150.tar.gz` contains the sampled traces for preprocessed trace from `preprocessed_150.tar.gz`. Sample sizes are
+10-200 functions with step 10, 200-3k with step 50, and 3k-24k with step 1k.
+
+You can untar the tarballs with the following commands:
+
+```console
+tar -xvzf sampled_150.tar.gz
+tar -xvzf preprocessed_150.tar.gz
+```
 
 The reference traces were obtained by running the following commands:
 
 ```console
-python3 -m preprocess  -t data/azure/ -o data/reference/preprocessed_150 -s 00:09:00 -dur 150
+python3 -m sampler preprocess  -t data/azure/ -o data/traces/reference/preprocessed_150 -s 00:09:00 -dur 150
 
-python3 -m sample -t data/reference/preprocessed_150 -o data/reference/sampled_150 -min 3000 -st 1000 -max 24000 -tr 16
-python3 -m sample -t data/reference/sampled_150/samples/3000 -o data/reference/sampled_150 -min 50 -st 50 -max 3000 -tr 16
+python3 -m sampler sample -t data/traces/reference/preprocessed_150 -orig data/traces/reference/preprocessed_150 -o data/traces/reference/sampled_150 -min 3000 -st 1000 -max 24000 -tr 16
+python3 -m sampler sample -t data/traces/reference/sampled_150/samples/3000 -orig data/traces/reference/preprocessed_150 -o data/traces/reference/sampled_150 -min 200 -st 50 -max 3000 -tr 16
+python3 -m sampler sample -t data/traces/reference/sampled_150/samples/200 -orig data/traces/reference/preprocessed_150 -o data/traces/reference/sampled_150 -min 10 -st 10 -max 200 -tr 16
 ```
 
 ## Tools
