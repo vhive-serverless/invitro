@@ -43,7 +43,7 @@ jobs:
     - name: Drawing samples
       run: |
         tar -xzvf $tpath/inputs/preprocessed.tar.gz -C $tpath/inputs/
-        python -m sampler sample --source_trace $tpath/inputs/preprocessed --output $tpath/sampled --min-size 10 --step-size=10 --max-size=50
+        python -m sampler sample --source_trace $tpath/inputs/preprocessed --original_trace $tpath/inputs/preprocessed --output $tpath/sampled --min-size 10 --step-size=10 --max-size=50
 
 #    - name: Plotting results
 #      run: |
