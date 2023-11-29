@@ -3,6 +3,7 @@ package driver
 import (
 	"context"
 	"crypto/tls"
+	"encoding/json"
 	"fmt"
 	log "github.com/sirupsen/logrus"
 	"github.com/vhive-serverless/loader/pkg/common"
@@ -16,6 +17,12 @@ import (
 	"strings"
 	"time"
 )
+
+type FunctionResponse struct {
+	Status        string `json:"Status"`
+	MachineName   string `json:"MachineName"`
+	ExecutionTime int64  `json:"ExecutionTime"`
+}
 
 func InvokeDirigent(function *common.Function, runtimeSpec *common.RuntimeSpecification, cfg *config.LoaderConfiguration) (bool, *mc.ExecutionRecord) {
 	log.Tracef("(Invoke)\t %s: %d[ms], %d[MiB]", function.Name, runtimeSpec.Runtime, runtimeSpec.Memory)
@@ -91,9 +98,15 @@ func InvokeDirigent(function *common.Function, runtimeSpec *common.RuntimeSpecif
 		return false, record
 	}
 
-	record.Instance = extractInstanceName(string(body))
+	var deserializedResponse FunctionResponse
+	err = json.Unmarshal(body, &deserializedResponse)
+	if err != nil {
+		log.Warnf("Failed to deserialize Dirigent response.")
+	}
+
+	record.Instance = deserializedResponse.MachineName
 	record.ResponseTime = time.Since(start).Microseconds()
-	record.ActualDuration = 0
+	record.ActualDuration = uint32(deserializedResponse.ExecutionTime)
 
 	if strings.HasPrefix(string(body), "FAILURE - mem_alloc") {
 		record.MemoryAllocationTimeout = true
@@ -101,8 +114,7 @@ func InvokeDirigent(function *common.Function, runtimeSpec *common.RuntimeSpecif
 		record.ActualMemoryUsage = 0 //
 	}
 
-	log.Tracef("(Replied)\t %s: %s, %.2f[ms], %d[MiB]", function.Name, string(body),
-		float64(0)/1e3, common.Kib2Mib(0))
+	log.Tracef("(Replied)\t %s: %s, %.2f[ms], %d[MiB]", function.Name, string(body), float64(0)/1e3, common.Kib2Mib(0))
 	log.Tracef("(E2E Latency) %s: %.2f[ms]\n", function.Name, float64(record.ResponseTime)/1e3)
 
 	return true, record
