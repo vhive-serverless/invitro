@@ -1,18 +1,14 @@
 {
   "Seed": 42,
 
-  "Platform": "Dirigent-RPS",
-  "InvokeProtocol" : "http2",
+  "Platform": "Dirigent",
   "EndpointPort": 80,
 
-  "DirigentControlPlaneIP": "10.0.1.253:9092",
-  "BusyLoopOnSandboxStartup": false,
+  "DirigentControlPlaneIP": "10.0.1.2",
 
-  "RpsCooldownSeconds": 10,
-  "RpsImage": "docker.io/cvetkovic/dirigent_empty_function:latest",
-  "RpsRuntimeMs": 10,
-  "RpsMemoryMB": 2048,
-  "RpsIterationMultiplier": 80,
+  "FailAt": 20,
+  "FailComponent": "data_plane",
+  "FailNode": "",
 
   "TracePath": "data/traces/example",
   "Granularity": "minute",
@@ -28,6 +24,6 @@
   "MetricScrapingPeriodSeconds": 15,
   "AutoscalingMetric": "concurrency",
 
-  "GRPCConnectionTimeoutSeconds": 5,
+  "GRPCConnectionTimeoutSeconds": 15,
   "GRPCFunctionTimeoutSeconds": 900
 }

@@ -58,6 +58,8 @@ type LoaderConfiguration struct {
 	RpsMemoryMB                 int     `json:"RpsMemoryMB"`
 	RpsIterationMultiplier      int     `json:"RpsIterationMultiplier"`
 
+	DirigentControlPlaneIP string `json:"DirigentControlPlaneIP"`
+
 	RpsTarget                   float64 `json:"RpsTarget"`
 	RpsColdStartRatioPercentage float64 `json:"RpsColdStartRatioPercentage"`
 	RpsCooldownSeconds          int     `json:"RpsCooldownSeconds"`
