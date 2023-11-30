@@ -670,7 +670,7 @@ func (d *Driver) RunExperiment(skipIATGeneration bool, readIATFromFIle bool) {
 	case "AWSLambda", "AWSLambda-RPS":
 		DeployFunctionsAWSLambda(d.Configuration.Functions)
 	case "Dirigent", "Dirigent-RPS":
-		DeployDirigent(d.Configuration.Functions)
+		DeployDirigent(d.Configuration.LoaderConfiguration.DirigentControlPlaneIP, d.Configuration.Functions)
 	default:
 		log.Fatal("Unsupported platform.")
 	}

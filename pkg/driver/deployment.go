@@ -56,13 +56,13 @@ func DeployFunctions(functions []*common.Function, yamlPath string, isPartiallyP
 	}
 }
 
-func DeployDirigent(functions []*common.Function) {
+func DeployDirigent(controlPlaneAddress string, functions []*common.Function) {
 	for i := 0; i < len(functions); i++ {
-		deployDirigent(functions[i])
+		deployDirigent(controlPlaneAddress, functions[i])
 	}
 }
 
-func deployDirigent(function *common.Function) {
+func deployDirigent(controlPlaneAddress string, function *common.Function) {
 	metadata := function.DirigentMetadata
 
 	if metadata == nil {
@@ -79,7 +79,7 @@ func deployDirigent(function *common.Function) {
 
 	log.Debug(payload)
 
-	resp, err := http.PostForm("http://localhost:9091/registerService", payload)
+	resp, err := http.PostForm(fmt.Sprintf("http://%s:9091/registerService", controlPlaneAddress), payload)
 	if err != nil {
 		log.Error("Failed to register a service with the control plane - ", err.Error())
 		return

@@ -39,6 +39,8 @@ type LoaderConfiguration struct {
 	YAMLSelector string `json:"YAMLSelector"`
 	EndpointPort int    `json:"EndpointPort"`
 
+	DirigentControlPlaneIP string `json:"DirigentControlPlaneIP"`
+
 	RpsTarget                   float64 `json:"RpsTarget"`
 	RpsColdStartRatioPercentage float64 `json:"RpsColdStartRatioPercentage"`
 	RpsCooldownSeconds          int     `json:"RpsCooldownSeconds"`

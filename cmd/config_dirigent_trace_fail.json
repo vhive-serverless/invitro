@@ -1,18 +1,14 @@
 {
   "Seed": 42,
 
-  "Platform": "Dirigent-RPS",
+  "Platform": "Dirigent",
   "EndpointPort": 80,
 
   "DirigentControlPlaneIP": "10.0.1.2",
 
-  "RpsTarget": 50,
-  "RpsColdStartRatioPercentage": 50,
-  "RpsCooldownSeconds": 10,
-  "RpsImage": "empty",
-  "RpsRuntimeMs": 10,
-  "RpsMemoryMB": 2048,
-  "RpsIterationMultiplier": 80,
+  "FailAt": 20,
+  "FailComponent": "data_plane",
+  "FailNode": "",
 
   "TracePath": "data/traces/example",
   "Granularity": "minute",
