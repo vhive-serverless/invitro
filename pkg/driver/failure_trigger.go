@@ -4,6 +4,8 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/vhive-serverless/loader/pkg/config"
 	"os/exec"
+	"strings"
+	"sync"
 	"time"
 )
 
@@ -22,7 +24,7 @@ func triggerKnativeFailure(node string, component string, t int) bool {
 	panic("Not yet implemented")
 }
 
-func triggerDirigentFailure(node string, component string, t int) bool {
+func triggerDirigentFailure(nodes string, component string, t int) {
 	time.Sleep(time.Duration(t) * time.Second)
 
 	logrus.Infof("Failure triggered...")
@@ -39,17 +41,35 @@ func triggerDirigentFailure(node string, component string, t int) bool {
 		logrus.Fatal("Invalid component to fail.")
 	}
 
-	if node != "" {
-		command = append([]string{"ssh", "-i", "~/.ssh/cl", node}, command...)
-	}
+	if nodes == "" {
+		invokeCommand(command, t)
+	} else {
+		splitNodes := strings.Split(nodes, " ")
+		wg := &sync.WaitGroup{}
 
+		for _, node := range splitNodes {
+			wg.Add(1)
+
+			go func(command []string, node string, t int) {
+				defer wg.Done()
+
+				finalCommand := append([]string{"ssh", "-i", "~/.ssh/cl", node}, command...)
+				invokeCommand(finalCommand, t)
+
+			}(command, node, t)
+		}
+
+		wg.Wait()
+	}
+}
+
+func invokeCommand(command []string, t int) {
 	cmd := exec.Command(command[0], command[1:]...)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		logrus.Errorf("Error triggering %s failure at t = %d - %v", command, t, err)
-		return false
+		return
 	}
 
 	logrus.Infof("Failure triggered - %s", string(output))
-	return true
 }
