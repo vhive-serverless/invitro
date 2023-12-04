@@ -43,7 +43,10 @@ func triggerDirigentFailure(node string, component string, t int) bool {
 		command = append([]string{"ssh", "-i", "~/.ssh/cl"}, "date")
 	}
 
-	err := exec.Command(command[0], command[1:]...).Run()
+	cmd := exec.Command(command[0], command[1:]...)
+	logrus.Info(cmd.CombinedOutput())
+
+	err := cmd.Run()
 	if err != nil {
 		logrus.Errorf("Error triggering %s failure at t = %d - %v", command, t, err)
 		return false
