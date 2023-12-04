@@ -40,7 +40,7 @@ func triggerDirigentFailure(node string, component string, t int) bool {
 	}
 
 	if node != "" {
-		command = append([]string{"ssh", "-i", "~/.ssh/cl"}, node, "date")
+		command = append([]string{"ssh", "-i", "~/.ssh/cl", node}, command...)
 	}
 
 	cmd := exec.Command(command[0], command[1:]...)
