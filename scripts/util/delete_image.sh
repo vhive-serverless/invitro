@@ -1,7 +1,9 @@
 #!/bin/bash
 
 # Array of IP addresses of the target machines
-target_ips=("pc753.emulab.net")
+target_ips=("pc753.emulab.net" "pc751.emulab.net" "pc765.emulab.net"
+"pc746.emulab.net" "pc714.emulab.net" "pc825.emulab.net" "pc704.emulab.net"
+"pc777.emulab.net" "pc833.emulab.net" "pc755.emulab.net")
 
 # Path to the Python script you want to run on the remote machines
 python_script="imageDelete.py"
