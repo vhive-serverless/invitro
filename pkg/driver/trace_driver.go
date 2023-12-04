@@ -665,12 +665,14 @@ func (d *Driver) RunExperiment(skipIATGeneration bool, readIATFromFIle bool) {
 			d.Configuration.LoaderConfiguration.IsPartiallyPanic,
 			d.Configuration.LoaderConfiguration.EndpointPort,
 			d.Configuration.LoaderConfiguration.AutoscalingMetric)
+		go scheduleFailure(d.Configuration.LoaderConfiguration)
 	case "OpenWhisk", "OpenWhisk-RPS":
 		DeployFunctionsOpenWhisk(d.Configuration.Functions)
 	case "AWSLambda", "AWSLambda-RPS":
 		DeployFunctionsAWSLambda(d.Configuration.Functions)
 	case "Dirigent", "Dirigent-RPS":
 		DeployDirigent(d.Configuration.LoaderConfiguration.DirigentControlPlaneIP, d.Configuration.Functions)
+		go scheduleFailure(d.Configuration.LoaderConfiguration)
 	default:
 		log.Fatal("Unsupported platform.")
 	}
