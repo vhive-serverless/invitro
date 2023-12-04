@@ -64,6 +64,10 @@ type LoaderConfiguration struct {
 
 	DirigentControlPlaneIP string `json:"DirigentControlPlaneIP"`
 
+	FailAt        int    `json:"FailAt"`
+	FailComponent string `json:"FailComponent"`
+	FailNode      string `json:"FailNode"`
+
 	RpsTarget                   float64 `json:"RpsTarget"`
 	RpsColdStartRatioPercentage float64 `json:"RpsColdStartRatioPercentage"`
 	RpsCooldownSeconds          int     `json:"RpsCooldownSeconds"`
