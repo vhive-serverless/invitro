@@ -117,28 +117,8 @@ func deployKnative(function *common.Function, yamlPath string, isPartiallyPanic 
 		// second, then round to an integer as that is what the knative config expects
 	}
 
-	val := 0
-	for _, char := range function.Name {
-		val += int(char)
-	}
-	nofImages := 6
-	mod := val % nofImages
+	sed := exec.Command("sed", "-i", "s/image: .*latest/image: lfavento\\/trace-images:"+function.Name+"/", yamlPath)
 
-	var sed *exec.Cmd
-	switch mod {
-	case 0:
-		sed = exec.Command("sed", "-i", "s/image: .*latest/image: lfavento\\/trace-5m:latest/", yamlPath)
-	case 1:
-		sed = exec.Command("sed", "-i", "s/image: .*latest/image: lfavento\\/trace-10m:latest/", yamlPath)
-	case 2:
-		sed = exec.Command("sed", "-i", "s/image: .*latest/image: lfavento\\/trace-20m:latest/", yamlPath)
-	case 3:
-		sed = exec.Command("sed", "-i", "s/image: .*latest/image: lfavento\\/trace-30m:latest/", yamlPath)
-	case 4:
-		sed = exec.Command("sed", "-i", "s/image: .*latest/image: lfavento\\/trace-40m:latest/", yamlPath)
-	case 5:
-		sed = exec.Command("sed", "-i", "s/image: .*latest/image: lfavento\\/trace-50m:latest/", yamlPath)
-	}
 	err := sed.Run()
 	if err != nil {
 		log.Warnf("Failed to alter %s content: %v\n", yamlPath, err)
