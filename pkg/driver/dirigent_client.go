@@ -14,6 +14,7 @@ import (
 
 type FunctionResponse struct {
 	Status        string `json:"Status"`
+	Function      string `json:"Function"`
 	MachineName   string `json:"MachineName"`
 	ExecutionTime int64  `json:"ExecutionTime"`
 }
@@ -46,6 +47,7 @@ func InvokeDirigent(function *common.Function, runtimeSpec *common.RuntimeSpecif
 	req.Host = function.Name
 
 	req.Header.Set("workload", function.DirigentMetadata.Image)
+	req.Header.Set("function", function.Name)
 	req.Header.Set("requested_cpu", strconv.Itoa(runtimeSpec.Runtime))
 	req.Header.Set("requested_memory", strconv.Itoa(runtimeSpec.Memory))
 	req.Header.Set("multiplier", strconv.Itoa(function.DirigentMetadata.IterationMultiplier))
@@ -86,7 +88,7 @@ func InvokeDirigent(function *common.Function, runtimeSpec *common.RuntimeSpecif
 		log.Warnf("Failed to deserialize Dirigent response.")
 	}
 
-	record.Instance = deserializedResponse.MachineName
+	record.Instance = deserializedResponse.Function
 	record.ResponseTime = time.Since(start).Microseconds()
 	record.ActualDuration = uint32(deserializedResponse.ExecutionTime)
 
