@@ -166,7 +166,7 @@ prometheus:
     walCompression: false
     resources:
       limits:
-        cpu: 3
-        memory: 10Gi
+        cpu: 6
+        memory: 60Gi
       requests:
-        memory: 150Mi
+        memory: 150Mi 
