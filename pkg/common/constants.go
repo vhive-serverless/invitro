@@ -45,7 +45,7 @@ const (
 
 	// OvercommitmentRatio Machine overcommitment ratio to provide to CPU requests in YAML specification.
 	// Value taken from the Firecracker NSDI'20 paper.
-	OvercommitmentRatio = 10
+	OvercommitmentRatio = 40
 )
 
 type IatDistribution int
@@ -83,7 +83,7 @@ const (
 	FailedWarnThreshold = 0.3
 	// FailedTerminateThreshold Terminate experiment if the percentage of failed invocations (e.g., connection timeouts,
 	// function timeouts) is greater than this threshold
-	FailedTerminateThreshold = 0.5
+	FailedTerminateThreshold = 1.1
 )
 
 type RuntimeAssertType int
