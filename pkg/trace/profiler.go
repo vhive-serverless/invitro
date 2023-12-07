@@ -52,7 +52,7 @@ func ApplyResourceLimits(functions []*common.Function, CPULimit string) {
 		}
 
 		functions[i].CPURequestsMilli = cpuShare / common.OvercommitmentRatio
-		functions[i].MemoryRequestsMiB = memoryPct100 / common.OvercommitmentRatio
+		functions[i].MemoryRequestsMiB = memoryPct100 // / common.OvercommitmentRatio
 		functions[i].CPULimitsMilli = cpuShare
 	}
 }
