@@ -16,7 +16,7 @@ etcd:
 imageRepository: k8s.gcr.io
 # kubernetesVersion: v1.20.6
 # kubernetesVersion: v1.20.15
-kubernetesVersion: v1.23.0
+kubernetesVersion: v1.25.9
 networking:
   dnsDomain: cluster.local
   podSubnet: 10.168.0.0/16

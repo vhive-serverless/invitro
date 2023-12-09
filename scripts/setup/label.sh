@@ -42,7 +42,7 @@ label_nodes() {
   echo $LOADER_NODE_NAME
 
   server_exec $MASTER_NODE 'kubectl get nodes' > tmp
-  sed -i '1d' tmp
+  sed -i'' '1d' tmp
 
   while read LINE; do
     NODE=$(echo $LINE | cut -d ' ' -f 1)
