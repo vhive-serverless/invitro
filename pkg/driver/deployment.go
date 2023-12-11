@@ -117,7 +117,7 @@ func deployKnative(function *common.Function, yamlPath string, isPartiallyPanic 
 		// second, then round to an integer as that is what the knative config expects
 	}
 
-	sed := exec.Command("sed", "-i", "s/image: .*\n/image: lfavento\\/trace-images:"+function.Name+"\n/", yamlPath)
+	sed := exec.Command("sed", "-i", "s/image: .*/image: lfavento\\/trace-images:"+function.Name+"/", yamlPath)
 
 	err := sed.Run()
 	if err != nil {
