@@ -27,14 +27,15 @@ package trace
 import (
 	"encoding/csv"
 	"fmt"
-	"github.com/gocarina/gocsv"
-	"github.com/vhive-serverless/loader/pkg/common"
 	"io"
 	"math/rand"
 	"os"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/gocarina/gocsv"
+	"github.com/vhive-serverless/loader/pkg/common"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -104,8 +105,10 @@ func (p *AzureTraceParser) extractFunctions(
 	for i := 0; i < len(*invocations); i++ {
 		invocationStats := (*invocations)[i]
 
+		fName := "t" + invocationStats.HashFunction[0:18]
+
 		function := &common.Function{
-			Name: fmt.Sprintf("%s-%d-%d", common.FunctionNamePrefix, i, p.functionNameGenerator.Uint64()),
+			Name: fmt.Sprintf("%s", fName),
 
 			InvocationStats: &invocationStats,
 			RuntimeStats:    runtimeByHashFunction[invocationStats.HashFunction],
