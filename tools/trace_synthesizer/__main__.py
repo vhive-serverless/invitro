@@ -128,6 +128,7 @@ def main():
         required=True,
         type=int,
         metavar='integer',
+        choices=[0, 1, 2],
         help='Normal [0]; RPS sweep [1]; Burst [2]'
     )
 
