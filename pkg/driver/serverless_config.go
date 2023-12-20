@@ -59,6 +59,7 @@ type slsFunction struct {
 	Description string     `yaml:"description"`
 	Name        string     `yaml:"name"`
 	Events      []slsEvent `yaml:"events"`
+	Timeout     string     `yaml:"timeout"`
 }
 
 type slsEvent struct {
@@ -105,14 +106,16 @@ func (s *Serverless) AddFunctionConfig(function *common.Function, provider strin
 	events := []slsEvent{{slsHttpApi{Path: "/" + function.Name, Method: "GET"}}}
 
 	var handler string
+	var timeout string
 	switch provider {
 	case "aws":
 		handler = "server/trace-func-go/aws/trace_func"
+		timeout = "29"
 	default:
 		log.Fatalf("AddFunctionConfig could not recognize provider %s", provider)
 	}
 
-	f := &slsFunction{Handler: handler, Name: function.Name, Events: events}
+	f := &slsFunction{Handler: handler, Name: function.Name, Events: events, Timeout: timeout}
 	s.Functions[function.Name] = f
 }
 
