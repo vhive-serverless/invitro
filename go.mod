@@ -10,7 +10,7 @@ require (
 	golang.org/x/sys v0.14.0
 	gonum.org/v1/gonum v0.13.0
 	gonum.org/v1/plot v0.13.0
-	google.golang.org/grpc v1.59.0
+	google.golang.org/grpc v1.60.1
 )
 
 require (
@@ -39,7 +39,7 @@ require (
 	go.opentelemetry.io/otel/exporters/zipkin v1.8.0 // indirect
 	golang.org/x/crypto v0.14.0 // indirect
 	golang.org/x/image v0.7.0 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20230822172742-b8732ec3820d // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20231002182017-d307bd883b97 // indirect
 )
 
 require (
