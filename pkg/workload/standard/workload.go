@@ -29,7 +29,9 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"os/signal"
 	"strconv"
+	"syscall"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -172,6 +174,16 @@ func StartGRPCServer(serverAddress string, serverPort int, functionType Function
 	} else {
 		grpcServer = grpc.NewServer()
 	}
+
+	sigc := make(chan os.Signal, 1)
+	signal.Notify(sigc, syscall.SIGTERM)
+
+	go func() {
+		<-sigc
+		log.Info("Received SIGTERM, shutting down gracefully...")
+		grpcServer.GracefulStop()
+	}()
+
 	reflection.Register(grpcServer) // gRPC Server Reflection is used by gRPC CLI
 	proto.RegisterExecutorServer(grpcServer, &funcServer{})
 	err = grpcServer.Serve(lis)

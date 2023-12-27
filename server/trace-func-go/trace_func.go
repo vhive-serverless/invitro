@@ -26,10 +26,11 @@ package main
 
 import (
 	"flag"
-	log "github.com/sirupsen/logrus"
-	"github.com/vhive-serverless/loader/pkg/workload/standard"
 	"os"
 	"strconv"
+
+	log "github.com/sirupsen/logrus"
+	"github.com/vhive-serverless/loader/pkg/workload/standard"
 )
 
 var (
@@ -41,18 +42,24 @@ func main() {
 	var serverPort = 80
 	var functionType standard.FunctionType
 
-	if len(os.Args) > 1 {
-		serverPort, _ = strconv.Atoi(os.Args[1])
+	if _, ok := os.LookupEnv("FUNC_PORT_ENV"); ok {
+		serverPort, _ = strconv.Atoi(os.Getenv("FUNC_PORT_ENV"))
+	}
 
-		switch os.Args[2] {
+	if _, ok := os.LookupEnv("FUNC_TYPE_ENV"); ok {
+		switch os.Getenv("FUNC_TYPE_ENV") {
 		case "EMPTY":
 			functionType = standard.EmptyFunction
 		default:
 			functionType = standard.TraceFunction
 		}
+	}
 
-		log.Infof("Port: %d\n", serverPort)
-		log.Infof("Function type: %s\n", os.Args[2])
+	log.Infof("Port: %d\n", serverPort)
+	if functionType == standard.TraceFunction {
+		log.Infof("Function type: TRACE\n")
+	} else {
+		log.Infof("Function type: EMPTY\n")
 	}
 
 	standard.StartGRPCServer("", serverPort, functionType, *zipkin)

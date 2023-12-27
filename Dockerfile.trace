@@ -1,5 +1,3 @@
-# syntax=docker/dockerfile:1.2.x
-
 # Stage 0: Build #
 # Use the official Golang image to create a build artifact.
 # This is based on Debian and sets the GOPATH to /go.
@@ -36,6 +34,6 @@ ENV FUNC_PORT_ENV=${FUNC_PORT}
 COPY --from=BUILDER /app/server/trace-func-go/server /server
 
 # Run the web service on container startup.
-CMD /server ${FUNC_PORT_ENV} ${FUNC_TYPE_ENV}
+ENTRYPOINT ["/server"]
 
 LABEL org.opencontainers.image.source=https://github.com/vhive-serverless/invitro
