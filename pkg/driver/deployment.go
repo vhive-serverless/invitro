@@ -75,6 +75,8 @@ func deployDirigent(function *common.Function) {
 		"port_forwarding":     {strconv.Itoa(metadata.Port), metadata.Protocol},
 		"scaling_upper_bound": {strconv.Itoa(metadata.ScalingUpperBound)},
 		"scaling_lower_bound": {strconv.Itoa(metadata.ScalingLowerBound)},
+		"requested_cpu":    {strconv.Itoa(function.CPURequestsMilli)},
+		"requested_memory": {strconv.Itoa(function.MemoryRequestsMiB)},
 	}
 
 	log.Debug(payload)
