@@ -3,31 +3,88 @@ package driver
 import (
 	log "github.com/sirupsen/logrus"
 	"github.com/vhive-serverless/loader/pkg/common"
+	"sync"
+	"sync/atomic"
 )
 
 func DeployFunctionsAWSLambda(functions []*common.Function) {
 	provider := "aws"
 
-	// Create serverless.yml file
-	serverless := Serverless{}
-	serverless.CreateHeader(provider)
-	serverless.AddPackagePattern("./pkg/server/trace-func-go/aws/**")
+	functionGroups := separateFunctions(functions)
 
-	for i := 0; i < len(functions); i++ {
-		serverless.AddFunctionConfig(functions[i], provider)
+	// Use goroutines to create multiple serverless.yml files, deploy functions in parallel, and ensure all finishes
+	var wg sync.WaitGroup
+	var counter uint64 = 0
+
+	for i := 0; i < len(functionGroups); i++ {
+		wg.Add(1)
+		go func(functionGroup []*common.Function, index int) {
+			defer wg.Done()
+
+			// Create serverless.yml file
+			serverless := Serverless{}
+			serverless.CreateHeader(index, provider)
+			serverless.AddPackagePattern("./pkg/server/trace-func-go/aws/**")
+
+			for i := 0; i < len(functionGroup); i++ {
+				serverless.AddFunctionConfig(functionGroup[i], provider)
+			}
+
+			serverless.CreateServerlessConfigFile(index)
+
+			// Deploy serverless functions and update the function endpoints
+			functionToURLMapping := DeployServerless(index)
+
+			if functionToURLMapping == nil {
+				log.Fatalf("Failed to deploy serverless.yml file %d", index)
+			} else {
+				atomic.AddUint64(&counter, 1)
+				for i := 0; i < len(functionGroup); i++ {
+					functionGroup[i].Endpoint = functionToURLMapping[functionGroup[i].Name]
+					log.Debugf("Function %s set to %s", functionGroup[i].Name, functionGroup[i].Endpoint)
+				}
+			}
+		}(functionGroups[i], i)
 	}
 
-	serverless.CreateServerlessConfigFile()
+	wg.Wait()
 
-	// Deploy serverless functions and update the function endpoints
-	functionToURLMapping := DeployServerless()
-
-	for i := 0; i < len(functions); i++ {
-		functions[i].Endpoint = functionToURLMapping[functions[i].Name]
-		log.Debugf("Function %s set to %s", functions[i].Name, functions[i].Endpoint)
-	}
+	log.Debugf("Deployed %d out of %d serverless.yml files", counter, len(functionGroups))
 }
 
-func CleanAWSLambda() {
-	CleanServerless()
+func CleanAWSLambda(functions []*common.Function) {
+	functionGroups := separateFunctions(functions)
+
+	// Use goroutines to delete multiple serverless.yml files in parallel
+	var wg sync.WaitGroup
+	var counter uint64 = 0
+
+	for i := 0; i < len(functionGroups); i++ {
+		wg.Add(1)
+		go func(index int) {
+			defer wg.Done()
+			deleted := CleanServerless(index)
+			if deleted {
+				atomic.AddUint64(&counter, 1)
+			}
+		}(i)
+	}
+
+	wg.Wait()
+
+	log.Debugf("Deleted %d out of %d serverless.yml files", counter, len(functionGroups))
+}
+
+// separateFunctions splits functions into groups of 50 due to AWS CloudFormation template resource limit (500 resources per template)
+func separateFunctions(functions []*common.Function) [][]*common.Function {
+	var functionGroups [][]*common.Function
+	for i := 0; i < len(functions); i += 50 {
+		end := i + 50
+		if end > len(functions) {
+			end = len(functions)
+		}
+		functionGroups = append(functionGroups, functions[i:end])
+	}
+
+	return functionGroups
 }

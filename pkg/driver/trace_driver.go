@@ -669,6 +669,6 @@ func (d *Driver) RunExperiment(iatOnly bool, generated bool) {
 	} else if d.Configuration.LoaderConfiguration.Platform == "OpenWhisk" {
 		CleanOpenWhisk(d.Configuration.Functions)
 	} else if d.Configuration.LoaderConfiguration.Platform == "AWSLambda" {
-		CleanAWSLambda()
+		CleanAWSLambda(d.Configuration.Functions)
 	}
 }
