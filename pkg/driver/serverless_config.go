@@ -25,6 +25,7 @@
 package driver
 
 import (
+	"fmt"
 	log "github.com/sirupsen/logrus"
 	"github.com/vhive-serverless/loader/pkg/common"
 	"gopkg.in/yaml.v3"
@@ -72,8 +73,8 @@ type slsHttpApi struct {
 }
 
 // CreateHeader sets the fields Service, FrameworkVersion, and Provider
-func (s *Serverless) CreateHeader(provider string) {
-	s.Service = "loader"
+func (s *Serverless) CreateHeader(index int, provider string) {
+	s.Service = fmt.Sprintf("loader-%d", index)
 	s.FrameworkVersion = "3"
 	s.Provider = slsProvider{
 		Name:    provider,
@@ -119,14 +120,14 @@ func (s *Serverless) AddFunctionConfig(function *common.Function, provider strin
 	s.Functions[function.Name] = f
 }
 
-// CreateServerlessConfigFile dumps the contents of the Serverless struct into a yml file.
-func (s *Serverless) CreateServerlessConfigFile() {
+// CreateServerlessConfigFile dumps the contents of the Serverless struct into a yml file (serverless-<index>.yml)
+func (s *Serverless) CreateServerlessConfigFile(index int) {
 	data, err := yaml.Marshal(&s)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	err = os.WriteFile("./serverless.yml", data, os.FileMode(0644))
+	err = os.WriteFile(fmt.Sprintf("./serverless-%d.yml", index), data, os.FileMode(0644))
 
 	if err != nil {
 		log.Fatal(err)
@@ -134,8 +135,8 @@ func (s *Serverless) CreateServerlessConfigFile() {
 }
 
 // DeployServerless deploys the functions defined in the serverless.com file and returns a map from function name to URL
-func DeployServerless() map[string]string {
-	slsDeployCmd := exec.Command("sls", "deploy")
+func DeployServerless(index int) map[string]string {
+	slsDeployCmd := exec.Command("sls", "deploy", "--config", fmt.Sprintf("./serverless-%d.yml", index))
 	stdoutStderr, err := slsDeployCmd.CombinedOutput()
 	log.Debug("CMD response: ", string(stdoutStderr))
 
@@ -151,19 +152,33 @@ func DeployServerless() map[string]string {
 	}
 
 	if err != nil {
-		log.Warnf("Failed to deploy serverless.yml: %v\n%s", err, stdoutStderr)
+		log.Fatalf("Failed to deploy serverless-%d.yml: %v\n%s", index, err, stdoutStderr)
 		return nil
 	}
+
+	log.Debugf("Deployed serverless-%d.yml", index)
 	return functionToURL
 }
 
-// CleanServerless removes the service defined in serverless.yml
-func CleanServerless() {
-	slsRemoveCmd := exec.Command("sls", "remove")
+// CleanServerless removes the deployed service and deletes the serverless-<index>.yml file
+func CleanServerless(index int) bool {
+	slsRemoveCmd := exec.Command("sls", "remove", "--config", fmt.Sprintf("./serverless-%d.yml", index))
 	stdoutStderr, err := slsRemoveCmd.CombinedOutput()
 	log.Debug("CMD response: ", string(stdoutStderr))
 
 	if err != nil {
-		log.Warnf("Failed to deploy serverless.yml: %v\n%s", err, stdoutStderr)
+		log.Warnf("Failed to undeploy serverless-%d.yml: %v\n%s", index, err, stdoutStderr)
+		return false
 	}
+
+	slsRemoveCmd = exec.Command("rm", "-f", fmt.Sprintf("./serverless-%d.yml", index))
+	stdoutStderr, err = slsRemoveCmd.CombinedOutput()
+
+	if err != nil {
+		log.Warnf("Failed to delete serverless-%d.yml: %v\n%s", index, err, stdoutStderr)
+		return false
+	}
+
+	log.Debugf("Undeployed and deleted serverless-%d.yml", index)
+	return true
 }
