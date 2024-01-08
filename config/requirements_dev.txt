@@ -29,7 +29,7 @@ requests==2.31.0
 requests-unixsocket==0.3.0
 scipy==1.11.4
 six==1.16.0
-soupsieve==2.4.1
+soupsieve==2.5
 ssh-import-id==5.11
 statsmodels==0.14.0
 ubuntu-advantage-tools==20.3
