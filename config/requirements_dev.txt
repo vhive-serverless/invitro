@@ -23,11 +23,11 @@ pyOpenSSL==23.3.0
 pyparsing==3.1.0
 python-apt==2.0.0+ubuntu0.20.4.3
 python-dateutil==2.8.2
-pytz==2021.3
+pytz==2023.3.post1
 PyYAML==6.0
 requests==2.31.0
 requests-unixsocket==0.3.0
-scipy==1.10.1
+scipy==1.11.4
 six==1.16.0
 soupsieve==2.4.1
 ssh-import-id==5.11
@@ -35,5 +35,5 @@ statsmodels==0.14.0
 ubuntu-advantage-tools==20.3
 ufw==0.36
 unattended-upgrades==0.1
-urllib3==2.0.3
+urllib3==2.1.0
 webencodings==0.5.1
