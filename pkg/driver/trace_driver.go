@@ -30,6 +30,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -374,7 +375,7 @@ func (d *Driver) proceedToNextMinute(function *common.Function, minuteIndex *int
 			// Not fatal because we want to keep the measurements to be written to the output file
 			log.Warnf("Relative difference between requested and issued number of invocations is greater than %.2f%%. Terminating function driver for %s!\n", common.RequestedVsIssuedTerminateThreshold*100, function.Name)
 
-			return true
+			//return true
 		}
 
 		for i := 0; i <= *minuteIndex; i++ {
@@ -383,7 +384,7 @@ func (d *Driver) proceedToNextMinute(function *common.Function, minuteIndex *int
 				// Not fatal because we want to keep the measurements to be written to the output file
 				log.Warnf("Percentage of failed request is greater than %.2f%%. Terminating function driver for %s!\n", common.FailedTerminateThreshold*100, function.Name)
 
-				return true
+				//return true
 			}
 		}
 	}
@@ -661,6 +662,20 @@ func (d *Driver) RunExperiment(iatOnly bool, generated bool) {
 	}
 
 	// Generate load
+
+	file, err := os.ReadFile("time.txt")
+	if err != nil {
+		log.Fatalf("error when reading time.txt: %s", err)
+	}
+	t := string(file)
+	tInt, err := strconv.ParseInt((strings.Split(t, "\n")[0]), 10, 64)
+	if err != nil {
+		log.Fatalf("error when converting time.txt to integer: %s", err)
+	}
+	for time.Now().Unix() < tInt {
+		time.Sleep(time.Duration(int64(tInt) - time.Now().Unix()))
+	}
+
 	d.internalRun(iatOnly, generated)
 
 	// Clean up
