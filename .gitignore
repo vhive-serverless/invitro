@@ -98,7 +98,7 @@ Temporary Items
 .venv
 
 # Serverless Framework Deployment
-serverless.yml
+serverless*.yml
 .serverless
 
 # Byte-compiled / optimized / DLL files

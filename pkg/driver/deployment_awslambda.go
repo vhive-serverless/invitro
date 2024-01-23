@@ -3,6 +3,7 @@ package driver
 import (
 	log "github.com/sirupsen/logrus"
 	"github.com/vhive-serverless/loader/pkg/common"
+	"strings"
 	"sync"
 	"sync/atomic"
 )
@@ -13,42 +14,53 @@ func DeployFunctionsAWSLambda(functions []*common.Function) {
 	functionGroups := separateFunctions(functions)
 
 	// Use goroutines to create multiple serverless.yml files, deploy functions in parallel, and ensure all finishes
+	// However, due to CPU and memory constraints, we will only deploy 2 serverless.yml files in parallel and wait for them to finish before deploying the next 2
 	var wg sync.WaitGroup
 	var counter uint64 = 0
+	parallelDeployment := 2
 
-	for i := 0; i < len(functionGroups); i++ {
-		wg.Add(1)
-		go func(functionGroup []*common.Function, index int) {
-			defer wg.Done()
+	for i := 0; i < len(functionGroups); {
+		for parallelIndex := 0; parallelIndex < parallelDeployment; parallelIndex++ {
+			if i < len(functionGroups) {
+				wg.Add(1)
+				go func(functionGroup []*common.Function, index int) {
+					defer wg.Done()
+					log.Debugf("Creating serverless-%d.yml", index)
 
-			// Create serverless.yml file
-			serverless := Serverless{}
-			serverless.CreateHeader(index, provider)
-			serverless.AddPackagePattern("!**")
-			serverless.AddPackagePattern("./server/trace-func-go/aws/trace_func")
+					// Create serverless.yml file
+					serverless := Serverless{}
+					serverless.CreateHeader(index, provider)
+					serverless.AddPackagePattern("!**")
+					serverless.AddPackagePattern("./server/trace-func-go/aws/trace_func")
 
-			for i := 0; i < len(functionGroup); i++ {
-				serverless.AddFunctionConfig(functionGroup[i], provider)
+					for i := 0; i < len(functionGroup); i++ {
+						serverless.AddFunctionConfig(functionGroup[i], provider)
+					}
+
+					serverless.CreateServerlessConfigFile(index)
+
+					log.Debugf("Deploying serverless-%d.yml", index)
+					// Deploy serverless functions and update the function endpoints
+					functionToURLMapping := DeployServerless(index)
+
+					if functionToURLMapping == nil {
+						log.Fatalf("Failed to deploy serverless-%d.yml", index)
+					} else {
+						atomic.AddUint64(&counter, 1)
+						for i := 0; i < len(functionGroup); i++ {
+							// Extract 0 from trace-func-0-2642643831809466437 by splitting on "-"
+							shortName := strings.Split(functionGroup[i].Name, "-")[2]
+
+							functionGroup[i].Endpoint = functionToURLMapping[shortName]
+							log.Debugf("Function %s set to %s", functionGroup[i].Name, functionGroup[i].Endpoint)
+						}
+					}
+				}(functionGroups[i], i)
+				i += 1
 			}
-
-			serverless.CreateServerlessConfigFile(index)
-
-			// Deploy serverless functions and update the function endpoints
-			functionToURLMapping := DeployServerless(index)
-
-			if functionToURLMapping == nil {
-				log.Fatalf("Failed to deploy serverless.yml file %d", index)
-			} else {
-				atomic.AddUint64(&counter, 1)
-				for i := 0; i < len(functionGroup); i++ {
-					functionGroup[i].Endpoint = functionToURLMapping[functionGroup[i].Name]
-					log.Debugf("Function %s set to %s", functionGroup[i].Name, functionGroup[i].Endpoint)
-				}
-			}
-		}(functionGroups[i], i)
+		}
+		wg.Wait()
 	}
-
-	wg.Wait()
 
 	log.Debugf("Deployed %d out of %d serverless.yml files", counter, len(functionGroups))
 }
@@ -57,21 +69,28 @@ func CleanAWSLambda(functions []*common.Function) {
 	functionGroups := separateFunctions(functions)
 
 	// Use goroutines to delete multiple serverless.yml files in parallel
+	// However, due to CPU and memory constraints, we will only undeploy 2 serverless.yml files in parallel and wait for them to finish before undeploying the next 2
 	var wg sync.WaitGroup
 	var counter uint64 = 0
+	parallelDeployment := 2
 
-	for i := 0; i < len(functionGroups); i++ {
-		wg.Add(1)
-		go func(index int) {
-			defer wg.Done()
-			deleted := CleanServerless(index)
-			if deleted {
-				atomic.AddUint64(&counter, 1)
+	for i := 0; i < len(functionGroups); {
+		for parallelIndex := 0; parallelIndex < parallelDeployment; parallelIndex++ {
+			if i < len(functionGroups) {
+				wg.Add(1)
+				go func(index int) {
+					defer wg.Done()
+					log.Debugf("Undeploying serverless-%d.yml", index)
+					deleted := CleanServerless(index)
+					if deleted {
+						atomic.AddUint64(&counter, 1)
+					}
+				}(i)
+				i += 1
 			}
-		}(i)
+		}
+		wg.Wait()
 	}
-
-	wg.Wait()
 
 	log.Debugf("Deleted %d out of %d serverless.yml files", counter, len(functionGroups))
 }
