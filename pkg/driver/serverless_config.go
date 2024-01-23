@@ -45,10 +45,11 @@ type Serverless struct {
 }
 
 type slsProvider struct {
-	Name    string `yaml:"name"`
-	Runtime string `yaml:"runtime"`
-	Stage   string `yaml:"stage"`
-	Region  string `yaml:"region"`
+	Name             string `yaml:"name"`
+	Runtime          string `yaml:"runtime"`
+	Stage            string `yaml:"stage"`
+	Region           string `yaml:"region"`
+	VersionFunctions bool   `yaml:"versionFunctions"`
 }
 
 type slsPackage struct {
@@ -77,10 +78,11 @@ func (s *Serverless) CreateHeader(index int, provider string) {
 	s.Service = fmt.Sprintf("loader-%d", index)
 	s.FrameworkVersion = "3"
 	s.Provider = slsProvider{
-		Name:    provider,
-		Runtime: "go1.x",
-		Stage:   "dev",
-		Region:  "us-east-1",
+		Name:             provider,
+		Runtime:          "go1.x",
+		Stage:            "dev",
+		Region:           "us-east-1",
+		VersionFunctions: false,
 	}
 	s.Functions = map[string]*slsFunction{}
 }
@@ -104,7 +106,10 @@ func (s *Serverless) AddPackagePattern(pattern string) {
 // AddFunctionConfig adds the function configuration for serverless.com deployment
 func (s *Serverless) AddFunctionConfig(function *common.Function, provider string) {
 
-	events := []slsEvent{{slsHttpApi{Path: "/" + function.Name, Method: "GET"}}}
+	// Extract 0 from trace-func-0-2642643831809466437 by splitting on "-"
+	shortName := strings.Split(function.Name, "-")[2]
+
+	events := []slsEvent{{slsHttpApi{Path: "/" + shortName, Method: "GET"}}}
 
 	var handler string
 	var timeout string
@@ -116,7 +121,7 @@ func (s *Serverless) AddFunctionConfig(function *common.Function, provider strin
 		log.Fatalf("AddFunctionConfig could not recognize provider %s", provider)
 	}
 
-	f := &slsFunction{Handler: handler, Name: function.Name, Events: events, Timeout: timeout}
+	f := &slsFunction{Handler: handler, Name: shortName, Events: events, Timeout: timeout}
 	s.Functions[function.Name] = f
 }
 

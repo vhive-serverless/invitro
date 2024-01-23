@@ -24,7 +24,8 @@ func DeployFunctionsAWSLambda(functions []*common.Function) {
 			// Create serverless.yml file
 			serverless := Serverless{}
 			serverless.CreateHeader(index, provider)
-			serverless.AddPackagePattern("./pkg/server/trace-func-go/aws/**")
+			serverless.AddPackagePattern("!**")
+			serverless.AddPackagePattern("./server/trace-func-go/aws/trace_func")
 
 			for i := 0; i < len(functionGroup); i++ {
 				serverless.AddFunctionConfig(functionGroup[i], provider)
@@ -75,11 +76,13 @@ func CleanAWSLambda(functions []*common.Function) {
 	log.Debugf("Deleted %d out of %d serverless.yml files", counter, len(functionGroups))
 }
 
-// separateFunctions splits functions into groups of 50 due to AWS CloudFormation template resource limit (500 resources per template)
+// separateFunctions splits functions into groups of 70 due to AWS CloudFormation template resource limit (500 resources per template) and IAM maximum policy size (10240 bytes)
 func separateFunctions(functions []*common.Function) [][]*common.Function {
 	var functionGroups [][]*common.Function
-	for i := 0; i < len(functions); i += 50 {
-		end := i + 50
+	groupSize := 70
+
+	for i := 0; i < len(functions); i += groupSize {
+		end := i + groupSize
 		if end > len(functions) {
 			end = len(functions)
 		}
