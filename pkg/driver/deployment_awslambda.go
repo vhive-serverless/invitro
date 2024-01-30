@@ -3,7 +3,6 @@ package driver
 import (
 	log "github.com/sirupsen/logrus"
 	"github.com/vhive-serverless/loader/pkg/common"
-	"strings"
 	"sync"
 	"sync/atomic"
 )
@@ -48,10 +47,7 @@ func DeployFunctionsAWSLambda(functions []*common.Function) {
 					} else {
 						atomic.AddUint64(&counter, 1)
 						for i := 0; i < len(functionGroup); i++ {
-							// Extract 0 from trace-func-0-2642643831809466437 by splitting on "-"
-							shortName := strings.Split(functionGroup[i].Name, "-")[2]
-
-							functionGroup[i].Endpoint = functionToURLMapping[shortName]
+							functionGroup[i].Endpoint = functionToURLMapping[i]
 							log.Debugf("Function %s set to %s", functionGroup[i].Name, functionGroup[i].Endpoint)
 						}
 					}
