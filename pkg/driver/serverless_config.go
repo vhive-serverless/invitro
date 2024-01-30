@@ -57,20 +57,11 @@ type slsPackage struct {
 }
 
 type slsFunction struct {
-	Handler     string     `yaml:"handler"`
-	Description string     `yaml:"description"`
-	Name        string     `yaml:"name"`
-	Events      []slsEvent `yaml:"events"`
-	Timeout     string     `yaml:"timeout"`
-}
-
-type slsEvent struct {
-	HttpApi slsHttpApi `yaml:"httpApi"`
-}
-
-type slsHttpApi struct {
-	Path   string `yaml:"path"`
-	Method string `yaml:"method"`
+	Handler     string `yaml:"handler"`
+	Description string `yaml:"description"`
+	Name        string `yaml:"name"`
+	Url         bool   `yaml:"url"`
+	Timeout     string `yaml:"timeout"`
 }
 
 // CreateHeader sets the fields Service, FrameworkVersion, and Provider
@@ -109,19 +100,17 @@ func (s *Serverless) AddFunctionConfig(function *common.Function, provider strin
 	// Extract 0 from trace-func-0-2642643831809466437 by splitting on "-"
 	shortName := strings.Split(function.Name, "-")[2]
 
-	events := []slsEvent{{slsHttpApi{Path: "/" + shortName, Method: "GET"}}}
-
 	var handler string
 	var timeout string
 	switch provider {
 	case "aws":
 		handler = "server/trace-func-go/aws/trace_func"
-		timeout = "29"
+		timeout = "900"
 	default:
 		log.Fatalf("AddFunctionConfig could not recognize provider %s", provider)
 	}
 
-	f := &slsFunction{Handler: handler, Name: shortName, Events: events, Timeout: timeout}
+	f := &slsFunction{Handler: handler, Description: "", Name: shortName, Url: true, Timeout: timeout}
 	s.Functions[function.Name] = f
 }
 
@@ -140,7 +129,7 @@ func (s *Serverless) CreateServerlessConfigFile(index int) {
 }
 
 // DeployServerless deploys the functions defined in the serverless.com file and returns a map from function name to URL
-func DeployServerless(index int) map[string]string {
+func DeployServerless(index int) map[int]string {
 	slsDeployCmd := exec.Command("sls", "deploy", "--config", fmt.Sprintf("./serverless-%d.yml", index))
 	stdoutStderr, err := slsDeployCmd.CombinedOutput()
 	log.Debug("CMD response: ", string(stdoutStderr))
@@ -150,10 +139,10 @@ func DeployServerless(index int) map[string]string {
 	urlRegex := regexp.MustCompile(urlPattern)
 	urlMatches := urlRegex.FindAllStringSubmatch(string(stdoutStderr), -1)
 
-	// Map the function names (endpoints) to the URLs
-	functionToURL := make(map[string]string)
+	// Map the function names (endpoints) to the URLs (Serverless.com console outputs in order)
+	functionToURL := make(map[int]string)
 	for i := 0; i < len(urlMatches); i++ {
-		functionToURL[strings.SplitN(urlMatches[i][0], "/", 4)[3]] = urlMatches[i][0]
+		functionToURL[i] = urlMatches[i][0]
 	}
 
 	if err != nil {
