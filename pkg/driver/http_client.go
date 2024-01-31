@@ -57,6 +57,7 @@ func InvokeOpenWhisk(function *common.Function, runtimeSpec *common.RuntimeSpeci
 	log.Tracef("(Invoke)\t %s: %d[ms], %d[MiB]", function.Name, runtimeSpec.Runtime, runtimeSpec.Memory)
 
 	success, executionRecordBase, res := httpInvocation("", function, AnnounceDoneExe, true)
+	AnnounceDoneExe.Wait() // To postpone querying OpenWhisk during the experiment for performance reasons (Issue 329: https://github.com/vhive-serverless/invitro/issues/329)
 
 	executionRecordBase.RequestedDuration = uint32(runtimeSpec.Runtime * 1e3)
 	record := &mc.ExecutionRecord{ExecutionRecordBase: *executionRecordBase}
@@ -217,7 +218,6 @@ func httpInvocation(dataString string, function *common.Function, AnnounceDoneEx
 	record.ResponseTime = time.Since(start).Microseconds()
 
 	AnnounceDoneExe.Done()
-	AnnounceDoneExe.Wait()
 
 	return true, record, res
 }
