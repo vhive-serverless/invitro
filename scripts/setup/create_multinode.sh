@@ -71,6 +71,9 @@ common_init() {
         server_exec $1 "sudo chronyd -q \"server ops.emulab.net iburst\""
         # dump clock info
         server_exec $1 'sudo chronyc tracking'
+
+        clone_loader $1
+        server_exec $1 '~/loader/scripts/setup/stabilize.sh'
     }
 
     for node in "$@"
@@ -87,15 +90,6 @@ function setup_master() {
     server_exec "$MASTER_NODE" 'tmux new -s runner -d'
     server_exec "$MASTER_NODE" 'tmux new -s kwatch -d'
     server_exec "$MASTER_NODE" 'tmux new -s master -d'
-
-    # Setup Github authentication
-    ACCESS_TOKEN="$(cat $GITHUB_TOKEN)"
-
-    server_exec $MASTER_NODE 'echo -en "\n\n" | ssh-keygen -t rsa'
-    server_exec $MASTER_NODE 'ssh-keyscan -t rsa github.com >> ~/.ssh/known_hosts'
-    server_exec $MASTER_NODE 'curl -H "Authorization: token '"$ACCESS_TOKEN"'" --data "{\"title\":\"'"key:\$(hostname)"'\",\"key\":\"'"\$(cat ~/.ssh/id_rsa.pub)"'\"}" https://api.github.com/user/keys'
-
-    clone_loader $MASTER_NODE
 
     server_exec $MASTER_NODE "sudo wget -q https://github.com/mikefarah/yq/releases/download/v${YQ_VERSION}/yq_linux_amd64 -O /usr/bin/yq && sudo chmod +x /usr/bin/yq"
     server_exec $MASTER_NODE '~/loader/scripts/setup/rewrite_yaml_files.sh'
@@ -222,39 +216,6 @@ function copy_k8s_certificates() {
     rm ./kubeconfig
 }
 
-function clone_loader_on_workers() {
-    function internal_clone() {
-        rsync ./id_rsa* $1:~/.ssh/
-        server_exec $1 "chmod 600 ~/.ssh/id_rsa"
-        server_exec $1 'ssh-keyscan -t rsa github.com >> ~/.ssh/known_hosts'
-
-        clone_loader $1
-    }
-
-    # copying ssh keys first from the master node
-    rsync $MASTER_NODE:~/.ssh/id_rsa* .
-
-    for node in "$@"
-    do
-        internal_clone "$node" &
-    done
-
-    wait
-
-    rm ./id_rsa*
-}
-
-function stabilize_nodes() {
-    for node in "$@"
-    do
-        # stabilize the node
-        server_exec "$node" '~/loader/scripts/setup/stabilize.sh' &
-    done
-
-    wait
-}
-
-
 ###############################################
 ######## MAIN SETUP PROCEDURE IS BELOW ########
 ###############################################
@@ -272,6 +233,7 @@ function stabilize_nodes() {
         extend_CIDR "$@"
     fi
 
+    # Untaint master to schedule knative control plane there
     server_exec $MASTER_NODE "kubectl taint nodes \$(hostname) node-role.kubernetes.io/control-plane-"
 
     # Notify the master that all nodes have joined the cluster
@@ -287,9 +249,6 @@ function stabilize_nodes() {
 
     # Copy API server certificates from master to each worker node
     copy_k8s_certificates "$@"
-    clone_loader_on_workers "$@"
-
-    stabilize_nodes "$MASTER_NODE" "$@"
 
     server_exec $MASTER_NODE 'cd loader; bash scripts/setup/patch_init_scale.sh'
 
