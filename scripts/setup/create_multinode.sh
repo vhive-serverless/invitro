@@ -28,6 +28,7 @@ MASTER_NODE=$1
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" > /dev/null 2>&1 && pwd)"
 
 source "$DIR/setup.cfg"
+source "$DIR/versions.cfg"
 
 if [ "$CLUSTER_MODE" = "container" ]
 then
@@ -63,8 +64,7 @@ common_init() {
         server_exec $1 'echo "export PATH=$PATH:/usr/local/go/bin" >> .profile'
 
         server_exec $1 "git clone --branch=$VHIVE_BRANCH https://github.com/ease-lab/vhive"
-        server_exec $1 "source .profile && cd vhive; pushd scripts && go build -o setup_tool && popd && mv scripts/setup_tool ."
-        server_exec $1 "source .profile && cd vhive; ./setup_tool setup_node $OPERATION_MODE"
+        server_exec $1 "pushd ~/vhive/scripts > /dev/null && ./install_go.sh && source /etc/profile && go build -o setup_tool && ./setup_tool setup_node ${OPERATION_MODE} && popd > /dev/null"
 
         server_exec $1 'tmux new -s containerd -d'
         server_exec $1 'tmux send -t containerd "sudo containerd 2>&1 | tee ~/containerd_log.txt" ENTER'
@@ -75,6 +75,9 @@ common_init() {
         server_exec $1 "sudo chronyd -q \"server ops.emulab.net iburst\""
         # dump clock info
         server_exec $1 'sudo chronyc tracking'
+
+        clone_loader $1
+        server_exec $1 '~/loader/scripts/setup/stabilize.sh'
     }
 
     for node in "$@"
@@ -92,38 +95,23 @@ function setup_master() {
     server_exec "$MASTER_NODE" 'tmux new -s kwatch -d'
     server_exec "$MASTER_NODE" 'tmux new -s master -d'
 
-    # Setup Github authentication
-    ACCESS_TOKEN="$(cat $GITHUB_TOKEN)"
+    server_exec $MASTER_NODE "sudo wget -q https://github.com/mikefarah/yq/releases/download/v${YQ_VERSION}/yq_linux_amd64 -O /usr/bin/yq && sudo chmod +x /usr/bin/yq"
+    server_exec $MASTER_NODE '~/loader/scripts/setup/rewrite_yaml_files.sh'
 
-    server_exec $MASTER_NODE 'echo -en "\n\n" | ssh-keygen -t rsa'
-    server_exec $MASTER_NODE 'ssh-keyscan -t rsa github.com >> ~/.ssh/known_hosts'
-    server_exec $MASTER_NODE 'curl -H "Authorization: token '"$ACCESS_TOKEN"'" --data "{\"title\":\"'"key:\$(hostname)"'\",\"key\":\"'"\$(cat ~/.ssh/id_rsa.pub)"'\"}" https://api.github.com/user/keys'
-
-    clone_loader $MASTER_NODE
-
-    MN_CLUSTER="cd vhive; ./setup_tool create_multinode_cluster ${OPERATION_MODE}"
+    MN_CLUSTER="pushd ~/vhive/scripts > /dev/null && ./setup_tool create_multinode_cluster ${OPERATION_MODE} && popd > /dev/null"
     server_exec "$MASTER_NODE" "tmux send -t master \"$MN_CLUSTER\" ENTER"
 
     # Get the join token from k8s.
-    while [ ! "$LOGIN_TOKEN" ]
-    do
+    while ! server_exec "$MASTER_NODE" "[ -e ~/vhive/scripts/masterKey.yaml ]"; do
         sleep 1
-        server_exec "$MASTER_NODE" 'tmux capture-pane -t master -b token'
-        LOGIN_TOKEN="$(server_exec "$MASTER_NODE" 'tmux show-buffer -b token | grep -B 3 "All nodes need to be joined"')"
     done
 
-    MASTER_IP=$(server_exec $MASTER_NODE "cat ~/vhive/masterKey.yaml | grep 'ApiserverAdvertiseAddress' | awk '{print \$2}'")
-    MASTER_PORT=$(server_exec $MASTER_NODE "cat ~/vhive/masterKey.yaml | grep 'ApiserverPort' | awk '{print \$2}'")
-    MASTER_TOKEN=$(server_exec $MASTER_NODE "cat ~/vhive/masterKey.yaml | grep 'ApiserverToken' | awk '{print \$2}' | head -n 1")
-    MASTER_TOKEN_HASH=$(server_exec $MASTER_NODE "cat ~/vhive/masterKey.yaml | grep 'ApiserverTokenHash' | awk '{print \$2}'")
-}
-
-function setup_loader() {
-    echo "Setting up loader/monitoring node: $1"
-
-    server_exec "$1" 'wget -q https://go.dev/dl/go1.20.5.linux-amd64.tar.gz >/dev/null'
-    server_exec "$1" 'sudo rm -rf /usr/local/go && sudo tar -C /usr/local/ -xzf go1.20.5.linux-amd64.tar.gz >/dev/null'
-    server_exec "$1" 'echo "export PATH=$PATH:/usr/local/go/bin" >> .profile'
+    LOGIN_TOKEN=$(server_exec "$MASTER_NODE" \
+        'awk '\''/^ApiserverAdvertiseAddress:/ {ip=$2} \
+        /^ApiserverPort:/ {port=$2} \
+        /^ApiserverToken:/ {token=$2} \
+        /^ApiserverTokenHash:/ {token_hash=$2} \
+        END {print "sudo kubeadm join " ip ":" port " --token " token " --discovery-token-ca-cert-hash " token_hash}'\'' ~/vhive/scripts/masterKey.yaml')
 }
 
 function setup_vhive_firecracker_daemon() {
@@ -143,7 +131,7 @@ function setup_workers() {
         node=$1
 
         echo "Setting up worker node: $node"
-        server_exec $node "source .profile && cd vhive; ./setup_tool setup_worker_kubelet $OPERATION_MODE"
+        server_exec $node "pushd ~/vhive/scripts > /dev/null && ./setup_tool setup_worker_kubelet ${OPERATION_MODE} && popd > /dev/null"
 
         if [ "$OPERATION_MODE" = "firecracker" ]; then
             setup_vhive_firecracker_daemon $node
@@ -228,28 +216,6 @@ function copy_k8s_certificates() {
     rm ./kubeconfig
 }
 
-function clone_loader_on_workers() {
-    function internal_clone() {
-        rsync ./id_rsa* $1:~/.ssh/
-        server_exec $1 "chmod 600 ~/.ssh/id_rsa"
-        server_exec $1 'ssh-keyscan -t rsa github.com >> ~/.ssh/known_hosts'
-
-        clone_loader $1
-    }
-
-    # copying ssh keys first from the master node
-    rsync $MASTER_NODE:~/.ssh/id_rsa* .
-
-    for node in "$@"
-    do
-        internal_clone "$node" &
-    done
-
-    wait
-
-    rm ./id_rsa*
-}
-
 ###############################################
 ######## MAIN SETUP PROCEDURE IS BELOW ########
 ###############################################
@@ -261,12 +227,14 @@ function clone_loader_on_workers() {
     shift # make argument list only contain worker nodes (drops master node)
 
     setup_master
-    setup_loader $1
     setup_workers "$@"
 
     if [ $PODS_PER_NODE -gt 240 ]; then
         extend_CIDR "$@"
     fi
+
+    # Untaint master to schedule knative control plane there
+    server_exec $MASTER_NODE "kubectl taint nodes \$(hostname) node-role.kubernetes.io/control-plane-"
 
     # Notify the master that all nodes have joined the cluster
     server_exec $MASTER_NODE 'tmux send -t master "y" ENTER'
@@ -281,7 +249,6 @@ function clone_loader_on_workers() {
 
     # Copy API server certificates from master to each worker node
     copy_k8s_certificates "$@"
-    clone_loader_on_workers "$@"
 
     server_exec $MASTER_NODE 'cd loader; bash scripts/setup/patch_init_scale.sh'
 

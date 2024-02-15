@@ -94,7 +94,7 @@ def generate(args):
             pattern = p * repetitions
 
             invArr.extend(pattern)
-        else:
+        elif mode == 2:
             p = [1, 0, 0]
 
             repetitions = int(duration / len(p))
