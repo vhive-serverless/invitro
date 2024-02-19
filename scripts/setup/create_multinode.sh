@@ -57,6 +57,11 @@ if [ "$#" -lt $CONTROL_PLANE_REPLICAS ]; then
     exit 1
 fi
 
+if [ "$CONTROL_PLANE_REPLICAS" != 1 ] && [ "$CONTROL_PLANE_REPLICAS" != 3 ] && [ "$CONTROL_PLANE_REPLICAS" != 5 ]; then
+    echo "Number of control plane replicas can only be 1, 3, or 5."
+    exit 1
+fi
+
 server_exec() {
     ssh -oStrictHostKeyChecking=no -p 22 "$1" "$2";
 }
@@ -159,7 +164,7 @@ function setup_workers() {
             setup_vhive_firecracker_daemon $node
         fi
 
-        if [ $2 -eq "MASTER" ]; then
+        if [ "$2" = "MASTER" ]; then
             server_exec $node "sudo ${MASTER_LOGIN_TOKEN}"
             echo "Backup master node $node has joined the cluster."
         else
@@ -188,13 +193,14 @@ function setup_workers() {
     NODE_COUNTER=1
     for node in "$@"
     do
-        # Set up API Server load balancer arguments
+        # Set up API Server load balancer arguments - Less than because 1 CP is the "main" master node already
         HA_SETTING=""
-        if [ "$NODE_COUNTER" -le $CONTROL_PLANE_REPLICAS ]; then
+        if [ "$NODE_COUNTER" -lt $CONTROL_PLANE_REPLICAS ]; then
             HA_SETTING="MASTER"
         fi
 
         internal_setup "$node" $HA_SETTING &
+        let NODE_COUNTER++
     done
 
     wait
@@ -310,7 +316,7 @@ function copy_k8s_certificates() {
         namespace_info=$(server_exec $MASTER_NODE "kubectl get namespaces")
     done
 
-    echo "Master node $MASTER_NODE finalised."
+    echo "Master node $MASTER_NODE finalized."
 
     # Copy API server certificates from master to each worker node
     copy_k8s_certificates "$@"
