@@ -27,7 +27,7 @@ pytz==2023.3.post1
 PyYAML==6.0
 requests==2.31.0
 requests-unixsocket==0.3.0
-scipy==1.11.4
+scipy==1.12.0
 six==1.16.0
 soupsieve==2.5
 ssh-import-id==5.11
