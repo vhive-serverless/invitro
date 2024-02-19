@@ -52,6 +52,11 @@ if [ $PODS_PER_NODE -gt 1022 ]; then
     exit 1
 fi
 
+if [ "$#" -lt $CONTROL_PLANE_REPLICAS ]; then
+    echo "Not enough nodes to set up the requested number of control plane replicas."
+    exit 1
+fi
+
 server_exec() {
     ssh -oStrictHostKeyChecking=no -p 22 "$1" "$2";
 }
@@ -60,7 +65,7 @@ common_init() {
     internal_init() {
         server_exec $1 "git clone --branch=$VHIVE_BRANCH https://github.com/vhive-serverless/vhive"
 
-        server_exec $1 "pushd ~/vhive/scripts > /dev/null && ./install_go.sh && source /etc/profile && go build -o setup_tool && ./setup_tool setup_node ${OPERATION_MODE} && popd > /dev/null"
+        server_exec $1 "pushd ~/vhive/scripts > /dev/null && ./install_go.sh && source /etc/profile && go build -o setup_tool && ./setup_tool setup_node $2 ${OPERATION_MODE}  && popd > /dev/null"
         
         server_exec $1 'tmux new -s containerd -d'
         server_exec $1 'tmux send -t containerd "sudo containerd 2>&1 | tee ~/containerd_log.txt" ENTER'
@@ -75,9 +80,19 @@ common_init() {
         #server_exec $1 '~/loader/scripts/setup/stabilize.sh'
     }
 
+    NODE_COUNTER=1
     for node in "$@"
     do
-        internal_init "$node" &
+        # Set up API Server load balancer arguments
+        HA_SETTING="REGULAR"
+        if [ "$NODE_COUNTER" -eq 1 ]; then
+            HA_SETTING="MASTER"
+        elif [ "$NODE_COUNTER" -le $CONTROL_PLANE_REPLICAS ]; then
+            HA_SETTING="BACKUP"
+        fi
+
+        internal_init "$node" $HA_SETTING &
+        let NODE_COUNTER++
     done
 
     wait
@@ -92,7 +107,11 @@ function setup_master() {
 
     server_exec $MASTER_NODE '~/loader/scripts/setup/rewrite_yaml_files.sh'
 
+<<<<<<< HEAD
     MN_CLUSTER="pushd ~/vhive/scripts > /dev/null && ./setup_tool create_multinode_cluster ${OPERATION_MODE} && popd > /dev/null"
+=======
+    MN_CLUSTER="pushd ~/vhive/scripts > /dev/null && ./setup_tool create_multinode_cluster ${OPERATION_MODE} ${CONTROL_PLANE_REPLICAS} && popd > /dev/null"
+>>>>>>> 78e9b94 (K8s high-availability mode)
     server_exec "$MASTER_NODE" "tmux send -t master \"$MN_CLUSTER\" ENTER"
 
     # Get the join token from k8s.
@@ -100,11 +119,19 @@ function setup_master() {
         sleep 1
     done
 
+    MASTER_LOGIN_TOKEN=$(server_exec "$MASTER_NODE" \
+        'awk '\''/^ApiserverAdvertiseAddress:/ {ip=$2} \
+        /^ApiserverPort:/ {port=$2} \
+        /^ApiserverToken:/ {token=$2} \
+        /^ApiserverDiscoveryToken:/ {discovery_token=$2} \
+        /^ApiserverCertificateKey:/ {certificate_key=$2} \
+        END {print "sudo kubeadm join " ip ":" port " --token " token " --discovery-token-ca-cert-hash " discovery_token " --control-plane --certificate-key " certificate_key}'\'' ~/vhive/scripts/masterKey.yaml')
+
     LOGIN_TOKEN=$(server_exec "$MASTER_NODE" \
         'awk '\''/^ApiserverAdvertiseAddress:/ {ip=$2} \
         /^ApiserverPort:/ {port=$2} \
         /^ApiserverToken:/ {token=$2} \
-        /^ApiserverTokenHash:/ {token_hash=$2} \
+        /^ApiserverDiscoveryToken:/ {token_hash=$2} \
         END {print "sudo kubeadm join " ip ":" port " --token " token " --discovery-token-ca-cert-hash " token_hash}'\'' ~/vhive/scripts/masterKey.yaml')
 }
 
@@ -132,8 +159,13 @@ function setup_workers() {
             setup_vhive_firecracker_daemon $node
         fi
 
-        server_exec $node "sudo ${LOGIN_TOKEN}"
-        echo "Worker node $node has joined the cluster."
+        if [ $2 -eq "MASTER" ]; then
+            server_exec $node "sudo ${MASTER_LOGIN_TOKEN}"
+            echo "Backup master node $node has joined the cluster."
+        else
+            server_exec $node "sudo ${LOGIN_TOKEN}"
+            echo "Worker node $node has joined the cluster."
+        fi
 
         # Stretch the capacity of the worker node to 240 (k8s default: 110)
         # Empirically, this gives us a max. #pods being 240-40=200
@@ -144,13 +176,25 @@ function setup_workers() {
         #server_exec $node 'sleep 10'
 
         # Rejoin has to be performed although errors will be thrown. Otherwise, restarting the kubelet will cause the node unreachable for some reason
-        #server_exec $node "sudo ${LOGIN_TOKEN} > /dev/null 2>&1"
-        #echo "Worker node $node joined the cluster (again :P)."
+        #if [ $2 -eq "MASTER" ]; then
+        #    server_exec $node "sudo ${MASTER_LOGIN_TOKEN} > /dev/null 2>&1"
+        #    echo "Backup master node $node joined the cluster (again :P)."
+        #else
+        #    server_exec $node "sudo ${LOGIN_TOKEN} > /dev/null 2>&1"
+        #    echo "Worker node $node joined the cluster (again :P)."
+        #fi
     }
 
+    NODE_COUNTER=1
     for node in "$@"
     do
-        internal_setup "$node" &
+        # Set up API Server load balancer arguments
+        HA_SETTING=""
+        if [ "$NODE_COUNTER" -le $CONTROL_PLANE_REPLICAS ]; then
+            HA_SETTING="MASTER"
+        fi
+
+        internal_setup "$node" $HA_SETTING &
     done
 
     wait
