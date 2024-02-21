@@ -12,9 +12,10 @@ can choose the APT cluster `d430` node.
 ### vHive cluster
 
 First, configure `script/setup/setup.cfg`. You can specify there which vHive branch to use, loader branch, operation
-mode (sandbox type), and maximum number of pods per node. All these configurations are mandatory. We currently support
+mode (sandbox type), maximum number of pods per node, whether to deploy Prometheus metrics collector, and the number of
+Kubernetes control plane replicas (for high-availability). All these configurations are mandatory. We currently support
 the following modes: containerd (`container`), Firecracker (`firecracker`), and Firecracker with
-snapshots (`firecracker_snapshots`).Loader will be cloned on every node specified as argument of the cluster create
+snapshots (`firecracker_snapshots`). Loader will be cloned on every node specified as argument of the cluster create
 script. The same holds for Kubernetes API server certificate.
 
 * To create a multi-node cluster, specify the node addresses as the arguments and run the following command:
@@ -124,9 +125,10 @@ For to configure the workload for load generator, please refer to `docs/configur
 There are a couple of constants that should not be exposed to the users. They can be examined and changed
 in `pkg/common/constants.go`.
 
-Sample sizes appropriate for performance evaluation vary depending on the platform. 
-As a starting point for fine-tuning, we suggest at most 5 functions per core with SMT disabled. 
-For example, 80 functions for a 16-core node. With larger sample sizes, trace replaying may lead to failures in function invocations.
+Sample sizes appropriate for performance evaluation vary depending on the platform.
+As a starting point for fine-tuning, we suggest at most 5 functions per core with SMT disabled.
+For example, 80 functions for a 16-core node. With larger sample sizes, trace replaying may lead to failures in function
+invocations.
 
 ## Build the image for a synthetic function
 
@@ -147,7 +149,7 @@ For testing cold start performance:
 $ make <trace-firecracker|trace-container|empty-firecracker|empty-container>
 ```
 
-Pushing the images will require a write access to Github packages connected to this repository. Please refer to 
+Pushing the images will require a write access to Github packages connected to this repository. Please refer to
 [this guide](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry#authenticating-with-a-personal-access-token-classic)
 for authentication instructions.
 
@@ -184,15 +186,23 @@ For instructions on how to use the loader with OpenWhisk go to `openwhisk_setup/
 Currently supported vendors: AWS
 
 Setup Instructions:
+
 1. Sign up for a Serverless account [here](https://app.serverless.com/)
-2. Install Serverless framework via command line `npm install -g serverless` to allow our Go code to interact with the Serverless CLI framework e.g. `sls deploy`
-3. Follow their [setup guide](https://www.serverless.com/framework/docs/getting-started) to link the respective cloud providers
+2. Install Serverless framework via command line `npm install -g serverless` to allow our Go code to interact with the
+   Serverless CLI framework e.g. `sls deploy`
+3. Follow their [setup guide](https://www.serverless.com/framework/docs/getting-started) to link the respective cloud
+   providers
 
 To run the default Loader:
+
 1. Change the `Platform` value in `cmd/config.json` to one of those specified in `docs/configuration.md`
-2. ~~Build the Go binary in Linux: `go build -v -o ./server/trace-func-go/aws/trace_func ./server/trace-func-go/aws/trace_func.go` (For Window users, please use WSL to build the binary)~~
+2. ~~Build the Go binary in
+   Linux: `go build -v -o ./server/trace-func-go/aws/trace_func ./server/trace-func-go/aws/trace_func.go` (For Window
+   users, please use WSL to build the binary)~~
 3. Start the experiments: `go run cmd/loader.go --config cmd/config.json --verbosity trace`
 
 Note:
-- Current deployment is via zip file where the Go binary has to be built prior to running the code. For now, the Go binary has been packaged in this repo. Otherwise, refer to Step 2 above to build your custom Go binary.
+
+- Current deployment is via zip file where the Go binary has to be built prior to running the code. For now, the Go
+  binary has been packaged in this repo. Otherwise, refer to Step 2 above to build your custom Go binary.
 - Refer to [Single Execution](#single-execution) section for more details on the experiment configurations.
