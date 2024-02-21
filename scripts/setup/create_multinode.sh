@@ -138,6 +138,9 @@ function setup_master() {
         /^ApiserverToken:/ {token=$2} \
         /^ApiserverDiscoveryToken:/ {token_hash=$2} \
         END {print "sudo kubeadm join " ip ":" port " --token " token " --discovery-token-ca-cert-hash " token_hash}'\'' ~/vhive/scripts/masterKey.yaml')
+
+    server_exec $MASTER_NODE "kubectl taint nodes \$(hostname) node-role.kubernetes.io/control-plane-"
+    server_exec $MASTER_NODE "kubectl label nodes \$(hostname) loader-nodetype=master"
 }
 
 function setup_vhive_firecracker_daemon() {
@@ -166,9 +169,19 @@ function setup_workers() {
 
         if [ "$2" = "MASTER" ]; then
             server_exec $node "sudo ${MASTER_LOGIN_TOKEN}"
+            server_exec $node "kubectl taint nodes \$(hostname) node-role.kubernetes.io/control-plane-"
+            server_exec $node "kubectl label nodes \$(hostname) loader-nodetype=master"
             echo "Backup master node $node has joined the cluster."
         else
             server_exec $node "sudo ${LOGIN_TOKEN}"
+
+            if [ "$3" = "LOADER" ]; then
+                # First node after the control plane nodes
+                server_exec $node "kubectl label nodes \$(hostname) loader-nodetype=monitoring" < /dev/null
+            else
+                server_exec $node "kubectl label nodes \$(hostname) loader-nodetype=worker" < /dev/null
+            fi
+
             echo "Worker node $node has joined the cluster."
         fi
 
@@ -194,12 +207,16 @@ function setup_workers() {
     for node in "$@"
     do
         # Set up API Server load balancer arguments - Less than because 1 CP is the "main" master node already
-        HA_SETTING=""
+        HA_SETTING="OTHER"
+        LOADER_NODE="OTHER"
+
         if [ "$NODE_COUNTER" -lt $CONTROL_PLANE_REPLICAS ]; then
             HA_SETTING="MASTER"
+        elif [ "$NODE_COUNTER" -eq $CONTROL_PLANE_REPLICAS ]; then
+            LOADER_NODE="LOADER"
         fi
 
-        internal_setup "$node" $HA_SETTING &
+        internal_setup "$node" "$HA_SETTING" "$LOADER_NODE" &
         let NODE_COUNTER++
     done
 
@@ -298,14 +315,16 @@ function copy_k8s_certificates() {
     shift # make argument list only contain worker nodes (drops master node)
 
     setup_master
+
+    # Copy API server certificates from master to each worker node
+    copy_k8s_certificates "$@"
+
+    # Join cluster
     setup_workers "$@"
 
     if [ $PODS_PER_NODE -gt 240 ]; then
         extend_CIDR "$@"
     fi
-
-    # Untaint master to schedule knative control plane there
-    server_exec $MASTER_NODE "kubectl taint nodes \$(hostname) node-role.kubernetes.io/control-plane-"
 
     # Notify the master that all nodes have joined the cluster
     server_exec $MASTER_NODE 'tmux send -t master "y" ENTER'
@@ -316,17 +335,7 @@ function copy_k8s_certificates() {
         namespace_info=$(server_exec $MASTER_NODE "kubectl get namespaces")
     done
 
-    echo "Master node $MASTER_NODE finalized."
-
-    # Copy API server certificates from master to each worker node
-    copy_k8s_certificates "$@"
-
     server_exec $MASTER_NODE 'cd loader; bash scripts/setup/patch_init_scale.sh'
-
-    source $DIR/label.sh
-
-    # Force placement of metrics collectors and instrumentation on the loader node and control plane on master
-    label_nodes $MASTER_NODE $1 # loader node is second on the list, becoming first after arg shift
 
     # patch knative to accept nodeselector
     server_exec $MASTER_NODE "cd loader; kubectl patch configmap config-features -n knative-serving -p '{\"data\": {\"kubernetes.podspec-nodeselector\": \"enabled\"}}'"
