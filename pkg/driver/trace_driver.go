@@ -25,16 +25,16 @@
 package driver
 
 import (
+	"container/list"
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
 	"math"
 	"os"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
-
-	"strconv"
 
 	"github.com/gocarina/gocsv"
 	log "github.com/sirupsen/logrus"
@@ -98,6 +98,15 @@ func (d *Driver) runCSVWriter(records chan interface{}, filename string, writerD
 	}
 
 	writerDone.Done()
+}
+
+func DAGCreation(functions []*common.Function) *list.List {
+	linkedList := list.New()
+	// Assigning nodes one after another
+	for _, function := range functions {
+		linkedList.PushBack(function)
+	}
+	return linkedList
 }
 
 /////////////////////////////////////////
@@ -167,9 +176,8 @@ func (d *Driver) CreateMetricsScrapper(interval time.Duration,
 /////////////////////////////////////////
 
 type InvocationMetadata struct {
-	Function              *common.Function
-	RuntimeSpecifications *common.RuntimeSpecification
-	Phase                 common.ExperimentPhase
+	RootFunction *list.List
+	Phase        common.ExperimentPhase
 
 	MinuteIndex     int
 	InvocationIndex int
@@ -203,43 +211,51 @@ func (d *Driver) invokeFunction(metadata *InvocationMetadata) {
 	defer metadata.AnnounceDoneWG.Done()
 
 	var success bool
-
+	node := metadata.RootFunction.Front()
 	var record *mc.ExecutionRecord
-	switch d.Configuration.LoaderConfiguration.Platform {
-	case "Knative":
-		success, record = InvokeGRPC(
-			metadata.Function,
-			metadata.RuntimeSpecifications,
-			d.Configuration.LoaderConfiguration,
-		)
-	case "OpenWhisk":
-		success, record = InvokeOpenWhisk(
-			metadata.Function,
-			metadata.RuntimeSpecifications,
-			metadata.AnnounceDoneExe,
-			metadata.ReadOpenWhiskMetadata,
-		)
-	case "AWSLambda":
-		success, record = InvokeAWSLambda(
-			metadata.Function,
-			metadata.RuntimeSpecifications,
-			metadata.AnnounceDoneExe,
-		)
-	case "Dirigent":
-		success, record = InvokeDirigent(
-			metadata.Function,
-			metadata.RuntimeSpecifications,
-			d.Configuration.LoaderConfiguration,
-		)
-	default:
-		log.Fatal("Unsupported platform.")
+	var runtimeSpecifications *common.RuntimeSpecification
+	for node != nil {
+		function := node.Value.(*common.Function)
+		runtimeSpecifications = &function.Specification.RuntimeSpecification[metadata.MinuteIndex][metadata.InvocationIndex]
+		switch d.Configuration.LoaderConfiguration.Platform {
+		case "Knative":
+			success, record = InvokeGRPC(
+				function,
+				runtimeSpecifications,
+				d.Configuration.LoaderConfiguration,
+			)
+		case "OpenWhisk":
+			success, record = InvokeOpenWhisk(
+				function,
+				runtimeSpecifications,
+				metadata.AnnounceDoneExe,
+				metadata.ReadOpenWhiskMetadata,
+			)
+		case "AWSLambda":
+			success, record = InvokeAWSLambda(
+				function,
+				runtimeSpecifications,
+				metadata.AnnounceDoneExe,
+			)
+		case "Dirigent":
+			success, record = InvokeDirigent(
+				function,
+				runtimeSpecifications,
+				d.Configuration.LoaderConfiguration,
+			)
+		default:
+			log.Fatal("Unsupported platform.")
+		}
+		record.Phase = int(metadata.Phase)
+		record.InvocationID = composeInvocationID(d.Configuration.TraceGranularity, metadata.MinuteIndex, metadata.InvocationIndex)
+		metadata.RecordOutputChannel <- record
+
+		if !success {
+			log.Debugf("Invocation failed at minute: %d for %s", metadata.MinuteIndex, function.Name)
+			break
+		}
+		node = node.Next()
 	}
-
-	record.Phase = int(metadata.Phase)
-	record.InvocationID = composeInvocationID(d.Configuration.TraceGranularity, metadata.MinuteIndex, metadata.InvocationIndex)
-
-	metadata.RecordOutputChannel <- record
-
 	if success {
 		atomic.AddInt64(metadata.SuccessCount, 1)
 	} else {
@@ -248,10 +264,11 @@ func (d *Driver) invokeFunction(metadata *InvocationMetadata) {
 	}
 }
 
-func (d *Driver) individualFunctionDriver(function *common.Function, announceFunctionDone *sync.WaitGroup,
+func (d *Driver) functionsDriver(list *list.List, announceFunctionDone *sync.WaitGroup,
 	addInvocationsToGroup *sync.WaitGroup, readOpenWhiskMetadata *sync.Mutex, totalSuccessful *int64,
 	totalFailed *int64, totalIssued *int64, recordOutputChannel chan interface{}) {
 
+	function := list.Front().Value.(*common.Function)
 	numberOfInvocations := 0
 	for i := 0; i < len(function.InvocationStats.Invocations); i++ {
 		numberOfInvocations += function.InvocationStats.Invocations[i]
@@ -261,7 +278,7 @@ func (d *Driver) individualFunctionDriver(function *common.Function, announceFun
 	totalTraceDuration := d.Configuration.TraceDuration
 	minuteIndex, invocationIndex := 0, 0
 
-	IAT, runtimeSpecification := function.Specification.IAT, function.Specification.RuntimeSpecification
+	IAT := function.Specification.IAT
 
 	var successfulInvocations int64
 	var failedInvocations int64
@@ -326,8 +343,7 @@ func (d *Driver) individualFunctionDriver(function *common.Function, announceFun
 				waitForInvocations.Add(1)
 
 				go d.invokeFunction(&InvocationMetadata{
-					Function:              function,
-					RuntimeSpecifications: &runtimeSpecification[minuteIndex][invocationIndex],
+					RootFunction:          list,
 					Phase:                 currentPhase,
 					MinuteIndex:           minuteIndex,
 					InvocationIndex:       invocationIndex,
@@ -488,7 +504,6 @@ func (d *Driver) createGlobalMetricsCollector(filename string, collector chan in
 	file, err := os.Create(filename)
 	common.Check(err)
 	defer file.Close()
-
 	signalReady.Done()
 
 	records := make(chan interface{}, 100)
@@ -545,7 +560,7 @@ func (d *Driver) internalRun(iatOnly bool, generated bool) {
 	var successfulInvocations int64
 	var failedInvocations int64
 	var invocationsIssued int64
-
+	var functionsPerDAG int64
 	readOpenWhiskMetadata := sync.Mutex{}
 	allFunctionsInvoked := sync.WaitGroup{}
 	allIndividualDriversCompleted := sync.WaitGroup{}
@@ -557,6 +572,10 @@ func (d *Driver) internalRun(iatOnly bool, generated bool) {
 	if !iatOnly {
 		log.Info("Generating IAT and runtime specifications for all the functions")
 		for i, function := range d.Configuration.Functions {
+			// Equalising all the InvocationStats to the first function
+			if d.Configuration.LoaderConfiguration.DAGMode {
+				function.InvocationStats.Invocations = d.Configuration.Functions[0].InvocationStats.Invocations
+			}
 			spec := d.SpecificationGenerator.GenerateInvocationData(
 				function,
 				d.Configuration.IATDistribution,
@@ -584,12 +603,13 @@ func (d *Driver) internalRun(iatOnly bool, generated bool) {
 		}
 	}
 
-	log.Infof("Starting function invocation driver\n")
-	for _, function := range d.Configuration.Functions {
+	if d.Configuration.LoaderConfiguration.DAGMode {
+		log.Infof("Starting DAG invocation driver\n")
+		functionLinkedList := DAGCreation(d.Configuration.Functions)
+		functionsPerDAG = int64(len(d.Configuration.Functions))
 		allIndividualDriversCompleted.Add(1)
-
-		go d.individualFunctionDriver(
-			function,
+		go d.functionsDriver(
+			functionLinkedList,
 			&allIndividualDriversCompleted,
 			&allFunctionsInvoked,
 			&readOpenWhiskMetadata,
@@ -598,13 +618,30 @@ func (d *Driver) internalRun(iatOnly bool, generated bool) {
 			&invocationsIssued,
 			globalMetricsCollector,
 		)
+	} else {
+		log.Infof("Starting function invocation driver\n")
+		functionsPerDAG = 1
+		for _, function := range d.Configuration.Functions {
+			allIndividualDriversCompleted.Add(1)
+			linkedList := list.New()
+			linkedList.PushBack(function)
+			go d.functionsDriver(
+				linkedList,
+				&allIndividualDriversCompleted,
+				&allFunctionsInvoked,
+				&readOpenWhiskMetadata,
+				&successfulInvocations,
+				&failedInvocations,
+				&invocationsIssued,
+				globalMetricsCollector,
+			)
+		}
 	}
-
 	allIndividualDriversCompleted.Wait()
 	if atomic.LoadInt64(&successfulInvocations)+atomic.LoadInt64(&failedInvocations) != 0 {
 		log.Debugf("Waiting for all the invocations record to be written.\n")
 
-		totalIssuedChannel <- atomic.LoadInt64(&invocationsIssued)
+		totalIssuedChannel <- atomic.LoadInt64(&invocationsIssued) * functionsPerDAG
 		scraperFinishCh <- 0 // Ask the scraper to finish metrics collection
 
 		allRecordsWritten.Wait()

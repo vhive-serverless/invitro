@@ -19,7 +19,7 @@
 | MetricScrapingPeriodSeconds  | int       | > 0                                                                 | 15                  | Period of Prometheus metrics scrapping                                               |
 | GRPCConnectionTimeoutSeconds | int       | > 0                                                                 | 60                  | Timeout for establishing a gRPC connection                                           |
 | GRPCFunctionTimeoutSeconds   | int       | > 0                                                                 | 90                  | Maximum time given to function to execute[^4]                                        |
-
+| DAGMode             | bool      | true/false                                                          | false               | Sequential invocation of all functions one after another                                                    |
 [^1]: The second granularity feature interprets each column of the trace as a second, rather than as a minute, and
 generates IAT for each second. This feature is useful for fine-grained and precise invocation scheduling in experiments
 involving stable low load.

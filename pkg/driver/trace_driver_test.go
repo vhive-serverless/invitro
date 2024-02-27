@@ -25,6 +25,7 @@
 package driver
 
 import (
+	"container/list"
 	"fmt"
 	"log"
 	"os"
@@ -83,6 +84,9 @@ func createTestDriver() *Driver {
 					Percentile99:  9900,
 					Percentile100: 10000,
 				},
+				Specification: &common.FunctionSpecification{
+					RuntimeSpecification: make([][]common.RuntimeSpecification, 1),
+				},
 			},
 		},
 		TestMode: true,
@@ -130,12 +134,18 @@ func TestInvokeFunctionFromDriver(t *testing.T) {
 				time.Sleep(2 * time.Second)
 			}
 
+			list := list.New()
+			list.PushBack(testDriver.Configuration.Functions[0])
+			function := list.Front().Value.(*common.Function)
+			for i := 0; i < len(function.Specification.RuntimeSpecification); i++ {
+				function.Specification.RuntimeSpecification[i] = make([]common.RuntimeSpecification, 3)
+			}
+			function.Specification.RuntimeSpecification[0][2] = common.RuntimeSpecification{
+				Runtime: 1000,
+				Memory:  128,
+			}
 			metadata := &InvocationMetadata{
-				Function: testDriver.Configuration.Functions[0],
-				RuntimeSpecifications: &common.RuntimeSpecification{
-					Runtime: 1000,
-					Memory:  128,
-				},
+				RootFunction:        list,
 				Phase:               common.ExecutionPhase,
 				MinuteIndex:         0,
 				InvocationIndex:     2,
@@ -171,7 +181,59 @@ func TestInvokeFunctionFromDriver(t *testing.T) {
 		})
 	}
 }
+func TestDAGInvocation(t *testing.T) {
+	var successCount int64 = 0
+	var failureCount int64 = 0
+	var functionsToInvoke int = 4
+	invocationRecordOutputChannel := make(chan interface{}, functionsToInvoke)
+	announceDone := &sync.WaitGroup{}
 
+	testDriver := createTestDriver()
+	var failureCountByMinute = make([]int64, testDriver.Configuration.TraceDuration)
+	list := list.New()
+	for i := 0; i < functionsToInvoke; i++ {
+		function := testDriver.Configuration.Functions[0]
+		list.PushBack(function)
+		address, port := "localhost", 8085+i
+		function.Endpoint = fmt.Sprintf("%s:%d", address, port)
+		go standard.StartGRPCServer(address, port, standard.TraceFunction, "")
+
+		for i := 0; i < len(function.Specification.RuntimeSpecification); i++ {
+			function.Specification.RuntimeSpecification[i] = make([]common.RuntimeSpecification, 3)
+		}
+		function.Specification.RuntimeSpecification[0][2] = common.RuntimeSpecification{
+			Runtime: 1000,
+			Memory:  128,
+		}
+	}
+	time.Sleep(2 * time.Second)
+
+	metadata := &InvocationMetadata{
+		RootFunction:        list,
+		Phase:               common.ExecutionPhase,
+		MinuteIndex:         0,
+		InvocationIndex:     2,
+		SuccessCount:        &successCount,
+		FailedCount:         &failureCount,
+		FailedCountByMinute: failureCountByMinute,
+		RecordOutputChannel: invocationRecordOutputChannel,
+		AnnounceDoneWG:      announceDone,
+	}
+
+	announceDone.Add(1)
+	testDriver.invokeFunction(metadata)
+	if !(successCount == 1 && failureCount == 0) {
+		t.Error("The DAG invocation has failed.")
+	}
+	for i := 0; i < functionsToInvoke; i++ {
+		record := (<-invocationRecordOutputChannel).(*metric.ExecutionRecord)
+		if record.Phase != int(metadata.Phase) ||
+			record.InvocationID != composeInvocationID(common.MinuteGranularity, metadata.MinuteIndex, metadata.InvocationIndex) {
+
+			t.Error("Invalid invocation record received.")
+		}
+	}
+}
 func TestGlobalMetricsCollector(t *testing.T) {
 	driver := createTestDriver()
 

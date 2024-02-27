@@ -150,6 +150,7 @@ ctrdlog
 Ctrl
 currencyservice
 Daglis
+DAGMode
 datacenter
 Datacenter
 dataflows
