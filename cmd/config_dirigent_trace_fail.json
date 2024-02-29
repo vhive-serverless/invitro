@@ -4,9 +4,9 @@
   "Platform": "Dirigent",
   "EndpointPort": 80,
 
-  "DirigentControlPlaneIP": "10.0.1.3",
+  "DirigentControlPlaneIP": "10.0.1.253:9092",
 
-  "FailAt": 10,
+  "FailAt": 600,
   "FailComponent": "control_plane",
   "FailNode": "cvetkovi@hp190.utah.cloudlab.us",
 
