@@ -53,7 +53,7 @@ func triggerDirigentFailure(nodes string, component string, t int) {
 			go func(command []string, node string, t int) {
 				defer wg.Done()
 
-				finalCommand := append([]string{"ssh", "-i", "~/.ssh/cl", "-o", "StrictHostKeyChecking=no", node}, command...)
+				finalCommand := append([]string{"ssh", "-o", "StrictHostKeyChecking=no", node}, command...)
 				invokeCommand(finalCommand, t)
 
 			}(command, node, t)
