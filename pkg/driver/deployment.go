@@ -89,7 +89,7 @@ func deployDirigent(controlPlaneAddress string, function *common.Function) {
 
 	log.Debug(payload)
 
-	resp, err := http.PostForm(fmt.Sprintf("http://%s:9091/registerService", controlPlaneAddress), payload)
+	resp, err := http.PostForm(fmt.Sprintf("http://%s/registerService", controlPlaneAddress), payload)
 	if err != nil {
 		log.Error("Failed to register a service with the control plane - ", err.Error())
 		return
