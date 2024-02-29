@@ -4,18 +4,18 @@
   "Platform": "Dirigent",
   "EndpointPort": 80,
 
-  "DirigentControlPlaneIP": "10.0.1.2",
+  "DirigentControlPlaneIP": "10.0.1.3",
 
-  "FailAt": 20,
-  "FailComponent": "data_plane",
-  "FailNode": "",
+  "FailAt": 10,
+  "FailComponent": "control_plane",
+  "FailNode": "cvetkovi@hp190.utah.cloudlab.us",
 
-  "TracePath": "data/traces/example",
+  "TracePath": "data/traces/azure_500",
   "Granularity": "minute",
   "OutputPathPrefix": "data/out/experiment",
-  "IATDistribution": "equidistant",
+  "IATDistribution": "exponential",
   "CPULimit": "1vCPU",
-  "ExperimentDuration": 2,
+  "ExperimentDuration": 20,
   "WarmupDuration": 0,
 
   "IsPartiallyPanic": false,
