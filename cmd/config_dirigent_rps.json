@@ -4,7 +4,7 @@
   "Platform": "Dirigent-RPS",
   "EndpointPort": 80,
 
-  "DirigentControlPlaneIP": "10.0.1.2",
+  "DirigentControlPlaneIP": "10.0.1.253:9092",
 
   "RpsTarget": 50,
   "RpsColdStartRatioPercentage": 50,

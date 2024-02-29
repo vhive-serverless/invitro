@@ -75,13 +75,13 @@ func deployDirigent(controlPlaneAddress string, function *common.Function) {
 		"port_forwarding":     {strconv.Itoa(metadata.Port), metadata.Protocol},
 		"scaling_upper_bound": {strconv.Itoa(metadata.ScalingUpperBound)},
 		"scaling_lower_bound": {strconv.Itoa(metadata.ScalingLowerBound)},
-		"requested_cpu":    {strconv.Itoa(function.CPURequestsMilli)},
-		"requested_memory": {strconv.Itoa(function.MemoryRequestsMiB)},
+		"requested_cpu":       {strconv.Itoa(function.CPURequestsMilli)},
+		"requested_memory":    {strconv.Itoa(function.MemoryRequestsMiB)},
 	}
 
 	log.Debug(payload)
 
-	resp, err := http.PostForm(fmt.Sprintf("http://%s:9091/registerService", controlPlaneAddress), payload)
+	resp, err := http.PostForm(fmt.Sprintf("http://%s/registerService", controlPlaneAddress), payload)
 	if err != nil {
 		log.Error("Failed to register a service with the control plane - ", err.Error())
 		return

@@ -4,7 +4,7 @@
   "Platform": "Dirigent",
   "EndpointPort": 80,
 
-  "DirigentControlPlaneIP": "10.0.1.2",
+  "DirigentControlPlaneIP": "localhost:9092",
 
   "TracePath": "data/traces/example",
   "Granularity": "minute",
