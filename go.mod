@@ -15,7 +15,7 @@ require (
 
 require (
 	github.com/aws/aws-lambda-go v1.46.0
-	github.com/stretchr/testify v1.8.0
+	github.com/stretchr/testify v1.9.0
 	github.com/vhive-serverless/vSwarm/utils/tracing/go v0.0.0-20230926064847-68cc9b8b8e84
 	golang.org/x/exp v0.0.0-20230510235704-dd950f8aeaea
 	gopkg.in/yaml.v3 v3.0.1
