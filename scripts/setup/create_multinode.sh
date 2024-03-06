@@ -28,7 +28,6 @@ MASTER_NODE=$1
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" > /dev/null 2>&1 && pwd)"
 
 source "$DIR/setup.cfg"
-source "$DIR/versions.cfg"
 
 if [ "$CLUSTER_MODE" = "container" ]
 then
@@ -59,7 +58,7 @@ server_exec() {
 
 common_init() {
     internal_init() {
-        server_exec $1 "git clone --branch=$VHIVE_BRANCH https://github.com/ease-lab/vhive"
+        server_exec $1 "git clone --branch=$VHIVE_BRANCH https://github.com/vhive-serverless/vhive"
 
         server_exec $1 "pushd ~/vhive/scripts > /dev/null && ./install_go.sh && source /etc/profile && go build -o setup_tool && ./setup_tool setup_node ${OPERATION_MODE} && popd > /dev/null"
         
@@ -91,9 +90,7 @@ function setup_master() {
     server_exec "$MASTER_NODE" 'tmux new -s kwatch -d'
     server_exec "$MASTER_NODE" 'tmux new -s master -d'
 
-    server_exec $MASTER_NODE "sudo wget -q https://github.com/mikefarah/yq/releases/download/v${YQ_VERSION}/yq_linux_amd64 -O /usr/bin/yq && sudo chmod +x /usr/bin/yq"
     server_exec $MASTER_NODE '~/loader/scripts/setup/rewrite_yaml_files.sh'
-
 
     MN_CLUSTER="pushd ~/vhive/scripts > /dev/null && ./setup_tool create_multinode_cluster ${OPERATION_MODE} && popd > /dev/null"
     server_exec "$MASTER_NODE" "tmux send -t master \"$MN_CLUSTER\" ENTER"

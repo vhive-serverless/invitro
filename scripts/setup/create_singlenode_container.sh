@@ -46,7 +46,6 @@ server_exec() {
     server_exec 'echo -en "\n\n" | sudo apt-get install python3-pip python-dev'
     server_exec 'cd; cd loader; pip install -r config/requirements.txt'
     
-    server_exec "sudo wget -q https://github.com/mikefarah/yq/releases/download/v${YQ_VERSION}/yq_linux_amd64 -O /usr/bin/yq && sudo chmod +x /usr/bin/yq"
     server_exec '~/loader/scripts/setup/rewrite_yaml_files.sh'
     
     server_exec 'tmux new -s runner -d'
