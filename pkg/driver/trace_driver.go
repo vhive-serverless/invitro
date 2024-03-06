@@ -29,7 +29,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"net"
+	"net/http"
 	"os"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -61,6 +64,7 @@ type DriverConfiguration struct {
 type Driver struct {
 	Configuration          *DriverConfiguration
 	SpecificationGenerator *generator.SpecificationGenerator
+	HTTPClient             *http.Client
 }
 
 func NewDriver(driverConfig *DriverConfiguration) *Driver {
@@ -98,6 +102,25 @@ func (d *Driver) runCSVWriter(records chan interface{}, filename string, writerD
 	}
 
 	writerDone.Done()
+}
+
+func (d *Driver) GetHTTPClient() *http.Client {
+	if d.HTTPClient == nil {
+		d.HTTPClient = &http.Client{
+			Timeout: time.Duration(d.Configuration.LoaderConfiguration.GRPCFunctionTimeoutSeconds) * time.Second,
+			Transport: &http.Transport{
+				DialContext: (&net.Dialer{
+					Timeout: 10 * time.Second,
+				}).DialContext,
+				DisableCompression:  true,
+				IdleConnTimeout:     60 * time.Second,
+				MaxIdleConns:        3000,
+				MaxIdleConnsPerHost: 3000,
+			},
+		}
+	}
+
+	return d.HTTPClient
 }
 
 /////////////////////////////////////////
@@ -206,30 +229,30 @@ func (d *Driver) invokeFunction(metadata *InvocationMetadata) {
 
 	var record *mc.ExecutionRecord
 	switch d.Configuration.LoaderConfiguration.Platform {
-	case "Knative":
+	case "Knative", "Knative-RPS":
 		success, record = InvokeGRPC(
 			metadata.Function,
 			metadata.RuntimeSpecifications,
 			d.Configuration.LoaderConfiguration,
 		)
-	case "OpenWhisk":
+	case "OpenWhisk", "OpenWhisk-RPS":
 		success, record = InvokeOpenWhisk(
 			metadata.Function,
 			metadata.RuntimeSpecifications,
 			metadata.AnnounceDoneExe,
 			metadata.ReadOpenWhiskMetadata,
 		)
-	case "AWSLambda":
+	case "AWSLambda", "AWSLambda-RPS":
 		success, record = InvokeAWSLambda(
 			metadata.Function,
 			metadata.RuntimeSpecifications,
 			metadata.AnnounceDoneExe,
 		)
-	case "Dirigent":
+	case "Dirigent", "Dirigent-RPS":
 		success, record = InvokeDirigent(
 			metadata.Function,
 			metadata.RuntimeSpecifications,
-			d.Configuration.LoaderConfiguration,
+			d.GetHTTPClient(),
 		)
 	default:
 		log.Fatal("Unsupported platform.")
@@ -253,8 +276,8 @@ func (d *Driver) individualFunctionDriver(function *common.Function, announceFun
 	totalFailed *int64, totalIssued *int64, recordOutputChannel chan interface{}) {
 
 	numberOfInvocations := 0
-	for i := 0; i < len(function.InvocationStats.Invocations); i++ {
-		numberOfInvocations += function.InvocationStats.Invocations[i]
+	for i := 0; i < len(function.Specification.PerMinuteCount); i++ {
+		numberOfInvocations += function.Specification.PerMinuteCount[i]
 	}
 	addInvocationsToGroup.Add(numberOfInvocations)
 
@@ -271,10 +294,13 @@ func (d *Driver) individualFunctionDriver(function *common.Function, announceFun
 
 	waitForInvocations := sync.WaitGroup{}
 
+	currentMinute, currentSum := 0, 0
+
 	if d.Configuration.WithWarmup() {
 		currentPhase = common.WarmupPhase
 		// skip the first minute because of profiling
 		minuteIndex = 1
+		currentMinute = 1
 
 		log.Infof("Warmup phase has started.")
 	}
@@ -283,10 +309,18 @@ func (d *Driver) individualFunctionDriver(function *common.Function, announceFun
 	var previousIATSum int64
 
 	for {
-		if minuteIndex >= totalTraceDuration {
+		if minuteIndex != currentMinute {
+			// postpone summation of invocation count for the beginning of each minute
+			currentSum += function.Specification.PerMinuteCount[currentMinute]
+			currentMinute = minuteIndex
+		}
+
+		iatIndex := currentSum + invocationIndex
+
+		if minuteIndex >= totalTraceDuration || iatIndex >= len(IAT) {
 			// Check whether the end of trace has been reached
 			break
-		} else if function.InvocationStats.Invocations[minuteIndex] == 0 {
+		} else if function.Specification.PerMinuteCount[minuteIndex] == 0 {
 			// Sleep for a minute if there are no invocations
 			if d.proceedToNextMinute(function, &minuteIndex, &invocationIndex,
 				&startOfMinute, true, &currentPhase, failedInvocationByMinute, &previousIATSum) {
@@ -305,7 +339,7 @@ func (d *Driver) individualFunctionDriver(function *common.Function, announceFun
 			continue
 		}
 
-		iat := time.Duration(IAT[minuteIndex][invocationIndex]) * time.Microsecond
+		iat := time.Duration(IAT[iatIndex]) * time.Microsecond
 
 		currentTime := time.Now()
 		schedulingDelay := currentTime.Sub(startOfMinute).Microseconds() - previousIATSum
@@ -314,7 +348,39 @@ func (d *Driver) individualFunctionDriver(function *common.Function, announceFun
 
 		previousIATSum += iat.Microseconds()
 
-		if function.InvocationStats.Invocations[minuteIndex] == invocationIndex || hasMinuteExpired(startOfMinute) {
+		if !d.Configuration.TestMode {
+			waitForInvocations.Add(1)
+
+			go d.invokeFunction(&InvocationMetadata{
+				Function:              function,
+				RuntimeSpecifications: &runtimeSpecification[iatIndex],
+				Phase:                 currentPhase,
+				MinuteIndex:           minuteIndex,
+				InvocationIndex:       invocationIndex,
+				SuccessCount:          &successfulInvocations,
+				FailedCount:           &failedInvocations,
+				FailedCountByMinute:   failedInvocationByMinute,
+				RecordOutputChannel:   recordOutputChannel,
+				AnnounceDoneWG:        &waitForInvocations,
+				AnnounceDoneExe:       addInvocationsToGroup,
+				ReadOpenWhiskMetadata: readOpenWhiskMetadata,
+			})
+		} else {
+			// To be used from within the Golang testing framework
+			log.Debugf("Test mode invocation fired.\n")
+
+			recordOutputChannel <- &mc.ExecutionRecordBase{
+				Phase:        int(currentPhase),
+				InvocationID: composeInvocationID(d.Configuration.TraceGranularity, minuteIndex, invocationIndex),
+				StartTime:    time.Now().UnixNano(),
+			}
+
+			successfulInvocations++
+		}
+
+		numberOfIssuedInvocations++
+
+		if function.Specification.PerMinuteCount[minuteIndex] == invocationIndex || hasMinuteExpired(startOfMinute) {
 			readyToBreak := d.proceedToNextMinute(function, &minuteIndex, &invocationIndex, &startOfMinute,
 				false, &currentPhase, failedInvocationByMinute, &previousIATSum)
 
@@ -322,36 +388,6 @@ func (d *Driver) individualFunctionDriver(function *common.Function, announceFun
 				break
 			}
 		} else {
-			if !d.Configuration.TestMode {
-				waitForInvocations.Add(1)
-
-				go d.invokeFunction(&InvocationMetadata{
-					Function:              function,
-					RuntimeSpecifications: &runtimeSpecification[minuteIndex][invocationIndex],
-					Phase:                 currentPhase,
-					MinuteIndex:           minuteIndex,
-					InvocationIndex:       invocationIndex,
-					SuccessCount:          &successfulInvocations,
-					FailedCount:           &failedInvocations,
-					FailedCountByMinute:   failedInvocationByMinute,
-					RecordOutputChannel:   recordOutputChannel,
-					AnnounceDoneWG:        &waitForInvocations,
-					AnnounceDoneExe:       addInvocationsToGroup,
-					ReadOpenWhiskMetadata: readOpenWhiskMetadata,
-				})
-			} else {
-				// To be used from within the Golang testing framework
-				log.Debugf("Test mode invocation fired.\n")
-
-				recordOutputChannel <- &mc.ExecutionRecordBase{
-					Phase:        int(currentPhase),
-					InvocationID: composeInvocationID(d.Configuration.TraceGranularity, minuteIndex, invocationIndex),
-					StartTime:    time.Now().UnixNano(),
-				}
-
-				successfulInvocations++
-			}
-			numberOfIssuedInvocations++
 			invocationIndex++
 		}
 	}
@@ -369,8 +405,8 @@ func (d *Driver) individualFunctionDriver(function *common.Function, announceFun
 func (d *Driver) proceedToNextMinute(function *common.Function, minuteIndex *int, invocationIndex *int, startOfMinute *time.Time,
 	skipMinute bool, currentPhase *common.ExperimentPhase, failedInvocationByMinute []int64, previousIATSum *int64) bool {
 
-	if d.Configuration.TraceGranularity == common.MinuteGranularity {
-		if !isRequestTargetAchieved(function.InvocationStats.Invocations[*minuteIndex], *invocationIndex, common.RequestedVsIssued) {
+	if d.Configuration.TraceGranularity == common.MinuteGranularity && !strings.HasSuffix(d.Configuration.LoaderConfiguration.Platform, "-RPS") {
+		if !isRequestTargetAchieved(function.Specification.PerMinuteCount[*minuteIndex], *invocationIndex, common.RequestedVsIssued) {
 			// Not fatal because we want to keep the measurements to be written to the output file
 			log.Warnf("Relative difference between requested and issued number of invocations is greater than %.2f%%. Terminating function driver for %s!\n", common.RequestedVsIssuedTerminateThreshold*100, function.Name)
 
@@ -378,8 +414,8 @@ func (d *Driver) proceedToNextMinute(function *common.Function, minuteIndex *int
 		}
 
 		for i := 0; i <= *minuteIndex; i++ {
-			notFailedCount := function.InvocationStats.Invocations[i] - int(atomic.LoadInt64(&failedInvocationByMinute[i]))
-			if !isRequestTargetAchieved(function.InvocationStats.Invocations[i], notFailedCount, common.IssuedVsFailed) {
+			notFailedCount := function.Specification.PerMinuteCount[i] - int(atomic.LoadInt64(&failedInvocationByMinute[i]))
+			if !isRequestTargetAchieved(function.Specification.PerMinuteCount[i], notFailedCount, common.IssuedVsFailed) {
 				// Not fatal because we want to keep the measurements to be written to the output file
 				log.Warnf("Percentage of failed request is greater than %.2f%%. Terminating function driver for %s!\n", common.FailedTerminateThreshold*100, function.Name)
 
@@ -541,7 +577,7 @@ func (d *Driver) startBackgroundProcesses(allRecordsWritten *sync.WaitGroup) (*s
 	return auxiliaryProcessBarrier, globalMetricsCollector, totalIssuedChannel, finishCh
 }
 
-func (d *Driver) internalRun(iatOnly bool, generated bool) {
+func (d *Driver) internalRun(skipIATGeneration bool, readIATFromFile bool) {
 	var successfulInvocations int64
 	var failedInvocations int64
 	var invocationsIssued int64
@@ -554,7 +590,7 @@ func (d *Driver) internalRun(iatOnly bool, generated bool) {
 
 	backgroundProcessesInitializationBarrier, globalMetricsCollector, totalIssuedChannel, scraperFinishCh := d.startBackgroundProcesses(&allRecordsWritten)
 
-	if !iatOnly {
+	if !skipIATGeneration {
 		log.Info("Generating IAT and runtime specifications for all the functions")
 		for i, function := range d.Configuration.Functions {
 			spec := d.SpecificationGenerator.GenerateInvocationData(
@@ -570,7 +606,7 @@ func (d *Driver) internalRun(iatOnly bool, generated bool) {
 
 	backgroundProcessesInitializationBarrier.Wait()
 
-	if generated {
+	if readIATFromFile {
 		for i := range d.Configuration.Functions {
 			var spec common.FunctionSpecification
 
@@ -615,28 +651,7 @@ func (d *Driver) internalRun(iatOnly bool, generated bool) {
 	log.Infof("Number of failed invocations: \t%d\n", atomic.LoadInt64(&failedInvocations))
 }
 
-func (d *Driver) RunExperiment(iatOnly bool, generated bool) {
-	if iatOnly {
-		log.Info("Generating IAT and runtime specifications for all the functions")
-		for i, function := range d.Configuration.Functions {
-			spec := d.SpecificationGenerator.GenerateInvocationData(
-				function,
-				d.Configuration.IATDistribution,
-				d.Configuration.ShiftIAT,
-				d.Configuration.TraceGranularity,
-			)
-			d.Configuration.Functions[i].Specification = spec
-
-			file, _ := json.MarshalIndent(spec, "", " ")
-			err := os.WriteFile("iat"+strconv.Itoa(i)+".json", file, 0644)
-			if err != nil {
-				log.Fatalf("Writing the loader config file failed: %s", err)
-			}
-		}
-
-		return
-	}
-
+func (d *Driver) RunExperiment(skipIATGeneration bool, readIATFromFIle bool) {
 	if d.Configuration.WithWarmup() {
 		trace.DoStaticTraceProfiling(d.Configuration.Functions)
 	}
@@ -644,24 +659,26 @@ func (d *Driver) RunExperiment(iatOnly bool, generated bool) {
 	trace.ApplyResourceLimits(d.Configuration.Functions, d.Configuration.LoaderConfiguration.CPULimit)
 
 	switch d.Configuration.LoaderConfiguration.Platform {
-	case "Knative":
+	case "Knative", "Knative-RPS":
 		DeployFunctions(d.Configuration.Functions,
 			d.Configuration.YAMLPath,
 			d.Configuration.LoaderConfiguration.IsPartiallyPanic,
 			d.Configuration.LoaderConfiguration.EndpointPort,
 			d.Configuration.LoaderConfiguration.AutoscalingMetric)
-	case "OpenWhisk":
+		go scheduleFailure(d.Configuration.LoaderConfiguration)
+	case "OpenWhisk", "OpenWhisk-RPS":
 		DeployFunctionsOpenWhisk(d.Configuration.Functions)
-	case "AWSLambda":
+	case "AWSLambda", "AWSLambda-RPS":
 		DeployFunctionsAWSLambda(d.Configuration.Functions)
-	case "Dirigent":
-		DeployDirigent(d.Configuration.Functions)
+	case "Dirigent", "Dirigent-RPS":
+		DeployDirigent(d.Configuration.LoaderConfiguration.DirigentControlPlaneIP, d.Configuration.Functions)
+		go scheduleFailure(d.Configuration.LoaderConfiguration)
 	default:
 		log.Fatal("Unsupported platform.")
 	}
 
 	// Generate load
-	d.internalRun(iatOnly, generated)
+	d.internalRun(skipIATGeneration, readIATFromFIle)
 
 	// Clean up
 	if d.Configuration.LoaderConfiguration.Platform == "Knative" {

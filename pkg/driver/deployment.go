@@ -56,13 +56,13 @@ func DeployFunctions(functions []*common.Function, yamlPath string, isPartiallyP
 	}
 }
 
-func DeployDirigent(functions []*common.Function) {
+func DeployDirigent(controlPlaneAddress string, functions []*common.Function) {
 	for i := 0; i < len(functions); i++ {
-		deployDirigent(functions[i])
+		deployDirigent(controlPlaneAddress, functions[i])
 	}
 }
 
-func deployDirigent(function *common.Function) {
+func deployDirigent(controlPlaneAddress string, function *common.Function) {
 	metadata := function.DirigentMetadata
 
 	if metadata == nil {
@@ -75,26 +75,29 @@ func deployDirigent(function *common.Function) {
 		"port_forwarding":     {strconv.Itoa(metadata.Port), metadata.Protocol},
 		"scaling_upper_bound": {strconv.Itoa(metadata.ScalingUpperBound)},
 		"scaling_lower_bound": {strconv.Itoa(metadata.ScalingLowerBound)},
-		"requested_cpu":    {strconv.Itoa(function.CPURequestsMilli)},
-		"requested_memory": {strconv.Itoa(function.MemoryRequestsMiB)},
+		"requested_cpu":       {strconv.Itoa(function.CPURequestsMilli)},
+		"requested_memory":    {strconv.Itoa(function.MemoryRequestsMiB)},
 	}
 
 	log.Debug(payload)
 
-	resp, err := http.PostForm("http://localhost:9091/registerService", payload)
+	resp, err := http.PostForm(fmt.Sprintf("http://%s/registerService", controlPlaneAddress), payload)
 	if err != nil {
-		log.Fatal("Failed to register a service with the control plane - ", err.Error())
+		log.Error("Failed to register a service with the control plane - ", err.Error())
+		return
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		log.Fatal("Failed to read response body.")
+		log.Error("Failed to read response body.")
+		return
 	}
 
 	endpoints := strings.Split(string(body), ";")
 	if len(endpoints) == 0 {
-		log.Fatal("Function registration returned no data plane(s).")
+		log.Error("Function registration returned no data plane(s).")
+		return
 	}
 	function.Endpoint = endpoints[rand.Intn(len(endpoints))]
 }

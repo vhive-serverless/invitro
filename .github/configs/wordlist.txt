@@ -749,6 +749,15 @@ Cvetkovic
 cvetkovic
 ethz
 lazar
+RpsCooldownSeconds
+Dirigent
+RpsColdStartRatioPercentage
+RpsIterationMultiplier
+RpsMemoryMB
+RpsRuntimeMs
+RpsTarget
+SQRT
+RpsImage
 xvzf
 untar
 len

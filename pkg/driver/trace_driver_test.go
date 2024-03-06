@@ -42,6 +42,13 @@ import (
 func createTestDriver() *Driver {
 	cfg := createFakeLoaderConfiguration()
 
+	invocationStats := []int{
+		5, 5, 5, 5, 5,
+		5, 5, 5, 5, 5,
+		5, 5, 5, 5, 5,
+		5, 5, 5, 5, 5,
+	}
+
 	driver := NewDriver(&DriverConfiguration{
 		LoaderConfiguration: cfg,
 		IATDistribution:     common.Equidistant,
@@ -51,12 +58,7 @@ func createTestDriver() *Driver {
 			{
 				Name: "test-function",
 				InvocationStats: &common.FunctionInvocationStats{
-					Invocations: []int{
-						5, 5, 5, 5, 5,
-						5, 5, 5, 5, 5,
-						5, 5, 5, 5, 5,
-						5, 5, 5, 5, 5,
-					},
+					Invocations: invocationStats,
 				},
 				RuntimeStats: &common.FunctionRuntimeStats{
 					Average:       50,
@@ -82,6 +84,9 @@ func createTestDriver() *Driver {
 					Percentile95:  9500,
 					Percentile99:  9900,
 					Percentile100: 10000,
+				},
+				Specification: &common.FunctionSpecification{
+					PerMinuteCount: invocationStats,
 				},
 			},
 		},
@@ -261,33 +266,39 @@ func TestDriverBackgroundProcesses(t *testing.T) {
 
 func TestDriverCompletely(t *testing.T) {
 	tests := []struct {
-		testName          string
-		withWarmup        bool
-		secondGranularity bool
+		testName            string
+		withWarmup          bool
+		secondGranularity   bool
+		expectedInvocations int
 	}{
 		{
-			testName:   "without_warmup",
-			withWarmup: false,
+			testName:            "without_warmup",
+			withWarmup:          false,
+			expectedInvocations: 5,
 		},
 		{
-			testName:   "with_warmup",
-			withWarmup: true,
+			testName:            "with_warmup",
+			withWarmup:          true,
+			expectedInvocations: 10,
 		},
 		{
-			testName:          "without_warmup_second_granularity",
-			withWarmup:        false,
-			secondGranularity: true,
+			testName:            "without_warmup_second_granularity",
+			withWarmup:          false,
+			secondGranularity:   true,
+			expectedInvocations: 6,
 		},
 		{
-			testName:          "with_warmup_second_granularity",
-			withWarmup:        true,
-			secondGranularity: true,
+			testName:            "with_warmup_second_granularity",
+			withWarmup:          true,
+			secondGranularity:   true,
+			expectedInvocations: 12,
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.testName, func(t *testing.T) {
 			logrus.SetLevel(logrus.DebugLevel)
+			logrus.SetFormatter(&logrus.TextFormatter{TimestampFormat: time.StampMilli, FullTimestamp: true})
 
 			driver := createTestDriver()
 			if test.withWarmup {
@@ -335,16 +346,12 @@ func TestDriverCompletely(t *testing.T) {
 					diff := (records[i+1].StartTime - records[i].StartTime) / 1_000_000 // ms
 
 					if diff > clockTolerance {
-						t.Error("Too big clock drift for the test to pass.")
+						t.Errorf("Too big clock drift for the test to pass - %d.", diff)
 					}
 				}
 			}
 
-			expectedInvocations := 5
-			if test.withWarmup {
-				expectedInvocations = 10
-			}
-
+			expectedInvocations := test.expectedInvocations
 			if !(successfulInvocation == expectedInvocations && failedInvocations == 0) {
 				t.Error("Number of successful and failed invocations do not match.")
 			}
@@ -393,6 +400,9 @@ func TestProceedToNextMinute(t *testing.T) {
 		Name: "test-function",
 		InvocationStats: &common.FunctionInvocationStats{
 			Invocations: []int{100, 100, 100, 100, 100},
+		},
+		Specification: &common.FunctionSpecification{
+			PerMinuteCount: []int{100, 100, 100, 100, 100},
 		},
 	}
 

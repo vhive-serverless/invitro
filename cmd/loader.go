@@ -25,10 +25,14 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
+	"github.com/vhive-serverless/loader/pkg/generator"
 	"golang.org/x/exp/slices"
 	"os"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/vhive-serverless/loader/pkg/common"
@@ -49,7 +53,7 @@ var (
 	configPath    = flag.String("config", "config.json", "Path to loader configuration file")
 	verbosity     = flag.String("verbosity", "info", "Logging verbosity - choose from [info, debug, trace]")
 	iatGeneration = flag.Bool("iatGeneration", false, "Generate iats only or run invocations as well")
-	generated     = flag.Bool("generated", false, "True if iats were already generated")
+	iatFromFile   = flag.Bool("generated", false, "True if iats were already generated")
 )
 
 func init() {
@@ -90,18 +94,35 @@ func main() {
 		log.Fatal("Runtime duration should be longer, at least a minute.")
 	}
 
+	if *iatGeneration {
+		durationToParse := determineDurationToParse(cfg.ExperimentDuration, cfg.WarmupDuration)
+		iatDistribution, shiftIAT := parseIATDistribution(&cfg)
+		traceParser := trace.NewAzureParser(cfg.TracePath, durationToParse)
+		functions := traceParser.Parse(cfg.Platform)
+
+		justGenerateIAT(cfg.Seed, iatDistribution, shiftIAT, parseTraceGranularity(&cfg), functions)
+	}
+
 	supportedPlatforms := []string{
 		"Knative",
+		"Knative-RPS",
 		"OpenWhisk",
+		"OpenWhisk-RPS",
 		"AWSLambda",
+		"AWSLambda-RPS",
 		"Dirigent",
+		"Dirigent-RPS",
 	}
 
 	if !slices.Contains(supportedPlatforms, cfg.Platform) {
-		log.Fatal("Unsupported platform! Supported platforms are [Knative, OpenWhisk, AWSLambda, Dirigent]")
+		log.Fatal("Unsupported platform!")
 	}
 
-	runTraceMode(&cfg, *iatGeneration, *generated)
+	if !strings.HasSuffix(cfg.Platform, "-RPS") {
+		runTraceMode(&cfg, *iatFromFile)
+	} else {
+		runRPSMode(&cfg)
+	}
 }
 
 func determineDurationToParse(runtimeDuration int, warmupDuration int) int {
@@ -117,7 +138,56 @@ func determineDurationToParse(runtimeDuration int, warmupDuration int) int {
 	return result
 }
 
-func runTraceMode(cfg *config.LoaderConfiguration, iatOnly bool, generated bool) {
+func parseIATDistribution(cfg *config.LoaderConfiguration) (common.IatDistribution, bool) {
+	switch cfg.IATDistribution {
+	case "exponential":
+		return common.Exponential, false
+	case "exponential_shift":
+		return common.Exponential, true
+	case "uniform":
+		return common.Uniform, false
+	case "uniform_shift":
+		return common.Uniform, true
+	case "equidistant":
+		return common.Equidistant, false
+	default:
+		log.Fatal("Unsupported IAT distribution.")
+	}
+
+	return common.Exponential, false
+}
+
+func parseYAMLSpecification(cfg *config.LoaderConfiguration) string {
+	switch cfg.YAMLSelector {
+	case "wimpy":
+		return "workloads/container/wimpy.yaml"
+	case "container":
+		return "workloads/container/trace_func_go.yaml"
+	case "firecracker":
+		return "workloads/firecracker/trace_func_go.yaml"
+	default:
+		if cfg.Platform != "Dirigent" && cfg.Platform != "Dirigent-RPS" {
+			log.Fatal("Invalid 'YAMLSelector' parameter.")
+		}
+	}
+
+	return ""
+}
+
+func parseTraceGranularity(cfg *config.LoaderConfiguration) common.TraceGranularity {
+	switch cfg.Granularity {
+	case "minute":
+		return common.MinuteGranularity
+	case "second":
+		return common.SecondGranularity
+	default:
+		log.Fatal("Invalid trace granularity parameter.")
+	}
+
+	return common.MinuteGranularity
+}
+
+func runTraceMode(cfg *config.LoaderConfiguration, readIATFromFile bool) {
 	durationToParse := determineDurationToParse(cfg.ExperimentDuration, cfg.WarmupDuration)
 
 	traceParser := trace.NewAzureParser(cfg.TracePath, durationToParse)
@@ -128,63 +198,64 @@ func runTraceMode(cfg *config.LoaderConfiguration, iatOnly bool, generated bool)
 		fmt.Printf("\t%s\n", function.Name)
 	}
 
-	var iatType common.IatDistribution
-	shiftIAT := false
-	switch cfg.IATDistribution {
-	case "exponential":
-		iatType = common.Exponential
-	case "exponential_shift":
-		iatType = common.Exponential
-		shiftIAT = true
-	case "uniform":
-		iatType = common.Uniform
-	case "uniform_shift":
-		iatType = common.Uniform
-		shiftIAT = true
-	case "equidistant":
-		iatType = common.Equidistant
-	default:
-		log.Fatal("Unsupported IAT distribution.")
-	}
-
-	var yamlSpecificationPath string
-	switch cfg.YAMLSelector {
-	case "wimpy":
-		yamlSpecificationPath = "workloads/container/wimpy.yaml"
-	case "container":
-		yamlSpecificationPath = "workloads/container/trace_func_go.yaml"
-	case "firecracker":
-		yamlSpecificationPath = "workloads/firecracker/trace_func_go.yaml"
-	default:
-		if cfg.Platform != "Dirigent" {
-			log.Fatal("Invalid 'YAMLSelector' parameter.")
-		}
-	}
-
-	var traceGranularity common.TraceGranularity
-	switch cfg.Granularity {
-	case "minute":
-		traceGranularity = common.MinuteGranularity
-	case "second":
-		traceGranularity = common.SecondGranularity
-	default:
-		log.Fatal("Invalid trace granularity parameter.")
-	}
-
-	log.Infof("Using %s as a service YAML specification file.\n", yamlSpecificationPath)
+	iatType, shiftIAT := parseIATDistribution(cfg)
 
 	experimentDriver := driver.NewDriver(&driver.DriverConfiguration{
 		LoaderConfiguration: cfg,
 		IATDistribution:     iatType,
 		ShiftIAT:            shiftIAT,
-		TraceGranularity:    traceGranularity,
+		TraceGranularity:    parseTraceGranularity(cfg),
 		TraceDuration:       durationToParse,
 
-		YAMLPath: yamlSpecificationPath,
+		YAMLPath: parseYAMLSpecification(cfg),
 		TestMode: false,
 
 		Functions: functions,
 	})
 
-	experimentDriver.RunExperiment(iatOnly, generated)
+	log.Infof("Using %s as a service YAML specification file.\n", experimentDriver.Configuration.YAMLPath)
+
+	experimentDriver.RunExperiment(false, readIATFromFile)
+}
+
+func justGenerateIAT(seed int64, iatDistribution common.IatDistribution, shiftIAT bool, traceGranularity common.TraceGranularity, functions []*common.Function) {
+	specificationGenerator := generator.NewSpecificationGenerator(seed)
+
+	for i, function := range functions {
+		spec := specificationGenerator.GenerateInvocationData(
+			function,
+			iatDistribution,
+			shiftIAT,
+			traceGranularity,
+		)
+		functions[i].Specification = spec
+
+		file, _ := json.MarshalIndent(spec, "", " ")
+		err := os.WriteFile("iat"+strconv.Itoa(i)+".json", file, 0644)
+		if err != nil {
+			log.Fatalf("Writing the loader config file failed: %s", err)
+		}
+	}
+}
+
+func runRPSMode(cfg *config.LoaderConfiguration) {
+	rpsTarget := cfg.RpsTarget
+	coldStartPercentage := cfg.RpsColdStartRatioPercentage
+
+	warmStartRPS := rpsTarget * (100 - coldStartPercentage) / 100
+	coldStartRPS := rpsTarget * coldStartPercentage / 100
+
+	warmFunction, warmStartCount := generator.GenerateWarmStartFunction(cfg.ExperimentDuration, warmStartRPS)
+	coldFunctions, coldStartCount := generator.GenerateColdStartFunctions(cfg.ExperimentDuration, coldStartRPS, cfg.RpsCooldownSeconds)
+
+	experimentDriver := driver.NewDriver(&driver.DriverConfiguration{
+		LoaderConfiguration: cfg,
+		TraceDuration:       determineDurationToParse(cfg.ExperimentDuration, cfg.WarmupDuration),
+
+		YAMLPath: parseYAMLSpecification(cfg),
+
+		Functions: generator.CreateRPSFunctions(cfg, warmFunction, warmStartCount, coldFunctions, coldStartCount),
+	})
+
+	experimentDriver.RunExperiment(true, false)
 }

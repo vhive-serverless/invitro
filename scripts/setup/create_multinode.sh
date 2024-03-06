@@ -36,11 +36,11 @@ then
     FIRECRACKER_SNAPSHOTS=""
 elif [ $CLUSTER_MODE = "firecracker" ]
 then
-    OPERATION_MODE=""
+    OPERATION_MODE="firecracker"
     FIRECRACKER_SNAPSHOTS=""
 elif [ $CLUSTER_MODE = "firecracker_snapshots" ]
 then
-    OPERATION_MODE=""
+    OPERATION_MODE="firecracker"
     FIRECRACKER_SNAPSHOTS="-snapshots"
 else
     echo "Unsupported cluster mode"
@@ -59,12 +59,16 @@ server_exec() {
 
 common_init() {
     internal_init() {
-        server_exec $1 "git clone --branch=$VHIVE_BRANCH https://github.com/ease-lab/vhive"
+        server_exec $1 'wget -q https://go.dev/dl/go1.19.4.linux-amd64.tar.gz >/dev/null'
+        server_exec $1 'sudo rm -rf /usr/local/go && sudo tar -C /usr/local/ -xzf go1.19.4.linux-amd64.tar.gz >/dev/null'
+        server_exec $1 'echo "export PATH=$PATH:/usr/local/go/bin" >> .profile'
 
+        server_exec $1 "git clone --branch=$VHIVE_BRANCH https://github.com/ease-lab/vhive"
         server_exec $1 "pushd ~/vhive/scripts > /dev/null && ./install_go.sh && source /etc/profile && go build -o setup_tool && ./setup_tool setup_node ${OPERATION_MODE} && popd > /dev/null"
-        
+
         server_exec $1 'tmux new -s containerd -d'
         server_exec $1 'tmux send -t containerd "sudo containerd 2>&1 | tee ~/containerd_log.txt" ENTER'
+
         # install precise NTP clock synchronizer
         server_exec $1 'sudo apt-get update && sudo apt-get install -y chrony htop sysstat'
         # synchronize clock across nodes
@@ -94,7 +98,6 @@ function setup_master() {
     server_exec $MASTER_NODE "sudo wget -q https://github.com/mikefarah/yq/releases/download/v${YQ_VERSION}/yq_linux_amd64 -O /usr/bin/yq && sudo chmod +x /usr/bin/yq"
     server_exec $MASTER_NODE '~/loader/scripts/setup/rewrite_yaml_files.sh'
 
-
     MN_CLUSTER="pushd ~/vhive/scripts > /dev/null && ./setup_tool create_multinode_cluster ${OPERATION_MODE} && popd > /dev/null"
     server_exec "$MASTER_NODE" "tmux send -t master \"$MN_CLUSTER\" ENTER"
 
@@ -114,7 +117,7 @@ function setup_master() {
 function setup_vhive_firecracker_daemon() {
     node=$1
 
-    server_exec $node 'cd vhive; source /etc/profile && go build'
+    server_exec $node 'source .profile && cd vhive; go build'
     server_exec $node 'tmux new -s firecracker -d'
     server_exec $node 'tmux send -t firecracker "sudo PATH=$PATH /usr/local/bin/firecracker-containerd --config /etc/firecracker-containerd/config.toml 2>&1 | tee ~/firecracker_log.txt" ENTER'
     server_exec $node 'tmux new -s vhive -d'
@@ -128,14 +131,13 @@ function setup_workers() {
         node=$1
 
         echo "Setting up worker node: $node"
-        
         server_exec $node "pushd ~/vhive/scripts > /dev/null && ./setup_tool setup_worker_kubelet ${OPERATION_MODE} && popd > /dev/null"
 
-        if [ "$OPERATION_MODE" = "" ]; then
+        if [ "$OPERATION_MODE" = "firecracker" ]; then
             setup_vhive_firecracker_daemon $node
         fi
 
-        server_exec $node "sudo ${LOGIN_TOKEN}"
+        server_exec $node "sudo kubeadm join ${MASTER_IP}:${MASTER_PORT} --token ${MASTER_TOKEN} --discovery-token-ca-cert-hash ${MASTER_TOKEN_HASH}"
         echo "Worker node $node has joined the cluster."
 
         # Stretch the capacity of the worker node to 240 (k8s default: 110)
@@ -143,12 +145,10 @@ function setup_workers() {
         echo "Stretching node capacity for $node."
         server_exec $node "echo \"maxPods: ${PODS_PER_NODE}\" > >(sudo tee -a /var/lib/kubelet/config.yaml >/dev/null)"
         server_exec $node "echo \"containerLogMaxSize: 512Mi\" > >(sudo tee -a /var/lib/kubelet/config.yaml >/dev/null)"
+        server_exec $node "echo \"kubeAPIQPS: 50000\" > >(sudo tee -a /var/lib/kubelet/config.yaml >/dev/null)"
+        server_exec $node "echo \"kubeAPIBurst: 100000\" > >(sudo tee -a /var/lib/kubelet/config.yaml >/dev/null)"
         server_exec $node 'sudo systemctl restart kubelet'
         server_exec $node 'sleep 10'
-
-        # Rejoin has to be performed although errors will be thrown. Otherwise, restarting the kubelet will cause the node unreachable for some reason
-        server_exec $node "sudo ${LOGIN_TOKEN} > /dev/null 2>&1"
-        echo "Worker node $node joined the cluster (again :P)."
     }
 
     for node in "$@"
