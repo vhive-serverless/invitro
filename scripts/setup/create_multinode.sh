@@ -35,11 +35,11 @@ then
     FIRECRACKER_SNAPSHOTS=""
 elif [ $CLUSTER_MODE = "firecracker" ]
 then
-    OPERATION_MODE=""
+    OPERATION_MODE="firecracker"
     FIRECRACKER_SNAPSHOTS=""
 elif [ $CLUSTER_MODE = "firecracker_snapshots" ]
 then
-    OPERATION_MODE=""
+    OPERATION_MODE="firecracker"
     FIRECRACKER_SNAPSHOTS="-snapshots"
 else
     echo "Unsupported cluster mode"
@@ -128,7 +128,7 @@ function setup_workers() {
         
         server_exec $node "pushd ~/vhive/scripts > /dev/null && ./setup_tool setup_worker_kubelet ${OPERATION_MODE} && popd > /dev/null"
 
-        if [ "$OPERATION_MODE" = "" ]; then
+        if [ "$OPERATION_MODE" = "firecracker" ]; then
             setup_vhive_firecracker_daemon $node
         fi
 
