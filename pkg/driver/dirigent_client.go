@@ -71,9 +71,9 @@ func InvokeDirigent(function *common.Function, runtimeSpec *common.RuntimeSpecif
 		if err != nil {
 			log.Errorf("HTTP request failed - %s - %v", function.Name, err)
 		} else if resp == nil || len(body) == 0 {
-			log.Errorf("HTTP request failed - %s - empty response (status code: %d)", function.Name, resp.StatusCode)
+			log.Errorf("HTTP request failed - %s - %s - empty response (status code: %d)", function.Name, function.Endpoint, resp.StatusCode)
 		} else if resp.StatusCode != http.StatusOK {
-			log.Errorf("HTTP request failed - %s - non-empty response: %v - status code: %d", function.Name, string(body), resp.StatusCode)
+			log.Errorf("HTTP request failed - %s - %s - non-empty response: %v - status code: %d", function.Name, function.Endpoint, string(body), resp.StatusCode)
 		}
 
 		record.ResponseTime = time.Since(start).Microseconds()
