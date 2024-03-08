@@ -25,5 +25,5 @@
   "AutoscalingMetric": "concurrency",
 
   "GRPCConnectionTimeoutSeconds": 15,
-  "GRPCFunctionTimeoutSeconds": 900
+  "GRPCFunctionTimeoutSeconds": 180
 }

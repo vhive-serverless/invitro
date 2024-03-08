@@ -8,7 +8,7 @@
   "DirigentControlPlaneIP": "10.0.1.253:9092",
   "BusyLoopOnSandboxStartup": false,
 
-  "TracePath": "data/traces/example",
+  "TracePath": "data/traces/azure_500",
   "Granularity": "minute",
   "OutputPathPrefix": "data/out/experiment",
   "IATDistribution": "exponential",

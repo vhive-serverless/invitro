@@ -27,8 +27,6 @@ func triggerKnativeFailure(node string, component string, t int) bool {
 func triggerDirigentFailure(nodes string, component string, t int) {
 	time.Sleep(time.Duration(t) * time.Second)
 
-	logrus.Infof("Failure triggered...")
-
 	var command []string
 	switch component {
 	case "control_plane":
