@@ -4,14 +4,14 @@
   "Platform": "Dirigent",
   "EndpointPort": 80,
 
-  "DirigentControlPlaneIP": "localhost:9092",
+  "DirigentControlPlaneIP": "10.0.1.253:9092",
 
-  "TracePath": "data/traces/example",
+  "TracePath": "data/traces/azure_500",
   "Granularity": "minute",
   "OutputPathPrefix": "data/out/experiment",
   "IATDistribution": "exponential",
   "CPULimit": "1vCPU",
-  "ExperimentDuration": 2,
+  "ExperimentDuration": 30,
   "WarmupDuration": 0,
 
   "IsPartiallyPanic": false,
@@ -21,5 +21,5 @@
   "AutoscalingMetric": "concurrency",
 
   "GRPCConnectionTimeoutSeconds": 15,
-  "GRPCFunctionTimeoutSeconds": 900
+  "GRPCFunctionTimeoutSeconds": 180
 }
