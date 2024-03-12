@@ -57,7 +57,7 @@ type slsPackage struct {
 }
 
 type slsFunction struct {
-	Handler     string `yaml:"handler"`
+	Image       string `yaml:"handler"`
 	Description string `yaml:"description"`
 	Name        string `yaml:"name"`
 	Url         bool   `yaml:"url"`
@@ -100,17 +100,18 @@ func (s *Serverless) AddFunctionConfig(function *common.Function, provider strin
 	// Extract 0 from trace-func-0-2642643831809466437 by splitting on "-"
 	shortName := strings.Split(function.Name, "-")[2]
 
-	var handler string
 	var timeout string
+	var image string
 	switch provider {
 	case "aws":
 		handler = "server/trace-func-go/aws/trace_func"
 		timeout = "900"
+		image = "057595755673.dkr.ecr.us-east-1.amazonaws.com/francois141-test:latest"
 	default:
 		log.Fatalf("AddFunctionConfig could not recognize provider %s", provider)
 	}
 
-	f := &slsFunction{Handler: handler, Description: "", Name: shortName, Url: true, Timeout: timeout}
+	f := &slsFunction{Image: image, Description: "", Name: shortName, Url: true, Timeout: timeout}
 	s.Functions[function.Name] = f
 }
 

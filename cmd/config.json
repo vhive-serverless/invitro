@@ -1,7 +1,7 @@
 {
   "Seed": 42,
 
-  "Platform": "Knative",
+  "Platform": "AWSLambda",
   "YAMLSelector": "container",
   "EndpointPort": 80,
 
