@@ -57,7 +57,7 @@ type slsPackage struct {
 }
 
 type slsFunction struct {
-	Image       string `yaml:"handler"`
+	Image       string `yaml:"image"`
 	Description string `yaml:"description"`
 	Name        string `yaml:"name"`
 	Url         bool   `yaml:"url"`
