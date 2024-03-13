@@ -104,7 +104,6 @@ func (s *Serverless) AddFunctionConfig(function *common.Function, provider strin
 	var image string
 	switch provider {
 	case "aws":
-		handler = "server/trace-func-go/aws/trace_func"
 		timeout = "900"
 		image = "057595755673.dkr.ecr.us-east-1.amazonaws.com/francois141-test:latest"
 	default:
