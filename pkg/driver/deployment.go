@@ -27,7 +27,6 @@ package driver
 import (
 	"bytes"
 	"fmt"
-	"github.com/vhive-serverless/loader/pkg/common"
 	"io"
 	"math"
 	"math/rand"
@@ -35,8 +34,12 @@ import (
 	"net/url"
 	"os/exec"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
+	"sync"
+
+	"github.com/vhive-serverless/loader/pkg/common"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -51,9 +54,14 @@ var (
 )
 
 func DeployFunctions(functions []*common.Function, yamlPath string, isPartiallyPanic bool, endpointPort int, autoscalingMetric string) {
+	queue := make(chan struct{}, runtime.NumCPU()) // message queue as a sync method
+	deployed := sync.WaitGroup{}
+	deployed.Add(len(functions))
 	for i := 0; i < len(functions); i++ {
-		deployKnative(functions[i], yamlPath, isPartiallyPanic, endpointPort, autoscalingMetric)
+		queue <- struct{}{}
+		go deployKnative(functions[i], yamlPath, isPartiallyPanic, endpointPort, autoscalingMetric, &deployed, queue)
 	}
+	deployed.Wait()
 }
 
 func DeployDirigent(functions []*common.Function) {
@@ -100,7 +108,9 @@ func deployDirigent(function *common.Function) {
 }
 
 func deployKnative(function *common.Function, yamlPath string, isPartiallyPanic bool, endpointPort int,
-	autoscalingMetric string) bool {
+	autoscalingMetric string, deployed *sync.WaitGroup, queue chan struct{}) bool {
+	defer deployed.Done()
+	defer func() { <-queue }()
 	panicWindow := "\"10.0\""
 	panicThreshold := "\"200.0\""
 	if isPartiallyPanic {
@@ -137,7 +147,7 @@ func deployKnative(function *common.Function, yamlPath string, isPartiallyPanic 
 
 	if err != nil {
 		// TODO: there should be a toggle to turn off deployment because if this is fatal then we cannot test the thing locally
-		log.Warnf("Failed to deploy function %s: %v\n%s\n", function.Name, err, stdoutStderr)
+		log.Fatalf("Failed to deploy function %s: %v\n%s\n", function.Name, err, stdoutStderr)
 
 		return false
 	}
