@@ -611,13 +611,13 @@ func (d *Driver) internalRun(iatOnly bool, generated bool) {
 	}
 
 	log.Infof("Trace has finished executing function invocation driver\n")
-	log.Infof("Number of successful invocations: \t%d\n", atomic.LoadInt64(&successfulInvocations))
-	log.Infof("Number of failed invocations: \t%d\n", atomic.LoadInt64(&failedInvocations))
+	log.Infof("Number of successful invocations: %d\n", atomic.LoadInt64(&successfulInvocations))
+	log.Infof("Number of failed invocations: %d\n", atomic.LoadInt64(&failedInvocations))
 
 	successful := float64(atomic.LoadInt64(&successfulInvocations))
 	failed := float64(atomic.LoadInt64(&successfulInvocations))
 
-	log.Infof("Failure rate: \t%f\n", failed/(successful+failed)*100)
+	log.Infof("Failure rate: %f\n", failed/(successful+failed)*100)
 }
 
 func (d *Driver) RunExperiment(iatOnly bool, generated bool) {
