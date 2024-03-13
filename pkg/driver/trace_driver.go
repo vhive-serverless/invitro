@@ -617,7 +617,7 @@ func (d *Driver) internalRun(iatOnly bool, generated bool) {
 	successful := float64(atomic.LoadInt64(&successfulInvocations))
 	failed := float64(atomic.LoadInt64(&successfulInvocations))
 
-	log.Infof("Failure rate: \t%d\n", failed/(successful+failed)*100)
+	log.Infof("Failure rate: \t%f\n", failed/(successful+failed)*100)
 }
 
 func (d *Driver) RunExperiment(iatOnly bool, generated bool) {
