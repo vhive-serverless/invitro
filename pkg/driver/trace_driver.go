@@ -610,14 +610,13 @@ func (d *Driver) internalRun(iatOnly bool, generated bool) {
 		allRecordsWritten.Wait()
 	}
 
+	successful := atomic.LoadInt64(&successfulInvocations)
+	failed := atomic.LoadInt64(&failedInvocations)
+
 	log.Infof("Trace has finished executing function invocation driver\n")
-	log.Infof("Number of successful invocations: %d\n", atomic.LoadInt64(&successfulInvocations))
-	log.Infof("Number of failed invocations: %d\n", atomic.LoadInt64(&failedInvocations))
-
-	successful := float64(atomic.LoadInt64(&successfulInvocations))
-	failed := float64(atomic.LoadInt64(&failedInvocations))
-
-	log.Infof("Failure rate: %f\n", failed/(successful+failed)*100)
+	log.Infof("Number of successful invocations: %d\n", successful)
+	log.Infof("Number of failed invocations: %d\n", failed)
+	log.Infof("Failure rate: %d\n", int(float64(failed)/float64(successful+failed)*100))
 }
 
 func (d *Driver) RunExperiment(iatOnly bool, generated bool) {
