@@ -615,7 +615,7 @@ func (d *Driver) internalRun(iatOnly bool, generated bool) {
 	log.Infof("Number of failed invocations: %d\n", atomic.LoadInt64(&failedInvocations))
 
 	successful := float64(atomic.LoadInt64(&successfulInvocations))
-	failed := float64(atomic.LoadInt64(&successfulInvocations))
+	failed := float64(atomic.LoadInt64(&failedInvocations))
 
 	log.Infof("Failure rate: %f\n", failed/(successful+failed)*100)
 }
