@@ -72,7 +72,7 @@ common_init() {
         server_exec $1 'sudo chronyc tracking'
 
         clone_loader $1
-        server_exec $1 '~/loader/scripts/setup/stabilize.sh'
+        #server_exec $1 '~/loader/scripts/setup/stabilize.sh'
     }
 
     for node in "$@"
@@ -137,15 +137,15 @@ function setup_workers() {
 
         # Stretch the capacity of the worker node to 240 (k8s default: 110)
         # Empirically, this gives us a max. #pods being 240-40=200
-        echo "Stretching node capacity for $node."
-        server_exec $node "echo \"maxPods: ${PODS_PER_NODE}\" > >(sudo tee -a /var/lib/kubelet/config.yaml >/dev/null)"
-        server_exec $node "echo \"containerLogMaxSize: 512Mi\" > >(sudo tee -a /var/lib/kubelet/config.yaml >/dev/null)"
-        server_exec $node 'sudo systemctl restart kubelet'
-        server_exec $node 'sleep 10'
+        #echo "Stretching node capacity for $node."
+        #server_exec $node "echo \"maxPods: ${PODS_PER_NODE}\" > >(sudo tee -a /var/lib/kubelet/config.yaml >/dev/null)"
+        #server_exec $node "echo \"containerLogMaxSize: 512Mi\" > >(sudo tee -a /var/lib/kubelet/config.yaml >/dev/null)"
+        #server_exec $node 'sudo systemctl restart kubelet'
+        #server_exec $node 'sleep 10'
 
         # Rejoin has to be performed although errors will be thrown. Otherwise, restarting the kubelet will cause the node unreachable for some reason
-        server_exec $node "sudo ${LOGIN_TOKEN} > /dev/null 2>&1"
-        echo "Worker node $node joined the cluster (again :P)."
+        #server_exec $node "sudo ${LOGIN_TOKEN} > /dev/null 2>&1"
+        #echo "Worker node $node joined the cluster (again :P)."
     }
 
     for node in "$@"
