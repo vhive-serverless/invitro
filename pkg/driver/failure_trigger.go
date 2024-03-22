@@ -20,7 +20,7 @@ func scheduleFailure(config *config.LoaderConfiguration) {
 	}
 }
 
-func triggerKnativeFailure(_ string, component string, t int) {
+func triggerKnativeFailure(nodes string, component string, t int) {
 	time.Sleep(time.Duration(t) * time.Second)
 
 	var command []string
@@ -30,12 +30,30 @@ func triggerKnativeFailure(_ string, component string, t int) {
 	case "data_plane":
 		command = []string{"bash", "./pkg/driver/knative_delete_data_plane.sh"}
 	case "worker_node":
-		panic("Not yet implemented")
+		command = []string{"sudo", "systemctl", "restart", "kubelet"}
 	default:
 		logrus.Fatal("Invalid component to fail.")
 	}
 
-	invokeCommand(command, t)
+	if component != "worker_node" {
+		invokeCommand(command, t)
+	} else {
+		splitNodes := strings.Split(nodes, " ")
+		wg := &sync.WaitGroup{}
+
+		for _, node := range splitNodes {
+			wg.Add(1)
+
+			go func(command []string, node string, t int) {
+				defer wg.Done()
+
+				finalCommand := append([]string{"ssh", "-o", "StrictHostKeyChecking=no", node}, command...)
+				invokeCommand(finalCommand, t)
+			}(command, node, t)
+		}
+
+		wg.Wait()
+	}
 }
 
 func triggerDirigentFailure(nodes string, component string, t int) {
@@ -67,7 +85,6 @@ func triggerDirigentFailure(nodes string, component string, t int) {
 
 				finalCommand := append([]string{"ssh", "-o", "StrictHostKeyChecking=no", node}, command...)
 				invokeCommand(finalCommand, t)
-
 			}(command, node, t)
 		}
 
