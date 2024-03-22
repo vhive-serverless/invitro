@@ -112,11 +112,7 @@ function setup_master() {
 
     server_exec $MASTER_NODE '~/loader/scripts/setup/rewrite_yaml_files.sh'
 
-<<<<<<< HEAD
-    MN_CLUSTER="pushd ~/vhive/scripts > /dev/null && ./setup_tool create_multinode_cluster ${OPERATION_MODE} && popd > /dev/null"
-=======
     MN_CLUSTER="pushd ~/vhive/scripts > /dev/null && ./setup_tool create_multinode_cluster ${OPERATION_MODE} ${CONTROL_PLANE_REPLICAS} && popd > /dev/null"
->>>>>>> 78e9b94 (K8s high-availability mode)
     server_exec "$MASTER_NODE" "tmux send -t master \"$MN_CLUSTER\" ENTER"
 
     # Get the join token from k8s.
