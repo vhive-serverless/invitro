@@ -24,3 +24,5 @@ kubectl delete pod $(kubectl get pods -n kube-system -o name | cut -c 5- | grep 
 
 # kube-scheduler
 kubectl delete pod $(kubectl get pods -n kube-system -o name | cut -c 5- | grep kube-scheduler | tail -n 1) -n kube-system &
+
+# TODO: make an automatic way to choose leaders instead of picking a random one to kill
