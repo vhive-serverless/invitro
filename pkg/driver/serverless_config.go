@@ -50,6 +50,7 @@ type slsProvider struct {
 	Stage            string `yaml:"stage"`
 	Region           string `yaml:"region"`
 	VersionFunctions bool   `yaml:"versionFunctions"`
+	MemorySize       int    `yaml:"memorySize"`
 }
 
 type slsPackage struct {
@@ -74,6 +75,7 @@ func (s *Serverless) CreateHeader(index int, provider string) {
 		Stage:            "dev",
 		Region:           "us-east-1",
 		VersionFunctions: false,
+		MemorySize:       2000,
 	}
 	s.Functions = map[string]*slsFunction{}
 }
