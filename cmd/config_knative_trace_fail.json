@@ -5,12 +5,16 @@
   "YAMLSelector": "container",
   "EndpointPort": 80,
 
+  "FailAt": 600,
+  "FailComponent": "control_plane",
+  "FailNode": "",
+
   "TracePath": "data/traces/azure_500",
   "Granularity": "minute",
   "OutputPathPrefix": "data/out/experiment",
   "IATDistribution": "exponential",
   "CPULimit": "1vCPU",
-  "ExperimentDuration": 30,
+  "ExperimentDuration": 20,
   "WarmupDuration": 0,
 
   "IsPartiallyPanic": false,
@@ -19,6 +23,6 @@
   "MetricScrapingPeriodSeconds": 15,
   "AutoscalingMetric": "concurrency",
 
-  "GRPCConnectionTimeoutSeconds": 30,
+  "GRPCConnectionTimeoutSeconds": 15,
   "GRPCFunctionTimeoutSeconds": 900
 }
