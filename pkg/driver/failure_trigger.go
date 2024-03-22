@@ -20,8 +20,22 @@ func scheduleFailure(config *config.LoaderConfiguration) {
 	}
 }
 
-func triggerKnativeFailure(node string, component string, t int) bool {
-	panic("Not yet implemented")
+func triggerKnativeFailure(_ string, component string, t int) bool {
+	time.Sleep(time.Duration(t) * time.Second)
+
+	var command []string
+	switch component {
+	case "control_plane":
+		command = []string{"bash", "./pkg/driver/knative_delete_control_plane.sh"}
+	case "data_plane":
+		command = []string{"bash", "./pkg/driver/knative_delete_data_plane.sh"}
+	case "worker_node":
+		panic("Not yet implemented")
+	default:
+		logrus.Fatal("Invalid component to fail.")
+	}
+
+	invokeCommand(command, t)
 }
 
 func triggerDirigentFailure(nodes string, component string, t int) {
