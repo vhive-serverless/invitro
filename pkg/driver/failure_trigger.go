@@ -20,7 +20,7 @@ func scheduleFailure(config *config.LoaderConfiguration) {
 	}
 }
 
-func triggerKnativeFailure(_ string, component string, t int) bool {
+func triggerKnativeFailure(_ string, component string, t int) {
 	time.Sleep(time.Duration(t) * time.Second)
 
 	var command []string
