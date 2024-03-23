@@ -374,7 +374,7 @@ func (d *Driver) proceedToNextMinute(function *common.Function, minuteIndex *int
 			// Not fatal because we want to keep the measurements to be written to the output file
 			log.Warnf("Relative difference between requested and issued number of invocations is greater than %.2f%%. Terminating function driver for %s!\n", common.RequestedVsIssuedTerminateThreshold*100, function.Name)
 
-			return true
+			//return true
 		}
 
 		for i := 0; i <= *minuteIndex; i++ {
@@ -383,7 +383,7 @@ func (d *Driver) proceedToNextMinute(function *common.Function, minuteIndex *int
 				// Not fatal because we want to keep the measurements to be written to the output file
 				log.Warnf("Percentage of failed request is greater than %.2f%%. Terminating function driver for %s!\n", common.FailedTerminateThreshold*100, function.Name)
 
-				return true
+				//return true
 			}
 		}
 	}

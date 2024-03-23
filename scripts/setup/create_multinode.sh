@@ -58,7 +58,7 @@ server_exec() {
 
 common_init() {
     internal_init() {
-        server_exec $1 "git clone --branch=$VHIVE_BRANCH https://github.com/vhive-serverless/vhive"
+        server_exec $1 "git clone --branch=$VHIVE_BRANCH https://github.com/lightxyz/vhive"
 
         server_exec $1 "pushd ~/vhive/scripts > /dev/null && ./install_go.sh && source /etc/profile && go build -o setup_tool && ./setup_tool setup_node ${OPERATION_MODE} && popd > /dev/null"
         
