@@ -16,7 +16,7 @@ func DeployFunctionsAWSLambda(functions []*common.Function) {
 	// However, due to CPU and memory constraints, we will only deploy 2 serverless.yml files in parallel and wait for them to finish before deploying the next 2
 	var wg sync.WaitGroup
 	var counter uint64 = 0
-	parallelDeployment := 1
+	parallelDeployment := 5
 
 	for i := 0; i < len(functionGroups); {
 		for parallelIndex := 0; parallelIndex < parallelDeployment; parallelIndex++ {
