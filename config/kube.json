@@ -1,10 +1,14 @@
 {
 	"K8sVersion": "1.29.1",
-	"AlternativeImageRepo": "",
-	"ApiserverAdvertiseAddress": "",
-	"PodNetworkCidr": "10.168.0.0/16",
-	"ApiserverPort": "6443",
-	"ApiserverToken": "",
-	"ApiserverTokenHash": "",
-	"CalicoVersion": "3.27.2"
+	"CalicoVersion": "3.27.2",
+    "AlternativeImageRepo": "",
+    "ApiserverAdvertiseAddress": "",
+    "PodNetworkCidr": "10.168.0.0/16",
+    "PodNetworkAddonConfigURL": "https://raw.githubusercontent.com/vhive-serverless/vHive/main/configs/calico/canal.yaml",
+    "ApiserverPort": "6443",
+    "ApiserverToken": "",
+    "ApiserverDiscoveryToken": "",
+    "ApiserverCertificateKey": "",
+    "CPHAEndpoint": "10.0.1.254",
+    "CPHAPort": "6443"
 }

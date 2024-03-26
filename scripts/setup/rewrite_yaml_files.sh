@@ -48,18 +48,6 @@ sed -e '$d' > net-istio-yq.yaml
 cat serving-core.yaml |
     yq '
     (
-        select
-        (
-               .spec.template.metadata.labels.app == "activator"
-            or .spec.template.metadata.labels.app == "autoscaler"
-            or .spec.template.metadata.labels.app == "controller"
-            or .spec.template.metadata.labels.app == "domain-mapping"
-            or .spec.template.metadata.labels.app == "domainmapping-webhook"
-            or .spec.template.metadata.labels.app == "webhook"
-        ) | .spec.template.spec 
-    ) += {"nodeSelector": {"loader-nodetype": "master"}}' |
-    yq '
-    (
         del
         (
             select
