@@ -369,7 +369,7 @@ func (d *Driver) individualFunctionDriver(function *common.Function, announceFun
 func (d *Driver) proceedToNextMinute(function *common.Function, minuteIndex *int, invocationIndex *int, startOfMinute *time.Time,
 	skipMinute bool, currentPhase *common.ExperimentPhase, failedInvocationByMinute []int64, previousIATSum *int64) bool {
 
-	if d.Configuration.TraceGranularity == common.MinuteGranularity {
+	/*if d.Configuration.TraceGranularity == common.MinuteGranularity {
 		if !isRequestTargetAchieved(function.InvocationStats.Invocations[*minuteIndex], *invocationIndex, common.RequestedVsIssued) {
 			// Not fatal because we want to keep the measurements to be written to the output file
 			log.Warnf("Relative difference between requested and issued number of invocations is greater than %.2f%%. Terminating function driver for %s!\n", common.RequestedVsIssuedTerminateThreshold*100, function.Name)
@@ -386,7 +386,7 @@ func (d *Driver) proceedToNextMinute(function *common.Function, minuteIndex *int
 				return true
 			}
 		}
-	}
+	}*/
 
 	*minuteIndex++
 	*invocationIndex = 0
