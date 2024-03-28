@@ -1,0 +1,45 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: $FUNC_NAME
+  namespace: default
+spec:
+  template:
+    metadata:
+      labels:
+        app: fake-pod
+      annotations:
+        autoscaling.knative.dev/initial-scale: "0"  # Should start from 0, otherwise we can't deploy more functions than the node physically permits.
+        autoscaling.knative.dev/min-scale: "0"  # This parameter only has a per-revision key, so it's necessary to have here in case of the warmup messes up.
+        autoscaling.knative.dev/target-burst-capacity: "-1"  # Put activator always in the path explicitly.
+        autoscaling.knative.dev/max-scale: "200"  # Maximum instances limit of Azure.
+
+        autoscaling.knative.dev/panic-window-percentage: $PANIC_WINDOW
+        autoscaling.knative.dev/panic-threshold-percentage: $PANIC_THRESHOLD
+        autoscaling.knative.dev/metric: $AUTOSCALING_METRIC
+        autoscaling.knative.dev/target: $AUTOSCALING_TARGET
+    spec:
+      containerConcurrency: 1
+      nodeSelector:
+        loader-nodetype: fake-node
+      tolerations:
+      - key: "kwok.x-k8s.io/node"
+        operator: "Exists"
+        effect: "NoSchedule"
+      containers:
+        - image: alpine
+          # imagePullPolicy: Always  # No need if the tag is `latest`.
+          ports:
+            - name: h2c  # For gRPC support
+              containerPort: 80
+          env:
+            - name: ITERATIONS_MULTIPLIER
+              value: "102"
+            - name: ENABLE_TRACING
+              value: "false"
+          resources:
+            limits:
+              cpu: $CPU_LIMITS
+            requests:
+              cpu: $CPU_REQUEST
+              memory: $MEMORY_REQUESTS

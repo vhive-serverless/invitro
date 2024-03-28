@@ -1,0 +1,18 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: timer-service
+  namespace: kwok-system
+spec:
+  template:
+    metadata:
+      annotations:
+        autoscaling.knative.dev/minScale: "1"
+    spec:
+      containers:
+      - image: wanghanchengchn/timer:latest
+        ports:
+        - containerPort: 80
+  traffic:
+  - percent: 100
+    latestRevision: true

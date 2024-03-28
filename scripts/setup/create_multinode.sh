@@ -156,6 +156,29 @@ function setup_workers() {
     wait
 }
 
+function setup_fakes() {
+    # Compute variables locally
+    KWOK_REPO=kubernetes-sigs/kwok
+    KWOK_LATEST_RELEASE=$(curl "https://api.github.com/repos/${KWOK_REPO}/releases/latest" | jq -r '.tag_name')
+
+    # Install kwok
+    server_exec $MASTER_NODE "source /etc/profile; go install sigs.k8s.io/kwok/cmd/{kwok,kwokctl}@${KWOK_LATEST_RELEASE}"
+
+    # Deploy kwok in a Cluster
+    server_exec $MASTER_NODE "kubectl apply -f \"https://github.com/${KWOK_REPO}/releases/download/${KWOK_LATEST_RELEASE}/kwok.yaml\"; kubectl apply -f \"https://github.com/${KWOK_REPO}/releases/download/${KWOK_LATEST_RELEASE}/stage-fast.yaml\""
+    server_exec $MASTER_NODE 'kubectl apply -f ~/invitro/config/kwok_setup.yaml'
+
+    # Deploy kwok fake node
+    server_exec $MASTER_NODE 'kubectl apply -f ~/invitro/config/kwok_fake_node.yaml'
+
+    # Deploy timer service
+    server_exec $MASTER_NODE 'kubectl create namespace kwok-system'
+    server_exec $MASTER_NODE 'kubectl apply -f ~/invitro/config/deploy_timer.yaml'
+
+    # Update knative serving
+    server_exec $MASTER_NODE "kubectl patch deployment activator -n knative-serving -p '{\"spec\": {\"template\": {\"spec\": {\"containers\": [{\"name\": \"activator\", \"image\": \"docker.io/wanghanchengchn/activator-ecd51ca5034883acbe737fde417a3d86@sha256:fc47373ba5794282c6a22518a7e78040067fd14dbb143c37f5065caff4622a89\"}]}}}}'"
+}
+
 function extend_CIDR() {
     #* Get node name list.
     readarray -t NODE_NAMES < <(server_exec $MASTER_NODE 'kubectl get no' | tail -n +2 | awk '{print $1}')
@@ -259,5 +282,10 @@ function copy_k8s_certificates() {
 
     if [[ "$DEPLOY_PROMETHEUS" == true ]]; then
         $DIR/expose_infra_metrics.sh $MASTER_NODE
+    fi
+
+    # Check if ENABLE_KWOK is set to true
+    if [ "$ENABLE_KWOK" = true ]; then
+        setup_fakes
     fi
 }
