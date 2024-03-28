@@ -28,7 +28,6 @@ SERVER=$1
 DIR="$(pwd)/scripts/setup/"
 
 source "$(pwd)/scripts/setup/setup.cfg"
-source "$(pwd)/scripts/setup/versions.cfg"
 
 server_exec() { 
     ssh -oStrictHostKeyChecking=no -p 22 "$SERVER" $1; 
@@ -46,7 +45,7 @@ server_exec() {
     server_exec 'echo -en "\n\n" | sudo apt-get install python3-pip python-dev'
     server_exec 'cd; cd loader; pip install -r config/requirements.txt'
     
-    server_exec '~/loader/scripts/setup/rewrite_yaml_files.sh'
+    server_exec '~/loader/scripts/setup/rewrite_yaml_files.sh single_node'
     
     server_exec 'tmux new -s runner -d'
     server_exec 'tmux new -s kwatch -d'
@@ -57,17 +56,9 @@ server_exec() {
     server_exec 'pushd ~/vhive/scripts > /dev/null && ./setup_tool create_one_node_cluster stock-only && popd > /dev/null'
     server_exec 'tmux send-keys -t cluster "watch -n 0.5 kubectl get pods -A" ENTER'
 
-    # Setup github authentication.
-    ACCESS_TOKEH="$(cat $GITHUB_TOKEN)"
-
-    server_exec 'echo -en "\n\n" | ssh-keygen -t rsa'
-    server_exec 'ssh-keyscan -t rsa github.com >> ~/.ssh/known_hosts'
-    # server_exec 'RSA=$(cat ~/.ssh/id_rsa.pub)'
-
-    server_exec 'curl -H "Authorization: token '"$ACCESS_TOKEH"'" --data "{\"title\":\"'"key:\$(hostname)"'\",\"key\":\"'"\$(cat ~/.ssh/id_rsa.pub)"'\"}" https://api.github.com/user/keys'
-    # server_exec 'sleep 5'
-
-    $DIR/expose_infra_metrics.sh $SERVER
+    if [[ "$DEPLOY_PROMETHEUS" == true ]]; then
+        $DIR/expose_infra_metrics.sh $SERVER single_node
+    fi
 
     # Stabilize the node
     server_exec '~/loader/scripts/setup/stabilize.sh'
