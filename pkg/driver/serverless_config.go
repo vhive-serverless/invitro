@@ -70,7 +70,7 @@ func (s *Serverless) CreateHeader(index int, provider string) {
 	s.FrameworkVersion = "3"
 	s.Provider = slsProvider{
 		Name:             provider,
-		Runtime:          "go1.x",
+		Runtime:          "provided.al2023", // Golang runtime deprecated, refer to https://aws.amazon.com/fr/blogs/compute/migrating-aws-lambda-functions-from-the-go1-x-runtime-to-the-custom-runtime-on-amazon-linux-2/
 		Stage:            "dev",
 		Region:           "us-east-1",
 		VersionFunctions: false,
@@ -104,7 +104,7 @@ func (s *Serverless) AddFunctionConfig(function *common.Function, provider strin
 	var timeout string
 	switch provider {
 	case "aws":
-		handler = "server/trace-func-go/aws/trace_func"
+		handler = "bootstrap"
 		timeout = "900"
 	default:
 		log.Fatalf("AddFunctionConfig could not recognize provider %s", provider)

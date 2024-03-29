@@ -3,12 +3,21 @@ package driver
 import (
 	log "github.com/sirupsen/logrus"
 	"github.com/vhive-serverless/loader/pkg/common"
+	"os/exec"
 	"sync"
 	"sync/atomic"
 )
 
 func DeployFunctionsAWSLambda(functions []*common.Function) {
 	provider := "aws"
+
+	// Copy built Go binary to avoid nested directories during deployment (https://aws.amazon.com/fr/blogs/compute/migrating-aws-lambda-functions-from-the-go1-x-runtime-to-the-custom-runtime-on-amazon-linux-2/)
+	// Go binary is built in Linux by: CGO_ENABLED=1 GOARCH=amd64 GOGCCFLAGS=-m64 GOOS=linux go build -o ./server/trace-func-go/aws/bootstrap ./server/trace-func-go/aws/trace_func.go
+	copyBinaryCmd := exec.Command("cp", "./server/trace-func-go/aws/bootstrap", "./bootstrap")
+	err := copyBinaryCmd.Run()
+	if err != nil {
+		log.Fatalf("Failed to copy Go binary: %s", err)
+	}
 
 	functionGroups := separateFunctions(functions)
 
@@ -30,7 +39,7 @@ func DeployFunctionsAWSLambda(functions []*common.Function) {
 					serverless := Serverless{}
 					serverless.CreateHeader(index, provider)
 					serverless.AddPackagePattern("!**")
-					serverless.AddPackagePattern("./server/trace-func-go/aws/trace_func")
+					serverless.AddPackagePattern("bootstrap")
 
 					for i := 0; i < len(functionGroup); i++ {
 						serverless.AddFunctionConfig(functionGroup[i], provider)
@@ -62,6 +71,13 @@ func DeployFunctionsAWSLambda(functions []*common.Function) {
 }
 
 func CleanAWSLambda(functions []*common.Function) {
+	// Delete bootstrap binary
+	deleteBootstrapCmd := exec.Command("rm", "./bootstrap")
+	err := deleteBootstrapCmd.Run()
+	if err != nil {
+		log.Fatalf("Failed to delete bootstrap binary: %s", err)
+	}
+
 	functionGroups := separateFunctions(functions)
 
 	// Use goroutines to delete multiple serverless.yml files in parallel
