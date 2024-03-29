@@ -161,6 +161,7 @@ prometheus:
             values:
             - monitoring
             - singlenode
+    enableAdminAPI: true
     serviceMonitorSelectorNilUsesHelmValues: false
     podMonitorSelectorNilUsesHelmValues: false
     walCompression: false
