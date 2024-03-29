@@ -2163,7 +2163,7 @@ prometheus:
     ## This is disabled by default.
     ## ref: https://prometheus.io/docs/prometheus/latest/querying/api/#tsdb-admin-apis
     ##
-    enableAdminAPI: false
+    enableAdminAPI: true
 
     ## WebTLSConfig defines the TLS parameters for HTTPS
     ## ref: https://github.com/prometheus-operator/prometheus-operator/blob/main/Documentation/api.md#webtlsconfig
