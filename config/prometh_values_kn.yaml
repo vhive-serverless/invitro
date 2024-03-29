@@ -115,6 +115,7 @@ prometheus:
 
   prometheusSpec:
     scrapeInterval: "15s"
+    enableAdminAPI: true
     nodeSelector:
       loader-nodetype: monitoring
     serviceMonitorSelectorNilUsesHelmValues: false
