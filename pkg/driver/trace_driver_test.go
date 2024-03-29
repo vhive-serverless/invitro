@@ -191,21 +191,23 @@ func TestDAGInvocation(t *testing.T) {
 	testDriver := createTestDriver()
 	var failureCountByMinute = make([]int64, testDriver.Configuration.TraceDuration)
 	list := list.New()
-	for i := 0; i < functionsToInvoke; i++ {
-		function := testDriver.Configuration.Functions[0]
-		list.PushBack(function)
-		address, port := "localhost", 8085+i
-		function.Endpoint = fmt.Sprintf("%s:%d", address, port)
-		go standard.StartGRPCServer(address, port, standard.TraceFunction, "")
+	address, port := "localhost", 8085
+	function := testDriver.Configuration.Functions[0]
+	function.Endpoint = fmt.Sprintf("%s:%d", address, port)
 
-		for i := 0; i < len(function.Specification.RuntimeSpecification); i++ {
-			function.Specification.RuntimeSpecification[i] = make([]common.RuntimeSpecification, 3)
-		}
-		function.Specification.RuntimeSpecification[0][2] = common.RuntimeSpecification{
-			Runtime: 1000,
-			Memory:  128,
-		}
+	go standard.StartGRPCServer(address, port, standard.TraceFunction, "")
+	for i := 0; i < len(function.Specification.RuntimeSpecification); i++ {
+		function.Specification.RuntimeSpecification[i] = make([]common.RuntimeSpecification, 3)
 	}
+	function.Specification.RuntimeSpecification[0][2] = common.RuntimeSpecification{
+		Runtime: 1000,
+		Memory:  128,
+	}
+	for i := 0; i < functionsToInvoke; i++ {
+		function = testDriver.Configuration.Functions[0]
+		list.PushBack(function)
+	}
+
 	time.Sleep(2 * time.Second)
 
 	metadata := &InvocationMetadata{
