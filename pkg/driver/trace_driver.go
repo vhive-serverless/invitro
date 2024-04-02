@@ -30,6 +30,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -659,7 +660,18 @@ func (d *Driver) RunExperiment(iatOnly bool, generated bool) {
 	default:
 		log.Fatal("Unsupported platform.")
 	}
-
+	file, err := os.ReadFile("time.txt")
+	if err != nil {
+		log.Fatalf("error when reading time.txt: %s", err)
+	}
+	t := string(file)
+	tInt, err := strconv.ParseInt((strings.Split(t, "\n")[0]), 10, 64)
+	if err != nil {
+		log.Fatalf("error when converting time.txt to integer: %s", err)
+	}
+	for time.Now().Unix() < tInt {
+		time.Sleep(time.Duration(int64(tInt) - time.Now().Unix()))
+	}
 	// Generate load
 	d.internalRun(iatOnly, generated)
 
