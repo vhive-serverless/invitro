@@ -46,7 +46,7 @@ func DeployFunctionsOpenWhisk(functions []*common.Function) {
 	result := strings.Split(out.String(), "\t")
 	endpoint := strings.TrimSpace(result[len(result)-1])
 
-	const actionLocation = "./pkg/workload/openwhisk/workload_openwhisk.zip"
+	const actionLocation = "./pkg/workload/openwhisk/workload_openwhisk.go"
 
 	for i := 0; i < len(functions); i++ {
 		cmd = exec.Command("wsk", "-i", "action", "create", functions[i].Name, actionLocation, "--kind", "go:1.17", "--web", "true")
