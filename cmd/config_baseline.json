@@ -1,0 +1,24 @@
+{
+  "Seed": 42,
+
+  "Platform": "Knative",
+  "YAMLSelector": "container",
+  "EndpointPort": 80,
+
+  "TracePath": "/users/yulin001/traces/sampled_150/400",
+  "Granularity": "minute",
+  "OutputPathPrefix": "data/out/$EXPERIMENT/experiment",
+  "IATDistribution": "exponential_shift",
+  "CPULimit": "1vCPU",
+  "ExperimentDuration": 40,
+  "WarmupDuration": 20,
+
+  "IsPartiallyPanic": true,
+  "EnableZipkinTracing": false,
+  "EnableMetricsScrapping": true,
+  "MetricScrapingPeriodSeconds": 15,
+  "AutoscalingMetric": "concurrency",
+
+  "GRPCConnectionTimeoutSeconds": 15,
+  "GRPCFunctionTimeoutSeconds": 900
+}

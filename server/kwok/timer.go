@@ -45,17 +45,6 @@ type funcServer struct {
 	proto.UnimplementedExecutorServer
 }
 
-func busySpin(timeoutSem <-chan time.Time) {
-	for {
-		select {
-		case <-timeoutSem: //* Fulfill requested runtime.
-			return
-		default: //* Non-blocking.
-			continue
-		}
-	}
-}
-
 func (s *funcServer) Execute(ctx context.Context, req *proto.FaasRequest) (*proto.FaasReply, error) {
 	start := time.Now()
 	runtimeRequested := req.RuntimeInMilliSec
@@ -66,11 +55,20 @@ func (s *funcServer) Execute(ctx context.Context, req *proto.FaasRequest) (*prot
 
 	time.Sleep(time.Duration(runtimeRequested) * time.Millisecond)
 
-	var msg string = "Timed func -- OK"
+	log.Infof("Elapsed time: %d microseconds", time.Since(start).Microseconds())
+
+	hostname, err := os.Hostname()
+	if err != nil {
+		log.Warn("Failed to get HOSTNAME environmental variable.")
+		hostname = "Unknown host"
+	}
+
+	var msg string = fmt.Sprintf("OK - %s", hostname)
 
 	return &proto.FaasReply{
 		Message:            msg,
 		DurationInMicroSec: uint32(time.Since(start).Microseconds()),
+		MemoryUsageInKb:    req.MemoryInMebiBytes * 1024,
 	}, nil
 }
 

@@ -168,8 +168,12 @@ function setup_fakes() {
     server_exec $MASTER_NODE "kubectl apply -f \"https://github.com/${KWOK_REPO}/releases/download/${KWOK_LATEST_RELEASE}/kwok.yaml\"; kubectl apply -f \"https://github.com/${KWOK_REPO}/releases/download/${KWOK_LATEST_RELEASE}/stage-fast.yaml\""
     server_exec $MASTER_NODE 'kubectl apply -f ~/invitro/config/kwok_setup.yaml'
 
-    # Deploy kwok fake node
-    server_exec $MASTER_NODE 'kubectl apply -f ~/invitro/config/kwok_fake_node.yaml'
+    # Deploy kwok fake nodes
+    for i in $(seq 1 $KWOK_NODE_NUM)
+    do
+        export KWOK_NODE_NAME=node-kwok-fake-node-$i
+        envsubst < ~/invitro/config/kwok_fake_node.yaml | server_exec $MASTER_NODE 'kubectl apply -f -'
+    done
 
     # Deploy timer service
     server_exec $MASTER_NODE 'kubectl create namespace kwok-system'

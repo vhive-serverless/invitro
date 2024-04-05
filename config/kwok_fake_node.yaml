@@ -14,7 +14,7 @@ metadata:
     node-role.kubernetes.io/agent: ""
     type: kwok
     loader-nodetype: fake-node
-  name: kwok-fake-node
+  name: ${KWOK_NODE_NAME}
 spec:
   taints: # Avoid scheduling actual running pods to fake Node
   - effect: NoSchedule
@@ -22,13 +22,13 @@ spec:
     value: fake
 status:
   allocatable:
-    cpu: 32
+    cpu: 128
     memory: 256Gi
-    pods: 110
+    pods: 50000
   capacity:
-    cpu: 32
+    cpu: 128
     memory: 256Gi
-    pods: 110
+    pods: 50000
   nodeInfo:
     architecture: amd64
     bootID: ""

@@ -5,7 +5,7 @@ on:
    - cron: "0 9 * * 1"
  workflow_dispatch:
  push:
-   branches: [kwok_dev]
+   branches: [kwok_exp]
  pull_request:
    branches: [main]
 

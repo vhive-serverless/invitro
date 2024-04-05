@@ -8,11 +8,15 @@ spec:
     metadata:
       annotations:
         autoscaling.knative.dev/minScale: "1"
+      labels:
+        app: timer
     spec:
       containers:
       - image: wanghanchengchn/timer:latest
         ports:
         - containerPort: 80
+      nodeSelector:
+        loader-nodetype: worker
   traffic:
   - percent: 100
     latestRevision: true

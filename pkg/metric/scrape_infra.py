@@ -74,7 +74,7 @@ if __name__ == "__main__":
 
     abs_out = subprocess.check_output(cmd_get_abs_vals).decode("utf-8")[:-1].split('\n')
     pcts_out = subprocess.check_output(cmd_get_pcts).decode("utf-8").split('\n')
-    pod_abs_out = subprocess.check_output(cmd_get_pod_abs_vals).decode("utf-8")[:-1].split('\n')
+    # pod_abs_out = subprocess.check_output(cmd_get_pod_abs_vals).decode("utf-8")[:-1].split('\n')
     mem_req = os.popen(get_promql_query(query_mem_req)()).read().strip().split('\n')
     mem_lim = os.popen(get_promql_query(query_mem_lim)()).read().strip().split('\n')
     cpu_req = os.popen(get_promql_query(query_cpu_req)()).read().strip().split('\n')
@@ -112,10 +112,10 @@ if __name__ == "__main__":
         result['pods'].append(int(pod))
     
 
-    for pod_abs_vals in pod_abs_out:
-        pod_cpu, pod_mem = pod_abs_vals.split(' ')
-        result['pod_cpu'].append(pod_cpu)
-        result['pod_mem'].append(pod_mem)
+    # for pod_abs_vals in pod_abs_out:
+    #     pod_cpu, pod_mem = pod_abs_vals.split(' ')
+    #     result['pod_cpu'].append(pod_cpu)
+    #     result['pod_mem'].append(pod_mem)
     
     # Prevent div-0 in the case of single-node.
     if counter != 0:

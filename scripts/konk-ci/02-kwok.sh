@@ -46,7 +46,10 @@ kubectl apply -f "https://github.com/${KWOK_REPO}/releases/download/${KWOK_LATES
 kubectl apply -f "https://github.com/${KWOK_REPO}/releases/download/${KWOK_LATEST_RELEASE}/metrics-usage.yaml"
 
 kubectl apply -f config/kwok_setup.yaml
-kubectl apply -f config/kwok_fake_node.yaml
+
+export KWOK_NODE_NAME=kwok-fake-node
+envsubst < config/kwok_fake_node.yaml | kubectl apply -f -
+
 kubectl create namespace kwok-system
 kubectl apply -f config/deploy_timer.yaml
 
