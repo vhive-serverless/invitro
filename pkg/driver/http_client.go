@@ -66,7 +66,7 @@ func InvokeOpenWhisk(function *common.Function, runtimeSpec *common.RuntimeSpeci
 		return false, record
 	}
 
-	record.ResponseTime = int64(time.Since(start)) * 1000
+	record.ResponseTime = int64(time.Since(start).Microseconds())
 
 	/*activationID := res.Header.Get("X-Openwhisk-Activation-Id")
 
