@@ -31,7 +31,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os/exec"
 	"strings"
 	"sync"
 	"time"
@@ -56,6 +55,7 @@ type HTTPResBody struct {
 func InvokeOpenWhisk(function *common.Function, runtimeSpec *common.RuntimeSpecification, AnnounceDoneExe *sync.WaitGroup, ReadOpenWhiskMetadata *sync.Mutex) (bool, *mc.ExecutionRecord) {
 	log.Tracef("(Invoke)\t %s: %d[ms], %d[MiB]", function.Name, runtimeSpec.Runtime, runtimeSpec.Memory)
 
+	start := time.Now()
 	success, executionRecordBase, res := httpInvocation("", function, AnnounceDoneExe, true)
 	AnnounceDoneExe.Wait() // To postpone querying OpenWhisk during the experiment for performance reasons (Issue 329: https://github.com/vhive-serverless/invitro/issues/329)
 
@@ -66,7 +66,9 @@ func InvokeOpenWhisk(function *common.Function, runtimeSpec *common.RuntimeSpeci
 		return false, record
 	}
 
-	activationID := res.Header.Get("X-Openwhisk-Activation-Id")
+	record.ResponseTime = int64(time.Since(start)) * 1000
+
+	/*activationID := res.Header.Get("X-Openwhisk-Activation-Id")
 
 	ReadOpenWhiskMetadata.Lock()
 
@@ -90,9 +92,9 @@ func InvokeOpenWhisk(function *common.Function, runtimeSpec *common.RuntimeSpeci
 		log.Debugf("error parsing activation metadata %s - %s", function.Name, err)
 
 		return false, record
-	}
+	}*/
 
-	record.ActualDuration = activationMetadata.Duration * 1000 //ms to micro sec
+	//record.ActualDuration = activationMetadata.Duration * 1000 //ms to micro sec
 	/*record.StartType = activationMetadata.StartType
 	record.InitTime = activationMetadata.InitTime * 1000 //ms to micro sec
 	record.WaitTime = activationMetadata.WaitTime * 1000 //ms to micro sec*/
