@@ -29,4 +29,8 @@
 
   "GRPCConnectionTimeoutSeconds": 15,
   "GRPCFunctionTimeoutSeconds": 180
+<<<<<<< HEAD
 }
+=======
+}
+>>>>>>> 7257cc1 (Log verbosity change)
