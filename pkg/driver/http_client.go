@@ -55,7 +55,7 @@ type HTTPResBody struct {
 func InvokeOpenWhisk(function *common.Function, runtimeSpec *common.RuntimeSpecification, AnnounceDoneExe *sync.WaitGroup, ReadOpenWhiskMetadata *sync.Mutex) (bool, *mc.ExecutionRecord) {
 	log.Tracef("(Invoke)\t %s: %d[ms], %d[MiB]", function.Name, runtimeSpec.Runtime, runtimeSpec.Memory)
 
-	qs := fmt.Sprintf("function=%s&requested_cpu=%d&multiplier=%d", function.Name, runtimeSpec.Runtime, 155)
+	qs := fmt.Sprintf("cpu=%d", runtimeSpec.Runtime)
 
 	success, executionRecordBase, res := httpInvocation(qs, function, AnnounceDoneExe, true)
 	//AnnounceDoneExe.Wait() // To postpone querying OpenWhisk during the experiment for performance reasons (Issue 329: https://github.com/vhive-serverless/invitro/issues/329)
@@ -169,6 +169,8 @@ func InvokeAWSLambda(function *common.Function, runtimeSpec *common.RuntimeSpeci
 }
 
 func httpInvocation(dataString string, function *common.Function, AnnounceDoneExe *sync.WaitGroup, tlsSkipVerify bool) (bool, *mc.ExecutionRecordBase, *http.Response) {
+	defer AnnounceDoneExe.Done()
+
 	record := &mc.ExecutionRecordBase{}
 
 	start := time.Now()
@@ -192,39 +194,33 @@ func httpInvocation(dataString string, function *common.Function, AnnounceDoneEx
 		record.ResponseTime = time.Since(start).Microseconds()
 		record.ConnectionTimeout = true
 
-		AnnounceDoneExe.Done()
-
 		return false, record, nil
 	}
 
-	res, err := http.DefaultClient.Do(req)
-	if err != nil {
+	resp, err := http.DefaultClient.Do(req)
+	defer resp.Body.Close()
+
+	if err != nil || (resp.StatusCode < 200 || resp.StatusCode >= 300) {
 		log.Debugf("http timeout exceeded for function %s - %s", function.Name, err)
 
 		record.ResponseTime = time.Since(start).Microseconds()
 		record.ConnectionTimeout = true
 
-		AnnounceDoneExe.Done()
-
-		return false, record, res
+		return false, record, resp
 	}
 
-	if res.StatusCode < 200 || res.StatusCode >= 300 {
-		log.Debugf("http request for function %s failed - error code: %d", function.Name, res.StatusCode)
-
-		record.ResponseTime = time.Since(start).Microseconds()
-		record.ConnectionTimeout = true
-
-		AnnounceDoneExe.Done()
-
-		return false, record, res
+	bodyBytes, _ := io.ReadAll(resp.Body)
+	var deserializedResponse FunctionResponse
+	err = json.Unmarshal(bodyBytes, &deserializedResponse)
+	if err != nil {
+		log.Warnf("Failed to deserialize Dirigent response.")
 	}
 
+	record.Instance = deserializedResponse.Function
 	record.ResponseTime = time.Since(start).Microseconds()
+	record.ActualDuration = uint32(deserializedResponse.ExecutionTime)
 
-	AnnounceDoneExe.Done()
-
-	return true, record, res
+	return true, record, resp
 }
 
 func logInvocationSummary(function *common.Function, record *mc.ExecutionRecordBase, res *http.Response) {
