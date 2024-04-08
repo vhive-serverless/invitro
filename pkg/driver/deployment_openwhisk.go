@@ -56,7 +56,7 @@ func DeployFunctionsOpenWhisk(functions []*common.Function) {
 			log.Fatalf("Unable to create OpenWhisk action for function %s - %s", functions[i].Name, err)
 		}
 
-		functions[i].Endpoint = fmt.Sprintf("https://%s/api/v1/web/guest/default/%s?blocking=true", endpoint, functions[i].Name)
+		functions[i].Endpoint = fmt.Sprintf("https://%s/api/v1/web/guest/default/%s", endpoint, functions[i].Name)
 	}
 }
 

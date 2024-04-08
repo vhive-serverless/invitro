@@ -24,12 +24,18 @@
 
 package main
 
-import "C"
 import (
 	"encoding/json"
 	"strconv"
 	"time"
 )
+
+// static double SQRTSD (double x) {
+//     double r;
+//     __asm__ ("sqrtsd %1, %0" : "=x" (r) : "x" (x));
+//     return r;
+// }
+import "C"
 
 const ExecUnit int = 1e2
 
@@ -57,38 +63,30 @@ type FunctionResponse struct {
 }
 
 func Main(obj map[string]interface{}) map[string]interface{} {
-	function := obj["function"].(string)
-	requestedCpu := obj["requested_cpu"].(string)
-	multiplier := obj["multiplier"].(string)
-
+	requestedCpu, ok := obj["cpu"].(string)
 	result := make(map[string]interface{})
 
-	tlm, err := strconv.Atoi(requestedCpu)
-	if err != nil {
-		result["body"] = "request_cpu_error"
+	if !ok {
+		result["body"] = obj
 		return result
 	}
 
-	mpl, err := strconv.Atoi(multiplier)
-	if err != nil {
-		result["body"] = "multiplier_error"
-		return result
-	}
+	ts, _ := strconv.Atoi(requestedCpu)
 
 	start := time.Now()
-	timeLeftMilliseconds := uint32(tlm)
+	timeLeftMilliseconds := uint32(ts)
 
 	timeConsumedMilliseconds := uint32(time.Since(start).Milliseconds())
 	if timeConsumedMilliseconds < timeLeftMilliseconds {
 		timeLeftMilliseconds -= timeConsumedMilliseconds
 		if timeLeftMilliseconds > 0 {
-			busySpin(uint32(mpl), timeLeftMilliseconds)
+			busySpin(uint32(155), timeLeftMilliseconds)
 		}
 	}
 
 	responseBytes, _ := json.Marshal(FunctionResponse{
 		Status:        "OK",
-		Function:      function,
+		Function:      "",
 		MachineName:   "NYI",
 		ExecutionTime: time.Since(start).Microseconds(),
 	})

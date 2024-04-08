@@ -55,7 +55,7 @@ type HTTPResBody struct {
 func InvokeOpenWhisk(function *common.Function, runtimeSpec *common.RuntimeSpecification, AnnounceDoneExe *sync.WaitGroup, ReadOpenWhiskMetadata *sync.Mutex) (bool, *mc.ExecutionRecord) {
 	log.Tracef("(Invoke)\t %s: %d[ms], %d[MiB]", function.Name, runtimeSpec.Runtime, runtimeSpec.Memory)
 
-	qs := fmt.Sprintf("function=%s&requested_cpu=%d&multiplier=%d", function.Name, runtimeSpec.Runtime, 155)
+	qs := fmt.Sprintf("cpu=%d", runtimeSpec.Runtime)
 
 	success, executionRecordBase, res := httpInvocation(qs, function, AnnounceDoneExe, true)
 	//AnnounceDoneExe.Wait() // To postpone querying OpenWhisk during the experiment for performance reasons (Issue 329: https://github.com/vhive-serverless/invitro/issues/329)
@@ -169,6 +169,8 @@ func InvokeAWSLambda(function *common.Function, runtimeSpec *common.RuntimeSpeci
 }
 
 func httpInvocation(dataString string, function *common.Function, AnnounceDoneExe *sync.WaitGroup, tlsSkipVerify bool) (bool, *mc.ExecutionRecordBase, *http.Response) {
+	defer AnnounceDoneExe.Done()
+
 	record := &mc.ExecutionRecordBase{}
 
 	start := time.Now()
@@ -192,8 +194,6 @@ func httpInvocation(dataString string, function *common.Function, AnnounceDoneEx
 		record.ResponseTime = time.Since(start).Microseconds()
 		record.ConnectionTimeout = true
 
-		AnnounceDoneExe.Done()
-
 		return false, record, nil
 	}
 
@@ -204,8 +204,6 @@ func httpInvocation(dataString string, function *common.Function, AnnounceDoneEx
 		record.ResponseTime = time.Since(start).Microseconds()
 		record.ConnectionTimeout = true
 
-		AnnounceDoneExe.Done()
-
 		return false, record, res
 	}
 
@@ -215,14 +213,19 @@ func httpInvocation(dataString string, function *common.Function, AnnounceDoneEx
 		record.ResponseTime = time.Since(start).Microseconds()
 		record.ConnectionTimeout = true
 
-		AnnounceDoneExe.Done()
-
 		return false, record, res
 	}
 
-	record.ResponseTime = time.Since(start).Microseconds()
+	bodyBytes, _ := io.ReadAll(res.Body)
+	var deserializedResponse FunctionResponse
+	err = json.Unmarshal(bodyBytes, &deserializedResponse)
+	if err != nil {
+		log.Warnf("Failed to deserialize Dirigent response.")
+	}
 
-	AnnounceDoneExe.Done()
+	record.Instance = deserializedResponse.Function
+	record.ResponseTime = time.Since(start).Microseconds()
+	record.ActualDuration = uint32(deserializedResponse.ExecutionTime)
 
 	return true, record, res
 }
