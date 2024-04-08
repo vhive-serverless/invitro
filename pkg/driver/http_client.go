@@ -198,39 +198,62 @@ func httpInvocation(dataString string, function *common.Function, AnnounceDoneEx
 		return false, record, nil
 	}
 
-	res, err := http.DefaultClient.Do(req)
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		log.Debugf("http request for function %s failed - %s", function.Name, err)
 
 		record.ResponseTime = time.Since(start).Microseconds()
 		record.ConnectionTimeout = true
 
-		return false, record, res
+		return false, record, resp
 	}
+	defer resp.Body.Close()
 
-	if res.StatusCode < 200 || res.StatusCode >= 300 {
-		log.Debugf("http request for function %s failed - error code: %s", function.Name, res.Status)
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		log.Debugf("http request for function %s failed - error code: %s", function.Name, resp.Status)
 
 		record.ResponseTime = time.Since(start).Microseconds()
 		record.ConnectionTimeout = true
 
-		return false, record, res
+		return false, record, resp
 	}
 
-	bodyBytes, _ := io.ReadAll(res.Body)
-	rawJson, _ := base64.StdEncoding.DecodeString(string(bodyBytes))
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		log.Debugf("Failed to read output %s - %v", function.Name, err)
+
+		record.ResponseTime = time.Since(start).Microseconds()
+		record.FunctionTimeout = true
+
+		return false, record, resp
+	}
+
+	rawJson, err := base64.StdEncoding.DecodeString(string(bodyBytes))
+	if err != nil {
+		log.Debugf("Failed to decode base64 output %s - %v", function.Name, err)
+
+		record.ResponseTime = time.Since(start).Microseconds()
+		record.FunctionTimeout = true
+
+		return false, record, resp
+	}
 
 	var deserializedResponse FunctionResponse
 	err = json.Unmarshal(rawJson, &deserializedResponse)
 	if err != nil {
-		log.Warnf("Failed to deserialize response - %v", err)
+		log.Warnf("Failed to deserialize response %s - %v", function.Name, err)
+
+		record.ResponseTime = time.Since(start).Microseconds()
+		record.FunctionTimeout = true
+
+		return false, record, resp
 	}
 
 	record.Instance = deserializedResponse.Function
 	record.ResponseTime = time.Since(start).Microseconds()
 	record.ActualDuration = uint32(deserializedResponse.ExecutionTime)
 
-	return true, record, res
+	return true, record, resp
 }
 
 func logInvocationSummary(function *common.Function, record *mc.ExecutionRecordBase, res *http.Response) {
