@@ -65,11 +65,13 @@ func Main(obj map[string]interface{}) map[string]interface{} {
 
 	tlm, err := strconv.Atoi(requestedCpu)
 	if err != nil {
+		result["body"] = "request_cpu_error"
 		return result
 	}
 
 	mpl, err := strconv.Atoi(multiplier)
 	if err != nil {
+		result["body"] = "multiplier_error"
 		return result
 	}
 
