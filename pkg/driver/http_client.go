@@ -190,7 +190,7 @@ func httpInvocation(dataString string, function *common.Function, AnnounceDoneEx
 	req.Header.Set("Content-Type", "application/json") // To avoid data being base64encoded
 
 	if err != nil {
-		log.Debugf("http request creation failed for function %s - %s", function.Name, err)
+		log.Warnf("http request creation failed for function %s - %s", function.Name, err)
 
 		record.ResponseTime = time.Since(start).Microseconds()
 		record.ConnectionTimeout = true
@@ -200,7 +200,7 @@ func httpInvocation(dataString string, function *common.Function, AnnounceDoneEx
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil || (resp.StatusCode < 200 || resp.StatusCode >= 300) {
-		log.Debugf("http timeout exceeded for function %s - %s", function.Name, err)
+		log.Warnf("http timeout exceeded for function %s - %s", function.Name, err)
 
 		record.ResponseTime = time.Since(start).Microseconds()
 		record.ConnectionTimeout = true
@@ -211,7 +211,7 @@ func httpInvocation(dataString string, function *common.Function, AnnounceDoneEx
 
 	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
-		log.Debugf("Failed to read output %s - %v", function.Name, err)
+		log.Warnf("Failed to read output %s - %v", function.Name, err)
 
 		record.ResponseTime = time.Since(start).Microseconds()
 		record.FunctionTimeout = true
@@ -221,7 +221,7 @@ func httpInvocation(dataString string, function *common.Function, AnnounceDoneEx
 
 	rawJson, err := base64.StdEncoding.DecodeString(string(bodyBytes))
 	if err != nil {
-		log.Debugf("Failed to decode base64 output %s - %v", function.Name, err)
+		log.Warnf("Failed to decode base64 output %s - %v", function.Name, err)
 
 		record.ResponseTime = time.Since(start).Microseconds()
 		record.FunctionTimeout = true
