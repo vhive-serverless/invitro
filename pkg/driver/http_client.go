@@ -200,7 +200,7 @@ func httpInvocation(dataString string, function *common.Function, AnnounceDoneEx
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil || (resp.StatusCode < 200 || resp.StatusCode >= 300) {
-		log.Warnf("http timeout exceeded for function %s - %s", function.Name, err)
+		log.Warnf("http timeout exceeded for function %s - %v", function.Name, err)
 
 		record.ResponseTime = time.Since(start).Microseconds()
 		record.ConnectionTimeout = true
