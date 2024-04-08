@@ -55,9 +55,10 @@ type HTTPResBody struct {
 func InvokeOpenWhisk(function *common.Function, runtimeSpec *common.RuntimeSpecification, AnnounceDoneExe *sync.WaitGroup, ReadOpenWhiskMetadata *sync.Mutex) (bool, *mc.ExecutionRecord) {
 	log.Tracef("(Invoke)\t %s: %d[ms], %d[MiB]", function.Name, runtimeSpec.Runtime, runtimeSpec.Memory)
 
-	start := time.Now()
-	success, executionRecordBase, res := httpInvocation("", function, AnnounceDoneExe, true)
-	AnnounceDoneExe.Wait() // To postpone querying OpenWhisk during the experiment for performance reasons (Issue 329: https://github.com/vhive-serverless/invitro/issues/329)
+	qs := fmt.Sprintf("function=%s&requested_cpu=%d&multiplier=%d", function.Name, runtimeSpec.Runtime, 155)
+
+	success, executionRecordBase, res := httpInvocation(qs, function, AnnounceDoneExe, true)
+	//AnnounceDoneExe.Wait() // To postpone querying OpenWhisk during the experiment for performance reasons (Issue 329: https://github.com/vhive-serverless/invitro/issues/329)
 
 	executionRecordBase.RequestedDuration = uint32(runtimeSpec.Runtime * 1e3)
 	record := &mc.ExecutionRecord{ExecutionRecordBase: *executionRecordBase}
@@ -65,8 +66,6 @@ func InvokeOpenWhisk(function *common.Function, runtimeSpec *common.RuntimeSpeci
 	if !success {
 		return false, record
 	}
-
-	record.ResponseTime = int64(time.Since(start).Microseconds())
 
 	/*activationID := res.Header.Get("X-Openwhisk-Activation-Id")
 
@@ -180,7 +179,11 @@ func httpInvocation(dataString string, function *common.Function, AnnounceDoneEx
 	if tlsSkipVerify {
 		http.DefaultTransport.(*http.Transport).TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 	}
-	req, err := http.NewRequest(http.MethodGet, requestURL, bytes.NewBuffer([]byte(dataString)))
+
+	if dataString != "" {
+		requestURL += "?" + dataString
+	}
+	req, err := http.NewRequest(http.MethodGet, requestURL, bytes.NewBuffer([]byte("")))
 	req.Header.Set("Content-Type", "application/json") // To avoid data being base64encoded
 
 	if err != nil {
