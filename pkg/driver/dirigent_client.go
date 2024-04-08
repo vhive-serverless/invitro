@@ -1,10 +1,12 @@
 package driver
 
 import (
+	"bytes"
 	"encoding/json"
 	log "github.com/sirupsen/logrus"
 	"github.com/vhive-serverless/loader/pkg/common"
 	mc "github.com/vhive-serverless/loader/pkg/metric"
+	"go.mongodb.org/mongo-driver/bson"
 	"io"
 	"net/http"
 	"strconv"
@@ -19,7 +21,27 @@ type FunctionResponse struct {
 	ExecutionTime int64  `json:"ExecutionTime"`
 }
 
-func InvokeDirigent(function *common.Function, runtimeSpec *common.RuntimeSpecification, client *http.Client) (bool, *mc.ExecutionRecord) {
+type InputItem struct {
+	Identifier string `bson:"identifier"`
+	Key        int64  `bson:"key"`
+	Data       []byte `bson:"data"`
+}
+
+type InputSet struct {
+	Identifier string      `bson:"identifier"`
+	Items      []InputItem `bson:"items"`
+}
+
+type MatrixRequest struct {
+	Name string     `bson:"name"`
+	Sets []InputSet `bson:"sets"`
+}
+
+func InvokeDirigent(function *common.Function, runtimeSpec *common.RuntimeSpecification, client *http.Client, isDandelionOptional ...bool) (bool, *mc.ExecutionRecord) {
+	isDandelion := false
+	if len(isDandelionOptional) > 0 {
+		isDandelion = true
+	}
 	log.Tracef("(Invoke)\t %s: %d[ms], %d[MiB]", function.Name, runtimeSpec.Runtime, runtimeSpec.Memory)
 
 	record := &mc.ExecutionRecord{
@@ -34,7 +56,35 @@ func InvokeDirigent(function *common.Function, runtimeSpec *common.RuntimeSpecif
 	start := time.Now()
 	record.StartTime = start.UnixMicro()
 
-	req, err := http.NewRequest("GET", "http://"+function.Endpoint, nil)
+	var requestBody *bytes.Buffer
+	if isDandelion {
+		matRequest := MatrixRequest{
+			Name: function.Name,
+			Sets: []InputSet{
+				{
+					Identifier: "",
+					Items: []InputItem{
+						{
+							Identifier: "",
+							Key:        0,
+							Data:       []byte{1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0},
+						},
+					},
+				},
+			},
+		}
+		matRequestBody, err := bson.Marshal(matRequest)
+		if err != nil {
+			log.Debugf("Error encoding dandelion invoke request:", err)
+			return false, record
+		}
+		requestBody = bytes.NewBuffer(matRequestBody)
+	} else {
+		requestBody = nil
+	}
+
+	req, err := http.NewRequest("GET", "http://"+function.Endpoint, requestBody)
+
 	if err != nil {
 		log.Errorf("Failed to create a HTTP request - %v\n", err)
 
@@ -52,6 +102,10 @@ func InvokeDirigent(function *common.Function, runtimeSpec *common.RuntimeSpecif
 	req.Header.Set("requested_memory", strconv.Itoa(runtimeSpec.Memory))
 	req.Header.Set("multiplier", strconv.Itoa(function.DirigentMetadata.IterationMultiplier))
 
+	if isDandelion {
+		req.URL.Path = "/hot/matmul"
+	}
+
 	resp, err := client.Do(req)
 	if err != nil {
 		log.Errorf("%s - Failed to send an HTTP request to the server - %v\n", function.Name, err)
@@ -66,6 +120,7 @@ func InvokeDirigent(function *common.Function, runtimeSpec *common.RuntimeSpecif
 
 	body, err := io.ReadAll(resp.Body)
 	defer handleBodyClosing(resp)
+	log.Debugf("received invocation resp for function %s, body length=%v", function.Name, len(body))
 
 	if err != nil || resp == nil || resp.StatusCode != http.StatusOK || len(body) == 0 {
 		if err != nil {

@@ -242,16 +242,15 @@ func (d *Driver) invokeFunction(metadata *InvocationMetadata, iatIndex int) {
 
 		if !success {
 			log.Debugf("Invocation failed at minute: %d for %s", metadata.MinuteIndex, function.Name)
-			break
-		}
-		node = node.Next()
 
-		if success {
-			atomic.AddInt64(metadata.SuccessCount, 1)
-		} else {
 			atomic.AddInt64(metadata.FailedCount, 1)
 			atomic.AddInt64(&metadata.FailedCountByMinute[metadata.MinuteIndex], 1)
+
+			break
 		}
+
+		node = node.Next()
+		atomic.AddInt64(metadata.SuccessCount, 1)
 	}
 }
 
