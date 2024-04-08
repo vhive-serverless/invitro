@@ -199,8 +199,6 @@ func httpInvocation(dataString string, function *common.Function, AnnounceDoneEx
 	}
 
 	resp, err := http.DefaultClient.Do(req)
-	defer resp.Body.Close()
-
 	if err != nil || (resp.StatusCode < 200 || resp.StatusCode >= 300) {
 		log.Debugf("http timeout exceeded for function %s - %s", function.Name, err)
 
@@ -209,14 +207,37 @@ func httpInvocation(dataString string, function *common.Function, AnnounceDoneEx
 
 		return false, record, resp
 	}
+	defer resp.Body.Close()
 
-	bodyBytes, _ := io.ReadAll(resp.Body)
-	rawJson, _ := base64.StdEncoding.DecodeString(string(bodyBytes))
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		log.Debugf("Failed to read output %s - %v", function.Name, err)
+
+		record.ResponseTime = time.Since(start).Microseconds()
+		record.FunctionTimeout = true
+
+		return false, record, resp
+	}
+
+	rawJson, err := base64.StdEncoding.DecodeString(string(bodyBytes))
+	if err != nil {
+		log.Debugf("Failed to decode base64 output %s - %v", function.Name, err)
+
+		record.ResponseTime = time.Since(start).Microseconds()
+		record.FunctionTimeout = true
+
+		return false, record, resp
+	}
 
 	var deserializedResponse FunctionResponse
 	err = json.Unmarshal(rawJson, &deserializedResponse)
 	if err != nil {
-		log.Warnf("Failed to deserialize response - %v", err)
+		log.Warnf("Failed to deserialize response %s - %v", function.Name, err)
+
+		record.ResponseTime = time.Since(start).Microseconds()
+		record.FunctionTimeout = true
+
+		return false, record, resp
 	}
 
 	record.Instance = deserializedResponse.Function
