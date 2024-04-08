@@ -27,6 +27,7 @@ package driver
 import (
 	"bytes"
 	"crypto/tls"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -217,10 +218,12 @@ func httpInvocation(dataString string, function *common.Function, AnnounceDoneEx
 	}
 
 	bodyBytes, _ := io.ReadAll(res.Body)
+	rawJson, _ := base64.StdEncoding.DecodeString(string(bodyBytes))
+
 	var deserializedResponse FunctionResponse
-	err = json.Unmarshal(bodyBytes, &deserializedResponse)
+	err = json.Unmarshal(rawJson, &deserializedResponse)
 	if err != nil {
-		log.Warnf("Failed to deserialize Dirigent response.")
+		log.Warnf("Failed to deserialize response - %v", err)
 	}
 
 	record.Instance = deserializedResponse.Function
