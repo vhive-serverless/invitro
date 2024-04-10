@@ -254,8 +254,8 @@ function copy_k8s_certificates() {
     # Force placement of metrics collectors and instrumentation on the loader node and control plane on master
     label_nodes $MASTER_NODE $1 # loader node is second on the list, becoming first after arg shift
 
-    # patch knative to accept nodeselector
-    server_exec $MASTER_NODE "cd loader; kubectl patch configmap config-features -n knative-serving -p '{\"data\": {\"kubernetes.podspec-nodeselector\": \"enabled\"}}'"
+    server_exec $MASTER_NODE "kubectl patch configmap -n knative-serving config-features -p '{\"data\": {\"kubernetes.podspec-affinity\": \"enabled\"}}'"
+
 
     if [[ "$DEPLOY_PROMETHEUS" == true ]]; then
         $DIR/expose_infra_metrics.sh $MASTER_NODE

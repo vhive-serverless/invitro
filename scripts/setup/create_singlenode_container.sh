@@ -28,7 +28,6 @@ SERVER=$1
 DIR="$(pwd)/scripts/setup/"
 
 source "$(pwd)/scripts/setup/setup.cfg"
-source "$(pwd)/scripts/setup/versions.cfg"
 
 server_exec() { 
     ssh -oStrictHostKeyChecking=no -p 22 "$SERVER" $1; 
@@ -54,20 +53,22 @@ server_exec() {
     server_exec 'tmux new -d -s cluster'
     server_exec 'tmux send-keys -t containerd "sudo containerd" ENTER'
     sleep 3
-    server_exec 'pushd ~/vhive/scripts > /dev/null && ./setup_tool create_one_node_cluster stock-only && popd > /dev/null'
+
+    server_exec 'pushd ~/vhive/scripts > /dev/null && ./setup_tool prepare_one_node_cluster stock-only && popd > /dev/null'
+    server_exec 'kubectl label nodes --all loader-nodetype=singlenode'
+    server_exec 'pushd ~/vhive/scripts > /dev/null && ./setup_tool setup_master_node stock-only && popd > /dev/null'
+
     server_exec 'tmux send-keys -t cluster "watch -n 0.5 kubectl get pods -A" ENTER'
 
-    # Setup github authentication.
-    ACCESS_TOKEH="$(cat $GITHUB_TOKEN)"
+    # Enable affinity
+    server_exec "kubectl patch configmap -n knative-serving config-features -p '{\"data\": {\"kubernetes.podspec-affinity\": \"enabled\"}}'"
 
-    server_exec 'echo -en "\n\n" | ssh-keygen -t rsa'
-    server_exec 'ssh-keyscan -t rsa github.com >> ~/.ssh/known_hosts'
-    # server_exec 'RSA=$(cat ~/.ssh/id_rsa.pub)'
+    # Patch init scale
+    server_exec 'cd loader; bash scripts/setup/patch_init_scale.sh'
 
-    server_exec 'curl -H "Authorization: token '"$ACCESS_TOKEH"'" --data "{\"title\":\"'"key:\$(hostname)"'\",\"key\":\"'"\$(cat ~/.ssh/id_rsa.pub)"'\"}" https://api.github.com/user/keys'
-    # server_exec 'sleep 5'
-
-    $DIR/expose_infra_metrics.sh $SERVER
+    if [[ "$DEPLOY_PROMETHEUS" == true ]]; then
+        $DIR/expose_infra_metrics.sh $SERVER
+    fi
 
     # Stabilize the node
     server_exec '~/loader/scripts/setup/stabilize.sh'

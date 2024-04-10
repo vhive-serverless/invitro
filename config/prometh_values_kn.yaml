@@ -7,12 +7,26 @@ alertmanager:
   serviceMonitor:
     interval: "15s"
   alertmanagerSpec:
-    nodeSelector:
-      loader-nodetype: monitoring
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+        - matchExpressions:
+          - key: loader-nodetype
+            operator: In
+            values:
+            - monitoring
+            - singlenode
 
 grafana:
-  nodeSelector:
-    loader-nodetype: monitoring
+  nodeAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      nodeSelectorTerms:
+      - matchExpressions:
+        - key: loader-nodetype
+          operator: In
+          values:
+          - monitoring
+          - singlenode
   serviceMonitor:
     interval: "15s"
     scrapeTimeout: "15s" # Cannot be larger than Prometheus scrape intervals
@@ -59,8 +73,15 @@ kubeProxy:
     interval: "15s"
 
 kube-state-metrics:
-  nodeSelector:
-      loader-nodetype: monitoring
+  nodeAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      nodeSelectorTerms:
+      - matchExpressions:
+        - key: loader-nodetype
+          operator: In
+          values:
+          - monitoring
+          - singlenode
   metricLabelsAllowlist:
     - pods=[*]
     - deployments=[app.kubernetes.io/name,app.kubernetes.io/component,app.kubernetes.io/instance]
@@ -76,8 +97,15 @@ prometheus-node-exporter:
 prometheusOperator:
   admissionWebhooks:
     deployment:
-      nodeSelector:
-        loader-nodetype: monitoring
+      nodeAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          nodeSelectorTerms:
+          - matchExpressions:
+            - key: loader-nodetype
+              operator: In
+              values:
+              - monitoring
+              - singlenode
     patch:
       resources: 
         limits:
@@ -85,8 +113,15 @@ prometheusOperator:
           memory: 5Gi
         requests:
           memory: 150Mi 
-      nodeSelector:
-        loader-nodetype: monitoring
+      nodeAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          nodeSelectorTerms:
+          - matchExpressions:
+            - key: loader-nodetype
+              operator: In
+              values:
+              - monitoring
+              - singlenode
 
   serviceMonitor:
     interval: "15s"
@@ -97,8 +132,15 @@ prometheusOperator:
     requests:
       cpu: 100m
       memory: 100Mi
-  nodeSelector:
-    loader-nodetype: monitoring
+  nodeAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      nodeSelectorTerms:
+      - matchExpressions:
+        - key: loader-nodetype
+          operator: In
+          values:
+          - monitoring
+          - singlenode
 
   prometheusConfigReloader:
     resources:
@@ -115,8 +157,15 @@ prometheus:
 
   prometheusSpec:
     scrapeInterval: "15s"
-    nodeSelector:
-      loader-nodetype: monitoring
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+        - matchExpressions:
+          - key: loader-nodetype
+            operator: In
+            values:
+            - monitoring
+            - singlenode
     serviceMonitorSelectorNilUsesHelmValues: false
     podMonitorSelectorNilUsesHelmValues: false
     walCompression: false

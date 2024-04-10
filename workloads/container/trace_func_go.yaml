@@ -18,8 +18,16 @@ spec:
         autoscaling.knative.dev/target: $AUTOSCALING_TARGET
     spec:
       containerConcurrency: 1
-      nodeSelector:
-        loader-nodetype: worker
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: loader-nodetype
+                operator: In
+                values:
+                - worker
+                - singlenode
       containers:
         - image: ghcr.io/vhive-serverless/invitro_trace_function:latest
           # imagePullPolicy: Always  # No need if the tag is `latest`.

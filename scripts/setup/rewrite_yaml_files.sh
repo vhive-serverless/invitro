@@ -56,23 +56,8 @@ cat serving-core.yaml |
             or .spec.template.metadata.labels.app == "domain-mapping"
             or .spec.template.metadata.labels.app == "domainmapping-webhook"
             or .spec.template.metadata.labels.app == "webhook"
-        ) | .spec.template.spec 
-    ) += {"nodeSelector": {"loader-nodetype": "master"}}' |
-    yq '
-    (
-        del
-        (
-            select
-            (
-                    .spec.template.metadata.labels.app == "activator"
-                or .spec.template.metadata.labels.app == "autoscaler"
-                or .spec.template.metadata.labels.app == "controller"
-                or .spec.template.metadata.labels.app == "domain-mapping"
-                or .spec.template.metadata.labels.app == "domainmapping-webhook"
-                or .spec.template.metadata.labels.app == "webhook"
-            ) | .spec.template.spec.affinity
-        )
-    )' |
+        ) | .spec.template.spec.affinity
+    ) = {"nodeAffinity": {"requiredDuringSchedulingIgnoredDuringExecution": {"nodeSelectorTerms": [{"matchExpressions": [{"key": "loader-nodetype", "operator": "In", "values": ["master", "singlenode"]}]}]}}}' |
     yq '
     (
         select
