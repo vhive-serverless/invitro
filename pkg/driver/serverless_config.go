@@ -40,7 +40,7 @@ type Serverless struct {
 	Service          string                  `yaml:"service"`
 	FrameworkVersion string                  `yaml:"frameworkVersion"`
 	Provider         slsProvider             `yaml:"provider"`
-	Package          slsPackage              `yaml:"package"`
+	Package          slsPackage              `yaml:"package,omitempty"`
 	Functions        map[string]*slsFunction `yaml:"functions"`
 }
 
@@ -57,7 +57,7 @@ type slsPackage struct {
 }
 
 type slsFunction struct {
-	Handler     string `yaml:"handler"`
+	Image       string `yaml:"image"`
 	Description string `yaml:"description"`
 	Name        string `yaml:"name"`
 	Url         bool   `yaml:"url"`
@@ -72,7 +72,7 @@ func (s *Serverless) CreateHeader(index int, provider string) {
 		Name:             provider,
 		Runtime:          "go1.x",
 		Stage:            "dev",
-		Region:           "us-east-1",
+		Region:           common.AwsRegion,
 		VersionFunctions: false,
 	}
 	s.Functions = map[string]*slsFunction{}
@@ -95,22 +95,21 @@ func (s *Serverless) AddPackagePattern(pattern string) {
 }
 
 // AddFunctionConfig adds the function configuration for serverless.com deployment
-func (s *Serverless) AddFunctionConfig(function *common.Function, provider string) {
+func (s *Serverless) AddFunctionConfig(function *common.Function, provider string, awsAccountId string) {
+	// Extract trace-func-0 from trace-func-0-2642643831809466437 by splitting on "-"
+	shortName := fmt.Sprintf("%s-%s", common.FunctionNamePrefix, strings.Split(function.Name, "-")[2])
 
-	// Extract 0 from trace-func-0-2642643831809466437 by splitting on "-"
-	shortName := strings.Split(function.Name, "-")[2]
-
-	var handler string
+	var image string
 	var timeout string
 	switch provider {
 	case "aws":
-		handler = "server/trace-func-go/aws/trace_func"
+		image = fmt.Sprintf("%s.dkr.ecr.%s.amazonaws.com/%s:latest", awsAccountId, common.AwsRegion, common.AwsTraceFuncRepositoryName)
 		timeout = "900"
 	default:
 		log.Fatalf("AddFunctionConfig could not recognize provider %s", provider)
 	}
 
-	f := &slsFunction{Handler: handler, Description: "", Name: shortName, Url: true, Timeout: timeout}
+	f := &slsFunction{Image: image, Description: "", Name: shortName, Url: true, Timeout: timeout}
 	s.Functions[function.Name] = f
 }
 
@@ -132,6 +131,10 @@ func (s *Serverless) CreateServerlessConfigFile(index int) {
 func DeployServerless(index int) map[int]string {
 	slsDeployCmd := exec.Command("sls", "deploy", "--config", fmt.Sprintf("./serverless-%d.yml", index))
 	stdoutStderr, err := slsDeployCmd.CombinedOutput()
+	if err != nil {
+		log.Errorf("Failed to deploy serverless-%d.yml: %v\n%s", index, err, stdoutStderr)
+		return nil
+	}
 	log.Debug("CMD response: ", string(stdoutStderr))
 
 	// Extract the URLs from the output
@@ -145,31 +148,29 @@ func DeployServerless(index int) map[int]string {
 		functionToURL[i] = urlMatches[i][0]
 	}
 
-	if err != nil {
-		log.Fatalf("Failed to deploy serverless-%d.yml: %v\n%s", index, err, stdoutStderr)
-		return nil
-	}
-
 	log.Debugf("Deployed serverless-%d.yml", index)
 	return functionToURL
 }
 
 // CleanServerless removes the deployed service and deletes the serverless-<index>.yml file
 func CleanServerless(index int) bool {
+	// Check if the serverless-<index>.yml file exists
+	if _, err := os.Stat(fmt.Sprintf("./serverless-%d.yml", index)); os.IsNotExist(err) {
+		log.Debugf("serverless-%d.yml does not exist", index)
+		return true
+	}
+
 	slsRemoveCmd := exec.Command("sls", "remove", "--config", fmt.Sprintf("./serverless-%d.yml", index))
 	stdoutStderr, err := slsRemoveCmd.CombinedOutput()
-	log.Debug("CMD response: ", string(stdoutStderr))
-
-	if err != nil {
-		log.Warnf("Failed to undeploy serverless-%d.yml: %v\n%s", index, err, stdoutStderr)
+	if err != nil && !strings.Contains(string(stdoutStderr), fmt.Sprintf("Stack 'loader-%d-dev' does not exist", index)) {
+		log.Errorf("Failed to undeploy serverless-%d.yml: %v\n%s", index, err, stdoutStderr)
 		return false
 	}
 
 	slsRemoveCmd = exec.Command("rm", "-f", fmt.Sprintf("./serverless-%d.yml", index))
 	stdoutStderr, err = slsRemoveCmd.CombinedOutput()
-
 	if err != nil {
-		log.Warnf("Failed to delete serverless-%d.yml: %v\n%s", index, err, stdoutStderr)
+		log.Errorf("Failed to delete serverless-%d.yml: %v\n%s", index, err, stdoutStderr)
 		return false
 	}
 

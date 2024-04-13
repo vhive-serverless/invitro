@@ -181,18 +181,37 @@ For instructions on how to use the loader with OpenWhisk go to `openwhisk_setup/
 
 ## Running on Cloud Using Serverless Framework
 
-Currently supported vendors: AWS
+**Currently supported vendors:** AWS
 
-Setup Instructions:
-1. Sign up for a Serverless account [here](https://app.serverless.com/)
-2. Install Serverless framework via command line `npm install -g serverless` to allow our Go code to interact with the Serverless CLI framework e.g. `sls deploy`
-3. Follow their [setup guide](https://www.serverless.com/framework/docs/getting-started) to link the respective cloud providers
+**Quick Setup for AWS Deployment:**
+1. Install the dependencies required for AWS deployment
+    ```bash
+    bash ./scripts/setup/install_aws_dependencies.sh <loader_node@IP>`
+    ```
+2. In the loader node, set AWS credentials as environment variables
+    ```bash
+    export AWS_ACCESS_KEY_ID=
+    export AWS_SECRET_ACCESS_KEY=
+    export AWS_DEFAULT_REGION=us-east-1
+    ```
+   > For more fine-grained IAM setup, please refer to Serverless [setup guide](https://www.serverless.com/framework/docs/providers/aws/guide/credentials/)
+3. In `cmd/config.json`, change `"Platform": "Knative"` to `"Platform": "AWSLambda"` (as specified in [`docs/configuration.md`](../docs/configuration.md))
+    ```bash
+    cd loader/
+    sed -i 's/"Platform": "Knative"/"Platform": "AWSLambda"/g' cmd/config.json
+    ```
+4. Start the AWS deployment experiment:
+    ```bash
+    go run cmd/loader.go --config cmd/config.json
+    ```
 
-To run the default Loader:
-1. Change the `Platform` value in `cmd/config.json` to one of those specified in `docs/configuration.md`
-2. ~~Build the Go binary in Linux: `go build -v -o ./server/trace-func-go/aws/trace_func ./server/trace-func-go/aws/trace_func.go` (For Window users, please use WSL to build the binary)~~
-3. Start the experiments: `go run cmd/loader.go --config cmd/config.json --verbosity trace`
-
+---
 Note:
-- Current deployment is via zip file where the Go binary has to be built prior to running the code. For now, the Go binary has been packaged in this repo. Otherwise, refer to Step 2 above to build your custom Go binary.
+- Current deployment is via container image.
 - Refer to [Single Execution](#single-execution) section for more details on the experiment configurations.
+- **[Strongly Recommended]** For experiments with concurrency > 10, please raise a request to increase the default AWS Lambda concurrency limit of 10 to a higher value (e.g. 1000).
+  - Go to the AWS Management Console, select the appropriate region (i.e. `us-east-1`) and search for `Service Quotas`
+  - Under `Manage Quota`, select `AWS Lambda` service and click `View quotas` (Alternatively, click [here](https://us-east-1.console.aws.amazon.com/servicequotas/home/services/lambda/quotas))
+  - Under `Quota name`, select `Concurrent executions` and click `Request increase at account level` (Alternatively, click [here](https://us-east-1.console.aws.amazon.com/servicequotas/home/services/lambda/quotas/L-B99A9384))
+  - Under `Increase quota value`, input `1000` and click `Request`
+  - Await AWS Support Team to approve the request. The request may take several days or weeks to be approved.

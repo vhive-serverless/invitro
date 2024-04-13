@@ -92,3 +92,8 @@ const (
 	RequestedVsIssued RuntimeAssertType = 0
 	IssuedVsFailed    RuntimeAssertType = 1
 )
+
+const (
+	AwsRegion                  = "us-east-1"
+	AwsTraceFuncRepositoryName = "invitro_trace_function_aws"
+)
