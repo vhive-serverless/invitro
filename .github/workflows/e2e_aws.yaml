@@ -1,0 +1,64 @@
+name: End-to-End AWS Tests
+
+on:
+ schedule:
+   - cron: "0 9 * * 1"
+ workflow_dispatch:
+ push:
+   branches: [main]
+ pull_request:
+   branches: [main]
+
+env:
+  GOOS: linux
+  GO111MODULE: on
+
+jobs:
+  test-aws:
+    name: Test AWS Cloud Deployment
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_KEY }}
+      AWS_DEFAULT_REGION: us-east-1
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Checkout GitHub Code
+        uses: actions/checkout@v3
+        with:
+          lfs: "true"
+
+      - name: Checkout LFS objects
+        run: git lfs checkout
+
+      # AWS CLI v2 and Docker Client & Server v24 are pre-installed
+      - name: Install Golang (Ubuntu 20.04 Cached Tool)
+        uses: actions/setup-go@v5
+        with:
+          go-version: 1.22
+
+      - name: Install Node.js (Ubuntu 20.04 Cached Tool)
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install Serverless.com Framework
+        run: sudo npm install -g serverless
+
+      - name: Update cmd/config.json for AWS Deployment
+        # Change "Platform": "Knative" to "Platform": "AWSLambda"
+        # Change "Granularity": "minute" to "Granularity": "second"
+        run: |
+          sed -i 's/"Platform": "Knative"/"Platform": "AWSLambda"/g' cmd/config.json
+          sed -i 's/"Granularity": "minute"/"Granularity": "second"/g' cmd/config.json
+
+      - name: Wait for any previous workflows to finish # Works at workflow level (i.e. only 1 e2e_aws.yml workflow can run at a time)
+        uses: ahmadnassri/action-workflow-queue@v1      # Separate workflows for cloud deployment to minimise runner wait time and billing cost
+        with:
+          timeout: 3600000  # 1 hour; else manually re-run the workflow
+          delay: 60000  # 1 minute
+
+      - name: Build and run loader
+        run: go run cmd/loader.go --config cmd/config.json
+
+      - name: Check the output
+        run: test -f "data/out/experiment_duration_5.csv" && test $(grep true data/out/experiment_duration_5.csv | wc -l) -eq 0 # test the output file for errors (true means failure to invoke)
