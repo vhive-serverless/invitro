@@ -1,0 +1,65 @@
+name: End-to-End AWS Tests
+
+on:
+ workflow_dispatch:
+ push:
+   branches: [main]
+
+env:
+  GOOS: linux
+  GO111MODULE: on
+
+jobs:
+  test-aws:
+    name: Test AWS Cloud Deployment
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_KEY }}
+      AWS_DEFAULT_REGION: "us-east-1"
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Check if environment variables are set  # Fails workflow if the secrets are not set
+        # Checks for missing secrets due to branch being out of upstream repo (i.e. forked repo cannot access secrets in upstream repo)
+        run: |
+          if [[ -z "$AWS_ACCESS_KEY_ID" ]]; then
+            echo "AWS_ACCESS_KEY_ID is not set. Please check if secrets.AWS_ACCESS_KEY is in the repository. Note that forked repo cannot access secrets in upstream repo!"
+            exit 1
+          fi
+          if [[ -z "$AWS_SECRET_ACCESS_KEY" ]]; then
+              echo "AWS_SECRET_ACCESS_KEY is not set. Please check if secrets.AWS_SECRET_KEY is in the repository. Note that forked repo cannot access secrets in upstream repo!"
+              exit 1
+          fi
+
+      - name: Checkout GitHub Code
+        uses: actions/checkout@v3
+        with:
+          lfs: "true"
+
+      - name: Checkout LFS objects
+        run: git lfs checkout
+
+      # AWS CLI v2 and Docker Client & Server v24 are pre-installed
+      - name: Install Golang (Ubuntu 20.04 Cached Tool)
+        uses: actions/setup-go@v5
+        with:
+          go-version: 1.21
+
+      - name: Install Node.js (Ubuntu 20.04 Cached Tool)
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install Serverless.com Framework
+        run: sudo npm install -g serverless
+
+      - name: Wait for any previous workflows to finish # Works at workflow level (i.e. only 1 e2e_aws.yml workflow can run at a time)
+        uses: ahmadnassri/action-workflow-queue@v1      # Separate workflows for cloud deployment to minimise runner wait time and billing cost
+        with:
+          timeout: 3600000  # 1 hour; else manually re-run the workflow
+          delay: 60000  # 1 minute
+
+      - name: Build and run loader      # Test the AWS deployment using pkg/test_config_aws.json
+        run: go run cmd/loader.go --config pkg/test_config_aws.json
+
+      - name: Check the output
+        run: test -f "data/out/experiment_duration_5.csv" && test $(grep true data/out/experiment_duration_5.csv | wc -l) -eq 0 # test the output file for errors (true means failure to invoke)
