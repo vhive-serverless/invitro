@@ -65,6 +65,7 @@ func (i *grpcInvoker) Invoke(function *common.Function, runtimeSpec *common.Runt
 	////////////////////////////////////
 	start := time.Now()
 	record.StartTime = start.UnixMicro()
+	record.Function = function.Name
 
 	var dialOptions []grpc.DialOption
 	dialOptions = append(dialOptions, grpc.WithTransportCredentials(insecure.NewCredentials()))
