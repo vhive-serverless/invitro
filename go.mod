@@ -17,6 +17,7 @@ require (
 	github.com/aws/aws-lambda-go v1.46.0
 	github.com/stretchr/testify v1.8.0
 	github.com/vhive-serverless/vSwarm/utils/tracing/go v0.0.0-20230926064847-68cc9b8b8e84
+	go.mongodb.org/mongo-driver v1.15.0
 	golang.org/x/exp v0.0.0-20230510235704-dd950f8aeaea
 	gopkg.in/yaml.v3 v3.0.1
 )
@@ -49,7 +50,7 @@ require (
 	go.opentelemetry.io/otel v1.11.1 // indirect
 	go.opentelemetry.io/otel/sdk v1.8.0 // indirect
 	go.opentelemetry.io/otel/trace v1.11.1 // indirect
-	golang.org/x/net v0.21.0
+	golang.org/x/net v0.21.0 // indirect
 	golang.org/x/text v0.14.0 // indirect
 	google.golang.org/protobuf v1.31.0 // indirect
 )

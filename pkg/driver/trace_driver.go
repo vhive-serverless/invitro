@@ -666,6 +666,8 @@ func (d *Driver) RunExperiment(skipIATGeneration bool, readIATFromFIle bool) {
 			d.Configuration.LoaderConfiguration.EndpointPort,
 			d.Configuration.LoaderConfiguration.AutoscalingMetric)
 		go scheduleFailure(d.Configuration.LoaderConfiguration)
+	case "Dirigent-Dandelion":
+		DeployFunctionsDandelion(d.Configuration.LoaderConfiguration.DirigentControlPlaneIP, d.Configuration.Functions)
 	case "OpenWhisk", "OpenWhisk-RPS":
 		DeployFunctionsOpenWhisk(d.Configuration.Functions)
 	case "AWSLambda", "AWSLambda-RPS":

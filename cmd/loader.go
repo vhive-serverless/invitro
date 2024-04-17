@@ -112,6 +112,7 @@ func main() {
 		"AWSLambda-RPS",
 		"Dirigent",
 		"Dirigent-RPS",
+		"Dirigent-Dandelion",
 	}
 
 	if !slices.Contains(supportedPlatforms, cfg.Platform) {
@@ -166,7 +167,7 @@ func parseYAMLSpecification(cfg *config.LoaderConfiguration) string {
 	case "firecracker":
 		return "workloads/firecracker/trace_func_go.yaml"
 	default:
-		if cfg.Platform != "Dirigent" && cfg.Platform != "Dirigent-RPS" {
+		if cfg.Platform != "Dirigent" && cfg.Platform != "Dirigent-RPS" && cfg.Platform != "Dirigent-Dandelion" {
 			log.Fatal("Invalid 'YAMLSelector' parameter.")
 		}
 	}
