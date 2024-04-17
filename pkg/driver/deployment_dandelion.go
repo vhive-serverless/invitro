@@ -59,5 +59,19 @@ func DeployFunctionsDandelion(controlPlaneAddress string, functions []*common.Fu
 		} else {
 			logrus.Debugf("register function %s failed, error code = %v", name, resp.StatusCode)
 		}
+
+		// TODO: populate functions using resp.Body
+		//body, err := io.ReadAll(resp.Body)
+		//if err != nil {
+		//	log.Error("Failed to read response body.")
+		//	return
+		//}
+		//
+		//endpoints := strings.Split(string(body), ";")
+		//if len(endpoints) == 0 {
+		//	log.Error("Function registration returned no data plane(s).")
+		//	return
+		//}
+		//function.Endpoint = endpoints[rand.Intn(len(endpoints))]
 	}
 }
