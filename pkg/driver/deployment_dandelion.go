@@ -6,8 +6,11 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/vhive-serverless/loader/pkg/common"
 	"go.mongodb.org/mongo-driver/bson"
+	"io"
 	"io/ioutil"
+	"math/rand"
 	"net/http"
+	"strings"
 )
 
 type RegisterFunction struct {
@@ -19,6 +22,7 @@ type RegisterFunction struct {
 
 func DeployFunctionsDandelion(controlPlaneAddress string, functions []*common.Function) {
 	for i := 0; i < len(functions); i++ {
+		function := functions[i]
 		name := functions[i].Name
 		// FIXME: hard-coded function binary
 		matmulPath := "/home/sai/thesis/dandelion/machine_interface/tests/data/test_sysld_wasm_x86_64_matmul"
@@ -60,18 +64,17 @@ func DeployFunctionsDandelion(controlPlaneAddress string, functions []*common.Fu
 			logrus.Debugf("register function %s failed, error code = %v", name, resp.StatusCode)
 		}
 
-		// TODO: populate functions using resp.Body
-		//body, err := io.ReadAll(resp.Body)
-		//if err != nil {
-		//	log.Error("Failed to read response body.")
-		//	return
-		//}
-		//
-		//endpoints := strings.Split(string(body), ";")
-		//if len(endpoints) == 0 {
-		//	log.Error("Function registration returned no data plane(s).")
-		//	return
-		//}
-		//function.Endpoint = endpoints[rand.Intn(len(endpoints))]
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			logrus.Error("Failed to read response body.")
+			return
+		}
+
+		endpoints := strings.Split(string(body), ";")
+		if len(endpoints) == 0 {
+			logrus.Error("Function registration returned no data plane(s).")
+			return
+		}
+		function.Endpoint = endpoints[rand.Intn(len(endpoints))]
 	}
 }

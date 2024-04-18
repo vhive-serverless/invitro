@@ -34,7 +34,7 @@ func InvokeDirigentDandelion(function *common.Function, runtimeSpec *common.Runt
 	start := time.Now()
 	record.StartTime = start.UnixMicro()
 
-	function.Endpoint = "localhost:8080"
+	//function.Endpoint = "localhost:8080"
 	req, err := http.NewRequest("GET", "http://"+function.Endpoint+"/dandelion", nil)
 
 	if err != nil {
