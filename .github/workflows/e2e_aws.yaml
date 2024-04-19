@@ -58,8 +58,8 @@ jobs:
           timeout: 3600000  # 1 hour; else manually re-run the workflow
           delay: 60000  # 1 minute
 
-      - name: Build and run loader      # Test the AWS deployment using pkg/test_config_aws.json
-        run: go run cmd/loader.go --config pkg/test_config_aws.json
+      - name: Build and run loader      # Test the AWS deployment using pkg/config/test_config_aws.json
+        run: go run cmd/loader.go --config pkg/config/test_config_aws.json
 
       - name: Check the output
         run: test -f "data/out/experiment_duration_5.csv" && test $(grep true data/out/experiment_duration_5.csv | wc -l) -eq 0 # test the output file for errors (true means failure to invoke)
