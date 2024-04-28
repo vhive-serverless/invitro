@@ -1,7 +1,7 @@
 {
   "Seed": 42,
 
-  "Platform": "Dirigent-Dandelion",
+  "Platform": "Dirigent-Dandelion-RPS",
   "EndpointPort": 80,
 
   "DirigentControlPlaneIP": "127.0.0.1:9091",

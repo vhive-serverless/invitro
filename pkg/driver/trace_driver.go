@@ -254,7 +254,7 @@ func (d *Driver) invokeFunction(metadata *InvocationMetadata) {
 			metadata.RuntimeSpecifications,
 			d.GetHTTPClient(),
 		)
-	case "Dirigent-Dandelion":
+	case "Dirigent-Dandelion-RPS":
 		success, record = InvokeDirigentDandelion(
 			metadata.Function,
 			metadata.RuntimeSpecifications,
@@ -672,7 +672,7 @@ func (d *Driver) RunExperiment(skipIATGeneration bool, readIATFromFIle bool) {
 			d.Configuration.LoaderConfiguration.EndpointPort,
 			d.Configuration.LoaderConfiguration.AutoscalingMetric)
 		go scheduleFailure(d.Configuration.LoaderConfiguration)
-	case "Dirigent-Dandelion":
+	case "Dirigent-Dandelion-RPS":
 		DeployFunctionsDandelion(d.Configuration.LoaderConfiguration.DirigentControlPlaneIP, d.Configuration.Functions)
 	case "OpenWhisk", "OpenWhisk-RPS":
 		DeployFunctionsOpenWhisk(d.Configuration.Functions)
