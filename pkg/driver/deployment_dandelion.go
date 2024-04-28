@@ -1,15 +1,14 @@
 package driver
 
 import (
-	"bytes"
 	"fmt"
 	"github.com/sirupsen/logrus"
 	"github.com/vhive-serverless/loader/pkg/common"
-	"go.mongodb.org/mongo-driver/bson"
 	"io"
-	"io/ioutil"
 	"math/rand"
 	"net/http"
+	"net/url"
+	"strconv"
 	"strings"
 )
 
@@ -24,34 +23,20 @@ func DeployFunctionsDandelion(controlPlaneAddress string, functions []*common.Fu
 	for i := 0; i < len(functions); i++ {
 		function := functions[i]
 		name := functions[i].Name
-		// FIXME: hard-coded function binary
-		matmulPath := "/home/sai/thesis/dandelion/machine_interface/tests/data/test_sysld_wasm_x86_64_matmul"
-		binaryData, err := ioutil.ReadFile(matmulPath)
-		if err != nil {
-			fmt.Println("Error reading binary file:", err)
-			return
-		}
-		intData := make([]int32, len(binaryData))
-		for i := 0; i < len(binaryData); i++ {
-			intData[i] = int32(binaryData[i])
-		}
-		registerRequest := RegisterFunction{
-			Name:        name,
-			ContextSize: 0x8020000,
-			// Binary:      []int32{1, 2, 3, 5},
-			Binary:     intData,
-			EngineType: "RWasm", // 替换为实际的引擎类型
-		}
 
-		registerRequestBody, err := bson.Marshal(registerRequest)
-		if err != nil {
-			fmt.Println("Error encoding register request:", err)
-			return
+		endpoint := fmt.Sprintf("http://%s/", controlPlaneAddress)
+		metadata := function.DirigentMetadata
+		payload := url.Values{
+			"name":                {name},
+			"image":               {metadata.Image},
+			"port_forwarding":     {strconv.Itoa(metadata.Port), metadata.Protocol},
+			"scaling_upper_bound": {strconv.Itoa(metadata.ScalingUpperBound)},
+			"scaling_lower_bound": {strconv.Itoa(metadata.ScalingLowerBound)},
+			"requested_cpu":       {strconv.Itoa(function.CPURequestsMilli)},
+			"requested_memory":    {strconv.Itoa(function.MemoryRequestsMiB)},
+			"dandelion_request":   {strconv.FormatBool(true)},
 		}
-
-		url := fmt.Sprintf("http://%s/dandelion", controlPlaneAddress)
-		logrus.Debugf("dandelion request body = ", len(registerRequestBody))
-		resp, err := http.Post(url, "application/json", bytes.NewBuffer(registerRequestBody))
+		resp, err := http.PostForm(endpoint, payload)
 		if err != nil {
 			logrus.Errorf("failed to reigster function", err)
 			return
@@ -69,6 +54,8 @@ func DeployFunctionsDandelion(controlPlaneAddress string, functions []*common.Fu
 			logrus.Error("Failed to read response body.")
 			return
 		}
+
+		logrus.Debugf("registtter function %s", function.Name)
 
 		endpoints := strings.Split(string(body), ";")
 		if len(endpoints) == 0 {

@@ -1,10 +1,13 @@
 package driver
 
 import (
+	"bytes"
 	"encoding/json"
+	"fmt"
 	log "github.com/sirupsen/logrus"
 	"github.com/vhive-serverless/loader/pkg/common"
 	mc "github.com/vhive-serverless/loader/pkg/metric"
+	"go.mongodb.org/mongo-driver/bson"
 	"io"
 	"net/http"
 	"strconv"
@@ -19,8 +22,14 @@ type FunctionResponse struct {
 	ExecutionTime int64  `json:"ExecutionTime"`
 }
 
+type MatrixRequest struct {
+	Name string `bson:"name"`
+	Rows uint64 `bson:"rows"`
+	Cols uint64 `bson:"cols"`
+}
+
 func InvokeDirigentDandelion(function *common.Function, runtimeSpec *common.RuntimeSpecification, client *http.Client) (bool, *mc.ExecutionRecord) {
-	log.Tracef("(Invoke)\t %s: %d[ms], %d[MiB]", function.Name, runtimeSpec.Runtime, runtimeSpec.Memory)
+	log.Debugf("(Invoke)\t %s: %d[ms], %d[MiB]", function.Name, runtimeSpec.Runtime, runtimeSpec.Memory)
 
 	record := &mc.ExecutionRecord{
 		ExecutionRecordBase: mc.ExecutionRecordBase{
@@ -35,7 +44,18 @@ func InvokeDirigentDandelion(function *common.Function, runtimeSpec *common.Runt
 	record.StartTime = start.UnixMicro()
 
 	//function.Endpoint = "localhost:8080"
-	req, err := http.NewRequest("GET", "http://"+function.Endpoint+"/dandelion", nil)
+	matRequest := MatrixRequest{
+		Name: function.Name,
+		Rows: 1,
+		Cols: 1,
+	}
+	matRequestBody, err := bson.Marshal(matRequest)
+	if err != nil {
+		log.Debugf("Error encoding dandelion invoke request:", err)
+		return false, record
+	}
+
+	req, err := http.NewRequest("POST", "http://"+function.Endpoint, bytes.NewBuffer(matRequestBody))
 
 	if err != nil {
 		log.Errorf("Failed to create a HTTP request - %v\n", err)
@@ -64,6 +84,15 @@ func InvokeDirigentDandelion(function *common.Function, runtimeSpec *common.Runt
 
 	body, err := io.ReadAll(resp.Body)
 	defer handleBodyClosing(resp)
+	log.Infof("received invocation resp for function %s, body length=%v", function.Name, len(body))
+
+	// FIXME: remove debug log
+	log.Infof("resp body=%v", len(body))
+	for _, b := range body {
+		fmt.Print(b)
+		fmt.Print(",")
+	}
+	fmt.Print("\n")
 
 	if err != nil || resp == nil || resp.StatusCode != http.StatusOK || len(body) == 0 {
 		if err != nil {
