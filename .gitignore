@@ -209,3 +209,4 @@ ENV/
 .idea/
 
 tools/plotter/test-out
+*.swp
