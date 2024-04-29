@@ -96,7 +96,7 @@ func InvokeDirigent(function *common.Function, runtimeSpec *common.RuntimeSpecif
 
 	body, err := io.ReadAll(resp.Body)
 	defer handleBodyClosing(resp)
-	log.Infof("received invocation resp for function %s, body length=%v", function.Name, len(body))
+	log.Debugf("received invocation resp for function %s, body length=%v", function.Name, len(body))
 
 	if err != nil || resp == nil || resp.StatusCode != http.StatusOK || len(body) == 0 {
 		if err != nil {
