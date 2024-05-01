@@ -37,10 +37,6 @@ type MatrixRequest struct {
 	Sets []InputSet `bson:"sets"`
 }
 
-type DandelionDeserializeResponse struct {
-	Sets []InputSet `bson:"sets"`
-}
-
 func InvokeDirigent(function *common.Function, runtimeSpec *common.RuntimeSpecification, client *http.Client, isDandelionOptional ...bool) (bool, *mc.ExecutionRecord) {
 	isDandelion := false
 	if len(isDandelionOptional) > 0 {
