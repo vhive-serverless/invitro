@@ -3,7 +3,6 @@ package driver
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	log "github.com/sirupsen/logrus"
 	"github.com/vhive-serverless/loader/pkg/common"
 	mc "github.com/vhive-serverless/loader/pkg/metric"
@@ -107,6 +106,10 @@ func InvokeDirigent(function *common.Function, runtimeSpec *common.RuntimeSpecif
 	req.Header.Set("requested_memory", strconv.Itoa(runtimeSpec.Memory))
 	req.Header.Set("multiplier", strconv.Itoa(function.DirigentMetadata.IterationMultiplier))
 
+	if isDandelion {
+		req.URL.Path = "/hot/matmul"
+	}
+
 	resp, err := client.Do(req)
 	if err != nil {
 		log.Errorf("%s - Failed to send an HTTP request to the server - %v\n", function.Name, err)
@@ -136,35 +139,6 @@ func InvokeDirigent(function *common.Function, runtimeSpec *common.RuntimeSpecif
 		record.FunctionTimeout = true
 
 		return false, record
-	}
-
-	if isDandelion {
-		var result DandelionDeserializeResponse
-
-		err = bson.Unmarshal(body, &result)
-		if err != nil {
-			fmt.Println("Error deserializing response body:", err)
-			return false, record
-		}
-		if len(result.Sets) != 1 {
-			fmt.Println("Error: Unexpected sets length")
-			return false, record
-		}
-		if len(result.Sets[0].Items) != 1 {
-			fmt.Println("Error: Unexpected sets[0].items length")
-			return false, record
-		}
-		responseData := result.Sets[0].Items[0].Data
-		if len(responseData) != 16 {
-			fmt.Println("Error: unexpected responseData length")
-			return false, record
-		}
-		for _, b := range responseData {
-			fmt.Print(b)
-			fmt.Print(",")
-		}
-		fmt.Println()
-		fmt.Println("Deseriliaze Dandelion response correct")
 	}
 
 	var deserializedResponse FunctionResponse
