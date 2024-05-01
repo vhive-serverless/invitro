@@ -3,6 +3,7 @@ package driver
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	log "github.com/sirupsen/logrus"
 	"github.com/vhive-serverless/loader/pkg/common"
 	mc "github.com/vhive-serverless/loader/pkg/metric"
@@ -21,10 +22,24 @@ type FunctionResponse struct {
 	ExecutionTime int64  `json:"ExecutionTime"`
 }
 
+type InputItem struct {
+	Identifier string `bson:"identifier"`
+	Key        int64  `bson:"key"`
+	Data       []byte `bson:"data"`
+}
+
+type InputSet struct {
+	Identifier string      `bson:"identifier"`
+	Items      []InputItem `bson:"items"`
+}
+
 type MatrixRequest struct {
-	Name string `bson:"name"`
-	Rows uint64 `bson:"rows"`
-	Cols uint64 `bson:"cols"`
+	Name string     `bson:"name"`
+	Sets []InputSet `bson:"sets"`
+}
+
+type DandelionDeserializeResponse struct {
+	Sets []InputSet `bson:"sets"`
 }
 
 func InvokeDirigent(function *common.Function, runtimeSpec *common.RuntimeSpecification, client *http.Client, isDandelionOptional ...bool) (bool, *mc.ExecutionRecord) {
@@ -50,8 +65,18 @@ func InvokeDirigent(function *common.Function, runtimeSpec *common.RuntimeSpecif
 	if isDandelion {
 		matRequest := MatrixRequest{
 			Name: function.Name,
-			Rows: 1,
-			Cols: 1,
+			Sets: []InputSet{
+				{
+					Identifier: "",
+					Items: []InputItem{
+						{
+							Identifier: "",
+							Key:        0,
+							Data:       []byte{1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0},
+						},
+					},
+				},
+			},
 		}
 		matRequestBody, err := bson.Marshal(matRequest)
 		if err != nil {
@@ -111,6 +136,35 @@ func InvokeDirigent(function *common.Function, runtimeSpec *common.RuntimeSpecif
 		record.FunctionTimeout = true
 
 		return false, record
+	}
+
+	if isDandelion {
+		var result DandelionDeserializeResponse
+
+		err = bson.Unmarshal(body, &result)
+		if err != nil {
+			fmt.Println("Error deserializing response body:", err)
+			return false, record
+		}
+		if len(result.Sets) != 1 {
+			fmt.Println("Error: Unexpected sets length")
+			return false, record
+		}
+		if len(result.Sets[0].Items) != 1 {
+			fmt.Println("Error: Unexpected sets[0].items length")
+			return false, record
+		}
+		responseData := result.Sets[0].Items[0].Data
+		if len(responseData) != 16 {
+			fmt.Println("Error: unexpected responseData length")
+			return false, record
+		}
+		for _, b := range responseData {
+			fmt.Print(b)
+			fmt.Print(",")
+		}
+		fmt.Println()
+		fmt.Println("Deseriliaze Dandelion response correct")
 	}
 
 	var deserializedResponse FunctionResponse
