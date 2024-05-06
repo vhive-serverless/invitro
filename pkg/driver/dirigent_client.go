@@ -3,7 +3,6 @@ package driver
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	log "github.com/sirupsen/logrus"
 	"github.com/vhive-serverless/loader/pkg/common"
 	mc "github.com/vhive-serverless/loader/pkg/metric"
@@ -156,7 +155,7 @@ func InvokeDirigent(function *common.Function, runtimeSpec *common.RuntimeSpecif
 			return false, record
 		}
 		if len(result.Sets[0].Items) != 1 {
-			fmt.Println("Error: Unexpected sets[0].items length")
+			log.Errorf("Error: Unexpected sets[0].items length")
 			return false, record
 		}
 		responseData := result.Sets[0].Items[0].Data
