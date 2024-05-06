@@ -3,6 +3,7 @@ package driver
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	log "github.com/sirupsen/logrus"
 	"github.com/vhive-serverless/loader/pkg/common"
 	mc "github.com/vhive-serverless/loader/pkg/metric"
@@ -34,6 +35,10 @@ type InputSet struct {
 
 type MatrixRequest struct {
 	Name string     `bson:"name"`
+	Sets []InputSet `bson:"sets"`
+}
+
+type DandelionDeserializeResponse struct {
 	Sets []InputSet `bson:"sets"`
 }
 
@@ -137,15 +142,41 @@ func InvokeDirigent(function *common.Function, runtimeSpec *common.RuntimeSpecif
 		return false, record
 	}
 
-	var deserializedResponse FunctionResponse
-	err = json.Unmarshal(body, &deserializedResponse)
-	if err != nil {
-		log.Warnf("Failed to deserialize Dirigent response.")
-	}
+	if isDandelion {
+		var result DandelionDeserializeResponse
+		err = bson.Unmarshal(body, &result)
+		if err != nil {
+			log.Errorf("Error deserializing response body:", err)
+			return false, record
+		}
+		record.ResponseTime = time.Since(start).Microseconds()
 
-	record.Instance = deserializedResponse.Function
-	record.ResponseTime = time.Since(start).Microseconds()
-	record.ActualDuration = uint32(deserializedResponse.ExecutionTime)
+		if len(result.Sets) != 1 {
+			log.Errorf("Error: Unexpected sets length")
+			return false, record
+		}
+		if len(result.Sets[0].Items) != 1 {
+			fmt.Println("Error: Unexpected sets[0].items length")
+			return false, record
+		}
+		responseData := result.Sets[0].Items[0].Data
+		if len(responseData) != 16 {
+			log.Errorf("Error: unexpected responseData length")
+			return false, record
+		}
+		log.Debugf("Deseriliaze Dandelion response correct")
+		record.Instance = function.Name
+		record.ActualDuration = 0 // this field is not used yet in benchmark
+	} else {
+		var deserializedResponse FunctionResponse
+		err = json.Unmarshal(body, &deserializedResponse)
+		if err != nil {
+			log.Warnf("Failed to deserialize Dirigent response.")
+		}
+		record.ResponseTime = time.Since(start).Microseconds()
+		record.Instance = deserializedResponse.Function
+		record.ActualDuration = uint32(deserializedResponse.ExecutionTime)
+	}
 
 	if strings.HasPrefix(string(body), "FAILURE - mem_alloc") {
 		record.MemoryAllocationTimeout = true
