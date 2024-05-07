@@ -403,8 +403,48 @@ func (d *Driver) individualFunctionDriver(function *common.Function, announceFun
 
 func (d *Driver) proceedToNextMinute(function *common.Function, minuteIndex *int, invocationIndex *int, startOfMinute *time.Time,
 	skipMinute bool, currentPhase *common.ExperimentPhase, failedInvocationByMinute []int64, previousIATSum *int64) bool {
+
+	if d.Configuration.TraceGranularity == common.MinuteGranularity {
+		if !isRequestTargetAchieved(function.InvocationStats.Invocations[*minuteIndex], *invocationIndex, common.RequestedVsIssued) {
+			// Not fatal because we want to keep the measurements to be written to the output file
+			log.Warnf("Relative difference between requested and issued number of invocations is greater than %.2f%%. Terminating function driver for %s!\n", common.RequestedVsIssuedTerminateThreshold*100, function.Name)
+
+			//return true
+		}
+
+		for i := 0; i <= *minuteIndex; i++ {
+			notFailedCount := function.InvocationStats.Invocations[i] - int(atomic.LoadInt64(&failedInvocationByMinute[i]))
+			if !isRequestTargetAchieved(function.InvocationStats.Invocations[i], notFailedCount, common.IssuedVsFailed) {
+				// Not fatal because we want to keep the measurements to be written to the output file
+				log.Warnf("Percentage of failed request is greater than %.2f%%. Terminating function driver for %s!\n", common.FailedTerminateThreshold*100, function.Name)
+
+				//return true
+			}
+		}
+	}
+
 	*minuteIndex++
-	*startOfMinute = time.Now()
+	*invocationIndex = 0
+	*previousIATSum = 0
+
+	if d.Configuration.WithWarmup() && *minuteIndex == (d.Configuration.LoaderConfiguration.WarmupDuration+1) {
+		*currentPhase = common.ExecutionPhase
+		log.Infof("Warmup phase has finished. Starting the execution phase.")
+	}
+
+	if !skipMinute {
+		*startOfMinute = time.Now()
+	} else {
+		switch d.Configuration.TraceGranularity {
+		case common.MinuteGranularity:
+			*startOfMinute = time.Now().Add(time.Minute)
+		case common.SecondGranularity:
+			*startOfMinute = time.Now().Add(time.Second)
+		default:
+			log.Fatal("Unsupported trace granularity.")
+		}
+	}
+
 	return false
 }
 
