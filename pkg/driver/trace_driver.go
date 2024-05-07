@@ -403,6 +403,8 @@ func (d *Driver) individualFunctionDriver(function *common.Function, announceFun
 
 func (d *Driver) proceedToNextMinute(function *common.Function, minuteIndex *int, invocationIndex *int, startOfMinute *time.Time,
 	skipMinute bool, currentPhase *common.ExperimentPhase, failedInvocationByMinute []int64, previousIATSum *int64) bool {
+	*minuteIndex++
+	*startOfMinute = time.Now()
 	return false
 }
 
