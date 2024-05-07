@@ -32,7 +32,6 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -404,48 +403,6 @@ func (d *Driver) individualFunctionDriver(function *common.Function, announceFun
 
 func (d *Driver) proceedToNextMinute(function *common.Function, minuteIndex *int, invocationIndex *int, startOfMinute *time.Time,
 	skipMinute bool, currentPhase *common.ExperimentPhase, failedInvocationByMinute []int64, previousIATSum *int64) bool {
-
-	if d.Configuration.TraceGranularity == common.MinuteGranularity && !strings.HasSuffix(d.Configuration.LoaderConfiguration.Platform, "-RPS") {
-		if !isRequestTargetAchieved(function.Specification.PerMinuteCount[*minuteIndex], *invocationIndex, common.RequestedVsIssued) {
-			// Not fatal because we want to keep the measurements to be written to the output file
-			log.Warnf("Relative difference between requested and issued number of invocations is greater than %.2f%%. Terminating function driver for %s!\n", common.RequestedVsIssuedTerminateThreshold*100, function.Name)
-
-			return true
-		}
-
-		for i := 0; i <= *minuteIndex; i++ {
-			notFailedCount := function.Specification.PerMinuteCount[i] - int(atomic.LoadInt64(&failedInvocationByMinute[i]))
-			if !isRequestTargetAchieved(function.Specification.PerMinuteCount[i], notFailedCount, common.IssuedVsFailed) {
-				// Not fatal because we want to keep the measurements to be written to the output file
-				log.Warnf("Percentage of failed request is greater than %.2f%%. Terminating function driver for %s!\n", common.FailedTerminateThreshold*100, function.Name)
-
-				return true
-			}
-		}
-	}
-
-	*minuteIndex++
-	*invocationIndex = 0
-	*previousIATSum = 0
-
-	if d.Configuration.WithWarmup() && *minuteIndex == (d.Configuration.LoaderConfiguration.WarmupDuration+1) {
-		*currentPhase = common.ExecutionPhase
-		log.Infof("Warmup phase has finished. Starting the execution phase.")
-	}
-
-	if !skipMinute {
-		*startOfMinute = time.Now()
-	} else {
-		switch d.Configuration.TraceGranularity {
-		case common.MinuteGranularity:
-			*startOfMinute = time.Now().Add(time.Minute)
-		case common.SecondGranularity:
-			*startOfMinute = time.Now().Add(time.Second)
-		default:
-			log.Fatal("Unsupported trace granularity.")
-		}
-	}
-
 	return false
 }
 
@@ -677,7 +634,7 @@ func (d *Driver) RunExperiment(skipIATGeneration bool, readIATFromFIle bool) {
 		log.Fatal("Unsupported platform.")
 	}
 
-	file, err := os.ReadFile("time.txt")
+	/*file, err := os.ReadFile("time.txt")
 	if err != nil {
 		log.Fatalf("error when reading time.txt: %s", err)
 	}
@@ -688,7 +645,7 @@ func (d *Driver) RunExperiment(skipIATGeneration bool, readIATFromFIle bool) {
 	}
 	for time.Now().Unix() < tInt {
 		time.Sleep(time.Duration(int64(tInt) - time.Now().Unix()))
-	}
+	}*/
 
 	// Generate load
 	d.internalRun(skipIATGeneration, readIATFromFIle)
