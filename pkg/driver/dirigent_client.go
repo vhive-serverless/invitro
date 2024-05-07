@@ -153,8 +153,11 @@ func InvokeDirigent(function *common.Function, runtimeSpec *common.RuntimeSpecif
 		record.ActualMemoryUsage = 0 //
 	}
 
-	log.Tracef("(Replied)\t %s: %s, %.2f[ms], %d[MiB]", function.Name, string(body), float64(0)/1e3, common.Kib2Mib(0))
-	log.Tracef("(E2E Latency) %s: %.2f[ms]\n", function.Name, float64(record.ResponseTime)/1e3)
+	if time.Now().Unix()%1000 == 0 {
+		log.Tracef("(Replied)\t %s: %s, %.2f[ms], %d[MiB]", function.Name, string(body), float64(0)/1e3, common.Kib2Mib(0))
+		log.Tracef("(E2E Latency) %s: %.2f[ms]\n", function.Name, float64(record.ResponseTime)/1e3)
+
+	}
 
 	return true, record
 }
