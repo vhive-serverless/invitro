@@ -36,7 +36,7 @@ duration of the cleaned trace.
 ### Workflow
 
 First, download the original trace files
-from [here](https://azurecloudpublicdataset2.blob.core.windows.net/azurepublicdatasetv2/azurefunctions_dataset2019/azurefunctions-dataset2019.tar.xz)
+from [here](https://azurecloudpublicdataset2.z19.web.core.windows.net/azurepublicdatasetv2/azurefunctions_dataset2019/azurefunctions-dataset2019.tar.xz)
 and extract the CSV files (default location: `data/azure/`).
 
 ```console
