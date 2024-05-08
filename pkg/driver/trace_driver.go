@@ -473,7 +473,7 @@ func isRequestTargetAchieved(ideal int, real int, assertType common.RuntimeAsser
 	}
 
 	if ratio < 0 || ratio > 1 {
-		#log.Fatalf("Invalid arguments provided to runtime assertion.\n")
+		//log.Fatalf("Invalid arguments provided to runtime assertion.\n")
 	} else if ratio >= terminationBound {
 		return false
 	}
