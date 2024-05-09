@@ -407,7 +407,7 @@ func (d *Driver) proceedToNextMinute(function *common.Function, minuteIndex *int
 	if d.Configuration.TraceGranularity == common.MinuteGranularity {
 		if !isRequestTargetAchieved(function.InvocationStats.Invocations[*minuteIndex], *invocationIndex, common.RequestedVsIssued) {
 			// Not fatal because we want to keep the measurements to be written to the output file
-			log.Warnf("Relative difference between requested and issued number of invocations is greater than %.2f%%. Terminating function driver for %s!\n", common.RequestedVsIssuedTerminateThreshold*100, function.Name)
+			//log.Warnf("Relative difference between requested and issued number of invocations is greater than %.2f%%. Terminating function driver for %s!\n", common.RequestedVsIssuedTerminateThreshold*100, function.Name)
 
 			//return true
 		}
@@ -416,11 +416,11 @@ func (d *Driver) proceedToNextMinute(function *common.Function, minuteIndex *int
 			notFailedCount := function.InvocationStats.Invocations[i] - int(atomic.LoadInt64(&failedInvocationByMinute[i]))
 			if !isRequestTargetAchieved(function.InvocationStats.Invocations[i], notFailedCount, common.IssuedVsFailed) {
 				// Not fatal because we want to keep the measurements to be written to the output file
-				log.Warnf("Percentage of failed request is greater than %.2f%%. Terminating function driver for %s!\n", common.FailedTerminateThreshold*100, function.Name)
+				//log.Warnf("Percentage of failed request is greater than %.2f%%. Terminating function driver for %s!\n", common.FailedTerminateThreshold*100, function.Name)
 
 				//return true
 			}
-		}
+
 	}
 
 	*minuteIndex++
