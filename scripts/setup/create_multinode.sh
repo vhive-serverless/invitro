@@ -279,7 +279,7 @@ function copy_k8s_certificates() {
     source $DIR/label.sh
 
     # Force placement of metrics collectors and instrumentation on the loader node and control plane on master
-    label_nodes $MASTER_NODE $1 # loader node is second on the list, becoming first after arg shift
+    label_nodes $MASTER_NODE $1 $2 $3 $4 $5 $6 $7  # loader node is second on the list, becoming first after arg shift
 
     # patch knative to accept nodeselector
     server_exec $MASTER_NODE "cd loader; kubectl patch configmap config-features -n knative-serving -p '{\"data\": {\"kubernetes.podspec-nodeselector\": \"enabled\"}}'"

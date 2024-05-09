@@ -8,9 +8,10 @@ IFACE=$(netstat -ie | grep -B1 $MASTER_NODE_IP | head -n1 | awk '{print $1}' | c
 
 # we set these limits high enough but to fit in the budget of a typical master node server
 cpu_limit_net_istio=2
-memory_limit_net_istio="10Gi"
-cpu_limit_serving_core=3
-memory_limit_serving_core="10Gi"
+memory_limit_net_istio="30Gi"
+cpu_limit_serving_core=28
+memory_limit_serving_core="30Gi"
+cpu_requests_serving_core=3
 
 pushd $HOME/vhive/configs >/dev/null
 mkdir knative_yamls -p
@@ -46,18 +47,30 @@ sed -e '$d' > net-istio-yq.yaml
 # serving-core.yaml
 
 cat serving-core.yaml |
-    yq '
+    yq '        
     (
         select
         (
-               .spec.template.metadata.labels.app == "activator"
-            or .spec.template.metadata.labels.app == "autoscaler"
-            or .spec.template.metadata.labels.app == "controller"
+               .spec.template.metadata.labels.app == "controller"
             or .spec.template.metadata.labels.app == "domain-mapping"
             or .spec.template.metadata.labels.app == "domainmapping-webhook"
             or .spec.template.metadata.labels.app == "webhook"
         ) | .spec.template.spec 
-    ) += {"nodeSelector": {"loader-nodetype": "master"}}' |
+    ) += {"nodeSelector": {"loader-nodetype": "master-knative"}}' |
+    yq '
+    (
+        select
+        (
+               .spec.template.metadata.labels.app == "autoscaler"
+        ) | .spec.template.spec 
+    ) += {"nodeSelector": {"loader-nodetype": "master-autoscaler"}}' |
+    yq '
+    (
+        select
+        (
+            .spec.template.metadata.labels.app == "activator"
+        ) | .spec.template.spec 
+    ) += {"nodeSelector": {"loader-nodetype": "master-activate"}}' |
     yq '
     (
         del
@@ -85,6 +98,14 @@ cat serving-core.yaml |
             or .spec.template.metadata.labels.app == "webhook"
         ) | .spec.template.spec.containers[0].resources.limits.cpu
     ) = '"${cpu_limit_serving_core}"' ' |
+    yq '
+    (
+        select
+        (
+               .spec.template.metadata.labels.app == "activator"
+            or .spec.template.metadata.labels.app == "autoscaler"
+        ) | .spec.template.spec.containers[0].resources.requests.cpu
+    ) = '"${cpu_requests_serving_core}"' ' |
     yq '
     (
         select
