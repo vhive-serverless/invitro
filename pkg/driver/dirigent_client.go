@@ -163,7 +163,7 @@ func InvokeDirigent(function *common.Function, runtimeSpec *common.RuntimeSpecif
 			log.Errorf("Error: unexpected responseData length")
 			return false, record
 		}
-		log.Debugf("Deseriliaze Dandelion response correct, sandboxURL=%v", req.URL.Host+req.URL.Path)
+		log.Debugf("Deseriliaze Dandelion response correct")
 		record.Instance = function.Name
 		record.ActualDuration = 0 // this field is not used yet in benchmark
 	} else {
