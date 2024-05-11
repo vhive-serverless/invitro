@@ -1,29 +1,128 @@
-kube-state-metrics:
-  metricLabelsAllowlist:
-    - pods=[*]
-    - deployments=[app.kubernetes.io/name,app.kubernetes.io/component,app.kubernetes.io/instance]
+alertmanager:
+  config:
+    route:
+      group_by: ['job']
 
-prometheus:
-  prometheusSpec:
-    serviceMonitorSelectorNilUsesHelmValues: false
-    podMonitorSelectorNilUsesHelmValues: false
-    resources:
-      limits:
-        cpu: 3
-        memory: 5Gi
-      requests:
-        memory: 150Mi 
+
+  serviceMonitor:
+    interval: "15s"
+  alertmanagerSpec:
+    nodeSelector:
+      loader-nodetype: monitoring
+
+grafana:
+  nodeSelector:
+    loader-nodetype: monitoring
+  serviceMonitor:
+    interval: "15s"
+    scrapeTimeout: "15s" # Cannot be larger than Prometheus scrape intervals
+
+kubeApiServer:
+  serviceMonitor:
+    interval: "15s"
+    metricRelabelings: []
+
+kubelet:
+  serviceMonitor:
+    interval: "15s"
+    cAdvisorMetricRelabelings: []
 
 kubeControllerManager:
   service:
     targetPort: 10257
   serviceMonitor:
+    interval: "15s"
     https: true
     insecureSkipVerify: true
+
+coreDns:
+  serviceMonitor:
+    interval: "15s"
+
+
+kubeEtcd:
+  service:
+    port: 2379
+    targetPort: 2379
+  serviceMonitor:
+    interval: "15s"
 
 kubeScheduler:
   service:
     targetPort: 10259
   serviceMonitor:
+    interval: "15s"
     https: true
     insecureSkipVerify: true
+kubeProxy:
+  serviceMonitor:
+    interval: "15s"
+
+kube-state-metrics:
+  nodeSelector:
+      loader-nodetype: monitoring
+  metricLabelsAllowlist:
+    - pods=[*]
+    - deployments=[app.kubernetes.io/name,app.kubernetes.io/component,app.kubernetes.io/instance]
+  prometheus:
+    monitor:
+      interval: "15s"
+
+prometheus-node-exporter:
+  prometheus:
+    monitor:
+      interval: "15s"
+
+prometheusOperator:
+  admissionWebhooks:
+    deployment:
+      nodeSelector:
+        loader-nodetype: monitoring
+    patch:
+      resources: 
+        limits:
+          cpu: 1
+          memory: 5Gi
+        requests:
+          memory: 150Mi 
+      nodeSelector:
+        loader-nodetype: monitoring
+
+  serviceMonitor:
+    interval: "15s"
+  resources:
+    limits:
+      cpu: 2
+      memory: 5Gi
+    requests:
+      cpu: 100m
+      memory: 100Mi
+  nodeSelector:
+    loader-nodetype: monitoring
+
+  prometheusConfigReloader:
+    resources:
+      requests:
+        cpu: 200m
+        memory: 50Mi
+      limits:
+        cpu: 1
+        memory: 2Gi
+
+prometheus:
+  serviceMonitor:
+    interval: "15s"
+
+  prometheusSpec:
+    scrapeInterval: "15s"
+    nodeSelector:
+      loader-nodetype: monitoring
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+    walCompression: false
+    resources:
+      limits:
+        cpu: 3
+        memory: 10Gi
+      requests:
+        memory: 150Mi

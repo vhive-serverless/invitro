@@ -44,27 +44,14 @@ server_exec() {
 
 	server_exec 'kubectl create namespace monitoring'
 	release_label="prometheus"
-	prometheus_chart_version="43.3.1"
-	server_exec "cd loader; helm install -n monitoring $release_label --version $prometheus_chart_version prometheus-community/kube-prometheus-stack -f config/prometh_stack_values.yaml"
+	prometheus_chart_version="58.5.0"
+	server_exec "cd loader; helm install -n monitoring $release_label --version $prometheus_chart_version prometheus-community/kube-prometheus-stack -f config/prometh_values_kn.yaml"
 	#* Apply the ServiceMonitors/PodMonitors to collect metrics from Knative.
 	#* The ports of the control manager and scheduler are mapped in a way that prometheus default installation can find them. 
 	server_exec 'cd loader; kubectl apply -f config/prometh_kn.yaml'
 
 	#* Bind addresses of the control manager and scheduler to "0.0.0.0" so that prometheus can scrape them from any domains.
 	server_exec 'cd loader; sudo kubeadm upgrade apply --config config/kubeadm_init.yaml --ignore-preflight-errors all --force --v=7'
-
-
-	#* Change scrape intervals to 15s for all used monitors.
-	server_exec "sudo kubectl -n monitoring patch ServiceMonitor prometheus-kube-prometheus-apiserver --type json -p '[{"op": "add", "path": "/spec/endpoints/0/interval", "value": "15s"}]'"
-	server_exec "sudo kubectl -n monitoring patch ServiceMonitor prometheus-kube-prometheus-coredns --type json -p '[{"op": "add", "path": "/spec/endpoints/0/interval", "value": "15s"}]'"
-	server_exec "sudo kubectl -n monitoring patch ServiceMonitor prometheus-kube-prometheus-kube-controller-manager --type json -p '[{"op": "add", "path": "/spec/endpoints/0/interval", "value": "15s"}]'"
-	server_exec "sudo kubectl -n monitoring patch ServiceMonitor prometheus-kube-prometheus-kube-etcd --type json -p '[{"op": "add", "path": "/spec/endpoints/0/interval", "value": "15s"}]'"
-	server_exec "sudo kubectl -n monitoring patch ServiceMonitor prometheus-kube-prometheus-kube-proxy --type json -p '[{"op": "add", "path": "/spec/endpoints/0/interval", "value": "15s"}]'"
-	server_exec "sudo kubectl -n monitoring patch ServiceMonitor prometheus-kube-prometheus-kube-scheduler --type json -p '[{"op": "add", "path": "/spec/endpoints/0/interval", "value": "15s"}]'"
-	server_exec "sudo kubectl -n monitoring patch ServiceMonitor prometheus-kube-prometheus-operator --type json -p '[{"op": "add", "path": "/spec/endpoints/0/interval", "value": "15s"}]'"
-	server_exec "sudo kubectl -n monitoring patch ServiceMonitor prometheus-kube-prometheus-prometheus --type json -p '[{"op": "add", "path": "/spec/endpoints/0/interval", "value": "15s"}]'"
-	server_exec "sudo kubectl -n monitoring patch ServiceMonitor prometheus-kube-state-metrics --type json -p '[{"op": "add", "path": "/spec/endpoints/0/interval", "value": "15s"}]'"
-	server_exec "sudo kubectl -n monitoring patch ServiceMonitor prometheus-prometheus-node-exporter --type json -p '[{"op": "add", "path": "/spec/endpoints/0/interval", "value": "15s"}]'"
 
 	sleep 5
 
