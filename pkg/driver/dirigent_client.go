@@ -84,7 +84,7 @@ func InvokeDirigent(function *common.Function, runtimeSpec *common.RuntimeSpecif
 		}
 		requestBody = bytes.NewBuffer(matRequestBody)
 	} else {
-		requestBody = nil
+		requestBody = bytes.NewBuffer([]byte{})
 	}
 
 	req, err := http.NewRequest("GET", "http://"+function.Endpoint, requestBody)
