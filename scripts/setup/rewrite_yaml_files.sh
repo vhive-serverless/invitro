@@ -82,6 +82,27 @@ cat serving-core.yaml |
             or .spec.template.metadata.labels.app == "webhook"
         ) | .spec.template.spec.containers[0].resources.limits.memory 
     ) = "'"${memory_limit_serving_core}"'" ' |
+    yq '
+    (
+        select
+        (
+            .spec.template.metadata.labels.app == "autoscaler"
+        ) | .spec.template.spec.containers[0].env
+    ) += [{"name": "KUBE_API_BURST", "value": "20"}, {"name": "KUBE_API_QPS", "value": "10"}]' |
+    yq '
+    (
+        select
+        (
+            .spec.template.metadata.labels.app == "autoscaler"
+        ) | .spec.template.spec.containers[0].image
+    ) = "lkondras/autoscaler-12c0fa24db31956a7cfa673210e4fa13:base"' |
+    yq '
+    (
+        select
+        (
+            .spec.template.metadata.labels.app == "activator"
+        ) | .spec.template.spec.containers[0].image
+    ) = "lkondras/activator-ecd51ca5034883acbe737fde417a3d86:rr-policy"' |
 sed -e '$d' > serving-core-yq.yaml
 
 # calico.yaml
@@ -107,7 +128,8 @@ sed -e 's/{}//g' > calico-yq.yaml
 mv net-istio-yq.yaml net-istio.yaml
 mv serving-core-yq.yaml serving-core.yaml
 mv calico-yq.yaml ../calico/calico.yaml
-mv ~/loader/config/metallb-ipaddresspool.yaml ../metallb/metallb-ipaddresspool.yaml
-mv ~/loader/config/kube.json ../setup/kube.json
+cp ~/loader/config/metallb-ipaddresspool.yaml ../metallb/metallb-ipaddresspool.yaml
+cp ~/loader/config/kube.json ../setup/kube.json
+cp ~/loader/config/system.json ../setup/system.json
 
 popd >/dev/null # leave the vhive dir
