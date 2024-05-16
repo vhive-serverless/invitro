@@ -5,6 +5,7 @@
   "EndpointPort": 80,
 
   "DirigentControlPlaneIP": "127.0.0.1:9091",
+  "BusyLoopOnSandboxStartup": false,
 
   "TracePath": "data/traces/example",
   "Granularity": "minute",

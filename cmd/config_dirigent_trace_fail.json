@@ -5,6 +5,7 @@
   "EndpointPort": 80,
 
   "DirigentControlPlaneIP": "10.0.1.253:9092",
+  "BusyLoopOnSandboxStartup": false,
 
   "FailAt": 600,
   "FailComponent": "control_plane",
