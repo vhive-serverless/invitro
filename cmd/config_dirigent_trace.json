@@ -17,7 +17,7 @@
   "OutputPathPrefix": "data/out/experiment",
   "IATDistribution": "exponential",
   "CPULimit": "1vCPU",
-  "ExperimentDuration": 1,
+  "ExperimentDuration": 30,
   "WarmupDuration": 0,
   "PrepullMode": "",
 
