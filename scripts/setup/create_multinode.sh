@@ -285,6 +285,8 @@ function copy_k8s_certificates() {
     # patch knative to accept nodeselector
     server_exec $MASTER_NODE "cd loader; kubectl patch configmap config-features -n knative-serving -p '{\"data\": {\"kubernetes.podspec-nodeselector\": \"enabled\"}}'"
 
+    server_exec $MASTER_NODE "kubectl patch configmap config-logging -n knative-serving -p '{\"data\": {\"loglevel.autoscaler\": \"debug\"}}'"
+
     if [[ "$DEPLOY_PROMETHEUS" == true ]]; then
         $DIR/expose_infra_metrics.sh $MASTER_NODE
     fi
