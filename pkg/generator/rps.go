@@ -107,6 +107,8 @@ func CreateRPSFunctions(cfg *config.LoaderConfiguration, warmFunction common.IAT
 				PerMinuteCount:       warmFunctionCount,
 				RuntimeSpecification: createRuntimeSpecification(len(warmFunction), cfg.RpsRuntimeMs, cfg.RpsMemoryMB),
 			},
+
+			ColdStartBusyLoopMs: 0,
 		})
 	}
 
@@ -130,6 +132,8 @@ func CreateRPSFunctions(cfg *config.LoaderConfiguration, warmFunction common.IAT
 				PerMinuteCount:       coldFunctionCount[i],
 				RuntimeSpecification: createRuntimeSpecification(len(coldFunctions[i]), cfg.RpsRuntimeMs, cfg.RpsMemoryMB),
 			},
+
+			ColdStartBusyLoopMs: 0,
 		})
 	}
 
