@@ -38,7 +38,8 @@ type LoaderConfiguration struct {
 	YAMLSelector   string `json:"YAMLSelector"`
 	EndpointPort   int    `json:"EndpointPort"`
 
-	DirigentControlPlaneIP string `json:"DirigentControlPlaneIP"`
+	DirigentControlPlaneIP   string `json:"DirigentControlPlaneIP"`
+	BusyLoopOnSandboxStartup bool   `json:"BusyLoopOnSandboxStartup"`
 
 	AsyncMode             bool   `json:"AsyncMode"`
 	AsyncResponseURL      string `json:"AsyncResponseURL"`

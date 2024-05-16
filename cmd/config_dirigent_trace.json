@@ -6,13 +6,14 @@
   "EndpointPort": 80,
 
   "DirigentControlPlaneIP": "10.0.1.253:9092",
+  "BusyLoopOnSandboxStartup": false,
 
   "TracePath": "data/traces/azure_500",
   "Granularity": "minute",
   "OutputPathPrefix": "data/out/experiment",
   "IATDistribution": "exponential",
   "CPULimit": "1vCPU",
-  "ExperimentDuration": 30,
+  "ExperimentDuration": 1,
   "WarmupDuration": 0,
 
   "IsPartiallyPanic": false,

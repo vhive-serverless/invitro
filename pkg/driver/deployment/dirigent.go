@@ -35,7 +35,7 @@ func (*dirigentDeployer) Deploy(cfg *config.Configuration) {
 	dirigentConfig := newDirigentDeployerConfiguration(cfg)
 
 	for i := 0; i < len(cfg.Functions); i++ {
-		deployDirigent(cfg.Functions[i], dirigentConfig.RegistrationServer)
+		deployDirigent(cfg.Functions[i], dirigentConfig.RegistrationServer, cfg.LoaderConfiguration.BusyLoopOnSandboxStartup)
 	}
 }
 
@@ -53,7 +53,7 @@ var registrationClient = &http.Client{
 	},
 }
 
-func deployDirigent(function *common.Function, controlPlaneAddress string) {
+func deployDirigent(function *common.Function, controlPlaneAddress string, busyLoopOnColdStart bool) {
 	metadata := function.DirigentMetadata
 
 	if metadata == nil {
@@ -68,6 +68,11 @@ func deployDirigent(function *common.Function, controlPlaneAddress string) {
 		"scaling_lower_bound": {strconv.Itoa(metadata.ScalingLowerBound)},
 		"requested_cpu":       {strconv.Itoa(function.CPURequestsMilli)},
 		"requested_memory":    {strconv.Itoa(function.MemoryRequestsMiB)},
+	}
+
+	if busyLoopOnColdStart {
+		payload["iteration_multiplier"] = []string{strconv.Itoa(function.DirigentMetadata.IterationMultiplier)}
+		payload["cold_start_busy_loop_ms"] = []string{strconv.Itoa(function.ColdStartBusyLoopMs)}
 	}
 
 	log.Debug(payload)

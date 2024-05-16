@@ -6,6 +6,7 @@
   "EndpointPort": 80,
 
   "DirigentControlPlaneIP": "10.0.1.253:9092",
+  "BusyLoopOnSandboxStartup": false,
 
   "AsyncMode": false,
   "AsyncResponseURL": "10.0.1.3:8082",

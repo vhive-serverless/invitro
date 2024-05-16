@@ -6,6 +6,7 @@
   "EndpointPort": 80,
 
   "DirigentControlPlaneIP": "127.0.0.1:9091",
+  "BusyLoopOnSandboxStartup": false,
 
   "RpsTarget": 1,
   "RpsColdStartRatioPercentage": 50,

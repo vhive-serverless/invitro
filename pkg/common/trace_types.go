@@ -92,6 +92,8 @@ type Function struct {
 	MemoryStats      *FunctionMemoryStats
 	DirigentMetadata *DirigentMetadata
 
+	ColdStartBusyLoopMs int
+
 	CPURequestsMilli  int
 	MemoryRequestsMiB int
 	CPULimitsMilli    int
