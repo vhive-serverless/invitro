@@ -30,6 +30,7 @@ import (
 	"fmt"
 	"github.com/gocarina/gocsv"
 	"github.com/vhive-serverless/loader/pkg/common"
+	"github.com/vhive-serverless/loader/pkg/generator"
 	"io"
 	"math/rand"
 	"os"
@@ -102,6 +103,8 @@ func (p *AzureTraceParser) extractFunctions(
 		dirigentMetadataByHashFunction = createDirigentMetadataMap(dirigentMetadata)
 	}
 
+	gen := rand.New(rand.NewSource(time.Now().UnixNano()))
+
 	for i := 0; i < len(*invocations); i++ {
 		invocationStats := (*invocations)[i]
 
@@ -111,6 +114,8 @@ func (p *AzureTraceParser) extractFunctions(
 			InvocationStats: &invocationStats,
 			RuntimeStats:    runtimeByHashFunction[invocationStats.HashFunction],
 			MemoryStats:     memoryByHashFunction[invocationStats.HashFunction],
+
+			ColdStartBusyLoopMs: generator.GenerateMemorySpec(gen, gen.Float64(), memoryByHashFunction[invocationStats.HashFunction]),
 		}
 
 		if dirigentMetadata != nil {
