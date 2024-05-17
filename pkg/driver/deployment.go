@@ -56,13 +56,13 @@ func DeployFunctions(functions []*common.Function, yamlPath string, isPartiallyP
 	}
 }
 
-func DeployDirigent(controlPlaneAddress string, functions []*common.Function, busyLoopOnColdStart bool) {
+func DeployDirigent(controlPlaneAddress string, functions []*common.Function) {
 	for i := 0; i < len(functions); i++ {
-		deployDirigent(controlPlaneAddress, functions[i], busyLoopOnColdStart)
+		deployDirigent(controlPlaneAddress, functions[i])
 	}
 }
 
-func deployDirigent(controlPlaneAddress string, function *common.Function, busyLoopOnColdStart bool) {
+func deployDirigent(controlPlaneAddress string, function *common.Function) {
 	metadata := function.DirigentMetadata
 
 	if metadata == nil {
@@ -77,11 +77,6 @@ func deployDirigent(controlPlaneAddress string, function *common.Function, busyL
 		"scaling_lower_bound": {strconv.Itoa(metadata.ScalingLowerBound)},
 		"requested_cpu":       {strconv.Itoa(function.CPURequestsMilli)},
 		"requested_memory":    {strconv.Itoa(function.MemoryRequestsMiB)},
-	}
-
-	if busyLoopOnColdStart {
-		payload["iteration_multiplier"] = []string{strconv.Itoa(function.DirigentMetadata.IterationMultiplier)}
-		payload["cold_start_busy_loop_ms"] = []string{strconv.Itoa(function.ColdStartBusyLoopMs)}
 	}
 
 	log.Debug(payload)

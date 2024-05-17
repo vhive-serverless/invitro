@@ -253,12 +253,14 @@ func (d *Driver) invokeFunction(metadata *InvocationMetadata) {
 			metadata.Function,
 			metadata.RuntimeSpecifications,
 			d.GetHTTPClient(),
+			d.Configuration.LoaderConfiguration.BusyLoopOnSandboxStartup,
 		)
 	case "Dirigent-Dandelion", "Dirigent-Dandelion-RPS":
 		success, record = InvokeDirigent(
 			metadata.Function,
 			metadata.RuntimeSpecifications,
 			d.GetHTTPClient(),
+			d.Configuration.LoaderConfiguration.BusyLoopOnSandboxStartup,
 			true,
 		)
 	default:
@@ -679,8 +681,7 @@ func (d *Driver) RunExperiment(skipIATGeneration bool, readIATFromFIle bool) {
 		DeployFunctionsAWSLambda(d.Configuration.Functions)
 	case "Dirigent", "Dirigent-RPS", "Dirigent-Dandelion", "Dirigent-Dandelion-RPS":
 		DeployDirigent(d.Configuration.LoaderConfiguration.DirigentControlPlaneIP,
-			d.Configuration.Functions,
-			d.Configuration.LoaderConfiguration.BusyLoopOnSandboxStartup)
+			d.Configuration.Functions)
 		go scheduleFailure(d.Configuration.LoaderConfiguration)
 	default:
 		log.Fatal("Unsupported platform.")

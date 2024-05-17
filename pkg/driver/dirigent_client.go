@@ -37,7 +37,9 @@ type MatrixRequest struct {
 	Sets []InputSet `bson:"sets"`
 }
 
-func InvokeDirigent(function *common.Function, runtimeSpec *common.RuntimeSpecification, client *http.Client, isDandelionOptional ...bool) (bool, *mc.ExecutionRecord) {
+func InvokeDirigent(function *common.Function, runtimeSpec *common.RuntimeSpecification,
+	client *http.Client, busyLoopOnColdStart bool, isDandelionOptional ...bool) (bool, *mc.ExecutionRecord) {
+
 	isDandelion := false
 	if len(isDandelionOptional) > 0 {
 		isDandelion = true
@@ -101,6 +103,11 @@ func InvokeDirigent(function *common.Function, runtimeSpec *common.RuntimeSpecif
 	req.Header.Set("requested_cpu", strconv.Itoa(runtimeSpec.Runtime))
 	req.Header.Set("requested_memory", strconv.Itoa(runtimeSpec.Memory))
 	req.Header.Set("multiplier", strconv.Itoa(function.DirigentMetadata.IterationMultiplier))
+	if busyLoopOnColdStart {
+		req.Header.Set("cold_start_loop_for", strconv.Itoa(function.ColdStartBusyLoopMs))
+	} else {
+		req.Header.Set("cold_start_loop_for", "0")
+	}
 
 	if isDandelion {
 		req.URL.Path = "/hot/matmul"
