@@ -29,7 +29,7 @@ spec:
                 - worker
                 - singlenode
       containers:
-        - image: ghcr.io/vhive-serverless/invitro_trace_function:latest
+        - image: docker.io/cvetkovic/dirigent_trace_function:latest
           # imagePullPolicy: Always  # No need if the tag is `latest`.
           ports:
             - name: h2c  # For gRPC support
