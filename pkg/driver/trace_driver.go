@@ -208,7 +208,7 @@ func (d *Driver) invokeFunction(metadata *InvocationMetadata) {
 	var record *mc.ExecutionRecord
 	switch d.Configuration.LoaderConfiguration.Platform {
 	case "Knative":
-		success, record = InvokeGRPC(
+		success, record = InvokeDirigent(
 			metadata.Function,
 			metadata.RuntimeSpecifications,
 			d.Configuration.LoaderConfiguration,
