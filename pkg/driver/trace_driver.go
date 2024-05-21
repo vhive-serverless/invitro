@@ -229,10 +229,11 @@ func (d *Driver) invokeFunction(metadata *InvocationMetadata) {
 	var record *mc.ExecutionRecord
 	switch d.Configuration.LoaderConfiguration.Platform {
 	case "Knative", "Knative-RPS":
-		success, record = InvokeGRPC(
+		// TODO: create dirigent meta data based on loader configuration
+		success, record = InvokeDirigent(
 			metadata.Function,
 			metadata.RuntimeSpecifications,
-			d.Configuration.LoaderConfiguration,
+			d.GetHTTPClient(),
 		)
 	case "OpenWhisk", "OpenWhisk-RPS":
 		success, record = InvokeOpenWhisk(

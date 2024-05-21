@@ -90,7 +90,8 @@ func (p *AzureTraceParser) extractFunctions(
 	invocations *[]common.FunctionInvocationStats,
 	runtime *[]common.FunctionRuntimeStats,
 	memory *[]common.FunctionMemoryStats,
-	dirigentMetadata *[]common.DirigentMetadata) []*common.Function {
+	dirigentMetadata *[]common.DirigentMetadata,
+	platform string) []*common.Function {
 
 	var result []*common.Function
 
@@ -119,6 +120,17 @@ func (p *AzureTraceParser) extractFunctions(
 
 		if dirigentMetadata != nil {
 			function.DirigentMetadata = dirigentMetadataByHashFunction[invocationStats.HashFunction]
+		} else if platform == "Knative" {
+			// values are not used for Knative so they are irrelevant
+			metadata := &common.DirigentMetadata{
+				Image:               "docker.io/cvetkovic/dirigent_trace_function:latest",
+				Port:                80,
+				Protocol:            "tcp",
+				ScalingUpperBound:   0,
+				ScalingLowerBound:   0,
+				IterationMultiplier: 1,
+			}
+			function.DirigentMetadata = metadata
 		}
 
 		result = append(result, function)
@@ -138,7 +150,7 @@ func (p *AzureTraceParser) Parse(platform string) []*common.Function {
 	memoryTrace := parseMemoryTrace(memoryPath)
 	dirigentMetadata := parseDirigentMetadata(dirigentPath, platform)
 
-	return p.extractFunctions(invocationTrace, runtimeTrace, memoryTrace, dirigentMetadata)
+	return p.extractFunctions(invocationTrace, runtimeTrace, memoryTrace, dirigentMetadata, platform)
 }
 
 func parseInvocationTrace(traceFile string, traceDuration int) *[]common.FunctionInvocationStats {
