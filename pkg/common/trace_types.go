@@ -24,6 +24,8 @@
 
 package common
 
+import "container/list"
+
 type FunctionInvocationStats struct {
 	HashOwner    string
 	HashApp      string
@@ -97,4 +99,10 @@ type Function struct {
 	CPULimitsMilli    int
 
 	Specification *FunctionSpecification
+}
+
+type Node struct {
+	Function *Function
+	Branches []*list.List
+	Depth    int
 }
