@@ -30,8 +30,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"math/rand"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -43,6 +45,7 @@ import (
 	"github.com/vhive-serverless/loader/pkg/generator"
 	mc "github.com/vhive-serverless/loader/pkg/metric"
 	"github.com/vhive-serverless/loader/pkg/trace"
+	"github.com/xuri/excelize/v2"
 )
 
 type DriverConfiguration struct {
@@ -100,13 +103,235 @@ func (d *Driver) runCSVWriter(records chan interface{}, filename string, writerD
 	writerDone.Done()
 }
 
-func DAGCreation(functions []*common.Function) *list.List {
-	linkedList := list.New()
-	// Assigning nodes one after another
-	for _, function := range functions {
-		linkedList.PushBack(function)
+func createDAGWorkflow(functionList []*common.Function, function *common.Function, maxWidth int, maxDepth int) *list.List {
+	// Generating the number of Invocations per Depth
+	widthList := []int{}
+	widthList = append(widthList, 1)
+	for i := 1; i < maxDepth-1; i++ {
+		widthList = append(widthList, (rand.Intn(maxWidth-widthList[i-1]+1) + widthList[i-1]))
 	}
-	return linkedList
+	widthList = append(widthList, maxWidth)
+	queue := []*list.Element{}
+	linkedList := list.New()
+	functionIndex := []int{}
+	for i := range functionList {
+		functionIndex = append(functionIndex, getName(functionList[i]))
+	}
+	functionId := getName(function)
+	functionIndex = append(functionIndex[:functionId], functionIndex[functionId+1:]...)
+	var totalFunctionsToInvoke int64
+	var additionalBranches int
+	var listElement *list.Element
+	var child *common.Node
+	// Using -1 as indicator for dummy node
+	dummyNode := &common.Node{Depth: -1}
+	node := &common.Node{Function: function, Depth: 0}
+	totalFunctionsToInvoke += 1
+	initialList := linkedList
+	// First sequential invocation
+	if maxDepth == 1 {
+		linkedList.PushBack(dummyNode)
+		linkedList.Front().Value = node
+		return initialList
+	}
+	for i := 0; i < len(widthList); i++ {
+		widthList[i] -= 1
+		linkedList.PushBack(dummyNode)
+	}
+	linkedList.Front().Value = node
+	queue = append(queue, linkedList.Front())
+	for len(queue) > 0 {
+		listElement = queue[0]
+		// Popping from the queue
+		queue = queue[1:]
+		node = listElement.Value.(*common.Node)
+		// if it reaches the end
+		if listElement.Next() == nil {
+			continue
+		}
+		// To fix
+		functionId = rand.Intn(len(functionIndex) - 1)
+		child = &common.Node{Function: functionList[functionIndex[functionId]], Depth: node.Depth + 1}
+		functionIndex = append(functionIndex[:functionId], functionIndex[functionId+1:]...)
+		totalFunctionsToInvoke += 1
+		// Adding into the next element
+		listElement.Next().Value = child
+		queue = append(queue, listElement.Next())
+
+		// Check to see how many branches can I make with this node
+		if widthList[node.Depth+1] > 0 {
+			if len(queue) < 1 || (queue[0].Value.(*common.Node).Depth > node.Depth) {
+				additionalBranches = widthList[node.Depth+1]
+			} else {
+				additionalBranches = rand.Intn(widthList[node.Depth+1] + 1)
+			}
+			for i := node.Depth + 1; i < len(widthList); i++ {
+				widthList[i] -= additionalBranches
+			}
+		} else {
+			additionalBranches = 0
+		}
+		// Adding the branches
+		nodeList := make([]*list.List, additionalBranches)
+		if additionalBranches > 0 {
+			for i := 0; i < additionalBranches; i++ {
+				newList := list.New()
+				for i := node.Depth + 1; i < maxDepth; i++ {
+					newList.PushBack(dummyNode)
+				}
+				// If it is at the final function
+				if len(functionIndex) == 1 {
+					functionId = functionIndex[0]
+				} else {
+					functionId = rand.Intn(len(functionIndex) - 1)
+				}
+				child = &common.Node{Function: functionList[functionIndex[functionId]], Depth: node.Depth + 1}
+				functionIndex = append(functionIndex[:functionId], functionIndex[functionId+1:]...)
+				totalFunctionsToInvoke += 1
+				newList.Front().Value = child
+				nodeList[i] = newList
+				queue = append(queue, newList.Front())
+			}
+		}
+		node.Branches = nodeList
+	}
+	return initialList
+}
+func printDAG(linkedList *list.List) {
+	listNode := linkedList.Front()
+	queue := make([]*list.Element, 0)
+	queue = append(queue, listNode)
+	var message string
+	var buffer string = ""
+	var dummyNode *list.Element
+	var startingNode bool = true
+	for len(queue) > 0 {
+		listNode = queue[0]
+		queue = queue[1:]
+		functionId := getName(listNode.Value.(*common.Node).Function)
+		if startingNode {
+			message = "|" + strconv.Itoa(functionId)
+			for i := 0; i < listNode.Value.(*common.Node).Depth; i++ {
+				buffer += "     "
+			}
+			message = buffer + message
+			startingNode = false
+		} else {
+			message = message + " -> " + strconv.Itoa(functionId)
+		}
+		for i := 0; i < len(listNode.Value.(*common.Node).Branches); i++ {
+			queue = append(queue, dummyNode)
+			copy(queue[1:], queue)
+			queue[0] = listNode.Value.(*common.Node).Branches[i].Front()
+		}
+		if listNode.Next() == nil {
+			println(message)
+			buffer = ""
+			if len(queue) > 0 {
+				startingNode = true
+			} else {
+				break
+			}
+		} else {
+			queue = append(queue, dummyNode)
+			copy(queue[1:], queue)
+			queue[0] = listNode.Next()
+		}
+	}
+
+}
+func getMaxInvocation(functionList []*common.Function) []int {
+	maxInvocation := make([]int, len(functionList[0].InvocationStats.Invocations))
+	for _, i := range functionList {
+		for index, invocation := range i.InvocationStats.Invocations {
+			maxInvocation[index] = max(maxInvocation[index], invocation)
+		}
+	}
+	return maxInvocation
+
+}
+func getName(function *common.Function) int {
+	parts := strings.Split(function.Name, "-")
+	if parts[0] == "test" {
+		return 0
+	}
+	functionId, err := strconv.Atoi(parts[2])
+	if err != nil {
+		log.Fatal(err)
+	}
+	return functionId
+}
+
+// Generate CDF
+func generateCDF(file string) [][]float64 {
+	sheetName := "data"
+	f, err := excelize.OpenFile(file)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer func() {
+		// Close the spreadsheet.
+		if err := f.Close(); err != nil {
+			fmt.Println(err)
+		}
+	}()
+	// Removing the first 2 header rows
+	_ = f.RemoveRow(sheetName, 1)
+	_ = f.RemoveRow(sheetName, 1)
+	cols, _ := f.GetCols(sheetName)
+
+	cdf := make([][]float64, len(cols))
+	for i := range cols {
+		cdf[i] = make([]float64, len(cols[i]))
+	}
+	for i := 0; i < 6; i += 2 {
+		for j := 0; j < len(cols[i]); j++ {
+			cdfProb, _ := strconv.ParseFloat(strings.TrimSuffix(cols[i+1][j], "%"), 64)
+			cdfValue, _ := strconv.ParseFloat(cols[i][j], 64)
+			cdfProb = math.Round(cdfProb*100) / 100
+			cdf[i+1][j] = cdfProb
+			cdf[i][j] = cdfValue
+			if cdfProb == 100.00 {
+				cdf[i] = cdf[i][:j+1]
+				cdf[i+1] = cdf[i+1][:j+1]
+				break
+			}
+
+		}
+	}
+	return cdf
+}
+
+func getDAGStats(cdf [][]float64, maxSize int) (int, int) {
+	var width int
+	var depth int
+	depthProb := math.Round((rand.Float64() * 10000)) / 100
+	widthProb := math.Round((rand.Float64() * 10000)) / 100
+	for i, value := range cdf[1] {
+		if value == widthProb {
+			width = int(cdf[0][i])
+			break
+		}
+		if value > widthProb {
+			width = int(cdf[0][i-1])
+			break
+		}
+	}
+	for i, value := range cdf[3] {
+		if value == depthProb {
+			depth = int(cdf[2][i])
+			break
+		}
+		if value > depthProb {
+			depth = int(cdf[2][i-1])
+			break
+		}
+	}
+	// Re-run DAG Generation if size exceeds number of functions
+	if maxSize < width*(depth-1) {
+		width, depth = getDAGStats(cdf, maxSize)
+	}
+	return width, depth
 }
 
 /////////////////////////////////////////
@@ -185,6 +410,7 @@ type InvocationMetadata struct {
 	SuccessCount        *int64
 	FailedCount         *int64
 	FailedCountByMinute []int64
+	FunctionsInvoked    *int64
 
 	RecordOutputChannel   chan interface{}
 	AnnounceDoneWG        *sync.WaitGroup
@@ -214,8 +440,11 @@ func (d *Driver) invokeFunction(metadata *InvocationMetadata) {
 	node := metadata.RootFunction.Front()
 	var record *mc.ExecutionRecord
 	var runtimeSpecifications *common.RuntimeSpecification
+	var branches []*list.List
+	var invocationRetries int
+	var numberOfFunctionsInvoked int64
 	for node != nil {
-		function := node.Value.(*common.Function)
+		function := node.Value.(*common.Node).Function
 		runtimeSpecifications = &function.Specification.RuntimeSpecification[metadata.MinuteIndex][metadata.InvocationIndex]
 		switch d.Configuration.LoaderConfiguration.Platform {
 		case "Knative":
@@ -246,16 +475,31 @@ func (d *Driver) invokeFunction(metadata *InvocationMetadata) {
 		default:
 			log.Fatal("Unsupported platform.")
 		}
+		if !success && (d.Configuration.LoaderConfiguration.DAGMode && invocationRetries == 0) {
+			log.Debugf("Invocation failed at minute: %d for %s. Retrying Invocation", metadata.MinuteIndex, function.Name)
+			invocationRetries += 1
+			continue
+		}
 		record.Phase = int(metadata.Phase)
 		record.InvocationID = composeInvocationID(d.Configuration.TraceGranularity, metadata.MinuteIndex, metadata.InvocationIndex)
 		metadata.RecordOutputChannel <- record
-
+		numberOfFunctionsInvoked += 1
 		if !success {
 			log.Debugf("Invocation failed at minute: %d for %s", metadata.MinuteIndex, function.Name)
 			break
 		}
+		branches = node.Value.(*common.Node).Branches
+		for i := 0; i < len(branches); i++ {
+			newMetadataValue := *metadata
+			newMetadata := &newMetadataValue
+			newMetadata.RootFunction = branches[i]
+			newMetadata.AnnounceDoneWG.Add(1)
+			atomic.AddInt64(metadata.SuccessCount, -1)
+			go d.invokeFunction(newMetadata)
+		}
 		node = node.Next()
 	}
+	atomic.AddInt64(metadata.FunctionsInvoked, numberOfFunctionsInvoked)
 	if success {
 		atomic.AddInt64(metadata.SuccessCount, 1)
 	} else {
@@ -264,11 +508,11 @@ func (d *Driver) invokeFunction(metadata *InvocationMetadata) {
 	}
 }
 
-func (d *Driver) functionsDriver(list *list.List, announceFunctionDone *sync.WaitGroup,
+func (d *Driver) functionsDriver(functionLinkedList *list.List, announceFunctionDone *sync.WaitGroup,
 	addInvocationsToGroup *sync.WaitGroup, readOpenWhiskMetadata *sync.Mutex, totalSuccessful *int64,
-	totalFailed *int64, totalIssued *int64, recordOutputChannel chan interface{}) {
+	totalFailed *int64, totalIssued *int64, entriesWritten *int64, recordOutputChannel chan interface{}) {
 
-	function := list.Front().Value.(*common.Function)
+	function := functionLinkedList.Front().Value.(*common.Node).Function
 	numberOfInvocations := 0
 	for i := 0; i < len(function.InvocationStats.Invocations); i++ {
 		numberOfInvocations += function.InvocationStats.Invocations[i]
@@ -284,6 +528,7 @@ func (d *Driver) functionsDriver(list *list.List, announceFunctionDone *sync.Wai
 	var failedInvocations int64
 	var failedInvocationByMinute = make([]int64, totalTraceDuration)
 	var numberOfIssuedInvocations int64
+	var functionsInvoked int64
 	var currentPhase = common.ExecutionPhase
 
 	waitForInvocations := sync.WaitGroup{}
@@ -343,13 +588,14 @@ func (d *Driver) functionsDriver(list *list.List, announceFunctionDone *sync.Wai
 				waitForInvocations.Add(1)
 
 				go d.invokeFunction(&InvocationMetadata{
-					RootFunction:          list,
+					RootFunction:          functionLinkedList,
 					Phase:                 currentPhase,
 					MinuteIndex:           minuteIndex,
 					InvocationIndex:       invocationIndex,
 					SuccessCount:          &successfulInvocations,
 					FailedCount:           &failedInvocations,
 					FailedCountByMinute:   failedInvocationByMinute,
+					FunctionsInvoked:      &functionsInvoked,
 					RecordOutputChannel:   recordOutputChannel,
 					AnnounceDoneWG:        &waitForInvocations,
 					AnnounceDoneExe:       addInvocationsToGroup,
@@ -364,7 +610,7 @@ func (d *Driver) functionsDriver(list *list.List, announceFunctionDone *sync.Wai
 					InvocationID: composeInvocationID(d.Configuration.TraceGranularity, minuteIndex, invocationIndex),
 					StartTime:    time.Now().UnixNano(),
 				}
-
+				functionsInvoked++
 				successfulInvocations++
 			}
 			numberOfIssuedInvocations++
@@ -375,11 +621,11 @@ func (d *Driver) functionsDriver(list *list.List, announceFunctionDone *sync.Wai
 	waitForInvocations.Wait()
 
 	log.Debugf("All the invocations for function %s have been completed.\n", function.Name)
-	announceFunctionDone.Done()
-
 	atomic.AddInt64(totalSuccessful, successfulInvocations)
 	atomic.AddInt64(totalFailed, failedInvocations)
 	atomic.AddInt64(totalIssued, numberOfIssuedInvocations)
+	atomic.AddInt64(entriesWritten, functionsInvoked)
+	announceFunctionDone.Done()
 }
 
 func (d *Driver) proceedToNextMinute(function *common.Function, minuteIndex *int, invocationIndex *int, startOfMinute *time.Time,
@@ -560,7 +806,7 @@ func (d *Driver) internalRun(iatOnly bool, generated bool) {
 	var successfulInvocations int64
 	var failedInvocations int64
 	var invocationsIssued int64
-	var functionsPerDAG int64
+	var entriesWritten int64
 	readOpenWhiskMetadata := sync.Mutex{}
 	allFunctionsInvoked := sync.WaitGroup{}
 	allIndividualDriversCompleted := sync.WaitGroup{}
@@ -571,19 +817,28 @@ func (d *Driver) internalRun(iatOnly bool, generated bool) {
 
 	if !iatOnly {
 		log.Info("Generating IAT and runtime specifications for all the functions")
+		maxInvocation := getMaxInvocation(d.Configuration.Functions)
 		for i, function := range d.Configuration.Functions {
-			// Equalising all the InvocationStats to the first function
-			if d.Configuration.LoaderConfiguration.DAGMode {
-				function.InvocationStats.Invocations = d.Configuration.Functions[0].InvocationStats.Invocations
-			}
 			spec := d.SpecificationGenerator.GenerateInvocationData(
 				function,
 				d.Configuration.IATDistribution,
 				d.Configuration.ShiftIAT,
 				d.Configuration.TraceGranularity,
 			)
-
 			d.Configuration.Functions[i].Specification = spec
+			// Overwriting the runtime specification to account for maximum possible invocations
+			if d.Configuration.LoaderConfiguration.DAGMode {
+				originalInvocation := function.InvocationStats.Invocations
+				function.InvocationStats.Invocations = maxInvocation
+				spec := d.SpecificationGenerator.GenerateInvocationData(
+					function,
+					d.Configuration.IATDistribution,
+					d.Configuration.ShiftIAT,
+					d.Configuration.TraceGranularity,
+				)
+				function.InvocationStats.Invocations = originalInvocation
+				function.Specification.RuntimeSpecification = spec.RuntimeSpecification
+			}
 		}
 	}
 
@@ -605,34 +860,40 @@ func (d *Driver) internalRun(iatOnly bool, generated bool) {
 
 	if d.Configuration.LoaderConfiguration.DAGMode {
 		log.Infof("Starting DAG invocation driver\n")
-		functionLinkedList := DAGCreation(d.Configuration.Functions)
-		functionsPerDAG = int64(len(d.Configuration.Functions))
-		allIndividualDriversCompleted.Add(1)
-		go d.functionsDriver(
-			functionLinkedList,
-			&allIndividualDriversCompleted,
-			&allFunctionsInvoked,
-			&readOpenWhiskMetadata,
-			&successfulInvocations,
-			&failedInvocations,
-			&invocationsIssued,
-			globalMetricsCollector,
-		)
-	} else {
-		log.Infof("Starting function invocation driver\n")
-		functionsPerDAG = 1
 		for _, function := range d.Configuration.Functions {
+
+			DAGDistribution := generateCDF("data/traces/example/dag_structure.xlsx")
+			width, depth := getDAGStats(DAGDistribution, len(d.Configuration.Functions))
+			functionLinkedList := createDAGWorkflow(d.Configuration.Functions, function, width, depth)
+			printDAG(functionLinkedList)
 			allIndividualDriversCompleted.Add(1)
-			linkedList := list.New()
-			linkedList.PushBack(function)
 			go d.functionsDriver(
-				linkedList,
+				functionLinkedList,
 				&allIndividualDriversCompleted,
 				&allFunctionsInvoked,
 				&readOpenWhiskMetadata,
 				&successfulInvocations,
 				&failedInvocations,
 				&invocationsIssued,
+				&entriesWritten,
+				globalMetricsCollector,
+			)
+		}
+	} else {
+		log.Infof("Starting function invocation driver\n")
+		for _, function := range d.Configuration.Functions {
+			allIndividualDriversCompleted.Add(1)
+			functionLinkedList := list.New()
+			functionLinkedList.PushBack(&common.Node{Function: function, Depth: 0})
+			go d.functionsDriver(
+				functionLinkedList,
+				&allIndividualDriversCompleted,
+				&allFunctionsInvoked,
+				&readOpenWhiskMetadata,
+				&successfulInvocations,
+				&failedInvocations,
+				&invocationsIssued,
+				&entriesWritten,
 				globalMetricsCollector,
 			)
 		}
@@ -641,7 +902,7 @@ func (d *Driver) internalRun(iatOnly bool, generated bool) {
 	if atomic.LoadInt64(&successfulInvocations)+atomic.LoadInt64(&failedInvocations) != 0 {
 		log.Debugf("Waiting for all the invocations record to be written.\n")
 
-		totalIssuedChannel <- atomic.LoadInt64(&invocationsIssued) * functionsPerDAG
+		totalIssuedChannel <- atomic.LoadInt64(&entriesWritten)
 		scraperFinishCh <- 0 // Ask the scraper to finish metrics collection
 
 		allRecordsWritten.Wait()
