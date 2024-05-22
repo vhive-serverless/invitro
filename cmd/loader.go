@@ -27,9 +27,10 @@ package main
 import (
 	"flag"
 	"fmt"
-	"golang.org/x/exp/slices"
 	"os"
 	"time"
+
+	"golang.org/x/exp/slices"
 
 	"github.com/vhive-serverless/loader/pkg/common"
 	"github.com/vhive-serverless/loader/pkg/config"

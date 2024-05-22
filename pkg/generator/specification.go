@@ -25,7 +25,10 @@
 package generator
 
 import (
+	"container/list"
 	"math/rand"
+	"strconv"
+	"strings"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/vhive-serverless/loader/pkg/common"
@@ -254,4 +257,100 @@ func (s *SpecificationGenerator) generateExecutionSpecs(function *common.Functio
 		Runtime: runtime,
 		Memory:  memory,
 	}
+}
+
+func (s *SpecificationGenerator) CreateDAGWorkflow(functionList []*common.Function, function *common.Function, maxWidth int, maxDepth int) *list.List {
+	DAGList := list.New()
+	if maxDepth == 1 {
+		DAGList.PushBack(&common.Node{Function: function, Depth: 0})
+		return DAGList
+	}
+	widthList := s.generateNodeDistribution(maxWidth, maxDepth)
+	// Implement a FIFO queue for nodes to assign functions and branches to each node.
+	nodeQueue := []*list.Element{}
+	for i := 0; i < len(widthList); i++ {
+		widthList[i] -= 1
+		DAGList.PushBack(&common.Node{Depth: -1})
+	}
+	var functionID int = s.getName(function)
+	DAGList.Front().Value = &common.Node{Function: function, Depth: 0}
+	functionID = (functionID + 1) % len(functionList)
+	nodeQueue = append(nodeQueue, DAGList.Front())
+	for len(nodeQueue) > 0 {
+		listElement := nodeQueue[0]
+		nodeQueue = nodeQueue[1:]
+		node := listElement.Value.(*common.Node)
+		// Checks if the node has reached the maximum depth of the DAG (maxDepth -1)
+		if node.Depth == maxDepth-1 {
+			continue
+		}
+		child := &common.Node{Function: functionList[functionID], Depth: node.Depth + 1}
+		functionID = (functionID + 1) % len(functionList)
+		listElement.Next().Value = child
+		nodeQueue = append(nodeQueue, listElement.Next())
+		// Creating parallel branches from the node, if width of next stage > width of current stage
+		var nodeList []*list.List
+		if widthList[node.Depth+1] > 0 {
+			nodeList, nodeQueue = s.addBranches(nodeQueue, widthList, node, functionList, functionID)
+			functionID = (functionID + len(nodeList)) % len(functionList)
+		} else {
+			nodeList = []*list.List{}
+		}
+		node.Branches = nodeList
+	}
+	return DAGList
+}
+
+func (s *SpecificationGenerator) getName(function *common.Function) int {
+	parts := strings.Split(function.Name, "-")
+	if parts[0] == "test" {
+		return 0
+	}
+	functionId, err := strconv.Atoi(parts[2])
+	if err != nil {
+		log.Fatal(err)
+	}
+	return functionId
+}
+
+func (s *SpecificationGenerator) addBranches(nodeQueue []*list.Element, widthList []int, node *common.Node, functionList []*common.Function, functionID int) ([]*list.List, []*list.Element) {
+	var additionalBranches int
+	if len(nodeQueue) < 1 || (nodeQueue[0].Value.(*common.Node).Depth > node.Depth) {
+		additionalBranches = widthList[node.Depth+1]
+	} else {
+		additionalBranches = rand.Intn(widthList[node.Depth+1] + 1)
+	}
+	for i := node.Depth + 1; i < len(widthList); i++ {
+		widthList[i] -= additionalBranches
+	}
+	nodeList := make([]*list.List, additionalBranches)
+	for i := 0; i < additionalBranches; i++ {
+		newBranch := s.createNewBranch(functionList, node, len(widthList), functionID)
+		functionID = (functionID + 1) % len(functionList)
+		nodeList[i] = newBranch
+		nodeQueue = append(nodeQueue, newBranch.Front())
+	}
+	return nodeList, nodeQueue
+}
+
+func (s *SpecificationGenerator) createNewBranch(functionList []*common.Function, node *common.Node, maxDepth int, functionID int) *list.List {
+	DAGBranch := list.New()
+	// Ensuring that each node is connected to a child until the maximum depth
+	for i := node.Depth + 1; i < maxDepth; i++ {
+		DAGBranch.PushBack(&common.Node{Depth: -1})
+	}
+	child := &common.Node{Function: functionList[functionID], Depth: node.Depth + 1}
+	DAGBranch.Front().Value = child
+	return DAGBranch
+}
+
+func (s *SpecificationGenerator) generateNodeDistribution(maxWidth int, maxDepth int) []int {
+	// Generating the number of nodes per depth (stage).
+	widthList := []int{}
+	widthList = append(widthList, 1)
+	for i := 1; i < maxDepth-1; i++ {
+		widthList = append(widthList, (rand.Intn(maxWidth-widthList[i-1]+1) + widthList[i-1]))
+	}
+	widthList = append(widthList, maxWidth)
+	return widthList
 }

@@ -19,7 +19,11 @@
 | MetricScrapingPeriodSeconds  | int       | > 0                                                                 | 15                  | Period of Prometheus metrics scrapping                                               |
 | GRPCConnectionTimeoutSeconds | int       | > 0                                                                 | 60                  | Timeout for establishing a gRPC connection                                           |
 | GRPCFunctionTimeoutSeconds   | int       | > 0                                                                 | 90                  | Maximum time given to function to execute[^4]                                        |
-| DAGMode             | bool      | true/false                                                          | false               | Sequential invocation of all functions one after another                                                    |
+| DAGMode                      | bool      | true/false                                                          | false               | Generates a dedicated DAG workflow[^5] with each function as the entry point. Frequency and IAT of the DAG follows the entry function, while Duration and Memory of each function will follow their respective values in TracePath.                                                                                                              |                                                                                                    |
+| EnableDAGDataset             | bool      | true/false                                                          | true                |  Generate width and depth from data/traces/example/dag_structure.csv[^6]                                                                                                      |
+| Width                        | int       | > 0                                                                 | 2                   | Default width of DAG                                                                 |
+| Depth                        | int       | > 0                                                                 | 2                   | Default depth of DAG                                                                 |
+
 [^1]: The second granularity feature interprets each column of the trace as a second, rather than as a minute, and
 generates IAT for each second. This feature is useful for fine-grained and precise invocation scheduling in experiments
 involving stable low load.
@@ -30,3 +34,7 @@ involving stable low load.
 
 [^4]: Function can execute for at most 15 minutes as in AWS
 Lambda; https://aws.amazon.com/about-aws/whats-new/2018/10/aws-lambda-supports-functions-that-can-run-up-to-15-minutes/
+
+[^5]: The generated DAG consists of unique functions. The shape of each DAG is determined either ```Width,Depth``` or randomly generated based on ```EnableDAGDAtaset```. DAGs for each function follow the same shape, but with varying structure.
+
+[^6]: A [data sample](https://github.com/icanforce/Orion-OSDI22/blob/main/Public_Dataset/dag_structure.xlsx) of DAG structures has been created based on past Microsoft Azure traces. Width and Depth are determined based on probabilities of this sample.

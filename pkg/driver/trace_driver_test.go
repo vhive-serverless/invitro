@@ -123,7 +123,7 @@ func TestInvokeFunctionFromDriver(t *testing.T) {
 
 			testDriver := createTestDriver()
 			var failureCountByMinute = make([]int64, testDriver.Configuration.TraceDuration)
-
+			var functionsInvoked int64
 			if !test.forceFail {
 				address, port := "localhost", test.port
 				testDriver.Configuration.Functions[0].Endpoint = fmt.Sprintf("%s:%d", address, port)
@@ -133,10 +133,10 @@ func TestInvokeFunctionFromDriver(t *testing.T) {
 				// make sure that the gRPC server is running
 				time.Sleep(2 * time.Second)
 			}
-
+			function := testDriver.Configuration.Functions[0]
+			node := &common.Node{Function: testDriver.Configuration.Functions[0]}
 			list := list.New()
-			list.PushBack(testDriver.Configuration.Functions[0])
-			function := list.Front().Value.(*common.Function)
+			list.PushBack(node)
 			for i := 0; i < len(function.Specification.RuntimeSpecification); i++ {
 				function.Specification.RuntimeSpecification[i] = make([]common.RuntimeSpecification, 3)
 			}
@@ -152,6 +152,7 @@ func TestInvokeFunctionFromDriver(t *testing.T) {
 				SuccessCount:        &successCount,
 				FailedCount:         &failureCount,
 				FailedCountByMinute: failureCountByMinute,
+				FunctionsInvoked:    &functionsInvoked,
 				RecordOutputChannel: invocationRecordOutputChannel,
 				AnnounceDoneWG:      announceDone,
 			}
@@ -184,13 +185,13 @@ func TestInvokeFunctionFromDriver(t *testing.T) {
 func TestDAGInvocation(t *testing.T) {
 	var successCount int64 = 0
 	var failureCount int64 = 0
-	var functionsToInvoke int = 4
+	var functionsToInvoke int = 3
+	var functionsInvoked int64
 	invocationRecordOutputChannel := make(chan interface{}, functionsToInvoke)
 	announceDone := &sync.WaitGroup{}
 
 	testDriver := createTestDriver()
 	var failureCountByMinute = make([]int64, testDriver.Configuration.TraceDuration)
-	list := list.New()
 	address, port := "localhost", 8085
 	function := testDriver.Configuration.Functions[0]
 	function.Endpoint = fmt.Sprintf("%s:%d", address, port)
@@ -203,28 +204,48 @@ func TestDAGInvocation(t *testing.T) {
 		Runtime: 1000,
 		Memory:  128,
 	}
-	for i := 0; i < functionsToInvoke; i++ {
-		function = testDriver.Configuration.Functions[0]
-		list.PushBack(function)
+	functionList := make([]*common.Function, 3)
+	for i := 0; i < len(functionList); i++ {
+		functionList[i] = function
+	}
+	originalBranch := []*list.List{
+		func() *list.List {
+			l := list.New()
+			l.PushBack(&common.Node{Function: functionList[0], Depth: 0})
+			l.PushBack(&common.Node{Function: functionList[1], Depth: 1})
+			return l
+		}(),
 	}
 
+	newBranch := []*list.List{
+		func() *list.List {
+			l := list.New()
+			l.PushBack(&common.Node{Function: functionList[2], Depth: 1})
+			return l
+		}(),
+	}
+
+	rootFunction := originalBranch[0]
+	rootFunction.Front().Value.(*common.Node).Branches = newBranch
 	time.Sleep(2 * time.Second)
 
 	metadata := &InvocationMetadata{
-		RootFunction:        list,
+		RootFunction:        rootFunction,
 		Phase:               common.ExecutionPhase,
 		MinuteIndex:         0,
 		InvocationIndex:     2,
 		SuccessCount:        &successCount,
 		FailedCount:         &failureCount,
 		FailedCountByMinute: failureCountByMinute,
+		FunctionsInvoked:    &functionsInvoked,
 		RecordOutputChannel: invocationRecordOutputChannel,
 		AnnounceDoneWG:      announceDone,
 	}
 
 	announceDone.Add(1)
 	testDriver.invokeFunction(metadata)
-	if !(successCount == 1 && failureCount == 0) {
+	announceDone.Wait()
+	if !(functionsInvoked == 3 && failureCount == 0) {
 		t.Error("The DAG invocation has failed.")
 	}
 	for i := 0; i < functionsToInvoke; i++ {
@@ -281,7 +302,7 @@ func TestGlobalMetricsCollector(t *testing.T) {
 	var record []metric.ExecutionRecord
 	err = gocsv.UnmarshalFile(f, &record)
 	if err != nil {
-		log.Fatalf(err.Error())
+		log.Fatal(err.Error())
 	}
 
 	for i := 0; i < driver.Configuration.Functions[0].InvocationStats.Invocations[0]; i++ {
@@ -372,7 +393,7 @@ func TestDriverCompletely(t *testing.T) {
 			var records []metric.ExecutionRecordBase
 			err = gocsv.UnmarshalFile(f, &records)
 			if err != nil {
-				log.Fatalf(err.Error())
+				log.Fatal(err.Error())
 			}
 
 			successfulInvocation, failedInvocations := 0, 0
