@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	log "github.com/sirupsen/logrus"
 	"github.com/vhive-serverless/loader/pkg/common"
+	"github.com/vhive-serverless/loader/pkg/config"
 	mc "github.com/vhive-serverless/loader/pkg/metric"
 	"go.mongodb.org/mongo-driver/bson"
 	"io"
@@ -37,11 +38,12 @@ type MatrixRequest struct {
 	Sets []InputSet `bson:"sets"`
 }
 
-func InvokeDirigent(function *common.Function, runtimeSpec *common.RuntimeSpecification, client *http.Client, isDandelionOptional ...bool) (bool, *mc.ExecutionRecord) {
+func InvokeDirigent(function *common.Function, runtimeSpec *common.RuntimeSpecification, client *http.Client, cfg *config.LoaderConfiguration) (bool, *mc.ExecutionRecord) {
 	isDandelion := false
-	if len(isDandelionOptional) > 0 {
+	if strings.Contains(cfg.Platform, "Dandelion") {
 		isDandelion = true
 	}
+
 	log.Tracef("(Invoke)\t %s: %d[ms], %d[MiB]", function.Name, runtimeSpec.Runtime, runtimeSpec.Memory)
 
 	record := &mc.ExecutionRecord{
@@ -75,7 +77,7 @@ func InvokeDirigent(function *common.Function, runtimeSpec *common.RuntimeSpecif
 		}
 		matRequestBody, err := bson.Marshal(matRequest)
 		if err != nil {
-			log.Debugf("Error encoding dandelion invoke request:", err)
+			log.Debugf("Error encoding dandelion invoke request - %v", err)
 			return false, record
 		}
 		requestBody = bytes.NewBuffer(matRequestBody)
@@ -84,7 +86,6 @@ func InvokeDirigent(function *common.Function, runtimeSpec *common.RuntimeSpecif
 	}
 
 	req, err := http.NewRequest("GET", "http://"+function.Endpoint, requestBody)
-
 	if err != nil {
 		log.Errorf("Failed to create a HTTP request - %v\n", err)
 
@@ -120,12 +121,11 @@ func InvokeDirigent(function *common.Function, runtimeSpec *common.RuntimeSpecif
 
 	body, err := io.ReadAll(resp.Body)
 	defer handleBodyClosing(resp)
-	log.Debugf("received invocation resp for function %s, body length=%v", function.Name, len(body))
 
-	if err != nil || resp == nil || resp.StatusCode != http.StatusOK || len(body) == 0 {
+	if err != nil || resp.StatusCode != http.StatusOK || len(body) == 0 {
 		if err != nil {
 			log.Errorf("HTTP request failed - %s - %v", function.Name, err)
-		} else if resp == nil || len(body) == 0 {
+		} else if len(body) == 0 {
 			log.Errorf("HTTP request failed - %s - %s - empty response (status code: %d)", function.Name, function.Endpoint, resp.StatusCode)
 		} else if resp.StatusCode != http.StatusOK {
 			log.Errorf("HTTP request failed - %s - %s - non-empty response: %v - status code: %d", function.Name, function.Endpoint, string(body), resp.StatusCode)
@@ -137,15 +137,13 @@ func InvokeDirigent(function *common.Function, runtimeSpec *common.RuntimeSpecif
 		return false, record
 	}
 
-	var deserializedResponse FunctionResponse
-	err = json.Unmarshal(body, &deserializedResponse)
-	if err != nil {
-		log.Warnf("Failed to deserialize Dirigent response.")
+	if !cfg.AsyncMode {
+		deserializeDirigentResponse(body, record)
+	} else {
+		record.AsyncResponseGUID = string(body)
 	}
 
-	record.Instance = deserializedResponse.Function
 	record.ResponseTime = time.Since(start).Microseconds()
-	record.ActualDuration = uint32(deserializedResponse.ExecutionTime)
 
 	if strings.HasPrefix(string(body), "FAILURE - mem_alloc") {
 		record.MemoryAllocationTimeout = true
@@ -157,6 +155,17 @@ func InvokeDirigent(function *common.Function, runtimeSpec *common.RuntimeSpecif
 	log.Tracef("(E2E Latency) %s: %.2f[ms]\n", function.Name, float64(record.ResponseTime)/1e3)
 
 	return true, record
+}
+
+func deserializeDirigentResponse(body []byte, record *mc.ExecutionRecord) {
+	var deserializedResponse FunctionResponse
+	err := json.Unmarshal(body, &deserializedResponse)
+	if err != nil {
+		log.Warnf("Failed to deserialize Dirigent response.")
+	}
+
+	record.Instance = deserializedResponse.Function
+	record.ActualDuration = uint32(deserializedResponse.ExecutionTime)
 }
 
 func handleBodyClosing(response *http.Response) {

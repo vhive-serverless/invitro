@@ -81,6 +81,7 @@ type ExecutionRecord struct {
 	UserCodeExecutionMs int64  `csv:"userCodeExecutionMs"`
 
 	TimeToGetResponseMs int64 `csv:"timeToGetResponseMs"`
+	AsyncResponseGUID   string
 }
 
 type DeploymentScale struct {

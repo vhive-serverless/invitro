@@ -8,6 +8,11 @@
   "DirigentControlPlaneIP": "10.0.1.253:9092",
   "BusyLoopOnSandboxStartup": false,
 
+  "AsyncMode": false,
+  "AsyncResponseURL": "10.0.1.253:8082",
+
+  "RpsTarget": 50,
+  "RpsColdStartRatioPercentage": 50,
   "RpsCooldownSeconds": 10,
   "RpsImage": "docker.io/cvetkovic/dirigent_empty_function:latest",
   "RpsRuntimeMs": 10,
@@ -19,7 +24,7 @@
   "OutputPathPrefix": "data/out/experiment",
   "IATDistribution": "equidistant",
   "CPULimit": "1vCPU",
-  "ExperimentDuration": 2,
+  "ExperimentDuration": 1,
   "WarmupDuration": 0,
 
   "IsPartiallyPanic": false,
