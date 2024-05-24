@@ -25,9 +25,11 @@
 package driver
 
 import (
+	"bytes"
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
+	"io"
 	"math"
 	"net"
 	"net/http"
@@ -64,12 +66,14 @@ type Driver struct {
 	Configuration          *DriverConfiguration
 	SpecificationGenerator *generator.SpecificationGenerator
 	HTTPClient             *http.Client
+	AsyncRecords           *common.LockFreeQueue[*mc.ExecutionRecord]
 }
 
 func NewDriver(driverConfig *DriverConfiguration) *Driver {
 	return &Driver{
 		Configuration:          driverConfig,
 		SpecificationGenerator: generator.NewSpecificationGenerator(driverConfig.LoaderConfiguration.Seed),
+		AsyncRecords:           common.NewLockFreeQueue[*mc.ExecutionRecord](),
 	}
 }
 
@@ -252,13 +256,14 @@ func (d *Driver) invokeFunction(metadata *InvocationMetadata) {
 			metadata.Function,
 			metadata.RuntimeSpecifications,
 			d.GetHTTPClient(),
+			d.Configuration.LoaderConfiguration,
 		)
 	case "Dirigent-Dandelion", "Dirigent-Dandelion-RPS":
 		success, record = InvokeDirigent(
 			metadata.Function,
 			metadata.RuntimeSpecifications,
 			d.GetHTTPClient(),
-			true,
+			d.Configuration.LoaderConfiguration,
 		)
 	default:
 		log.Fatal("Unsupported platform.")
@@ -267,7 +272,11 @@ func (d *Driver) invokeFunction(metadata *InvocationMetadata) {
 	record.Phase = int(metadata.Phase)
 	record.InvocationID = composeInvocationID(d.Configuration.TraceGranularity, metadata.MinuteIndex, metadata.InvocationIndex)
 
-	metadata.RecordOutputChannel <- record
+	if !d.Configuration.LoaderConfiguration.AsyncMode {
+		metadata.RecordOutputChannel <- record
+	} else {
+		d.AsyncRecords.Enqueue(record)
+	}
 
 	if success {
 		atomic.AddInt64(metadata.SuccessCount, 1)
@@ -645,7 +654,11 @@ func (d *Driver) internalRun(skipIATGeneration bool, readIATFromFile bool) {
 
 	allIndividualDriversCompleted.Wait()
 	if atomic.LoadInt64(&successfulInvocations)+atomic.LoadInt64(&failedInvocations) != 0 {
-		log.Debugf("Waiting for all the invocations record to be written.\n")
+		log.Debugf("Waiting for all invocations record to be written.\n")
+
+		if d.Configuration.LoaderConfiguration.AsyncMode {
+			d.writeRecordsToLogs(globalMetricsCollector)
+		}
 
 		totalIssuedChannel <- atomic.LoadInt64(&invocationsIssued)
 		scraperFinishCh <- 0 // Ask the scraper to finish metrics collection
@@ -661,6 +674,56 @@ func (d *Driver) internalRun(skipIATGeneration bool, readIATFromFile bool) {
 	log.Infof("Number of failed invocations: \t%d", statFailed)
 	log.Infof("Total invocations: \t%d", statSuccess+statFailed)
 	log.Infof("Failure rate: \t%.2f", float64(statFailed)/float64(statSuccess+statFailed))
+}
+
+func (d *Driver) writeRecordsToLogs(logCh chan interface{}) {
+	client := http.Client{Timeout: 30 * time.Second}
+
+	for d.AsyncRecords.Length() > 0 {
+		record := d.AsyncRecords.Dequeue()
+
+		response, e2e := d.getAsyncResponseData(
+			&client,
+			d.Configuration.LoaderConfiguration.AsyncResponseURL,
+			record.AsyncResponseGUID,
+		)
+
+		record.ResponseTime = int64(e2e)
+		if string(response) != "" {
+			deserializeDirigentResponse(response, record)
+		}
+
+		logCh <- record
+	}
+}
+
+func (d *Driver) getAsyncResponseData(client *http.Client, endpoint string, guid string) ([]byte, int) {
+	req, err := http.NewRequest("GET", "http://"+endpoint, bytes.NewReader([]byte(guid)))
+	if err != nil {
+		log.Errorf("Failed to retrieve Dirigent response for %s - %v", guid, err)
+		return []byte{}, 0
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		log.Errorf("Failed to retrieve Dirigent response for %s - %v", guid, err)
+		return []byte{}, 0
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	defer handleBodyClosing(resp)
+
+	hdr := resp.Header.Get("Duration-Microseconds")
+	e2e := 0
+
+	if hdr != "" {
+		e2e, err = strconv.Atoi(hdr)
+		if err != nil {
+			log.Errorf("Failed to parse end-to-end latency for %s - %v", guid, err)
+		}
+	}
+
+	return body, e2e
 }
 
 func (d *Driver) RunExperiment(skipIATGeneration bool, readIATFromFIle bool) {

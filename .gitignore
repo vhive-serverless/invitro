@@ -210,3 +210,6 @@ ENV/
 
 tools/plotter/test-out
 *.swp
+
+data/traces/azure_*
+data/traces/day*
