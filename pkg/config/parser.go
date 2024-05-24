@@ -58,20 +58,6 @@ type LoaderConfiguration struct {
 	RpsMemoryMB                 int     `json:"RpsMemoryMB"`
 	RpsIterationMultiplier      int     `json:"RpsIterationMultiplier"`
 
-	DirigentControlPlaneIP string `json:"DirigentControlPlaneIP"`
-
-	FailAt        int    `json:"FailAt"`
-	FailComponent string `json:"FailComponent"`
-	FailNode      string `json:"FailNode"`
-
-	RpsTarget                   float64 `json:"RpsTarget"`
-	RpsColdStartRatioPercentage float64 `json:"RpsColdStartRatioPercentage"`
-	RpsCooldownSeconds          int     `json:"RpsCooldownSeconds"`
-	RpsImage                    string  `json:"RpsImage"`
-	RpsRuntimeMs                int     `json:"RpsRuntimeMs"`
-	RpsMemoryMB                 int     `json:"RpsMemoryMB"`
-	RpsIterationMultiplier      int     `json:"RpsIterationMultiplier"`
-
 	TracePath          string `json:"TracePath"`
 	Granularity        string `json:"Granularity"`
 	OutputPathPrefix   string `json:"OutputPathPrefix"`
