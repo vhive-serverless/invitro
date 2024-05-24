@@ -32,7 +32,9 @@ import (
 	"github.com/vhive-serverless/loader/pkg/config"
 	"github.com/vhive-serverless/loader/pkg/driver/clients"
 	"github.com/vhive-serverless/loader/pkg/driver/deployment"
+
 	"github.com/vhive-serverless/loader/pkg/driver/failure"
+
 	"math"
 	"net"
 	"net/http"
@@ -245,6 +247,12 @@ func (d *Driver) invokeFunction(metadata *InvocationMetadata, iatIndex int) {
 			metadata.RecordOutputChannel <- record
 		} else {
 			record.TimeToSubmitMs = record.ResponseTime
+			d.AsyncRecords.Enqueue(record)
+		}
+
+		if !d.Configuration.LoaderConfiguration.AsyncMode {
+			metadata.RecordOutputChannel <- record
+		} else {
 			d.AsyncRecords.Enqueue(record)
 		}
 
@@ -654,7 +662,7 @@ func (d *Driver) internalRun(skipIATGeneration bool, readIATFromFile bool) {
 	}
 	allIndividualDriversCompleted.Wait()
 	if atomic.LoadInt64(&successfulInvocations)+atomic.LoadInt64(&failedInvocations) != 0 {
-		log.Debugf("Waiting for all the invocations record to be written.\n")
+		log.Debugf("Waiting for all invocations record to be written.\n")
 
 		if d.Configuration.LoaderConfiguration.AsyncMode {
 			sleepFor := time.Duration(d.Configuration.LoaderConfiguration.AsyncWaitToCollectMin) * time.Minute
@@ -681,8 +689,8 @@ func (d *Driver) internalRun(skipIATGeneration bool, readIATFromFile bool) {
 	log.Infof("Failure rate: \t%.2f", float64(statFailed)/float64(statSuccess+statFailed))
 }
 
-func (d *Driver) RunExperiment(iatOnly bool, generated bool) {
-	if iatOnly {
+func (d *Driver) RunExperiment(skipIATGeneration bool, readIATFromFIle bool) {
+	if skipIATGeneration {
 		log.Info("Generating IAT and runtime specifications for all the functions")
 		for i, function := range d.Configuration.Functions {
 			spec := d.SpecificationGenerator.GenerateInvocationData(
@@ -716,7 +724,7 @@ func (d *Driver) RunExperiment(iatOnly bool, generated bool) {
 	go failure.ScheduleFailure(d.Configuration.LoaderConfiguration.Platform, d.Configuration.FailureConfiguration)
 
 	// Generate load
-	d.internalRun(iatOnly, generated)
+	d.internalRun(skipIATGeneration, readIATFromFIle)
 
 	// Clean up
 	deployer.Clean()
