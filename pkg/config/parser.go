@@ -41,6 +41,9 @@ type LoaderConfiguration struct {
 
 	DirigentControlPlaneIP string `json:"DirigentControlPlaneIP"`
 
+	AsyncMode        bool   `json:"AsyncMode"`
+	AsyncResponseURL string `json:"AsyncResponseURL"`
+
 	FailAt        int    `json:"FailAt"`
 	FailComponent string `json:"FailComponent"`
 	FailNode      string `json:"FailNode"`
