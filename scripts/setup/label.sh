@@ -40,18 +40,18 @@ label_nodes() {
   LOADER_NODE=$2
   KNATIVE_NODE=$3
   AUTOSCALER_NODE=$4
-  ACTIVATE_NODE_1=$5
-  ACTIVATE_NODE_2=$6
-  INGRESS_NODE=$7
-  WORKER_NODE=$8
+  INGRESS_NODE=$5
+  WORKER_NODE_1=$6
+  # WORKER_NODE_2=$7
+  # WORKER_NODE_3=$8
 
   LOADER_NODE_NAME="$(server_exec "$LOADER_NODE" hostname)"
   KNATIVE_NODE_NAME="$(server_exec "$KNATIVE_NODE" hostname)"
   AUTOSCALER_NODE_NAME="$(server_exec "$AUTOSCALER_NODE" hostname)"
-  ACTIVATE_NODE_1_NAME="$(server_exec "$ACTIVATE_NODE_1" hostname)"
-  ACTIVATE_NODE_2_NAME="$(server_exec "$ACTIVATE_NODE_2" hostname)"
   INGRESS_NODE_NAME="$(server_exec "$INGRESS_NODE" hostname)"
-  WORKER_NODE_NAME="$(server_exec "$WORKER_NODE" hostname)"
+  WORKER_NODE_1_NAME="$(server_exec "$WORKER_NODE_1" hostname)"
+  # WORKER_NODE_2_NAME="$(server_exec "$WORKER_NODE_2" hostname)"
+  # WORKER_NODE_3_NAME="$(server_exec "$WORKER_NODE_3" hostname)"
 
   echo $LOADER_NODE_NAME
 
@@ -69,13 +69,13 @@ label_nodes() {
       server_exec $MASTER_NODE "kubectl label nodes ${NODE} loader-nodetype=master-knative" < /dev/null
     elif [[ $NODE == $AUTOSCALER_NODE_NAME ]]; then
       server_exec $MASTER_NODE "kubectl label nodes ${NODE} loader-nodetype=master-autoscaler" < /dev/null
-    elif [[ $NODE == $ACTIVATE_NODE_1_NAME ]]; then
-      server_exec $MASTER_NODE "kubectl label nodes ${NODE} loader-nodetype=master-activate" < /dev/null
-    elif [[ $NODE == $ACTIVATE_NODE_2_NAME ]]; then
-      server_exec $MASTER_NODE "kubectl label nodes ${NODE} loader-nodetype=master-activate" < /dev/null
     elif [[ $NODE == $INGRESS_NODE_NAME ]]; then
       server_exec $MASTER_NODE "kubectl label nodes ${NODE} loader-nodetype=master-ingress" < /dev/null
-    elif [[ $NODE == $WORKER_NODE_NAME ]]; then
+    elif [[ $NODE == $WORKER_NODE_1_NAME ]]; then
+      server_exec $MASTER_NODE "kubectl label nodes ${NODE} loader-nodetype=worker" < /dev/null
+    elif [[ $NODE == $WORKER_NODE_2_NAME ]]; then
+      server_exec $MASTER_NODE "kubectl label nodes ${NODE} loader-nodetype=worker" < /dev/null
+    elif [[ $NODE == $WORKER_NODE_3_NAME ]]; then
       server_exec $MASTER_NODE "kubectl label nodes ${NODE} loader-nodetype=worker" < /dev/null
     else
       echo "Unknown node type"

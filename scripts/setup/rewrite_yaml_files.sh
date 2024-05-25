@@ -51,7 +51,8 @@ cat serving-core.yaml |
     (
         select
         (
-               .spec.template.metadata.labels.app == "controller"
+               .spec.template.metadata.labels.app == "activator"
+            or .spec.template.metadata.labels.app == "controller"
             or .spec.template.metadata.labels.app == "domain-mapping"
             or .spec.template.metadata.labels.app == "domainmapping-webhook"
             or .spec.template.metadata.labels.app == "webhook"
@@ -64,13 +65,6 @@ cat serving-core.yaml |
                .spec.template.metadata.labels.app == "autoscaler"
         ) | .spec.template.spec 
     ) += {"nodeSelector": {"loader-nodetype": "master-autoscaler"}}' |
-    yq '
-    (
-        select
-        (
-            .spec.template.metadata.labels.app == "activator"
-        ) | .spec.template.spec 
-    ) += {"nodeSelector": {"loader-nodetype": "master-activate"}}' |
     yq '
     (
         del

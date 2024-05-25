@@ -5,7 +5,7 @@
   "YAMLSelector": "container",
   "EndpointPort": 80,
 
-  "TracePath": "/users/yulin001/traces/sampled_150/400",
+  "TracePath": "/users/hancheng/traces/sampled_150/$FUNC",
   "Granularity": "minute",
   "OutputPathPrefix": "data/out/$EXPERIMENT/experiment",
   "IATDistribution": "exponential_shift",
