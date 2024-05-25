@@ -22,14 +22,8 @@ run_experiment() {
     make clean
 }
 
-# # baseline experiment
-# run_experiment "baseline" "hancheng@pc824.emulab.net" "400"
+# baseline experiment
+run_experiment "baseline" "hancheng@pc803.emulab.net" "400"
 
 # kwok experiment
-run_experiment "kwok" "hancheng@pc824.emulab.net" "400"
-run_experiment "kwok" "hancheng@pc824.emulab.net" "500"
-run_experiment "kwok" "hancheng@pc824.emulab.net" "1000"
-run_experiment "kwok" "hancheng@pc824.emulab.net" "1500"
-run_experiment "kwok" "hancheng@pc824.emulab.net" "2000"
-run_experiment "kwok" "hancheng@pc824.emulab.net" "2500"
-run_experiment "kwok" "hancheng@pc824.emulab.net" "3000"
+run_experiment "kwok" "hancheng@pc803.emulab.net" "400"
