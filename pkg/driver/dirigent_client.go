@@ -119,8 +119,8 @@ func InvokeDirigent(function *common.Function, runtimeSpec *common.RuntimeSpecif
 
 	record.GRPCConnectionEstablishTime = time.Since(start).Microseconds()
 
-	body, err := io.ReadAll(resp.Body)
 	defer handleBodyClosing(resp)
+	body, err := io.ReadAll(resp.Body)
 
 	if err != nil || resp.StatusCode != http.StatusOK || len(body) == 0 {
 		if err != nil {
