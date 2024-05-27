@@ -76,7 +76,7 @@ type ExecutionRecord struct {
 	ActualMemoryUsage       uint32 `csv:"actualMemoryUsage"`
 	MemoryAllocationTimeout bool   `csv:"memoryAllocationTimeout"`
 
-	AsyncResponseGUID string
+	AsyncResponseGUID string `csv:"-"`
 }
 
 type DeploymentScale struct {
