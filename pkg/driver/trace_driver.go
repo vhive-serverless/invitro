@@ -657,7 +657,7 @@ func (d *Driver) internalRun(skipIATGeneration bool, readIATFromFile bool) {
 		log.Debugf("Waiting for all invocations record to be written.\n")
 
 		if d.Configuration.LoaderConfiguration.AsyncMode {
-			d.writeRecordsToLogs(globalMetricsCollector)
+			d.writeAsyncRecordsToLog(globalMetricsCollector)
 		}
 
 		totalIssuedChannel <- atomic.LoadInt64(&invocationsIssued)
@@ -676,25 +676,57 @@ func (d *Driver) internalRun(skipIATGeneration bool, readIATFromFile bool) {
 	log.Infof("Failure rate: \t%.2f", float64(statFailed)/float64(statSuccess+statFailed))
 }
 
-func (d *Driver) writeRecordsToLogs(logCh chan interface{}) {
-	client := http.Client{Timeout: 30 * time.Second}
+func (d *Driver) writeAsyncRecordsToLog(logCh chan interface{}) {
+	client := http.Client{Timeout: 10 * time.Second}
 
+	const batchSize = 100
+	currentBatch := 0
+	totalBatches := int(math.Ceil(float64(d.AsyncRecords.Length()) / float64(batchSize)))
+
+	log.Infof("Gathering functions responses...")
 	for d.AsyncRecords.Length() > 0 {
-		record := d.AsyncRecords.Dequeue()
+		currentBatch++
 
-		response, e2e := d.getAsyncResponseData(
-			&client,
-			d.Configuration.LoaderConfiguration.AsyncResponseURL,
-			record.AsyncResponseGUID,
-		)
-
-		record.ResponseTime = int64(e2e)
-		if string(response) != "" {
-			deserializeDirigentResponse(response, record)
+		toProcess := batchSize
+		if d.AsyncRecords.Length() < batchSize {
+			toProcess = d.AsyncRecords.Length()
 		}
 
-		logCh <- record
+		wg := sync.WaitGroup{}
+		wg.Add(toProcess)
+
+		for i := 0; i < toProcess; i++ {
+			go func() {
+				defer wg.Done()
+
+				record := d.AsyncRecords.Dequeue()
+				response, e2e := d.getAsyncResponseData(
+					&client,
+					d.Configuration.LoaderConfiguration.AsyncResponseURL,
+					record.AsyncResponseGUID,
+				)
+
+				record.ResponseTime = int64(e2e)
+				if string(response) != "" {
+					err := deserializeDirigentResponse(response, record)
+					if err != nil {
+						log.Warnf("Failed to deserialize Dirigent response - %v - %v", string(response), err)
+					}
+				} else {
+					record.FunctionTimeout = true
+					record.AsyncResponseGUID = ""
+				}
+
+				logCh <- record
+			}()
+		}
+
+		wg.Wait()
+
+		log.Infof("Processed %d/%d batches of async response gatherings", currentBatch, totalBatches)
 	}
+
+	log.Infof("Finished gathering async reponse answers")
 }
 
 func (d *Driver) getAsyncResponseData(client *http.Client, endpoint string, guid string) ([]byte, int) {
@@ -703,6 +735,9 @@ func (d *Driver) getAsyncResponseData(client *http.Client, endpoint string, guid
 		log.Errorf("Failed to retrieve Dirigent response for %s - %v", guid, err)
 		return []byte{}, 0
 	}
+
+	// TODO: set function name for load-balancing purpose
+	//req.Header.Set("function", function.Name)
 
 	resp, err := client.Do(req)
 	if err != nil {
