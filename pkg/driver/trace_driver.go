@@ -672,9 +672,9 @@ func (d *Driver) internalRun(skipIATGeneration bool, readIATFromFile bool) {
 }
 
 func (d *Driver) writeAsyncRecordsToLog(logCh chan interface{}) {
-	client := http.Client{Timeout: 10 * time.Second}
+	client := http.Client{Timeout: 2 * time.Second}
 
-	const batchSize = 100
+	const batchSize = 50
 	currentBatch := 0
 	totalBatches := int(math.Ceil(float64(d.AsyncRecords.Length()) / float64(batchSize)))
 
