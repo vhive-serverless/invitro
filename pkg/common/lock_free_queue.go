@@ -1,6 +1,7 @@
 package common
 
 import (
+	"github.com/sirupsen/logrus"
 	"sync/atomic"
 	"unsafe"
 )
@@ -65,7 +66,7 @@ func (lfq *LockFreeQueue[T]) Dequeue() T {
 		if first == (*lfqElement[T])(lfq.head) {
 			if first == last {
 				if next == nil {
-					panic("empty")
+					logrus.Fatal("No element to dequeue.")
 				}
 			} else {
 				value := (*lfqElement[T])(next).value

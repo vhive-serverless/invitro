@@ -138,7 +138,10 @@ func InvokeDirigent(function *common.Function, runtimeSpec *common.RuntimeSpecif
 	}
 
 	if !cfg.AsyncMode {
-		deserializeDirigentResponse(body, record)
+		err = deserializeDirigentResponse(body, record)
+		if err != nil {
+			log.Warnf("Failed to deserialize Dirigent response - %v - %v", string(body), err)
+		}
 	} else {
 		record.AsyncResponseGUID = string(body)
 	}
@@ -157,15 +160,17 @@ func InvokeDirigent(function *common.Function, runtimeSpec *common.RuntimeSpecif
 	return true, record
 }
 
-func deserializeDirigentResponse(body []byte, record *mc.ExecutionRecord) {
+func deserializeDirigentResponse(body []byte, record *mc.ExecutionRecord) error {
 	var deserializedResponse FunctionResponse
 	err := json.Unmarshal(body, &deserializedResponse)
 	if err != nil {
-		log.Warnf("Failed to deserialize Dirigent response.")
+		return err
 	}
 
 	record.Instance = deserializedResponse.Function
 	record.ActualDuration = uint32(deserializedResponse.ExecutionTime)
+
+	return nil
 }
 
 func handleBodyClosing(response *http.Response) {
