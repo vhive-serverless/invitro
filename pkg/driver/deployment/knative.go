@@ -123,6 +123,8 @@ func knativeDeploySingleFunction(function *common.Function, yamlPath string, isP
 
 		"\""+autoscalingMetric+"\"",
 		"\""+strconv.Itoa(autoscalingTarget)+"\"",
+
+		"\""+strconv.Itoa(function.ColdStartBusyLoopMs)+"\"",
 	)
 
 	stdoutStderr, err := cmd.CombinedOutput()
