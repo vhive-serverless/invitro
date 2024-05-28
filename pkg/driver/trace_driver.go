@@ -658,6 +658,7 @@ func (d *Driver) internalRun(skipIATGeneration bool, readIATFromFile bool) {
 		log.Debugf("Waiting for all invocations record to be written.\n")
 
 		if d.Configuration.LoaderConfiguration.AsyncMode {
+			time.Sleep(time.Minute) // for a minute for all invocations to hopefully complete
 			d.writeAsyncRecordsToLog(globalMetricsCollector)
 		}
 
@@ -728,6 +729,7 @@ func (d *Driver) writeAsyncRecordsToLog(logCh chan interface{}) {
 				} else {
 					record.FunctionTimeout = true
 					record.AsyncResponseGUID = ""
+					log.Errorf("Failed to fetch response. The function has probably not yet completed.")
 				}
 
 				// loader send request + request e2e + loader get response
