@@ -267,12 +267,13 @@ func (d *Driver) invokeFunction(metadata *InvocationMetadata) {
 		)
 	default:
 		log.Fatal("Unsupported platform.")
+		return
 	}
 
 	record.Phase = int(metadata.Phase)
 	record.InvocationID = composeInvocationID(d.Configuration.TraceGranularity, metadata.MinuteIndex, metadata.InvocationIndex)
 
-	if !d.Configuration.LoaderConfiguration.AsyncMode {
+	if !d.Configuration.LoaderConfiguration.AsyncMode || record.AsyncResponseGUID == "" {
 		metadata.RecordOutputChannel <- record
 	} else {
 		d.AsyncRecords.Enqueue(record)
@@ -722,7 +723,7 @@ func (d *Driver) writeAsyncRecordsToLog(logCh chan interface{}) {
 				if string(response) != "" {
 					err := deserializeDirigentResponse(response, record)
 					if err != nil {
-						log.Warnf("Failed to deserialize Dirigent response - %v - %v", string(response), err)
+						log.Errorf("Failed to deserialize Dirigent response - %v - %v", string(response), err)
 					}
 				} else {
 					record.FunctionTimeout = true
