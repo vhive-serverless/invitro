@@ -243,16 +243,10 @@ func (d *Driver) invokeFunction(metadata *InvocationMetadata, iatIndex int) {
 		record.Phase = int(metadata.Phase)
 		record.InvocationID = composeInvocationID(d.Configuration.TraceGranularity, metadata.MinuteIndex, metadata.InvocationIndex)
 
-		if !d.Configuration.LoaderConfiguration.AsyncMode || record.AsyncResponseID == "" {
+		if !d.Configuration.LoaderConfiguration.AsyncMode || record.AsyncResponseGUID == "" {
 			metadata.RecordOutputChannel <- record
 		} else {
 			record.TimeToSubmitMs = record.ResponseTime
-			d.AsyncRecords.Enqueue(record)
-		}
-
-		if !d.Configuration.LoaderConfiguration.AsyncMode {
-			metadata.RecordOutputChannel <- record
-		} else {
 			d.AsyncRecords.Enqueue(record)
 		}
 
