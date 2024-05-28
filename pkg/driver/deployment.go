@@ -138,6 +138,8 @@ func deployKnative(function *common.Function, yamlPath string, isPartiallyPanic 
 
 		"\""+autoscalingMetric+"\"",
 		"\""+strconv.Itoa(autoscalingTarget)+"\"",
+
+		"\""+strconv.Itoa(function.ColdStartBusyLoopMs)+"\"",
 	)
 
 	stdoutStderr, err := cmd.CombinedOutput()
