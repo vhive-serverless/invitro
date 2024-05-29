@@ -653,6 +653,7 @@ func (d *Driver) internalRun(skipIATGeneration bool, readIATFromFile bool) {
 		log.Debugf("Waiting for all invocations record to be written.\n")
 
 		if d.Configuration.LoaderConfiguration.AsyncMode {
+			log.Infof("Sleeping for a minute...")
 			time.Sleep(time.Minute) // for a minute for all invocations to hopefully complete
 			d.writeAsyncRecordsToLog(globalMetricsCollector)
 		}
