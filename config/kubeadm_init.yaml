@@ -16,6 +16,8 @@ dns: {}
 etcd:
   local:
     dataDir: /var/lib/etcd
+    extraArgs:
+      listen-metrics-urls: http://0.0.0.0:2381
 imageRepository: registry.k8s.io
 kubernetesVersion: v1.29.1
 networking:
@@ -36,3 +38,9 @@ kind: KubeletConfiguration
 kubeAPIQPS: 50  # Default: 5
 kubeAPIBurst: 100  # Default: 10
 configMapAndSecretChangeDetectionStrategy: "Watch"
+
+
+---
+apiVersion: kubeproxy.config.k8s.io/v1alpha1
+kind: KubeProxyConfiguration
+metricsBindAddress: 0.0.0.0:10249
