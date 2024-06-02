@@ -2,8 +2,6 @@ alertmanager:
   config:
     route:
       group_by: ['job']
-
-
   serviceMonitor:
     interval: "15s"
   alertmanagerSpec:
@@ -53,11 +51,7 @@ coreDns:
   serviceMonitor:
     interval: "15s"
 
-
 kubeEtcd:
-  service:
-    port: 2379
-    targetPort: 2379
   serviceMonitor:
     interval: "15s"
 
@@ -68,6 +62,7 @@ kubeScheduler:
     interval: "15s"
     https: true
     insecureSkipVerify: true
+
 kubeProxy:
   serviceMonitor:
     interval: "15s"

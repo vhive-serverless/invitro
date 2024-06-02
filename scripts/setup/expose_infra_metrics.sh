@@ -34,7 +34,9 @@ server_exec() {
 	server_exec 'sudo apt install htop'
 
 	#* Deploy Metrics Server to k8s in namespace kube-system.
-	server_exec 'cd loader; kubectl apply -f config/metrics_server_components.yaml'
+	metrics_server_version="v0.7.1"
+	server_exec "kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/download/${metrics_server_version}/components.yaml"
+	server_exec "kubectl patch deployment metrics-server -n kube-system --type='json' -p='[{"op": "add", "path": "/spec/template/spec/containers/0/args/-", "value": "--kubelet-insecure-tls=true"}]'"
 
 	#* Install helm.
 	server_exec 'curl https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3 | bash'
@@ -44,14 +46,20 @@ server_exec() {
 
 	server_exec 'kubectl create namespace monitoring'
 	release_label="prometheus"
-	prometheus_chart_version="58.5.0"
+	prometheus_chart_version="60.1.0"
 	server_exec "cd loader; helm install -n monitoring $release_label --version $prometheus_chart_version prometheus-community/kube-prometheus-stack -f config/prometh_values_kn.yaml"
+
 	#* Apply the ServiceMonitors/PodMonitors to collect metrics from Knative.
 	#* The ports of the control manager and scheduler are mapped in a way that prometheus default installation can find them. 
-	server_exec 'cd loader; kubectl apply -f config/prometh_kn.yaml'
+	#* Also apply the grafana dashboards for Knative.
+	server_exec "curl -s https://raw.githubusercontent.com/knative-extensions/monitoring/main/servicemonitor.yaml | sed 's/interval: 30s/interval: 2s/g' | kubectl apply -f -"
+	server_exec 'kubectl apply -f https://raw.githubusercontent.com/knative-extensions/monitoring/main/grafana/dashboards.yaml'
 
 	#* Bind addresses of the control manager and scheduler to "0.0.0.0" so that prometheus can scrape them from any domains.
 	server_exec 'cd loader; sudo kubeadm upgrade apply --config config/kubeadm_init.yaml --ignore-preflight-errors all --force --v=7'
+
+	#* Restart the kube-proxy to apply the changes.
+	server_exec 'kubectl delete pod -l k8s-app=kube-proxy -n kube-system'
 
 	sleep 5
 
