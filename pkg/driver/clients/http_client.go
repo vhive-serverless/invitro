@@ -40,6 +40,7 @@ type MatrixRequest struct {
 
 func InvokeDirigent(function *common.Function, runtimeSpec *common.RuntimeSpecification, client *http.Client, cfg *config.LoaderConfiguration) (bool, *mc.ExecutionRecord) {
 	isDandelion := strings.Contains(strings.ToLower(cfg.Platform), "dandelion")
+	isKnative := strings.Contains(strings.ToLower(cfg.Platform), "knative")
 
 	log.Tracef("(Invoke)\t %s: %d[ms], %d[MiB]", function.Name, runtimeSpec.Runtime, runtimeSpec.Memory)
 
@@ -92,7 +93,9 @@ func InvokeDirigent(function *common.Function, runtimeSpec *common.RuntimeSpecif
 		return false, record
 	}
 
-	req.Host = function.Name
+	if !isKnative {
+		req.Host = function.Name
+	}
 
 	req.Header.Set("workload", function.DirigentMetadata.Image)
 	req.Header.Set("function", function.Name)
