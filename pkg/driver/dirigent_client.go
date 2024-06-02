@@ -37,7 +37,7 @@ type MatrixRequest struct {
 	Sets []InputSet `bson:"sets"`
 }
 
-func InvokeDirigent(function *common.Function, runtimeSpec *common.RuntimeSpecification, client *http.Client, isDandelionOptional ...bool) (bool, *mc.ExecutionRecord) {
+func InvokeDirigent(function *common.Function, runtimeSpec *common.RuntimeSpecification, client *http.Client, isKnative bool, isDandelionOptional ...bool) (bool, *mc.ExecutionRecord) {
 	isDandelion := false
 	if len(isDandelionOptional) > 0 {
 		isDandelion = true
@@ -94,7 +94,9 @@ func InvokeDirigent(function *common.Function, runtimeSpec *common.RuntimeSpecif
 		return false, record
 	}
 
-	req.Host = function.Name
+	if !isKnative {
+		req.Host = function.Name
+	}
 
 	req.Header.Set("workload", function.DirigentMetadata.Image)
 	req.Header.Set("function", function.Name)
