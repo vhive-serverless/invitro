@@ -19,7 +19,7 @@ type FunctionResponse struct {
 	ExecutionTime int64  `json:"ExecutionTime"`
 }
 
-func InvokeDirigent(function *common.Function, runtimeSpec *common.RuntimeSpecification, client *http.Client) (bool, *mc.ExecutionRecord) {
+func InvokeDirigent(function *common.Function, runtimeSpec *common.RuntimeSpecification, client *http.Client, isKnative bool) (bool, *mc.ExecutionRecord) {
 	log.Tracef("(Invoke)\t %s: %d[ms], %d[MiB]", function.Name, runtimeSpec.Runtime, runtimeSpec.Memory)
 
 	record := &mc.ExecutionRecord{
@@ -44,7 +44,9 @@ func InvokeDirigent(function *common.Function, runtimeSpec *common.RuntimeSpecif
 		return false, record
 	}
 
-	req.Host = function.Name
+	if !isKnative {
+		req.Host = function.Name
+	}
 
 	req.Header.Set("workload", function.DirigentMetadata.Image)
 	req.Header.Set("function", function.Name)

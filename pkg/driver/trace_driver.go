@@ -234,6 +234,7 @@ func (d *Driver) invokeFunction(metadata *InvocationMetadata) {
 			metadata.Function,
 			metadata.RuntimeSpecifications,
 			d.GetHTTPClient(),
+			true,
 		)
 	case "OpenWhisk", "OpenWhisk-RPS":
 		success, record = InvokeOpenWhisk(
@@ -253,6 +254,7 @@ func (d *Driver) invokeFunction(metadata *InvocationMetadata) {
 			metadata.Function,
 			metadata.RuntimeSpecifications,
 			d.GetHTTPClient(),
+			false,
 		)
 	default:
 		log.Fatal("Unsupported platform.")
