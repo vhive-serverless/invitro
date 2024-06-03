@@ -244,6 +244,7 @@ func (d *Driver) invokeFunction(metadata *InvocationMetadata, iatIndex int) {
 		if !d.Configuration.LoaderConfiguration.AsyncMode || record.AsyncResponseGUID == "" {
 			metadata.RecordOutputChannel <- record
 		} else {
+			record.TimeToSubmitMs = record.ResponseTime
 			d.AsyncRecords.Enqueue(record)
 		}
 
@@ -768,8 +769,11 @@ func (d *Driver) writeAsyncRecordsToLog(logCh chan interface{}) {
 				}
 
 				// loader send request + request e2e + loader get response
+				timeToFetchResponse := time.Since(start).Microseconds()
+				record.UserCodeExecutionMs = int64(e2e)
+				record.TimeToGetResponseMs = timeToFetchResponse
 				record.ResponseTime += int64(e2e)
-				record.ResponseTime += time.Since(start).Microseconds()
+				record.ResponseTime += timeToFetchResponse
 
 				logCh <- record
 			}()
