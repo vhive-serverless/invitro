@@ -57,7 +57,7 @@ func Handler(_ context.Context, event events.LambdaFunctionURLRequest) (Response
 		return Response{StatusCode: 400}, err
 	}
 
-	standard.IterationsMultiplier = 102 // Cloudlab xl170 benchmark @ 1 second function execution time
+	standard.IterationsMultiplier = 155 // Cloudlab xl170 benchmark @ 1 second function execution time
 	_ = standard.TraceFunctionExecution(start, req.RuntimeInMilliSec)
 
 	body, err := json.Marshal(map[string]interface{}{
