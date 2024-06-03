@@ -28,7 +28,7 @@ spec:
               containerPort: 80
           env:
             - name: ITERATIONS_MULTIPLIER
-              value: "102"
+              value: "155"
             - name: ENABLE_TRACING
               value: "false"
             - name: COLD_START_BUSY_LOOP_MS
