@@ -26,9 +26,8 @@ package config
 
 import (
 	"encoding/json"
-	"os"
-
 	log "github.com/sirupsen/logrus"
+	"os"
 )
 
 type LoaderConfiguration struct {
@@ -41,8 +40,9 @@ type LoaderConfiguration struct {
 
 	DirigentControlPlaneIP string `json:"DirigentControlPlaneIP"`
 
-	AsyncMode        bool   `json:"AsyncMode"`
-	AsyncResponseURL string `json:"AsyncResponseURL"`
+	AsyncMode             bool   `json:"AsyncMode"`
+	AsyncResponseURL      string `json:"AsyncResponseURL"`
+	AsyncWaitToCollectMin int    `json:"AsyncWaitToCollectMin"`
 
 	FailAt        int    `json:"FailAt"`
 	FailComponent string `json:"FailComponent"`
