@@ -1,14 +1,14 @@
 {
   "Seed": 42,
 
-  "Platform": "Dirigent-Dandelion",
+  "Platform": "Dirigent",
   "EndpointPort": 80,
 
   "DirigentControlPlaneIP": "127.0.0.1:9091",
 
-  "TracePath": "data/traces/example",
+  "TracePath": "data/traces/100",
   "Granularity": "minute",
-  "OutputPathPrefix": "data/out/experiment",
+  "OutputPathPrefix": "data/out/experiment_azure",
   "IATDistribution": "exponential",
   "CPULimit": "1vCPU",
   "ExperimentDuration": 2,
