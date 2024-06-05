@@ -27,12 +27,15 @@ package driver
 import (
 	"bytes"
 	"container/list"
+	"context"
+	"crypto/tls"
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
 	"github.com/vhive-serverless/loader/pkg/config"
 	"github.com/vhive-serverless/loader/pkg/driver/clients"
 	"github.com/vhive-serverless/loader/pkg/driver/deployment"
+	"golang.org/x/net/http2"
 	"io"
 	"math"
 	"net"
@@ -111,7 +114,15 @@ func (d *Driver) GetHTTPClient() *http.Client {
 	if d.HTTPClient == nil {
 		d.HTTPClient = &http.Client{
 			Timeout: time.Duration(d.Configuration.LoaderConfiguration.GRPCFunctionTimeoutSeconds) * time.Second,
-			Transport: &http.Transport{
+			// HTTP/2
+			Transport: &http2.Transport{
+				AllowHTTP: true,
+				DialTLSContext: func(ctx context.Context, network, addr string, cfg *tls.Config) (net.Conn, error) {
+					return net.Dial(network, addr)
+				},
+			},
+			// HTTP/1.1
+			/*Transport: &http.Transport{
 				DialContext: (&net.Dialer{
 					Timeout: 10 * time.Second,
 				}).DialContext,
@@ -119,7 +130,7 @@ func (d *Driver) GetHTTPClient() *http.Client {
 				IdleConnTimeout:     60 * time.Second,
 				MaxIdleConns:        3000,
 				MaxIdleConnsPerHost: 3000,
-			},
+			},*/
 		}
 	}
 
@@ -654,8 +665,11 @@ func (d *Driver) internalRun(skipIATGeneration bool, readIATFromFile bool) {
 		log.Debugf("Waiting for all invocations record to be written.\n")
 
 		if d.Configuration.LoaderConfiguration.AsyncMode {
-			log.Infof("Sleeping for a minute...")
-			time.Sleep(time.Minute) // for a minute for all invocations to hopefully complete
+			sleepFor := time.Duration(d.Configuration.LoaderConfiguration.AsyncWaitToCollectMin) * time.Minute
+
+			log.Infof("Sleeping for %v...", sleepFor)
+			time.Sleep(sleepFor)
+
 			d.writeAsyncRecordsToLog(globalMetricsCollector)
 		}
 
