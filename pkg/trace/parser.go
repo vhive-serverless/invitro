@@ -128,7 +128,7 @@ func (p *AzureTraceParser) extractFunctions(
 				Protocol:            "tcp",
 				ScalingUpperBound:   0,
 				ScalingLowerBound:   0,
-				IterationMultiplier: 1,
+				IterationMultiplier: 155,
 			}
 			function.DirigentMetadata = metadata
 		}
