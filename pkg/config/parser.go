@@ -26,9 +26,8 @@ package config
 
 import (
 	"encoding/json"
-	"os"
-
 	log "github.com/sirupsen/logrus"
+	"os"
 )
 
 type FailureConfiguration struct {

@@ -26,14 +26,16 @@ package driver
 
 import (
 	"container/list"
+	"context"
+	"crypto/tls"
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
 	"github.com/vhive-serverless/loader/pkg/config"
 	"github.com/vhive-serverless/loader/pkg/driver/clients"
 	"github.com/vhive-serverless/loader/pkg/driver/deployment"
-
 	"github.com/vhive-serverless/loader/pkg/driver/failure"
+	"golang.org/x/net/http2"
 
 	"math"
 	"net"
@@ -113,7 +115,15 @@ func (d *Driver) GetHTTPClient() *http.Client {
 	if d.HTTPClient == nil {
 		d.HTTPClient = &http.Client{
 			Timeout: time.Duration(d.Configuration.LoaderConfiguration.GRPCFunctionTimeoutSeconds) * time.Second,
-			Transport: &http.Transport{
+			// HTTP/2
+			Transport: &http2.Transport{
+				AllowHTTP: true,
+				DialTLSContext: func(ctx context.Context, network, addr string, cfg *tls.Config) (net.Conn, error) {
+					return net.Dial(network, addr)
+				},
+			},
+			// HTTP/1.1
+			/*Transport: &http.Transport{
 				DialContext: (&net.Dialer{
 					Timeout: 10 * time.Second,
 				}).DialContext,
@@ -121,7 +131,7 @@ func (d *Driver) GetHTTPClient() *http.Client {
 				IdleConnTimeout:     60 * time.Second,
 				MaxIdleConns:        3000,
 				MaxIdleConnsPerHost: 3000,
-			},
+			},*/
 		}
 	}
 
