@@ -1,3 +1,27 @@
+/*
+ * MIT License
+ *
+ * Copyright (c) 2023 EASL and the vHive community
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
+
 package clients
 
 import (
@@ -8,6 +32,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -22,6 +47,7 @@ type ActivationMetadata struct {
 	WaitTime  int64 //ms
 	InitTime  int64 //ms
 }
+
 type HTTPResBody struct {
 	DurationInMicroSec uint32 `json:"DurationInMicroSec"`
 	MemoryUsageInKb    uint32 `json:"MemoryUsageInKb"`
@@ -49,44 +75,87 @@ func (i *openWhiskInvoker) Invoke(function *common.Function, runtimeSpec *common
 
 	executionRecordBase.RequestedDuration = uint32(runtimeSpec.Runtime * 1e3)
 	record := &mc.ExecutionRecord{ExecutionRecordBase: *executionRecordBase}
+
 	if !success {
 		return false, record
 	}
 
 	/*activationID := res.Header.Get("X-Openwhisk-Activation-Id")
-	readOpenWhiskMetadata.Lock()
-	//read data from OpenWhisk based on the activation ID
-	cmd := exec.Command("wsk", "-i", "activation", "get", activationID)
-	var out bytes.Buffer
-	cmd.Stdout = &out
-	err := cmd.Run()
-	if err != nil {
-		log.Debugf("error reading activation information from OpenWhisk %s - %s", function.Name, err)
+	<<<<<<< HEAD
+		readOpenWhiskMetadata.Lock()
+	=======
+
+		ReadOpenWhiskMetadata.Lock()
+
+	>>>>>>> 83ccae3 (Code reorganization and introduction of HTTP version in config)
+		//read data from OpenWhisk based on the activation ID
+		cmd := exec.Command("wsk", "-i", "activation", "get", activationID)
+		var out bytes.Buffer
+		cmd.Stdout = &out
+		err := cmd.Run()
+		if err != nil {
+			log.Debugf("error reading activation information from OpenWhisk %s - %s", function.Name, err)
+	<<<<<<< HEAD
+			readOpenWhiskMetadata.Unlock()
+			return false, record
+		}
 		readOpenWhiskMetadata.Unlock()
-		return false, record
-	}
-	readOpenWhiskMetadata.Unlock()
-	err, activationMetadata := parseActivationMetadata(out.String())
-	if err != nil {
-		log.Debugf("error parsing activation metadata %s - %s", function.Name, err)
-		return false, record
-	}*/
+		err, activationMetadata := parseActivationMetadata(out.String())
+		if err != nil {
+			log.Debugf("error parsing activation metadata %s - %s", function.Name, err)
+	=======
+
+			ReadOpenWhiskMetadata.Unlock()
+
+			return false, record
+		}
+
+		ReadOpenWhiskMetadata.Unlock()
+
+		err, activationMetadata := parseActivationMetadata(out.String())
+		if err != nil {
+			log.Debugf("error parsing activation metadata %s - %s", function.Name, err)
+
+	>>>>>>> 83ccae3 (Code reorganization and introduction of HTTP version in config)
+			return false, record
+		}*/
 
 	//record.ActualDuration = activationMetadata.Duration * 1000 //ms to micro sec
 	/*record.StartType = activationMetadata.StartType
 	record.InitTime = activationMetadata.InitTime * 1000 //ms to micro sec
 	record.WaitTime = activationMetadata.WaitTime * 1000 //ms to micro sec*/
+
 	logInvocationSummary(function, &record.ExecutionRecordBase, res)
 	return true, record
 }
 
-/*func parseActivationMetadata(response string) (error, ActivationMetadata) {
+func parseActivationMetadata(response string) (error, ActivationMetadata) {
 	var result ActivationMetadata
 	var jsonMap map[string]interface{}
-	@@ -128,46 +141,11 @@ func parseActivationMetadata(response string) (error, ActivationMetadata) {
+
+	ind := strings.Index(response, "{")
+	err := json.Unmarshal([]byte(response[ind:]), &jsonMap)
+	if err != nil {
+		return err, result
 	}
+
+	result.Duration = uint32(jsonMap["duration"].(float64))
+	result.StartType = mc.Hot
+	result.InitTime = 0
+	annotations := jsonMap["annotations"].([]interface{})
+	for i := 0; i < len(annotations); i++ {
+		annotation := annotations[i].(map[string]interface{})
+
+		if annotation["key"] == "waitTime" {
+			result.WaitTime = int64(annotation["value"].(float64))
+		} else if annotation["key"] == "initTime" {
+			result.StartType = mc.Cold
+			result.InitTime = int64(annotation["value"].(float64))
+		}
+	}
+
 	return nil, result
-}*/
+}
 
 func httpInvocation(dataString string, function *common.Function, AnnounceDoneExe *sync.WaitGroup, tlsSkipVerify bool) (bool, *mc.ExecutionRecordBase, *http.Response) {
 	defer AnnounceDoneExe.Done()
@@ -97,6 +166,7 @@ func httpInvocation(dataString string, function *common.Function, AnnounceDoneEx
 	record.StartTime = start.UnixMicro()
 	record.Instance = function.Name
 	requestURL := function.Endpoint
+
 	if tlsSkipVerify {
 		http.DefaultTransport.(*http.Transport).TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 	}
@@ -105,6 +175,8 @@ func httpInvocation(dataString string, function *common.Function, AnnounceDoneEx
 		requestURL += "?" + dataString
 	}
 	req, err := http.NewRequest(http.MethodGet, requestURL, bytes.NewBuffer([]byte("")))
+	req.Header.Set("Content-Type", "application/json") // To avoid data being base64encoded
+
 	if err != nil {
 		log.Warnf("http request creation failed for function %s - %s", function.Name, err)
 
