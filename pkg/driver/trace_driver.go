@@ -111,27 +111,40 @@ func DAGCreation(functions []*common.Function) *list.List {
 	return linkedList
 }
 
+func (d *Driver) getHttp1Transport() *http.Transport {
+	return &http.Transport{
+		DialContext: (&net.Dialer{
+			Timeout: time.Duration(d.Configuration.LoaderConfiguration.GRPCConnectionTimeoutSeconds) * time.Second,
+		}).DialContext,
+		IdleConnTimeout:     5 * time.Second,
+		MaxConnsPerHost:     10,
+		MaxIdleConns:        100,
+		MaxIdleConnsPerHost: 10,
+	}
+}
+
+func (d *Driver) getHttp2Transport() *http2.Transport {
+	return &http2.Transport{
+		AllowHTTP: true,
+		DialTLSContext: func(ctx context.Context, network, addr string, cfg *tls.Config) (net.Conn, error) {
+			return net.Dial(network, addr)
+		},
+	}
+}
+
 func (d *Driver) GetHTTPClient() *http.Client {
 	if d.HTTPClient == nil {
 		d.HTTPClient = &http.Client{
 			Timeout: time.Duration(d.Configuration.LoaderConfiguration.GRPCFunctionTimeoutSeconds) * time.Second,
-			// HTTP/2
-			Transport: &http2.Transport{
-				AllowHTTP: true,
-				DialTLSContext: func(ctx context.Context, network, addr string, cfg *tls.Config) (net.Conn, error) {
-					return net.Dial(network, addr)
-				},
-			},
-			// HTTP/1.1
-			/*Transport: &http.Transport{
-				DialContext: (&net.Dialer{
-					Timeout: 10 * time.Second,
-				}).DialContext,
-				DisableCompression:  true,
-				IdleConnTimeout:     60 * time.Second,
-				MaxIdleConns:        3000,
-				MaxIdleConnsPerHost: 3000,
-			},*/
+		}
+
+		switch d.Configuration.LoaderConfiguration.InvokeProtocol {
+		case "http1":
+			d.HTTPClient.Transport = d.getHttp1Transport()
+		case "http2":
+			d.HTTPClient.Transport = d.getHttp2Transport()
+		default:
+			log.Errorf("Invalid invoke protocol in the configuration file.")
 		}
 	}
 
