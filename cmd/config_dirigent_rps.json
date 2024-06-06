@@ -9,10 +9,11 @@
   "BusyLoopOnSandboxStartup": false,
 
   "AsyncMode": false,
-  "AsyncResponseURL": "10.0.1.253:8082",
+  "AsyncResponseURL": "localhost:8082",
+  "AsyncWaitToCollectMin": 1,
 
-  "RpsTarget": 50,
-  "RpsColdStartRatioPercentage": 50,
+  "RpsTarget": 10,
+  "RpsColdStartRatioPercentage": 0,
   "RpsCooldownSeconds": 10,
   "RpsImage": "docker.io/cvetkovic/dirigent_empty_function:latest",
   "RpsRuntimeMs": 10,
@@ -24,7 +25,7 @@
   "OutputPathPrefix": "data/out/experiment",
   "IATDistribution": "equidistant",
   "CPULimit": "1vCPU",
-  "ExperimentDuration": 1,
+  "ExperimentDuration": 5,
   "WarmupDuration": 0,
 
   "IsPartiallyPanic": false,

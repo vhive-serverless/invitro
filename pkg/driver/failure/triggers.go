@@ -1,4 +1,4 @@
-package driver
+package failure
 
 import (
 	"github.com/sirupsen/logrus"
@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-func scheduleFailure(config *config.LoaderConfiguration) {
+func ScheduleFailure(config *config.LoaderConfiguration) {
 	if config.FailAt != 0 && config.FailComponent != "" {
 		switch config.Platform {
 		case "Knative", "Knative-RPS":
@@ -26,9 +26,9 @@ func triggerKnativeFailure(nodes string, component string, t int) {
 	var command []string
 	switch component {
 	case "control_plane":
-		command = []string{"bash", "./pkg/driver/knative_delete_control_plane.sh"}
+		command = []string{"bash", "./pkg/driver/failure/knative_delete_control_plane.sh"}
 	case "data_plane":
-		command = []string{"bash", "./pkg/driver/knative_delete_data_plane.sh"}
+		command = []string{"bash", "./pkg/driver/failure/knative_delete_data_plane.sh"}
 	case "worker_node":
 		command = []string{"sudo", "systemctl", "restart", "kubelet"}
 	default:

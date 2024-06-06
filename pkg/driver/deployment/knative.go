@@ -1,3 +1,27 @@
+/*
+ * MIT License
+ *
+ * Copyright (c) 2023 EASL and the vHive community
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
+
 package deployment
 
 import (
@@ -9,7 +33,9 @@ import (
 	"math"
 	"os/exec"
 	"regexp"
+	"runtime"
 	"strconv"
+	"sync"
 )
 
 const (
@@ -46,15 +72,25 @@ func newKnativeDeployerConfiguration(cfg *config.Configuration) knativeDeploymen
 func (*knativeDeployer) Deploy(cfg *config.Configuration) {
 	knativeConfig := newKnativeDeployerConfiguration(cfg)
 
+	queue := make(chan struct{}, runtime.NumCPU()) // message queue as a sync method
+	deployed := sync.WaitGroup{}
+	deployed.Add(len(cfg.Functions))
+
 	for i := 0; i < len(cfg.Functions); i++ {
-		knativeDeploySingleFunction(
+		queue <- struct{}{}
+
+		go knativeDeploySingleFunction(
 			cfg.Functions[i],
 			knativeConfig.YamlPath,
 			knativeConfig.IsPartiallyPanic,
 			knativeConfig.EndpointPort,
 			knativeConfig.AutoscalingMetric,
+			&deployed,
+			queue,
 		)
 	}
+
+	deployed.Wait()
 }
 
 func (*knativeDeployer) Clean() {
@@ -68,8 +104,10 @@ func (*knativeDeployer) Clean() {
 	}
 }
 
-func knativeDeploySingleFunction(function *common.Function, yamlPath string, isPartiallyPanic bool, endpointPort int,
-	autoscalingMetric string) bool {
+func knativeDeploySingleFunction(function *common.Function, yamlPath string, isPartiallyPanic bool, endpointPort int, autoscalingMetric string, deployed *sync.WaitGroup, queue chan struct{}) bool {
+	defer deployed.Done()
+	defer func() { <-queue }()
+
 	panicWindow := "\"10.0\""
 	panicThreshold := "\"200.0\""
 	if isPartiallyPanic {
@@ -109,6 +147,7 @@ func knativeDeploySingleFunction(function *common.Function, yamlPath string, isP
 		log.Warnf("Failed to deploy function %s: %v\n%s\n", function.Name, err, stdoutStderr)
 		return false
 	}
+
 	if endpoint := urlRegex.FindStringSubmatch(string(stdoutStderr))[1]; endpoint != function.Endpoint {
 		// TODO: check when this situation happens
 		log.Debugf("Update function endpoint to %s\n", endpoint)
@@ -116,8 +155,10 @@ func knativeDeploySingleFunction(function *common.Function, yamlPath string, isP
 	} else {
 		function.Endpoint = fmt.Sprintf("%s.%s.%s", function.Name, namespace, bareMetalLbGateway)
 	}
+
 	// adding port to the endpoint
 	function.Endpoint = fmt.Sprintf("%s:%d", function.Endpoint, endpointPort)
+
 	log.Debugf("Deployed function on %s\n", function.Endpoint)
 	return true
 }
