@@ -22,7 +22,7 @@
  * SOFTWARE.
  */
 
-package driver
+package deployment
 
 import (
 	"bytes"

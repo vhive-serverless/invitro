@@ -33,10 +33,10 @@ import (
 type LoaderConfiguration struct {
 	Seed int64 `json:"Seed"`
 
-	Platform string `json:"Platform"`
-
-	YAMLSelector string `json:"YAMLSelector"`
-	EndpointPort int    `json:"EndpointPort"`
+	Platform       string `json:"Platform"`
+	InvokeProtocol string `json:"InvokeProtocol"`
+	YAMLSelector   string `json:"YAMLSelector"`
+	EndpointPort   int    `json:"EndpointPort"`
 
 	DirigentControlPlaneIP string `json:"DirigentControlPlaneIP"`
 
