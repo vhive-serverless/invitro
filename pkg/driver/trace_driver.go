@@ -119,9 +119,9 @@ func (d *Driver) getHttp1Transport() *http.Transport {
 			Timeout: time.Duration(d.Configuration.LoaderConfiguration.GRPCConnectionTimeoutSeconds) * time.Second,
 		}).DialContext,
 		IdleConnTimeout:     5 * time.Second,
-		MaxConnsPerHost:     10,
 		MaxIdleConns:        100,
 		MaxIdleConnsPerHost: 10,
+		MaxConnsPerHost:     10,
 	}
 }
 
@@ -728,20 +728,20 @@ func (d *Driver) internalRun(skipIATGeneration bool, readIATFromFile bool) {
 }
 
 func (d *Driver) writeAsyncRecordsToLog(logCh chan interface{}) {
-	client := http.Client{
-		Timeout: 2 * time.Second,
+	const batchSize = 50
+
+	client := &http.Client{
+		Timeout: 5 * time.Second,
 		Transport: &http.Transport{
 			DialContext: (&net.Dialer{
-				Timeout: 10 * time.Second,
+				Timeout: 2 * time.Second,
 			}).DialContext,
-			DisableCompression:  true,
-			IdleConnTimeout:     60 * time.Second,
-			MaxIdleConns:        3000,
-			MaxIdleConnsPerHost: 3000,
+			IdleConnTimeout:     time.Second,
+			MaxIdleConns:        batchSize,
+			MaxIdleConnsPerHost: batchSize,
 		},
 	}
 
-	const batchSize = 50
 	currentBatch := 0
 	totalBatches := int(math.Ceil(float64(d.AsyncRecords.Length()) / float64(batchSize)))
 
@@ -765,7 +765,7 @@ func (d *Driver) writeAsyncRecordsToLog(logCh chan interface{}) {
 
 				record := d.AsyncRecords.Dequeue()
 				response, e2e := d.getAsyncResponseData(
-					&client,
+					client,
 					d.Configuration.LoaderConfiguration.AsyncResponseURL,
 					record.AsyncResponseGUID,
 				)
