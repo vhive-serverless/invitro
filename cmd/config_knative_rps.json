@@ -2,6 +2,7 @@
   "Seed": 42,
 
   "Platform": "Knative-RPS",
+  "InvokeProtocol" : "grpc",
   "YAMLSelector": "container",
   "EndpointPort": 80,
 

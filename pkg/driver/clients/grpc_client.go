@@ -22,7 +22,7 @@
  * SOFTWARE.
  */
 
-package driver
+package clients
 
 import (
 	"context"

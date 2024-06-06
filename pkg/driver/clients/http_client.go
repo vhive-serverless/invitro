@@ -1,4 +1,4 @@
-package driver
+package clients
 
 import (
 	"bytes"
@@ -119,7 +119,7 @@ func InvokeDirigent(function *common.Function, runtimeSpec *common.RuntimeSpecif
 
 	record.GRPCConnectionEstablishTime = time.Since(start).Microseconds()
 
-	defer handleBodyClosing(resp)
+	defer HandleBodyClosing(resp)
 	body, err := io.ReadAll(resp.Body)
 
 	if err != nil || resp.StatusCode != http.StatusOK || len(body) == 0 {
@@ -138,7 +138,7 @@ func InvokeDirigent(function *common.Function, runtimeSpec *common.RuntimeSpecif
 	}
 
 	if !cfg.AsyncMode {
-		err = deserializeDirigentResponse(body, record)
+		err = DeserializeDirigentResponse(body, record)
 		if err != nil {
 			log.Warnf("Failed to deserialize Dirigent response - %v - %v", string(body), err)
 		}
@@ -160,7 +160,7 @@ func InvokeDirigent(function *common.Function, runtimeSpec *common.RuntimeSpecif
 	return true, record
 }
 
-func deserializeDirigentResponse(body []byte, record *mc.ExecutionRecord) error {
+func DeserializeDirigentResponse(body []byte, record *mc.ExecutionRecord) error {
 	var deserializedResponse FunctionResponse
 	err := json.Unmarshal(body, &deserializedResponse)
 	if err != nil {
@@ -173,7 +173,7 @@ func deserializeDirigentResponse(body []byte, record *mc.ExecutionRecord) error 
 	return nil
 }
 
-func handleBodyClosing(response *http.Response) {
+func HandleBodyClosing(response *http.Response) {
 	if response == nil || response.Body == nil {
 		return
 	}

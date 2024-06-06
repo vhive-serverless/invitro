@@ -2,6 +2,7 @@
   "Seed": 42,
 
   "Platform": "Dirigent",
+  "InvokeProtocol" : "http2",
   "EndpointPort": 80,
 
   "DirigentControlPlaneIP": "10.0.1.253:9092",
