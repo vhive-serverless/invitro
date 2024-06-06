@@ -34,10 +34,23 @@ import (
 	"github.com/vhive-serverless/loader/pkg/common"
 )
 
-func DeployFunctionsOpenWhisk(functions []*common.Function) {
+type OpenWhiskDeployer struct {
+	FunctionDeployer
+
+	functions []*common.Function
+}
+
+type OpenWhiskDeploymentConfiguration struct {
+}
+
+func (owd *OpenWhiskDeployer) Deploy(functions []*common.Function, _ interface{}) {
+	owd.functions = functions
+
 	cmd := exec.Command("wsk", "-i", "property", "get", "--apihost")
+
 	var out bytes.Buffer
 	cmd.Stdout = &out
+
 	err := cmd.Run()
 	if err != nil {
 		log.Fatalf("Unable to read OpenWhisk API host data - %s", err)
@@ -60,14 +73,17 @@ func DeployFunctionsOpenWhisk(functions []*common.Function) {
 	}
 }
 
-func CleanOpenWhisk(functions []*common.Function) {
-	for i := 0; i < len(functions); i++ {
-		cmd := exec.Command("wsk", "-i", "action", "delete", functions[i].Name)
+func (owd *OpenWhiskDeployer) Clean() {
+	for i := 0; i < len(owd.functions); i++ {
+		// TODO: check if there is a command such as "... delete --all"
+		cmd := exec.Command("wsk", "-i", "action", "delete", owd.functions[i].Name)
+
 		var out bytes.Buffer
 		cmd.Stdout = &out
+
 		err := cmd.Run()
 		if err != nil {
-			log.Debugf("Unable to delete OpenWhisk action for function %s - %s", functions[i].Name, err)
+			log.Debugf("Unable to delete OpenWhisk action for function %s - %s", owd.functions[i].Name, err)
 		}
 	}
 }

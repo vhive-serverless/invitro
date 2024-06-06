@@ -55,7 +55,7 @@ import (
 	"github.com/vhive-serverless/loader/pkg/trace"
 )
 
-type DriverConfiguration struct {
+type Configuration struct {
 	LoaderConfiguration *config.LoaderConfiguration
 	IATDistribution     common.IatDistribution
 	ShiftIAT            bool // shift the invocations inside minute
@@ -69,13 +69,13 @@ type DriverConfiguration struct {
 }
 
 type Driver struct {
-	Configuration          *DriverConfiguration
+	Configuration          *Configuration
 	SpecificationGenerator *generator.SpecificationGenerator
 	HTTPClient             *http.Client
 	AsyncRecords           *common.LockFreeQueue[*mc.ExecutionRecord]
 }
 
-func NewDriver(driverConfig *DriverConfiguration) *Driver {
+func NewDriver(driverConfig *Configuration) *Driver {
 	return &Driver{
 		Configuration:          driverConfig,
 		SpecificationGenerator: generator.NewSpecificationGenerator(driverConfig.LoaderConfiguration.Seed),
@@ -83,7 +83,7 @@ func NewDriver(driverConfig *DriverConfiguration) *Driver {
 	}
 }
 
-func (c *DriverConfiguration) WithWarmup() bool {
+func (c *Configuration) WithWarmup() bool {
 	if c.LoaderConfiguration.WarmupDuration > 0 {
 		return true
 	} else {
@@ -832,6 +832,34 @@ func (d *Driver) getAsyncResponseData(client *http.Client, endpoint string, guid
 	return body, e2e
 }
 
+func (d *Driver) getDeployer() (deployer deployment.FunctionDeployer, configuration interface{}) {
+	switch d.Configuration.LoaderConfiguration.Platform {
+	case "Knative", "Knative-RPS":
+		deployer = &deployment.KnativeDeployer{}
+		configuration = deployment.KnativeDeploymentConfiguration{
+			YamlPath:          d.Configuration.YAMLPath,
+			IsPartiallyPanic:  d.Configuration.LoaderConfiguration.IsPartiallyPanic,
+			EndpointPort:      d.Configuration.LoaderConfiguration.EndpointPort,
+			AutoscalingMetric: d.Configuration.LoaderConfiguration.AutoscalingMetric,
+		}
+	case "OpenWhisk", "OpenWhisk-RPS":
+		deployer = &deployment.OpenWhiskDeployer{}
+		configuration = deployment.OpenWhiskDeploymentConfiguration{}
+	case "AWSLambda", "AWSLambda-RPS":
+		deployer = &deployment.AWSLambdaDeployer{}
+		configuration = deployment.AWSLambdaDeploymentConfiguration{}
+	case "Dirigent", "Dirigent-RPS", "Dirigent-Dandelion", "Dirigent-Dandelion-RPS":
+		deployer = &deployment.DirigentDeployer{}
+		configuration = deployment.DirigentDeploymentConfiguration{
+			RegistrationServer: d.Configuration.LoaderConfiguration.DirigentControlPlaneIP,
+		}
+	default:
+		log.Fatal("Unsupported platform.")
+	}
+
+	return
+}
+
 func (d *Driver) RunExperiment(skipIATGeneration bool, readIATFromFIle bool) {
 	if d.Configuration.WithWarmup() {
 		trace.DoStaticTraceProfiling(d.Configuration.Functions)
@@ -839,34 +867,14 @@ func (d *Driver) RunExperiment(skipIATGeneration bool, readIATFromFIle bool) {
 
 	trace.ApplyResourceLimits(d.Configuration.Functions, d.Configuration.LoaderConfiguration.CPULimit)
 
-	switch d.Configuration.LoaderConfiguration.Platform {
-	case "Knative", "Knative-RPS":
-		deployment.DeployKnative(d.Configuration.Functions,
-			d.Configuration.YAMLPath,
-			d.Configuration.LoaderConfiguration.IsPartiallyPanic,
-			d.Configuration.LoaderConfiguration.EndpointPort,
-			d.Configuration.LoaderConfiguration.AutoscalingMetric)
-		go failure.ScheduleFailure(d.Configuration.LoaderConfiguration)
-	case "OpenWhisk", "OpenWhisk-RPS":
-		deployment.DeployFunctionsOpenWhisk(d.Configuration.Functions)
-	case "AWSLambda", "AWSLambda-RPS":
-		deployment.DeployFunctionsAWSLambda(d.Configuration.Functions)
-	case "Dirigent", "Dirigent-RPS", "Dirigent-Dandelion", "Dirigent-Dandelion-RPS":
-		deployment.DeployDirigent(d.Configuration.LoaderConfiguration.DirigentControlPlaneIP, d.Configuration.Functions)
-		go failure.ScheduleFailure(d.Configuration.LoaderConfiguration)
-	default:
-		log.Fatal("Unsupported platform.")
-	}
+	deployer, configuration := d.getDeployer()
+	deployer.Deploy(d.Configuration.Functions, configuration)
+
+	go failure.ScheduleFailure(d.Configuration.LoaderConfiguration)
 
 	// Generate load
 	d.internalRun(skipIATGeneration, readIATFromFIle)
 
 	// Clean up
-	if d.Configuration.LoaderConfiguration.Platform == "Knative" {
-		deployment.CleanKnative()
-	} else if d.Configuration.LoaderConfiguration.Platform == "OpenWhisk" {
-		deployment.CleanOpenWhisk(d.Configuration.Functions)
-	} else if d.Configuration.LoaderConfiguration.Platform == "AWSLambda" {
-		deployment.CleanAWSLambda()
-	}
+	deployer.Clean()
 }

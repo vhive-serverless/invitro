@@ -16,6 +16,8 @@ func ScheduleFailure(config *config.LoaderConfiguration) {
 			triggerKnativeFailure(config.FailNode, config.FailComponent, config.FailAt)
 		case "Dirigent", "Dirigent-RPS":
 			triggerDirigentFailure(config.FailNode, config.FailComponent, config.FailAt)
+		default:
+			logrus.Errorf("No specified failure handler for given type of system.")
 		}
 	}
 }
