@@ -117,9 +117,9 @@ func (d *Driver) getHttp1Transport() *http.Transport {
 			Timeout: time.Duration(d.Configuration.LoaderConfiguration.GRPCConnectionTimeoutSeconds) * time.Second,
 		}).DialContext,
 		IdleConnTimeout:     5 * time.Second,
-		MaxConnsPerHost:     10,
 		MaxIdleConns:        100,
 		MaxIdleConnsPerHost: 10,
+		MaxConnsPerHost:     10,
 	}
 }
 
