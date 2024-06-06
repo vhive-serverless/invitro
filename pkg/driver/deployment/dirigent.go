@@ -14,11 +14,23 @@ import (
 	"time"
 )
 
-func DeployDirigent(controlPlaneAddress string, functions []*common.Function) {
+type DirigentDeployer struct {
+	FunctionDeployer
+}
+
+type DirigentDeploymentConfiguration struct {
+	RegistrationServer string
+}
+
+func (*DirigentDeployer) Deploy(functions []*common.Function, configuration interface{}) {
+	dirigentConfig := configuration.(DirigentDeploymentConfiguration)
+
 	for i := 0; i < len(functions); i++ {
-		deployDirigent(controlPlaneAddress, functions[i])
+		deployDirigent(functions[i], dirigentConfig.RegistrationServer)
 	}
 }
+
+func (*DirigentDeployer) Clean() {}
 
 var registrationClient = &http.Client{
 	Timeout: 5 * time.Second, // time for a request to timeout
@@ -32,7 +44,7 @@ var registrationClient = &http.Client{
 	},
 }
 
-func deployDirigent(controlPlaneAddress string, function *common.Function) {
+func deployDirigent(function *common.Function, controlPlaneAddress string) {
 	metadata := function.DirigentMetadata
 
 	if metadata == nil {

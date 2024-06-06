@@ -5,7 +5,22 @@ import (
 	"github.com/vhive-serverless/loader/pkg/common"
 )
 
-func DeployFunctionsAWSLambda(functions []*common.Function) {
+type AWSLambdaDeployer struct {
+	FunctionDeployer
+}
+
+type AWSLambdaDeploymentConfiguration struct {
+}
+
+func (*AWSLambdaDeployer) Deploy(functions []*common.Function, _ interface{}) {
+	internalAWSDeployment(functions)
+}
+
+func (*AWSLambdaDeployer) Clean() {
+	CleanServerless()
+}
+
+func internalAWSDeployment(functions []*common.Function) {
 	provider := "aws"
 
 	// Create serverless.yml file
@@ -26,8 +41,4 @@ func DeployFunctionsAWSLambda(functions []*common.Function) {
 		functions[i].Endpoint = functionToURLMapping[functions[i].Name]
 		log.Debugf("Function %s set to %s", functions[i].Name, functions[i].Endpoint)
 	}
-}
-
-func CleanAWSLambda() {
-	CleanServerless()
 }

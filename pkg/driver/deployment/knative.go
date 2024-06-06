@@ -44,9 +44,40 @@ var (
 	urlRegex = regexp.MustCompile("at URL:\nhttp://([^\n]+)")
 )
 
-func DeployKnative(functions []*common.Function, yamlPath string, isPartiallyPanic bool, endpointPort int, autoscalingMetric string) {
+type KnativeDeployer struct {
+	FunctionDeployer
+}
+
+type KnativeDeploymentConfiguration struct {
+	YamlPath          string
+	IsPartiallyPanic  bool
+	EndpointPort      int
+	AutoscalingMetric string
+}
+
+func (*KnativeDeployer) Deploy(functions []*common.Function, configuration interface{}) {
+	knativeConfig := configuration.(KnativeDeploymentConfiguration)
+
 	for i := 0; i < len(functions); i++ {
-		knativeDeploySingleFunction(functions[i], yamlPath, isPartiallyPanic, endpointPort, autoscalingMetric)
+		knativeDeploySingleFunction(
+			functions[i],
+			knativeConfig.YamlPath,
+			knativeConfig.IsPartiallyPanic,
+			knativeConfig.EndpointPort,
+			knativeConfig.AutoscalingMetric,
+		)
+	}
+}
+
+func (*KnativeDeployer) Clean() {
+	cmd := exec.Command("kn", "service", "delete", "--all")
+
+	var out bytes.Buffer
+	cmd.Stdout = &out
+
+	err := cmd.Run()
+	if err != nil {
+		log.Errorf("Unable to delete Knative services - %s", err)
 	}
 }
 
@@ -106,14 +137,4 @@ func knativeDeploySingleFunction(function *common.Function, yamlPath string, isP
 
 	log.Debugf("Deployed function on %s\n", function.Endpoint)
 	return true
-}
-
-func CleanKnative() {
-	cmd := exec.Command("kn", "service", "delete", "--all")
-	var out bytes.Buffer
-	cmd.Stdout = &out
-	err := cmd.Run()
-	if err != nil {
-		log.Debugf("Unable to delete Knative services - %s", err)
-	}
 }
