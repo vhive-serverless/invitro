@@ -31,12 +31,14 @@ import (
 	"io"
 	"math"
 	"math/rand"
+	"net"
 	"net/http"
 	"net/url"
 	"os/exec"
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -62,6 +64,18 @@ func DeployDirigent(controlPlaneAddress string, functions []*common.Function) {
 	}
 }
 
+var registrationClient = http.Client{
+	Timeout: 5 * time.Second, // time for a request to timeout
+	Transport: &http.Transport{
+		DialContext: (&net.Dialer{
+			Timeout: 1500 * time.Millisecond, // time to open socket
+		}).DialContext,
+		IdleConnTimeout:     2 * time.Second, // unused connections from pool expire after
+		MaxIdleConns:        2,
+		MaxIdleConnsPerHost: 2,
+	},
+}
+
 func deployDirigent(controlPlaneAddress string, function *common.Function) {
 	metadata := function.DirigentMetadata
 
@@ -81,7 +95,7 @@ func deployDirigent(controlPlaneAddress string, function *common.Function) {
 
 	log.Debug(payload)
 
-	resp, err := http.PostForm(fmt.Sprintf("http://%s/registerService", controlPlaneAddress), payload)
+	resp, err := registrationClient.PostForm(fmt.Sprintf("http://%s/registerService", controlPlaneAddress), payload)
 	if err != nil {
 		log.Error("Failed to register a service with the control plane - ", err.Error())
 		return
