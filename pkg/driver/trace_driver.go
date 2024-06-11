@@ -131,25 +131,6 @@ func (d *Driver) getHttp2Transport() *http2.Transport {
 	}
 }
 
-func (d *Driver) GetHTTPClient() *http.Client {
-	if d.HTTPClient == nil {
-		d.HTTPClient = &http.Client{
-			Timeout: time.Duration(d.Configuration.LoaderConfiguration.GRPCFunctionTimeoutSeconds) * time.Second,
-		}
-
-		switch d.Configuration.LoaderConfiguration.InvokeProtocol {
-		case "http1":
-			d.HTTPClient.Transport = d.getHttp1Transport()
-		case "http2":
-			d.HTTPClient.Transport = d.getHttp2Transport()
-		default:
-			log.Errorf("Invalid invoke protocol in the configuration file.")
-		}
-	}
-
-	return d.HTTPClient
-}
-
 /////////////////////////////////////////
 // METRICS SCRAPPERS
 /////////////////////////////////////////
