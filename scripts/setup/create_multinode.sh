@@ -156,6 +156,34 @@ function setup_workers() {
     wait
 }
 
+function setup_fakes() {
+    # Compute variables locally
+    KWOK_REPO=kubernetes-sigs/kwok
+    KWOK_LATEST_RELEASE=$(curl "https://api.github.com/repos/${KWOK_REPO}/releases/latest" | jq -r '.tag_name')
+
+    echo "Installing kwok $KWOK_LATEST_RELEASE"
+
+    # Install kwok
+    # server_exec $MASTER_NODE "source /etc/profile; go install sigs.k8s.io/kwok/cmd/{kwok,kwokctl}@${KWOK_LATEST_RELEASE}"
+
+    # Deploy kwok in a Cluster
+    server_exec $MASTER_NODE "kubectl apply -f \"https://github.com/$KWOK_REPO/releases/download/$KWOK_LATEST_RELEASE/kwok.yaml\""
+    server_exec $MASTER_NODE "kubectl apply -f \"https://github.com/$KWOK_REPO/releases/download/$KWOK_LATEST_RELEASE/stage-fast.yaml\""
+    server_exec $MASTER_NODE "kubectl apply -f \"https://github.com/$KWOK_REPO/releases/download/$KWOK_LATEST_RELEASE/metrics-usage.yaml\""
+    server_exec $MASTER_NODE "cd loader; kubectl patch configmap config-features -n knative-serving -p '{\"data\": {\"kubernetes.podspec-tolerations\": \"enabled\"}}'"
+
+    # Deploy kwok fake nodes
+    for i in $(seq 1 $KWOK_NODE_NUM)
+    do
+        export KWOK_NODE_NAME=node-kwok-fake-node-$i
+        server_exec $MASTER_NODE "cd loader; KWOK_NODE_NAME=node-fake-$i envsubst < config/kwok_fake_node.yaml | kubectl apply -f -"
+    done
+
+    # Deploy timer service
+    server_exec $MASTER_NODE 'kubectl create namespace kwok-system'
+    server_exec $MASTER_NODE 'cd loader; kubectl apply -f config/deploy_timer.yaml'
+}
+
 function extend_CIDR() {
     #* Get node name list.
     readarray -t NODE_NAMES < <(server_exec $MASTER_NODE 'kubectl get no' | tail -n +2 | awk '{print $1}')
@@ -259,5 +287,10 @@ function copy_k8s_certificates() {
 
     if [[ "$DEPLOY_PROMETHEUS" == true ]]; then
         $DIR/expose_infra_metrics.sh $MASTER_NODE
+    fi
+
+    # Check if ENABLE_KWOK is set to true
+    if [ "$ENABLE_KWOK" = true ]; then
+        setup_fakes
     fi
 }
