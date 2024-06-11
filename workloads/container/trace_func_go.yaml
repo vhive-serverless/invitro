@@ -6,6 +6,8 @@ metadata:
 spec:
   template:
     metadata:
+      labels:
+        app: server
       annotations:
         autoscaling.knative.dev/initial-scale: "0"  # Should start from 0, otherwise we can't deploy more functions than the node physically permits.
         autoscaling.knative.dev/min-scale: "0"  # This parameter only has a per-revision key, so it's necessary to have here in case of the warmup messes up.

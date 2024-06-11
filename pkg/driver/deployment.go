@@ -38,6 +38,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/vhive-serverless/loader/pkg/common"
 
@@ -62,6 +63,15 @@ func DeployFunctions(functions []*common.Function, yamlPath string, isPartiallyP
 		go deployKnative(functions[i], yamlPath, isPartiallyPanic, endpointPort, autoscalingMetric, &deployed, queue)
 	}
 	deployed.Wait()
+
+	start := time.Now()
+	cmd := exec.Command("kubectl", "annotate", "--overwrite", "PodAutoscaler", "-n", "default", "--selector=app=server", "autoscaling.knative.dev/min-scale=0")
+	err := cmd.Start()
+	if err != nil {
+		log.Fatalf("Failed to execute script: %v", err)
+	}
+	elapsed := time.Since(start)
+	log.Printf("Script executed in %s", elapsed)
 }
 
 func DeployDirigent(functions []*common.Function) {
@@ -83,8 +93,8 @@ func deployDirigent(function *common.Function) {
 		"port_forwarding":     {strconv.Itoa(metadata.Port), metadata.Protocol},
 		"scaling_upper_bound": {strconv.Itoa(metadata.ScalingUpperBound)},
 		"scaling_lower_bound": {strconv.Itoa(metadata.ScalingLowerBound)},
-		"requested_cpu":    {strconv.Itoa(function.CPURequestsMilli)},
-		"requested_memory": {strconv.Itoa(function.MemoryRequestsMiB)},
+		"requested_cpu":       {strconv.Itoa(function.CPURequestsMilli)},
+		"requested_memory":    {strconv.Itoa(function.MemoryRequestsMiB)},
 	}
 
 	log.Debug(payload)
@@ -133,7 +143,7 @@ func deployKnative(function *common.Function, yamlPath string, isPartiallyPanic 
 		strconv.Itoa(function.CPURequestsMilli)+"m",
 		strconv.Itoa(function.CPULimitsMilli)+"m",
 		strconv.Itoa(function.MemoryRequestsMiB)+"Mi",
-		strconv.Itoa(function.InitialScale),
+		strconv.Itoa(function.InitialScale*2),
 
 		panicWindow,
 		panicThreshold,
