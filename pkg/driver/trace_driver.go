@@ -77,11 +77,25 @@ type Driver struct {
 }
 
 func NewDriver(driverConfig *Configuration) *Driver {
-	return &Driver{
+	d := &Driver{
 		Configuration:          driverConfig,
 		SpecificationGenerator: generator.NewSpecificationGenerator(driverConfig.LoaderConfiguration.Seed),
-		AsyncRecords:           common.NewLockFreeQueue[*mc.ExecutionRecord](),
+		HTTPClient: &http.Client{
+			Timeout: time.Duration(driverConfig.LoaderConfiguration.GRPCFunctionTimeoutSeconds) * time.Second,
+		},
+		AsyncRecords: common.NewLockFreeQueue[*mc.ExecutionRecord](),
 	}
+
+	switch driverConfig.LoaderConfiguration.InvokeProtocol {
+	case "http1":
+		d.HTTPClient.Transport = d.getHttp1Transport()
+	case "http2":
+		d.HTTPClient.Transport = d.getHttp2Transport()
+	default:
+		log.Errorf("Invalid invoke protocol in the configuration file.")
+	}
+
+	return d
 }
 
 func (c *Configuration) WithWarmup() bool {
@@ -133,25 +147,6 @@ func (d *Driver) getHttp2Transport() *http2.Transport {
 			return net.Dial(network, addr)
 		},
 	}
-}
-
-func (d *Driver) GetHTTPClient() *http.Client {
-	if d.HTTPClient == nil {
-		d.HTTPClient = &http.Client{
-			Timeout: time.Duration(d.Configuration.LoaderConfiguration.GRPCFunctionTimeoutSeconds) * time.Second,
-		}
-
-		switch d.Configuration.LoaderConfiguration.InvokeProtocol {
-		case "http1":
-			d.HTTPClient.Transport = d.getHttp1Transport()
-		case "http2":
-			d.HTTPClient.Transport = d.getHttp2Transport()
-		default:
-			log.Errorf("Invalid invoke protocol in the configuration file.")
-		}
-	}
-
-	return d.HTTPClient
 }
 
 /////////////////////////////////////////
@@ -271,7 +266,7 @@ func (d *Driver) invokeFunction(metadata *InvocationMetadata) {
 			success, record = clients.InvokeDirigent(
 				metadata.Function,
 				metadata.RuntimeSpecifications,
-				d.GetHTTPClient(),
+				d.HTTPClient,
 				d.Configuration.LoaderConfiguration,
 			)
 		}
@@ -299,7 +294,7 @@ func (d *Driver) invokeFunction(metadata *InvocationMetadata) {
 			success, record = clients.InvokeDirigent(
 				metadata.Function,
 				metadata.RuntimeSpecifications,
-				d.GetHTTPClient(),
+				d.HTTPClient,
 				d.Configuration.LoaderConfiguration,
 			)
 		}
@@ -307,7 +302,7 @@ func (d *Driver) invokeFunction(metadata *InvocationMetadata) {
 		success, record = clients.InvokeDirigent(
 			metadata.Function,
 			metadata.RuntimeSpecifications,
-			d.GetHTTPClient(),
+			d.HTTPClient,
 			d.Configuration.LoaderConfiguration,
 		)
 	default:
