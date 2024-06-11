@@ -17,7 +17,7 @@ mkdir knative_yamls -p
 cd knative_yamls
 
 wget -q https://github.com/knative-extensions/net-istio/releases/download/knative-v${KNATIVE_VERSION}/net-istio.yaml
-wget -q https://github.com/knative/serving/releases/download/knative-v${KNATIVE_VERSION}/serving-core.yaml
+wget -q https://github.com/knative/serving/releases/download/knative-v${KNATIVE_VERSION}/serving-core.yaml -nc
 wget -q https://raw.githubusercontent.com/projectcalico/calico/v${CALICO_VERSION}/manifests/calico.yaml -P ../calico
 
 # net-istio.yaml
