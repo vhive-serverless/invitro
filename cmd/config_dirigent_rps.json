@@ -5,10 +5,10 @@
   "InvokeProtocol" : "http2",
   "EndpointPort": 80,
 
-  "DirigentControlPlaneIP": "localhost:9092",
+  "DirigentControlPlaneIP": "10.0.1.253:9092",
 
   "AsyncMode": false,
-  "AsyncResponseURL": "localhost:8082",
+  "AsyncResponseURL": "10.0.1.3:8082",
   "AsyncWaitToCollectMin": 1,
 
   "RpsTarget": 10,
