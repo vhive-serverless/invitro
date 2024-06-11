@@ -27,6 +27,7 @@ package driver
 import (
 	"context"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/vhive-serverless/loader/pkg/common"
@@ -40,6 +41,11 @@ import (
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 
 	mc "github.com/vhive-serverless/loader/pkg/metric"
+)
+
+var (
+	mu    sync.Mutex
+	conns = make(map[string]*grpc.ClientConn)
 )
 
 func InvokeGRPC(function *common.Function, runtimeSpec *common.RuntimeSpecification, cfg *config.LoaderConfiguration) (bool, *mc.ExecutionRecord) {
@@ -71,16 +77,34 @@ func InvokeGRPC(function *common.Function, runtimeSpec *common.RuntimeSpecificat
 
 	grpcStart := time.Now()
 
-	conn, err := grpc.DialContext(dialContext, function.Endpoint, dialOptions...)
-	defer gRPCConnectionClose(conn)
-	if err != nil {
-		log.Debugf("Failed to establish a gRPC connection - %v\n", err)
+	mu.Lock()
+	conn, ok := conns[function.Endpoint]
+	if !ok {
+		var err error
+		conn, err = grpc.DialContext(dialContext, function.Endpoint, dialOptions...)
+		if err != nil {
+			log.Debugf("Failed to establish a gRPC connection - %v\n", err)
 
-		record.ResponseTime = time.Since(start).Microseconds()
-		record.ConnectionTimeout = true
+			record.ResponseTime = time.Since(start).Microseconds()
+			record.ConnectionTimeout = true
 
-		return false, record
+			mu.Unlock()
+			return false, record
+		}
+		conns[function.Endpoint] = conn
 	}
+	mu.Unlock()
+
+	// conn, err := grpc.DialContext(dialContext, function.Endpoint, dialOptions...)
+	// defer gRPCConnectionClose(conn)
+	// if err != nil {
+	// 	log.Debugf("Failed to establish a gRPC connection - %v\n", err)
+
+	// 	record.ResponseTime = time.Since(start).Microseconds()
+	// 	record.ConnectionTimeout = true
+
+	// 	return false, record
+	// }
 
 	record.GRPCConnectionEstablishTime = time.Since(grpcStart).Microseconds()
 
