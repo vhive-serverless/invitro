@@ -173,11 +173,7 @@ function setup_fakes() {
     server_exec $MASTER_NODE "cd loader; kubectl patch configmap config-features -n knative-serving -p '{\"data\": {\"kubernetes.podspec-tolerations\": \"enabled\"}}'"
 
     # Deploy kwok fake nodes
-    for i in $(seq 1 $KWOK_NODE_NUM)
-    do
-        export KWOK_NODE_NAME=node-kwok-fake-node-$i
-        server_exec $MASTER_NODE "cd loader; KWOK_NODE_NAME=node-fake-$i envsubst < config/kwok_fake_node.yaml | kubectl apply -f -"
-    done
+    server_exec $MASTER_NODE "cd loader; for i in {1..$KWOK_NODE_NUM}; do KWOK_NODE_NAME=node-fake-\$i envsubst < config/kwok_fake_node.yaml | kubectl apply -f -; done"
 
     # Deploy timer service
     server_exec $MASTER_NODE 'kubectl create namespace kwok-system'
