@@ -96,6 +96,10 @@ func InvokeDirigent(function *common.Function, runtimeSpec *common.RuntimeSpecif
 
 	req.Host = function.Name
 
+	if runtimeSpec.Runtime <= 0 {
+		panic("should have at least one cpu")
+	}
+
 	req.Header.Set("workload", function.DirigentMetadata.Image)
 	req.Header.Set("function", function.Name)
 	req.Header.Set("requested_cpu", strconv.Itoa(runtimeSpec.Runtime))
