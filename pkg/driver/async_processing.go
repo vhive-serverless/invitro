@@ -4,6 +4,7 @@ import (
 	"bytes"
 	log "github.com/sirupsen/logrus"
 	"github.com/vhive-serverless/loader/pkg/driver/clients"
+	"github.com/vhive-serverless/loader/pkg/metric"
 	"io"
 	"math"
 	"net"
@@ -13,7 +14,7 @@ import (
 	"time"
 )
 
-func (d *Driver) writeAsyncRecordsToLog(logCh chan interface{}) {
+func (d *Driver) writeAsyncRecordsToLog(logCh chan *metric.ExecutionRecord) {
 	const batchSize = 50
 
 	client := &http.Client{
@@ -53,7 +54,7 @@ func (d *Driver) writeAsyncRecordsToLog(logCh chan interface{}) {
 				response, e2e := d.getAsyncResponseData(
 					client,
 					d.Configuration.LoaderConfiguration.AsyncResponseURL,
-					record.AsyncResponseGUID,
+					record.AsyncResponseID,
 				)
 
 				if string(response) != "" {
@@ -63,7 +64,7 @@ func (d *Driver) writeAsyncRecordsToLog(logCh chan interface{}) {
 					}
 				} else {
 					record.FunctionTimeout = true
-					record.AsyncResponseGUID = ""
+					record.AsyncResponseID = ""
 					log.Errorf("Failed to fetch response. The function has probably not yet completed.")
 				}
 

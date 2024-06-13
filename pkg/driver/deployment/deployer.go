@@ -10,30 +10,19 @@ type FunctionDeployer interface {
 	Clean()
 }
 
-func CreateDeployer(cfg *config.Configuration) (deployer FunctionDeployer, configuration interface{}) {
+func CreateDeployer(cfg *config.Configuration) FunctionDeployer {
 	switch cfg.LoaderConfiguration.Platform {
-	case "Knative", "Knative-RPS":
-		deployer = &knativeDeployer{}
-		configuration = knativeDeploymentConfiguration{
-			YamlPath:          cfg.YAMLPath,
-			IsPartiallyPanic:  cfg.LoaderConfiguration.IsPartiallyPanic,
-			EndpointPort:      cfg.LoaderConfiguration.EndpointPort,
-			AutoscalingMetric: cfg.LoaderConfiguration.AutoscalingMetric,
-		}
-	case "OpenWhisk", "OpenWhisk-RPS":
-		deployer = &openWhiskDeployer{}
-		configuration = openWhiskDeploymentConfiguration{}
 	case "AWSLambda", "AWSLambda-RPS":
-		deployer = &awsLambdaDeployer{}
-		configuration = awsLambdaDeploymentConfiguration{}
+		return &awsLambdaDeployer{}
 	case "Dirigent", "Dirigent-RPS", "Dirigent-Dandelion", "Dirigent-Dandelion-RPS":
-		deployer = &dirigentDeployer{}
-		configuration = dirigentDeploymentConfiguration{
-			RegistrationServer: cfg.LoaderConfiguration.DirigentControlPlaneIP,
-		}
+		return &dirigentDeployer{}
+	case "Knative", "Knative-RPS":
+		return &knativeDeployer{}
+	case "OpenWhisk", "OpenWhisk-RPS":
+		return &openWhiskDeployer{}
 	default:
 		logrus.Fatal("Unsupported platform.")
 	}
 
-	return
+	return nil
 }
