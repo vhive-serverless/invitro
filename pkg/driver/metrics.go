@@ -68,7 +68,7 @@ func (d *Driver) CreateMetricsScrapper(interval time.Duration,
 	}
 }
 
-func (d *Driver) createGlobalMetricsCollector(filename string, collector chan interface{},
+func (d *Driver) createGlobalMetricsCollector(filename string, collector chan *mc.ExecutionRecord,
 	signalReady *sync.WaitGroup, signalEverythingWritten *sync.WaitGroup, totalIssuedChannel chan int64) {
 
 	// NOTE: totalNumberOfInvocations is initialized to MaxInt64 not to allow collector to complete before
