@@ -56,10 +56,6 @@ type knativeDeploymentConfiguration struct {
 	AutoscalingMetric string
 }
 
-func newKnativeDeployer() *knativeDeployer {
-	return &knativeDeployer{}
-}
-
 func newKnativeDeployerConfiguration(cfg *config.Configuration) knativeDeploymentConfiguration {
 	return knativeDeploymentConfiguration{
 		YamlPath:          cfg.YAMLPath,

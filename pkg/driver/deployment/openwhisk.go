@@ -43,8 +43,11 @@ func newOpenWhiskDeployer() *openWhiskDeployer {
 	return &openWhiskDeployer{}
 }
 
-func (owd *openWhiskDeployer) Deploy(cfg *config.Configuration) {
-	owd.functions = cfg.Functions
+type openWhiskDeploymentConfiguration struct {
+}
+
+func (owd *openWhiskDeployer) Deploy(config *config.Configuration) {
+	owd.functions = config.Functions
 
 	cmd := exec.Command("wsk", "-i", "property", "get", "--apihost")
 
