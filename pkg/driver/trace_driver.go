@@ -653,9 +653,14 @@ func (d *Driver) internalRun(skipIATGeneration bool, readIATFromFile bool) {
 		allRecordsWritten.Wait()
 	}
 
+	statSuccess := atomic.LoadInt64(&successfulInvocations)
+	statFailed := atomic.LoadInt64(&failedInvocations)
+
 	log.Infof("Trace has finished executing function invocation driver\n")
-	log.Infof("Number of successful invocations: \t%d\n", atomic.LoadInt64(&successfulInvocations))
-	log.Infof("Number of failed invocations: \t%d\n", atomic.LoadInt64(&failedInvocations))
+	log.Infof("Number of successful invocations: \t%d", statSuccess)
+	log.Infof("Number of failed invocations: \t%d", statFailed)
+	log.Infof("Total invocations: \t%d", statSuccess+statFailed)
+	log.Infof("Failure rate: \t%.2f", float64(statFailed)/float64(statSuccess+statFailed))
 }
 
 func (d *Driver) RunExperiment(skipIATGeneration bool, readIATFromFIle bool) {
