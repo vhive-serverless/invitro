@@ -25,7 +25,6 @@
 package driver
 
 import (
-	"bytes"
 	"container/list"
 	"context"
 	"crypto/tls"
@@ -35,9 +34,8 @@ import (
 	"github.com/vhive-serverless/loader/pkg/config"
 	"github.com/vhive-serverless/loader/pkg/driver/clients"
 	"github.com/vhive-serverless/loader/pkg/driver/deployment"
+	"github.com/vhive-serverless/loader/pkg/driver/failure"
 	"golang.org/x/net/http2"
-	"io"
-	"math"
 	"net"
 	"net/http"
 	"os"
@@ -128,68 +126,6 @@ func (d *Driver) getHttp2Transport() *http2.Transport {
 		DialTLSContext: func(ctx context.Context, network, addr string, cfg *tls.Config) (net.Conn, error) {
 			return net.Dial(network, addr)
 		},
-	}
-}
-
-/////////////////////////////////////////
-// METRICS SCRAPPERS
-/////////////////////////////////////////
-
-func (d *Driver) CreateMetricsScrapper(interval time.Duration,
-	signalReady *sync.WaitGroup, finishCh chan int, allRecordsWritten *sync.WaitGroup) func() {
-	timer := time.NewTicker(interval)
-
-	return func() {
-		signalReady.Done()
-		knStatRecords := make(chan interface{}, 100)
-		scaleRecords := make(chan interface{}, 100)
-		writerDone := sync.WaitGroup{}
-
-		clusterUsageFile, err := os.Create(d.outputFilename("cluster_usage"))
-		common.Check(err)
-		defer clusterUsageFile.Close()
-
-		writerDone.Add(1)
-		go d.runCSVWriter(knStatRecords, d.outputFilename("kn_stats"), &writerDone)
-
-		writerDone.Add(1)
-		go d.runCSVWriter(scaleRecords, d.outputFilename("deployment_scale"), &writerDone)
-
-		for {
-			select {
-			case <-timer.C:
-				recCluster := mc.ScrapeClusterUsage()
-				recCluster.Timestamp = time.Now().UnixMicro()
-
-				byteArr, err := json.Marshal(recCluster)
-				common.Check(err)
-
-				_, err = clusterUsageFile.Write(byteArr)
-				common.Check(err)
-
-				_, err = clusterUsageFile.WriteString("\n")
-				common.Check(err)
-
-				recScale := mc.ScrapeDeploymentScales()
-				timestamp := time.Now().UnixMicro()
-				for _, rec := range recScale {
-					rec.Timestamp = timestamp
-					scaleRecords <- rec
-				}
-
-				recKnative := mc.ScrapeKnStats()
-				recKnative.Timestamp = time.Now().UnixMicro()
-				knStatRecords <- recKnative
-			case <-finishCh:
-				close(knStatRecords)
-				close(scaleRecords)
-
-				writerDone.Wait()
-				allRecordsWritten.Done()
-
-				return
-			}
-		}
 	}
 }
 
@@ -508,46 +444,6 @@ func (d *Driver) globalTimekeeper(totalTraceDuration int, signalReady *sync.Wait
 	ticker.Stop()
 }
 
-func (d *Driver) createGlobalMetricsCollector(filename string, collector chan interface{},
-	signalReady *sync.WaitGroup, signalEverythingWritten *sync.WaitGroup, totalIssuedChannel chan int64) {
-
-	// NOTE: totalNumberOfInvocations is initialized to MaxInt64 not to allow collector to complete before
-	// the end signal is received on totalIssuedChannel, which deliver the total number of issued invocations.
-	// This number is known once all the individual function drivers finish issuing invocations and
-	// when all the invocations return
-	var totalNumberOfInvocations int64 = math.MaxInt64
-	var currentlyWritten int64
-
-	file, err := os.Create(filename)
-	common.Check(err)
-	defer file.Close()
-	signalReady.Done()
-
-	records := make(chan interface{}, 100)
-	writerDone := sync.WaitGroup{}
-	writerDone.Add(1)
-	go d.runCSVWriter(records, filename, &writerDone)
-
-	for {
-		select {
-		case record := <-collector:
-			records <- record
-
-			currentlyWritten++
-		case record := <-totalIssuedChannel:
-			totalNumberOfInvocations = record
-		}
-
-		if currentlyWritten == totalNumberOfInvocations {
-			close(records)
-			writerDone.Wait()
-			(*signalEverythingWritten).Done()
-
-			return
-		}
-	}
-}
-
 func (d *Driver) startBackgroundProcesses(allRecordsWritten *sync.WaitGroup) (*sync.WaitGroup, chan interface{}, chan int64, chan int) {
 	auxiliaryProcessBarrier := &sync.WaitGroup{}
 
@@ -712,117 +608,14 @@ func (d *Driver) RunExperiment(skipIATGeneration bool, readIATFromFIle bool) {
 
 	trace.ApplyResourceLimits(d.Configuration.Functions, d.Configuration.LoaderConfiguration.CPULimit)
 
-	deployer := deployment.CreateDeployer(d.Configuration)
+	deployer, _ := deployment.CreateDeployer(d.Configuration)
 	deployer.Deploy(d.Configuration)
+
+	go failure.ScheduleFailure(d.Configuration.LoaderConfiguration)
 
 	// Generate load
 	d.internalRun(skipIATGeneration, readIATFromFIle)
 
 	// Clean up
 	deployer.Clean()
-}
-
-func (d *Driver) writeAsyncRecordsToLog(logCh chan interface{}) {
-	const batchSize = 50
-
-	client := &http.Client{
-		Timeout: 5 * time.Second,
-		Transport: &http.Transport{
-			DialContext: (&net.Dialer{
-				Timeout: 2 * time.Second,
-			}).DialContext,
-			IdleConnTimeout:     time.Second,
-			MaxIdleConns:        batchSize,
-			MaxIdleConnsPerHost: batchSize,
-		},
-	}
-
-	currentBatch := 0
-	totalBatches := int(math.Ceil(float64(d.AsyncRecords.Length()) / float64(batchSize)))
-
-	log.Infof("Gathering functions responses...")
-	for d.AsyncRecords.Length() > 0 {
-		currentBatch++
-
-		toProcess := batchSize
-		if d.AsyncRecords.Length() < batchSize {
-			toProcess = d.AsyncRecords.Length()
-		}
-
-		wg := sync.WaitGroup{}
-		wg.Add(toProcess)
-
-		for i := 0; i < toProcess; i++ {
-			go func() {
-				defer wg.Done()
-
-				start := time.Now()
-
-				record := d.AsyncRecords.Dequeue()
-				response, e2e := d.getAsyncResponseData(
-					client,
-					d.Configuration.LoaderConfiguration.AsyncResponseURL,
-					record.AsyncResponseGUID,
-				)
-
-				if string(response) != "" {
-					err := clients.DeserializeDirigentResponse(response, record)
-					if err != nil {
-						log.Errorf("Failed to deserialize Dirigent response - %v - %v", string(response), err)
-					}
-				} else {
-					record.FunctionTimeout = true
-					record.AsyncResponseGUID = ""
-					log.Errorf("Failed to fetch response. The function has probably not yet completed.")
-				}
-
-				// loader send request + request e2e + loader get response
-				timeToFetchResponse := time.Since(start).Microseconds()
-				record.UserCodeExecutionMs = int64(e2e)
-				record.TimeToGetResponseMs = timeToFetchResponse
-				record.ResponseTime += int64(e2e)
-				record.ResponseTime += timeToFetchResponse
-
-				logCh <- record
-			}()
-		}
-
-		wg.Wait()
-
-		log.Infof("Processed %d/%d batches of async response gatherings", currentBatch, totalBatches)
-	}
-
-	log.Infof("Finished gathering async reponse answers")
-}
-
-func (d *Driver) getAsyncResponseData(client *http.Client, endpoint string, guid string) ([]byte, int) {
-	req, err := http.NewRequest("GET", "http://"+endpoint, bytes.NewReader([]byte(guid)))
-	if err != nil {
-		log.Errorf("Failed to retrieve Dirigent response for %s - %v", guid, err)
-		return []byte{}, 0
-	}
-
-	// TODO: set function name for load-balancing purpose
-	//req.Header.Set("function", function.Name)
-
-	resp, err := client.Do(req)
-	if err != nil {
-		log.Errorf("Failed to retrieve Dirigent response for %s - %v", guid, err)
-		return []byte{}, 0
-	}
-
-	defer clients.HandleBodyClosing(resp)
-	body, err := io.ReadAll(resp.Body)
-
-	hdr := resp.Header.Get("Duration-Microseconds")
-	e2e := 0
-
-	if hdr != "" {
-		e2e, err = strconv.Atoi(hdr)
-		if err != nil {
-			log.Errorf("Failed to parse end-to-end latency for %s - %v", guid, err)
-		}
-	}
-
-	return body, e2e
 }
