@@ -76,7 +76,7 @@ type ExecutionRecord struct {
 	ActualMemoryUsage       uint32 `csv:"actualMemoryUsage"`
 	MemoryAllocationTimeout bool   `csv:"memoryAllocationTimeout"`
 
-	AsyncResponseGUID   string `csv:"-"`
+	AsyncResponseID     string `csv:"-"`
 	TimeToSubmitMs      int64  `csv:"timeToSubmitMs"`
 	UserCodeExecutionMs int64  `csv:"userCodeExecutionMs"`
 	TimeToGetResponseMs int64  `csv:"timeToGetResponseMs"`

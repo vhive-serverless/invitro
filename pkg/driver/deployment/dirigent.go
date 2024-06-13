@@ -4,6 +4,7 @@ import (
 	"fmt"
 	log "github.com/sirupsen/logrus"
 	"github.com/vhive-serverless/loader/pkg/common"
+	"github.com/vhive-serverless/loader/pkg/config"
 	"io"
 	"math/rand"
 	"net"
@@ -20,11 +21,17 @@ type dirigentDeploymentConfiguration struct {
 	RegistrationServer string
 }
 
-func (*dirigentDeployer) Deploy(functions []*common.Function, configuration interface{}) {
-	dirigentConfig := configuration.(dirigentDeploymentConfiguration)
+func newDirigentDeployerConfiguration(cfg *config.Configuration) dirigentDeploymentConfiguration {
+	return dirigentDeploymentConfiguration{
+		RegistrationServer: cfg.LoaderConfiguration.DirigentControlPlaneIP,
+	}
+}
 
-	for i := 0; i < len(functions); i++ {
-		deployDirigent(functions[i], dirigentConfig.RegistrationServer)
+func (*dirigentDeployer) Deploy(cfg *config.Configuration) {
+	dirigentConfig := newDirigentDeployerConfiguration(cfg)
+
+	for i := 0; i < len(cfg.Functions); i++ {
+		deployDirigent(cfg.Functions[i], dirigentConfig.RegistrationServer)
 	}
 }
 

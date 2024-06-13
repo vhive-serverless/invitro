@@ -29,6 +29,7 @@ import (
 	"fmt"
 	log "github.com/sirupsen/logrus"
 	"github.com/vhive-serverless/loader/pkg/common"
+	"github.com/vhive-serverless/loader/pkg/config"
 	"math"
 	"os/exec"
 	"regexp"
@@ -53,12 +54,21 @@ type knativeDeploymentConfiguration struct {
 	AutoscalingMetric string
 }
 
-func (*knativeDeployer) Deploy(functions []*common.Function, configuration interface{}) {
-	knativeConfig := configuration.(knativeDeploymentConfiguration)
+func newKnativeDeployerConfiguration(cfg *config.Configuration) knativeDeploymentConfiguration {
+	return knativeDeploymentConfiguration{
+		YamlPath:          cfg.YAMLPath,
+		IsPartiallyPanic:  cfg.LoaderConfiguration.IsPartiallyPanic,
+		EndpointPort:      cfg.LoaderConfiguration.EndpointPort,
+		AutoscalingMetric: cfg.LoaderConfiguration.AutoscalingMetric,
+	}
+}
 
-	for i := 0; i < len(functions); i++ {
+func (*knativeDeployer) Deploy(cfg *config.Configuration) {
+	knativeConfig := newKnativeDeployerConfiguration(cfg)
+
+	for i := 0; i < len(cfg.Functions); i++ {
 		knativeDeploySingleFunction(
-			functions[i],
+			cfg.Functions[i],
 			knativeConfig.YamlPath,
 			knativeConfig.IsPartiallyPanic,
 			knativeConfig.EndpointPort,
