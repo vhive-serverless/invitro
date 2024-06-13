@@ -202,7 +202,7 @@ func runTraceMode(cfg *config.LoaderConfiguration, readIATFromFile bool) {
 
 	iatType, shiftIAT := parseIATDistribution(cfg)
 
-	experimentDriver := driver.NewDriver(&driver.Configuration{
+	experimentDriver := driver.NewDriver(&config.Configuration{
 		LoaderConfiguration: cfg,
 		IATDistribution:     iatType,
 		ShiftIAT:            shiftIAT,
@@ -250,7 +250,7 @@ func runRPSMode(cfg *config.LoaderConfiguration) {
 	warmFunction, warmStartCount := generator.GenerateWarmStartFunction(cfg.ExperimentDuration, warmStartRPS)
 	coldFunctions, coldStartCount := generator.GenerateColdStartFunctions(cfg.ExperimentDuration, coldStartRPS, cfg.RpsCooldownSeconds)
 
-	experimentDriver := driver.NewDriver(&driver.Configuration{
+	experimentDriver := driver.NewDriver(&config.Configuration{
 		LoaderConfiguration: cfg,
 		TraceDuration:       determineDurationToParse(cfg.ExperimentDuration, cfg.WarmupDuration),
 

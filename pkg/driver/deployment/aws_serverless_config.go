@@ -34,8 +34,8 @@ import (
 	"strings"
 )
 
-// Serverless describes the serverless.yml contents.
-type Serverless struct {
+// awsServerless describes the serverless.yml contents.
+type awsServerless struct {
 	Service          string                  `yaml:"service"`
 	FrameworkVersion string                  `yaml:"frameworkVersion"`
 	Provider         slsProvider             `yaml:"provider"`
@@ -71,7 +71,7 @@ type slsHttpApi struct {
 }
 
 // CreateHeader sets the fields Service, FrameworkVersion, and Provider
-func (s *Serverless) CreateHeader(provider string) {
+func (s *awsServerless) CreateHeader(provider string) {
 	s.Service = "loader"
 	s.FrameworkVersion = "3"
 	s.Provider = slsProvider{
@@ -93,14 +93,14 @@ func stringContains(s []string, str string) bool {
 }
 
 // AddPackagePattern adds a string pattern to Package.Pattern as long as such a pattern does not already exist in Package.Pattern
-func (s *Serverless) AddPackagePattern(pattern string) {
+func (s *awsServerless) AddPackagePattern(pattern string) {
 	if !stringContains(s.Package.Patterns, pattern) {
 		s.Package.Patterns = append(s.Package.Patterns, pattern)
 	}
 }
 
 // AddFunctionConfig adds the function configuration for serverless.com deployment
-func (s *Serverless) AddFunctionConfig(function *common.Function, provider string) {
+func (s *awsServerless) AddFunctionConfig(function *common.Function, provider string) {
 
 	events := []slsEvent{{slsHttpApi{Path: "/" + function.Name, Method: "GET"}}}
 
@@ -116,8 +116,8 @@ func (s *Serverless) AddFunctionConfig(function *common.Function, provider strin
 	s.Functions[function.Name] = f
 }
 
-// CreateServerlessConfigFile dumps the contents of the Serverless struct into a yml file.
-func (s *Serverless) CreateServerlessConfigFile() {
+// CreateServerlessConfigFile dumps the contents of the awsServerless struct into a yml file.
+func (s *awsServerless) CreateServerlessConfigFile() {
 	data, err := yaml.Marshal(&s)
 	if err != nil {
 		log.Fatal(err)

@@ -14,23 +14,21 @@ import (
 	"time"
 )
 
-type DirigentDeployer struct {
-	FunctionDeployer
-}
+type dirigentDeployer struct{}
 
-type DirigentDeploymentConfiguration struct {
+type dirigentDeploymentConfiguration struct {
 	RegistrationServer string
 }
 
-func (*DirigentDeployer) Deploy(functions []*common.Function, configuration interface{}) {
-	dirigentConfig := configuration.(DirigentDeploymentConfiguration)
+func (*dirigentDeployer) Deploy(functions []*common.Function, configuration interface{}) {
+	dirigentConfig := configuration.(dirigentDeploymentConfiguration)
 
 	for i := 0; i < len(functions); i++ {
 		deployDirigent(functions[i], dirigentConfig.RegistrationServer)
 	}
 }
 
-func (*DirigentDeployer) Clean() {}
+func (*dirigentDeployer) Clean() {}
 
 var registrationClient = &http.Client{
 	Timeout: 5 * time.Second, // time for a request to timeout
