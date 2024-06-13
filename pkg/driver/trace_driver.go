@@ -184,7 +184,7 @@ func (d *Driver) invokeFunction(metadata *InvocationMetadata, iatIndex int) {
 		record.Phase = int(metadata.Phase)
 		record.InvocationID = composeInvocationID(d.Configuration.TraceGranularity, metadata.MinuteIndex, metadata.InvocationIndex)
 
-		if !d.Configuration.LoaderConfiguration.AsyncMode || record.AsyncResponseGUID == "" {
+		if !d.Configuration.LoaderConfiguration.AsyncMode || record.AsyncResponseID == "" {
 			metadata.RecordOutputChannel <- record
 		} else {
 			record.TimeToSubmitMs = record.ResponseTime
@@ -613,7 +613,7 @@ func (d *Driver) RunExperiment(skipIATGeneration bool, readIATFromFIle bool) {
 
 	trace.ApplyResourceLimits(d.Configuration.Functions, d.Configuration.LoaderConfiguration.CPULimit)
 
-	deployer, _ := deployment.CreateDeployer(d.Configuration)
+	deployer := deployment.CreateDeployer(d.Configuration)
 	deployer.Deploy(d.Configuration)
 
 	go failure.ScheduleFailure(d.Configuration.LoaderConfiguration.Platform, d.Configuration.FailureConfiguration)

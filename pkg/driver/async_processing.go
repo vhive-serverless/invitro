@@ -54,7 +54,7 @@ func (d *Driver) writeAsyncRecordsToLog(logCh chan *metric.ExecutionRecord) {
 				response, e2e := d.getAsyncResponseData(
 					client,
 					d.Configuration.LoaderConfiguration.AsyncResponseURL,
-					record.AsyncResponseGUID,
+					record.AsyncResponseID,
 				)
 
 				if string(response) != "" {
@@ -64,7 +64,7 @@ func (d *Driver) writeAsyncRecordsToLog(logCh chan *metric.ExecutionRecord) {
 					}
 				} else {
 					record.FunctionTimeout = true
-					record.AsyncResponseGUID = ""
+					record.AsyncResponseID = ""
 					log.Errorf("Failed to fetch response. The function has probably not yet completed.")
 				}
 
