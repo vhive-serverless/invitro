@@ -34,16 +34,14 @@ import (
 	"github.com/vhive-serverless/loader/pkg/common"
 )
 
-type OpenWhiskDeployer struct {
-	FunctionDeployer
-
+type openWhiskDeployer struct {
 	functions []*common.Function
 }
 
-type OpenWhiskDeploymentConfiguration struct {
+type openWhiskDeploymentConfiguration struct {
 }
 
-func (owd *OpenWhiskDeployer) Deploy(functions []*common.Function, _ interface{}) {
+func (owd *openWhiskDeployer) Deploy(functions []*common.Function, _ interface{}) {
 	owd.functions = functions
 
 	cmd := exec.Command("wsk", "-i", "property", "get", "--apihost")
@@ -73,7 +71,7 @@ func (owd *OpenWhiskDeployer) Deploy(functions []*common.Function, _ interface{}
 	}
 }
 
-func (owd *OpenWhiskDeployer) Clean() {
+func (owd *openWhiskDeployer) Clean() {
 	for i := 0; i < len(owd.functions); i++ {
 		// TODO: check if there is a command such as "... delete --all"
 		cmd := exec.Command("wsk", "-i", "action", "delete", owd.functions[i].Name)

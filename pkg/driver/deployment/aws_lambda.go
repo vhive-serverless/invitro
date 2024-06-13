@@ -5,18 +5,16 @@ import (
 	"github.com/vhive-serverless/loader/pkg/common"
 )
 
-type AWSLambdaDeployer struct {
-	FunctionDeployer
+type awsLambdaDeployer struct{}
+
+type awsLambdaDeploymentConfiguration struct {
 }
 
-type AWSLambdaDeploymentConfiguration struct {
-}
-
-func (*AWSLambdaDeployer) Deploy(functions []*common.Function, _ interface{}) {
+func (*awsLambdaDeployer) Deploy(functions []*common.Function, _ interface{}) {
 	internalAWSDeployment(functions)
 }
 
-func (*AWSLambdaDeployer) Clean() {
+func (*awsLambdaDeployer) Clean() {
 	CleanServerless()
 }
 
@@ -24,7 +22,7 @@ func internalAWSDeployment(functions []*common.Function) {
 	provider := "aws"
 
 	// Create serverless.yml file
-	serverless := Serverless{}
+	serverless := awsServerless{}
 	serverless.CreateHeader(provider)
 	serverless.AddPackagePattern("./pkg/server/trace-func-go/aws/**")
 

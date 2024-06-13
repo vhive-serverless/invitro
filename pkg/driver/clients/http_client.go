@@ -39,10 +39,7 @@ type MatrixRequest struct {
 }
 
 func InvokeDirigent(function *common.Function, runtimeSpec *common.RuntimeSpecification, client *http.Client, cfg *config.LoaderConfiguration) (bool, *mc.ExecutionRecord) {
-	isDandelion := false
-	if strings.Contains(cfg.Platform, "Dandelion") {
-		isDandelion = true
-	}
+	isDandelion := strings.Contains(cfg.Platform, "Dandelion")
 
 	log.Tracef("(Invoke)\t %s: %d[ms], %d[MiB]", function.Name, runtimeSpec.Runtime, runtimeSpec.Memory)
 
@@ -137,13 +134,13 @@ func InvokeDirigent(function *common.Function, runtimeSpec *common.RuntimeSpecif
 		return false, record
 	}
 
-	if !cfg.AsyncMode {
+	if cfg.AsyncMode {
+		record.AsyncResponseGUID = string(body)
+	} else {
 		err = DeserializeDirigentResponse(body, record)
 		if err != nil {
 			log.Warnf("Failed to deserialize Dirigent response - %v - %v", string(body), err)
 		}
-	} else {
-		record.AsyncResponseGUID = string(body)
 	}
 
 	record.ResponseTime = time.Since(start).Microseconds()
