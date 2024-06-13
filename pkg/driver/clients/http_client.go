@@ -39,7 +39,7 @@ type MatrixRequest struct {
 }
 
 func InvokeDirigent(function *common.Function, runtimeSpec *common.RuntimeSpecification, client *http.Client, cfg *config.LoaderConfiguration) (bool, *mc.ExecutionRecord) {
-	isDandelion := strings.Contains(cfg.Platform, "Dandelion")
+	isDandelion := strings.Contains(strings.ToLower(cfg.Platform), "dandelion")
 
 	log.Tracef("(Invoke)\t %s: %d[ms], %d[MiB]", function.Name, runtimeSpec.Runtime, runtimeSpec.Memory)
 
@@ -135,7 +135,7 @@ func InvokeDirigent(function *common.Function, runtimeSpec *common.RuntimeSpecif
 	}
 
 	if cfg.AsyncMode {
-		record.AsyncResponseGUID = string(body)
+		record.AsyncResponseID = string(body)
 	} else {
 		err = DeserializeDirigentResponse(body, record)
 		if err != nil {

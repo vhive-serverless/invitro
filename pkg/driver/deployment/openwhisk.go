@@ -27,6 +27,7 @@ package deployment
 import (
 	"bytes"
 	"fmt"
+	"github.com/vhive-serverless/loader/pkg/config"
 	"os/exec"
 	"strings"
 
@@ -41,8 +42,12 @@ type openWhiskDeployer struct {
 type openWhiskDeploymentConfiguration struct {
 }
 
-func (owd *openWhiskDeployer) Deploy(functions []*common.Function, _ interface{}) {
-	owd.functions = functions
+func newOpenWhiskDeployerConfiguration(_ *config.Configuration) openWhiskDeploymentConfiguration {
+	return openWhiskDeploymentConfiguration{}
+}
+
+func (owd *openWhiskDeployer) Deploy(cfg *config.Configuration) {
+	owd.functions = cfg.Functions
 
 	cmd := exec.Command("wsk", "-i", "property", "get", "--apihost")
 
@@ -59,15 +64,15 @@ func (owd *openWhiskDeployer) Deploy(functions []*common.Function, _ interface{}
 
 	const actionLocation = "./pkg/workload/openwhisk/workload_openwhisk.go"
 
-	for i := 0; i < len(functions); i++ {
-		cmd = exec.Command("wsk", "-i", "action", "create", functions[i].Name, actionLocation, "--kind", "go:1.17", "--web", "true")
+	for i := 0; i < len(owd.functions); i++ {
+		cmd = exec.Command("wsk", "-i", "action", "create", owd.functions[i].Name, actionLocation, "--kind", "go:1.17", "--web", "true")
 
 		err = cmd.Run()
 		if err != nil {
-			log.Fatalf("Unable to create OpenWhisk action for function %s - %s", functions[i].Name, err)
+			log.Fatalf("Unable to create OpenWhisk action for function %s - %s", owd.functions[i].Name, err)
 		}
 
-		functions[i].Endpoint = fmt.Sprintf("https://%s/api/v1/web/guest/default/%s", endpoint, functions[i].Name)
+		owd.functions[i].Endpoint = fmt.Sprintf("https://%s/api/v1/web/guest/default/%s", endpoint, owd.functions[i].Name)
 	}
 }
 
