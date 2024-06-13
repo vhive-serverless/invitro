@@ -15,6 +15,8 @@ type awsLambdaDeployer struct {
 	functions []*common.Function
 }
 
+type awsLambdaDeploymentConfiguration struct{}
+
 func newAWSLambdaDeployer() *awsLambdaDeployer {
 	return &awsLambdaDeployer{}
 }
@@ -267,7 +269,7 @@ func separateFunctions(functions []*common.Function) [][]*common.Function {
 func createSlsConfigFiles(functionGroups [][]*common.Function, provider string, awsAccountId string) {
 	for i := 0; i < len(functionGroups); i++ {
 		log.Debugf("Creating serverless-%d.yml", i)
-		serverless := Serverless{}
+		serverless := awsServerless{}
 		serverless.CreateHeader(i, provider)
 
 		for j := 0; j < len(functionGroups[i]); j++ {
