@@ -32,7 +32,7 @@ import (
 )
 
 type LoaderConfiguration struct {
-	Seed int64 `json:"Seed"`
+	Seed uint64 `json:"Seed"`
 
 	Platform string `json:"Platform"`
 

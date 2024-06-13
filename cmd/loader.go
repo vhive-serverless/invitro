@@ -27,9 +27,10 @@ package main
 import (
 	"flag"
 	"fmt"
-	"golang.org/x/exp/slices"
 	"os"
 	"time"
+
+	"golang.org/x/exp/slices"
 
 	"github.com/vhive-serverless/loader/pkg/common"
 	"github.com/vhive-serverless/loader/pkg/config"
@@ -135,6 +136,11 @@ func runTraceMode(cfg *config.LoaderConfiguration, iatOnly bool, generated bool)
 		iatType = common.Exponential
 	case "exponential_shift":
 		iatType = common.Exponential
+		shiftIAT = true
+	case "gamma":
+		iatType = common.Gamma
+	case "gamma_shift":
+		iatType = common.Gamma
 		shiftIAT = true
 	case "uniform":
 		iatType = common.Uniform

@@ -54,6 +54,7 @@ const (
 	Exponential IatDistribution = iota
 	Uniform
 	Equidistant
+	Gamma
 )
 
 type TraceGranularity int
