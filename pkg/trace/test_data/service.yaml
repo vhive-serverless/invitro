@@ -18,16 +18,8 @@ spec:
         autoscaling.knative.dev/target: $AUTOSCALING_TARGET
     spec:
       containerConcurrency: 1
-      affinity:
-        nodeAffinity:
-          requiredDuringSchedulingIgnoredDuringExecution:
-            nodeSelectorTerms:
-            - matchExpressions:
-              - key: loader-nodetype
-                operator: In
-                values:
-                - worker
-                - singlenode
+      nodeSelector:
+        loader-nodetype: worker
       containers:
         - image: docker.io/cvetkovic/dirigent_trace_function:latest
           # imagePullPolicy: Always  # No need if the tag is `latest`.
