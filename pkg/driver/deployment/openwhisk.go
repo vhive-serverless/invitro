@@ -39,15 +39,19 @@ type openWhiskDeployer struct {
 	functions []*common.Function
 }
 
+type openWhiskDeploymentConfiguration struct {
+}
+
 func newOpenWhiskDeployer() *openWhiskDeployer {
 	return &openWhiskDeployer{}
 }
 
-type openWhiskDeploymentConfiguration struct {
+func newOpenWhiskDeployerConfiguration(_ *config.Configuration) openWhiskDeploymentConfiguration {
+	return openWhiskDeploymentConfiguration{}
 }
 
-func (owd *openWhiskDeployer) Deploy(config *config.Configuration) {
-	owd.functions = config.Functions
+func (owd *openWhiskDeployer) Deploy(cfg *config.Configuration) {
+	owd.functions = cfg.Functions
 
 	cmd := exec.Command("wsk", "-i", "property", "get", "--apihost")
 
