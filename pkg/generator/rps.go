@@ -87,6 +87,8 @@ func CreateRPSFunctions(cfg *config.LoaderConfiguration, warmFunction common.IAT
 	coldFunctions []common.IATArray, coldFunctionCount [][]int) []*common.Function {
 	var result []*common.Function
 
+	busyLoopFor := StartupLoopConvertMemoryToRuntimeMs(cfg.RpsMemoryMB)
+
 	if warmFunction != nil || warmFunctionCount != nil {
 		result = append(result, &common.Function{
 			Name: fmt.Sprintf("warm-function-%d", rand.Int()),
@@ -108,7 +110,7 @@ func CreateRPSFunctions(cfg *config.LoaderConfiguration, warmFunction common.IAT
 				RuntimeSpecification: createRuntimeSpecification(len(warmFunction), cfg.RpsRuntimeMs, cfg.RpsMemoryMB),
 			},
 
-			ColdStartBusyLoopMs: 0,
+			ColdStartBusyLoopMs: busyLoopFor,
 		})
 	}
 
@@ -133,7 +135,7 @@ func CreateRPSFunctions(cfg *config.LoaderConfiguration, warmFunction common.IAT
 				RuntimeSpecification: createRuntimeSpecification(len(coldFunctions[i]), cfg.RpsRuntimeMs, cfg.RpsMemoryMB),
 			},
 
-			ColdStartBusyLoopMs: 0,
+			ColdStartBusyLoopMs: busyLoopFor,
 		})
 	}
 
