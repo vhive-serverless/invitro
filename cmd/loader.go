@@ -94,7 +94,7 @@ func main() {
 	if *iatGeneration {
 		durationToParse := determineDurationToParse(cfg.ExperimentDuration, cfg.WarmupDuration)
 		iatDistribution, shiftIAT := parseIATDistribution(&cfg)
-		traceParser := trace.NewAzureParser(cfg.TracePath, durationToParse)
+		traceParser := trace.NewAzureParser(cfg.TracePath, parseYAMLSpecification(&cfg), durationToParse)
 		functions := traceParser.Parse(cfg.Platform)
 
 		justGenerateIAT(cfg.Seed, iatDistribution, shiftIAT, parseTraceGranularity(&cfg), functions)
@@ -188,7 +188,7 @@ func runTraceMode(cfg *config.LoaderConfiguration, readIATFromFile bool, justGen
 	durationToParse := determineDurationToParse(cfg.ExperimentDuration, cfg.WarmupDuration)
 	yamlPath := parseYAMLSpecification(cfg)
 
-	traceParser := trace.NewAzureParser(cfg.TracePath, durationToParse)
+	traceParser := trace.NewAzureParser(cfg.TracePath, yamlPath, durationToParse)
 	functions := traceParser.Parse(cfg.Platform)
 
 	log.Infof("Traces contain the following %d functions:\n", len(functions))

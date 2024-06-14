@@ -119,7 +119,7 @@ func TestParseMemoryTrace(t *testing.T) {
 }
 
 func TestParserWrapper(t *testing.T) {
-	parser := NewAzureParser("test_data", 10)
+	parser := NewAzureParser("test_data", "test_data/service.yaml", 10)
 	functions := parser.Parse("Knative")
 
 	if len(functions) != 1 {

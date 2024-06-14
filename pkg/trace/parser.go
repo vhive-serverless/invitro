@@ -43,14 +43,16 @@ import (
 
 type AzureTraceParser struct {
 	DirectoryPath string
+	YAMLPath      string
 
 	duration              int
 	functionNameGenerator *rand.Rand
 }
 
-func NewAzureParser(directoryPath string, totalDuration int) *AzureTraceParser {
+func NewAzureParser(directoryPath string, yamlPath string, totalDuration int) *AzureTraceParser {
 	return &AzureTraceParser{
 		DirectoryPath: directoryPath,
+		YAMLPath:      yamlPath,
 
 		duration:              totalDuration,
 		functionNameGenerator: rand.New(rand.NewSource(time.Now().UnixNano())),
@@ -87,12 +89,9 @@ func createDirigentMetadataMap(metadata *[]common.DirigentMetadata) map[string]*
 	return result
 }
 
-func (p *AzureTraceParser) extractFunctions(
-	invocations *[]common.FunctionInvocationStats,
-	runtime *[]common.FunctionRuntimeStats,
-	memory *[]common.FunctionMemoryStats,
-	dirigentMetadata *[]common.DirigentMetadata,
-	platform string) []*common.Function {
+func (p *AzureTraceParser) extractFunctions(invocations *[]common.FunctionInvocationStats,
+	runtime *[]common.FunctionRuntimeStats, memory *[]common.FunctionMemoryStats,
+	dirigentMetadata *[]common.DirigentMetadata, platform string) []*common.Function {
 
 	var result []*common.Function
 
@@ -123,15 +122,7 @@ func (p *AzureTraceParser) extractFunctions(
 			function.DirigentMetadata = dirigentMetadataByHashFunction[invocationStats.HashFunction]
 		} else if strings.Contains(strings.ToLower(platform), "knative") {
 			// values are not used for Knative so they are irrelevant
-			metadata := &common.DirigentMetadata{
-				Image:               "docker.io/cvetkovic/dirigent_trace_function:latest",
-				Port:                80,
-				Protocol:            "tcp",
-				ScalingUpperBound:   0,
-				ScalingLowerBound:   0,
-				IterationMultiplier: 102,
-			}
-			function.DirigentMetadata = metadata
+			function.DirigentMetadata = convertKnativeYamlToDirigentMetadata(p.YAMLPath)
 		}
 
 		result = append(result, function)
