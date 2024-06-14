@@ -6,7 +6,7 @@
   "YAMLSelector": "container",
   "EndpointPort": 80,
 
-  "BusyLoopOnSandboxStartup": true,
+  "BusyLoopOnSandboxStartup": false,
 
   "TracePath": "data/traces/azure_500",
   "Granularity": "minute",
