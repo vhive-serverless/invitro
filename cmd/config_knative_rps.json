@@ -6,6 +6,8 @@
   "YAMLSelector": "container",
   "EndpointPort": 80,
 
+  "BusyLoopOnSandboxStartup": true,
+
   "RpsTarget": 1,
   "RpsColdStartRatioPercentage": 100,
   "RpsCooldownSeconds": 10,
