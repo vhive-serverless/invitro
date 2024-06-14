@@ -121,7 +121,7 @@ func (p *AzureTraceParser) extractFunctions(
 
 		if dirigentMetadata != nil {
 			function.DirigentMetadata = dirigentMetadataByHashFunction[invocationStats.HashFunction]
-		} else if platform == "Knative" {
+		} else if strings.Contains(strings.ToLower(platform), "knative") {
 			// values are not used for Knative so they are irrelevant
 			metadata := &common.DirigentMetadata{
 				Image:               "docker.io/cvetkovic/dirigent_trace_function:latest",
