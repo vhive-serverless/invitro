@@ -21,6 +21,10 @@ func newAWSLambdaDeployer() *awsLambdaDeployer {
 	return &awsLambdaDeployer{}
 }
 
+func newAWSLambdaDeployerConfiguration(_ *config.Configuration) awsLambdaDeploymentConfiguration {
+	return awsLambdaDeploymentConfiguration{}
+}
+
 func (ld *awsLambdaDeployer) Deploy(cfg *config.Configuration) {
 	ld.functions = cfg.Functions
 
