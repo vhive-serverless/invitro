@@ -6,6 +6,8 @@
   "YAMLSelector": "container",
   "EndpointPort": 80,
 
+  "BusyLoopOnSandboxStartup": true,
+
   "FailAt": 600,
   "FailComponent": "control_plane",
   "FailNode": "",
