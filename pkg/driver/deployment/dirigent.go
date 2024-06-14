@@ -21,6 +21,10 @@ type dirigentDeploymentConfiguration struct {
 	RegistrationServer string
 }
 
+func newDirigentDeployer() *dirigentDeployer {
+	return &dirigentDeployer{}
+}
+
 func newDirigentDeployerConfiguration(cfg *config.Configuration) dirigentDeploymentConfiguration {
 	return dirigentDeploymentConfiguration{
 		RegistrationServer: cfg.LoaderConfiguration.DirigentControlPlaneIP,

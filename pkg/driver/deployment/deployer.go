@@ -13,13 +13,13 @@ type FunctionDeployer interface {
 func CreateDeployer(cfg *config.Configuration) FunctionDeployer {
 	switch cfg.LoaderConfiguration.Platform {
 	case "AWSLambda", "AWSLambda-RPS":
-		return &awsLambdaDeployer{}
+		return newAWSLambdaDeployer()
 	case "Dirigent", "Dirigent-RPS", "Dirigent-Dandelion", "Dirigent-Dandelion-RPS":
-		return &dirigentDeployer{}
+		return newDirigentDeployer()
 	case "Knative", "Knative-RPS":
-		return &knativeDeployer{}
+		return newKnativeDeployer()
 	case "OpenWhisk", "OpenWhisk-RPS":
-		return &openWhiskDeployer{}
+		return newOpenWhiskDeployer()
 	default:
 		logrus.Fatal("Unsupported platform.")
 	}

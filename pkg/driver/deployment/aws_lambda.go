@@ -11,6 +11,10 @@ type awsLambdaDeployer struct{}
 type awsLambdaDeploymentConfiguration struct {
 }
 
+func newAWSLambdaDeployer() *awsLambdaDeployer {
+	return &awsLambdaDeployer{}
+}
+
 func newAWSLambdaDeployerConfiguration(_ *config.Configuration) awsLambdaDeploymentConfiguration {
 	return awsLambdaDeploymentConfiguration{}
 }
