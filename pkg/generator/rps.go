@@ -87,7 +87,7 @@ func CreateRPSFunctions(cfg *config.LoaderConfiguration, warmFunction common.IAT
 	coldFunctions []common.IATArray, coldFunctionCount [][]int) []*common.Function {
 	var result []*common.Function
 
-	busyLoopFor := StartupLoopConvertMemoryToRuntimeMs(cfg.RpsMemoryMB)
+	busyLoopFor := ComputeBusyLoopPeriod(cfg.RpsMemoryMB)
 
 	if warmFunction != nil || warmFunctionCount != nil {
 		result = append(result, &common.Function{
