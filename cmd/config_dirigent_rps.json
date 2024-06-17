@@ -1,18 +1,18 @@
 {
   "Seed": 42,
 
-  "Platform": "Dirigent-RPS",
-  "InvokeProtocol" : "http2",
+  "Platform": "Dirigent-Dandelion-RPS",
+  "InvokeProtocol" : "http1",
   "EndpointPort": 80,
 
-  "DirigentControlPlaneIP": "10.0.1.253:9092",
+  "DirigentControlPlaneIP": "localhost:9092",
   "BusyLoopOnSandboxStartup": false,
 
   "AsyncMode": false,
   "AsyncResponseURL": "10.0.1.3:8082",
   "AsyncWaitToCollectMin": 1,
 
-  "RpsTarget": 10,
+  "RpsTarget": 1,
   "RpsColdStartRatioPercentage": 0,
   "RpsCooldownSeconds": 10,
   "RpsImage": "docker.io/cvetkovic/dirigent_empty_function:latest",
