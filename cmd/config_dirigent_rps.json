@@ -1,11 +1,11 @@
 {
   "Seed": 42,
 
-  "Platform": "Dirigent-RPS",
-  "InvokeProtocol" : "http2",
+  "Platform": "Dirigent-Dandelion-RPS",
+  "InvokeProtocol" : "http1",
   "EndpointPort": 80,
 
-  "DirigentControlPlaneIP": "10.0.1.253:9092",
+  "DirigentControlPlaneIP": "localhost:9092",
   "BusyLoopOnSandboxStartup": false,
 
   "AsyncMode": false,
