@@ -38,7 +38,33 @@ type MatrixRequest struct {
 	Sets []InputSet `bson:"sets"`
 }
 
-func InvokeDirigent(function *common.Function, runtimeSpec *common.RuntimeSpecification, client *http.Client, cfg *config.LoaderConfiguration) (bool, *mc.ExecutionRecord) {
+func getDandelionBody(functionName string) *bytes.Buffer {
+	matRequest := MatrixRequest{
+		Name: functionName,
+		Sets: []InputSet{
+			{
+				Identifier: "",
+				Items: []InputItem{
+					{
+						Identifier: "",
+						Key:        0,
+						Data:       []byte{1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0},
+					},
+				},
+			},
+		},
+	}
+
+	matRequestBody, err := bson.Marshal(matRequest)
+	if err != nil {
+		log.Debugf("Error encoding Dandelion invoke request - %v", err)
+		return nil
+	}
+
+	return bytes.NewBuffer(matRequestBody)
+}
+
+func InvokeHTTP(function *common.Function, runtimeSpec *common.RuntimeSpecification, client *http.Client, cfg *config.LoaderConfiguration) (bool, *mc.ExecutionRecord) {
 	isDandelion := strings.Contains(strings.ToLower(cfg.Platform), "dandelion")
 	isKnative := strings.Contains(strings.ToLower(cfg.Platform), "knative")
 
@@ -56,31 +82,9 @@ func InvokeDirigent(function *common.Function, runtimeSpec *common.RuntimeSpecif
 	start := time.Now()
 	record.StartTime = start.UnixMicro()
 
-	var requestBody *bytes.Buffer
-	if isDandelion {
-		matRequest := MatrixRequest{
-			Name: function.Name,
-			Sets: []InputSet{
-				{
-					Identifier: "",
-					Items: []InputItem{
-						{
-							Identifier: "",
-							Key:        0,
-							Data:       []byte{1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0},
-						},
-					},
-				},
-			},
-		}
-		matRequestBody, err := bson.Marshal(matRequest)
-		if err != nil {
-			log.Debugf("Error encoding dandelion invoke request - %v", err)
-			return false, record
-		}
-		requestBody = bytes.NewBuffer(matRequestBody)
-	} else {
-		requestBody = &bytes.Buffer{}
+	requestBody := &bytes.Buffer{}
+	if body := getDandelionBody(function.Name); isDandelion && body != nil {
+		requestBody = body
 	}
 
 	req, err := http.NewRequest("GET", "http://"+function.Endpoint, requestBody)

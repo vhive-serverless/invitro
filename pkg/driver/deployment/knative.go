@@ -121,10 +121,10 @@ func knativeDeploySingleFunction(function *common.Function, yamlPath string, isP
 		panicWindow,
 		panicThreshold,
 
-		"\""+autoscalingMetric+"\"",
-		"\""+strconv.Itoa(autoscalingTarget)+"\"",
+		wrapString(autoscalingMetric),
+		wrapString(strconv.Itoa(autoscalingTarget)),
 
-		"\""+strconv.Itoa(function.ColdStartBusyLoopMs)+"\"",
+		wrapString(strconv.Itoa(function.ColdStartBusyLoopMs)),
 	)
 
 	stdoutStderr, err := cmd.CombinedOutput()
@@ -150,4 +150,8 @@ func knativeDeploySingleFunction(function *common.Function, yamlPath string, isP
 
 	log.Debugf("Deployed function on %s\n", function.Endpoint)
 	return true
+}
+
+func wrapString(value string) string {
+	return "\"" + value + "\""
 }
