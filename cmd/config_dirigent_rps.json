@@ -4,12 +4,12 @@
   "Platform": "Dirigent-RPS",
   "EndpointPort": 80,
 
-  "DirigentControlPlaneIP": "10.0.1.253:9092",
+  "DirigentControlPlaneIP": "127.0.0.1:9091",
 
-  "RpsTarget": 50,
-  "RpsColdStartRatioPercentage": 50,
+  "RpsTarget": 1,
+  "RpsColdStartRatioPercentage": 0,
   "RpsCooldownSeconds": 10,
-  "RpsImage": "empty",
+  "RpsImage": "docker.io/cvetkovic/dirigent_empty_function:latest",
   "RpsRuntimeMs": 10,
   "RpsMemoryMB": 2048,
   "RpsIterationMultiplier": 80,

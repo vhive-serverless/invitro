@@ -258,7 +258,7 @@ func parseMemoryTrace(traceFile string) *[]common.FunctionMemoryStats {
 }
 
 func parseDirigentMetadata(traceFile string, platform string) *[]common.DirigentMetadata {
-	if platform != "Dirigent" {
+	if !strings.Contains(platform, "Dirigent") {
 		return nil
 	}
 

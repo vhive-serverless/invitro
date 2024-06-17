@@ -1,7 +1,7 @@
 {
   "Seed": 42,
 
-  "Platform": "Dirigent",
+  "Platform": "Dirigent-Dandelion",
   "EndpointPort": 80,
 
   "DirigentControlPlaneIP": "127.0.0.1:9091",
@@ -12,7 +12,7 @@
   "IATDistribution": "exponential",
   "CPULimit": "1vCPU",
   "ExperimentDuration": 2,
-  "WarmupDuration": 0,
+  "WarmupDuration": 1,
 
   "IsPartiallyPanic": false,
   "EnableZipkinTracing": false,

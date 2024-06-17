@@ -6,14 +6,13 @@
 
   "DirigentControlPlaneIP": "127.0.0.1:9091",
 
-  "RpsTarget": 1,
-  "RpsColdStartRatioPercentage": 50,
+  "RpsTarget": 2,
+  "RpsColdStartRatioPercentage": 0,
   "RpsCooldownSeconds": 10,
   "RpsImage": "empty",
   "RpsRuntimeMs": 10,
   "RpsMemoryMB": 2048,
   "RpsIterationMultiplier": 80,
-
   "TracePath": "data/traces/example",
   "Granularity": "minute",
   "OutputPathPrefix": "data/out/experiment",
@@ -28,6 +27,6 @@
   "MetricScrapingPeriodSeconds": 15,
   "AutoscalingMetric": "concurrency",
 
-  "GRPCConnectionTimeoutSeconds": 15,
-  "GRPCFunctionTimeoutSeconds": 45
+  "GRPCConnectionTimeoutSeconds": 900,
+  "GRPCFunctionTimeoutSeconds": 900
 }

@@ -2,6 +2,7 @@ package driver
 
 import (
 	"bytes"
+	"encoding/binary"
 	"encoding/json"
 	log "github.com/sirupsen/logrus"
 	"github.com/vhive-serverless/loader/pkg/common"
@@ -61,7 +62,11 @@ func InvokeDirigent(function *common.Function, runtimeSpec *common.RuntimeSpecif
 	record.StartTime = start.UnixMicro()
 
 	var requestBody *bytes.Buffer
+	iterations := (int64)(runtimeSpec.Runtime) * (int64)(function.DirigentMetadata.IterationMultiplier)
+
 	if isDandelion {
+		data_bytes := make([]byte, 8)
+		binary.LittleEndian.PutUint64(data_bytes, uint64(iterations))
 		matRequest := MatrixRequest{
 			Name: function.Name,
 			Sets: []InputSet{
@@ -71,7 +76,7 @@ func InvokeDirigent(function *common.Function, runtimeSpec *common.RuntimeSpecif
 						{
 							Identifier: "",
 							Key:        0,
-							Data:       []byte{1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0},
+							Data:       data_bytes,
 						},
 					},
 				},
@@ -107,7 +112,7 @@ func InvokeDirigent(function *common.Function, runtimeSpec *common.RuntimeSpecif
 	req.Header.Set("multiplier", strconv.Itoa(function.DirigentMetadata.IterationMultiplier))
 
 	if isDandelion {
-		req.URL.Path = "/hot/matmul"
+		req.URL.Path = "/hot/io"
 	}
 
 	resp, err := client.Do(req)
@@ -150,19 +155,19 @@ func InvokeDirigent(function *common.Function, runtimeSpec *common.RuntimeSpecif
 		}
 		record.ResponseTime = time.Since(start).Microseconds()
 
-		if len(result.Sets) != 1 {
-			log.Errorf("Error: Unexpected sets length")
-			return false, record
-		}
-		if len(result.Sets[0].Items) != 1 {
-			log.Errorf("Error: Unexpected sets[0].items length")
-			return false, record
-		}
-		responseData := result.Sets[0].Items[0].Data
-		if len(responseData) != 16 {
-			log.Errorf("Error: unexpected responseData length")
-			return false, record
-		}
+		//if len(result.Sets) != 1 {
+		//	log.Errorf("Error: Unexpected sets length")
+		//	return false, record
+		//}
+		//if len(result.Sets[0].Items) != 1 {
+		//	log.Errorf("Error: Unexpected sets[0].items length")
+		//	return false, record
+		//}
+		//responseData := result.Sets[0].Items[0].Data
+		//if len(responseData) != 16 {
+		//	log.Errorf("Error: unexpected responseData length")
+		//	return false, record
+		//}
 		log.Debugf("Deseriliaze Dandelion response correct")
 		record.Instance = function.Name
 		record.ActualDuration = 0 // this field is not used yet in benchmark
