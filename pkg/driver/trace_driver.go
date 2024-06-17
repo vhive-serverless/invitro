@@ -177,7 +177,7 @@ func (d *Driver) invokeFunction(metadata *InvocationMetadata) {
 				d.Configuration.LoaderConfiguration,
 			)
 		} else {
-			success, record = clients.InvokeDirigent(
+			success, record = clients.InvokeHTTP(
 				metadata.Function,
 				metadata.RuntimeSpecifications,
 				d.HTTPClient,
@@ -205,7 +205,7 @@ func (d *Driver) invokeFunction(metadata *InvocationMetadata) {
 				d.Configuration.LoaderConfiguration,
 			)
 		} else {
-			success, record = clients.InvokeDirigent(
+			success, record = clients.InvokeHTTP(
 				metadata.Function,
 				metadata.RuntimeSpecifications,
 				d.HTTPClient,
@@ -213,7 +213,7 @@ func (d *Driver) invokeFunction(metadata *InvocationMetadata) {
 			)
 		}
 	case "Dirigent-Dandelion", "Dirigent-Dandelion-RPS":
-		success, record = clients.InvokeDirigent(
+		success, record = clients.InvokeHTTP(
 			metadata.Function,
 			metadata.RuntimeSpecifications,
 			d.HTTPClient,
