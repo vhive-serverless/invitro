@@ -115,7 +115,7 @@ func (p *AzureTraceParser) extractFunctions(invocations *[]common.FunctionInvoca
 			RuntimeStats:    runtimeByHashFunction[invocationStats.HashFunction],
 			MemoryStats:     memoryByHashFunction[invocationStats.HashFunction],
 
-			ColdStartBusyLoopMs: generator.StartupLoopConvertMemoryToRuntimeMs(generator.GenerateMemorySpec(gen, gen.Float64(), memoryByHashFunction[invocationStats.HashFunction])),
+			ColdStartBusyLoopMs: generator.ComputeBusyLoopPeriod(generator.GenerateMemorySpec(gen, gen.Float64(), memoryByHashFunction[invocationStats.HashFunction])),
 		}
 
 		if dirigentMetadata != nil {
