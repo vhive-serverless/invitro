@@ -1,6 +1,6 @@
 package generator
 
-func StartupLoopConvertMemoryToRuntimeMs(memory int) int {
+func ComputeBusyLoopPeriod(memory int) int {
 	// data for AWS from STeLLAR - IISWC'21
 	if memory <= 10 {
 		return 300
