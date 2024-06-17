@@ -7,7 +7,6 @@ import (
 	"github.com/vhive-serverless/loader/pkg/common"
 	"github.com/vhive-serverless/loader/pkg/config"
 	mc "github.com/vhive-serverless/loader/pkg/metric"
-	"go.mongodb.org/mongo-driver/bson"
 	"io"
 	"net/http"
 	"strconv"
@@ -20,48 +19,6 @@ type FunctionResponse struct {
 	Function      string `json:"Function"`
 	MachineName   string `json:"MachineName"`
 	ExecutionTime int64  `json:"ExecutionTime"`
-}
-
-type InputItem struct {
-	Identifier string `bson:"identifier"`
-	Key        int64  `bson:"key"`
-	Data       []byte `bson:"data"`
-}
-
-type InputSet struct {
-	Identifier string      `bson:"identifier"`
-	Items      []InputItem `bson:"items"`
-}
-
-type MatrixRequest struct {
-	Name string     `bson:"name"`
-	Sets []InputSet `bson:"sets"`
-}
-
-func getDandelionBody(functionName string) *bytes.Buffer {
-	matRequest := MatrixRequest{
-		Name: functionName,
-		Sets: []InputSet{
-			{
-				Identifier: "",
-				Items: []InputItem{
-					{
-						Identifier: "",
-						Key:        0,
-						Data:       []byte{1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0},
-					},
-				},
-			},
-		},
-	}
-
-	matRequestBody, err := bson.Marshal(matRequest)
-	if err != nil {
-		log.Debugf("Error encoding Dandelion invoke request - %v", err)
-		return nil
-	}
-
-	return bytes.NewBuffer(matRequestBody)
 }
 
 func InvokeHTTP(function *common.Function, runtimeSpec *common.RuntimeSpecification, client *http.Client, cfg *config.LoaderConfiguration) (bool, *mc.ExecutionRecord) {
@@ -83,7 +40,7 @@ func InvokeHTTP(function *common.Function, runtimeSpec *common.RuntimeSpecificat
 	record.StartTime = start.UnixMicro()
 
 	requestBody := &bytes.Buffer{}
-	if body := getDandelionBody(function.Name); isDandelion && body != nil {
+	if body := composeDandelionMatMulBody(function.Name); isDandelion && body != nil {
 		requestBody = body
 	}
 
@@ -141,7 +98,12 @@ func InvokeHTTP(function *common.Function, runtimeSpec *common.RuntimeSpecificat
 		return false, record
 	}
 
-	if cfg.AsyncMode {
+	if isDandelion {
+		err = DeserializeDandelionResponse(function, body, record)
+		if err != nil {
+			log.Warnf("Failed to deserialize Dandelion response - %v - %v", string(body), err)
+		}
+	} else if cfg.AsyncMode {
 		record.AsyncResponseID = string(body)
 	} else {
 		err = DeserializeDirigentResponse(body, record)
@@ -155,7 +117,7 @@ func InvokeHTTP(function *common.Function, runtimeSpec *common.RuntimeSpecificat
 	if strings.HasPrefix(string(body), "FAILURE - mem_alloc") {
 		record.MemoryAllocationTimeout = true
 	} else {
-		record.ActualMemoryUsage = 0 //
+		record.ActualMemoryUsage = 0
 	}
 
 	log.Tracef("(Replied)\t %s: %s, %.2f[ms], %d[MiB]", function.Name, string(body), float64(0)/1e3, common.Kib2Mib(0))
