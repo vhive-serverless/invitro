@@ -2,7 +2,7 @@
   "Seed": 42,
 
   "Platform": "Dirigent-Dandelion-RPS",
-  "InvokeProtocol" : "http1",
+  "InvokeProtocol" : "http2",
   "EndpointPort": 80,
 
   "DirigentControlPlaneIP": "10.0.1.253:9091",
@@ -21,11 +21,7 @@
   "OutputPathPrefix": "data/out/experiment",
   "IATDistribution": "equidistant",
   "CPULimit": "1vCPU",
-<<<<<<< HEAD
   "ExperimentDuration": 1,
-=======
-  "ExperimentDuration": 2,
->>>>>>> 7257cc1 (Log verbosity change)
   "WarmupDuration": 0,
 
   "IsPartiallyPanic": false,
@@ -34,12 +30,6 @@
   "MetricScrapingPeriodSeconds": 15,
   "AutoscalingMetric": "concurrency",
 
-<<<<<<< HEAD
   "GRPCConnectionTimeoutSeconds": 5,
   "GRPCFunctionTimeoutSeconds": 900
 }
-=======
-  "GRPCConnectionTimeoutSeconds": 15,
-  "GRPCFunctionTimeoutSeconds": 45
-}
->>>>>>> 7257cc1 (Log verbosity change)
