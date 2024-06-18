@@ -4,10 +4,11 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	log "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 	"github.com/vhive-serverless/loader/pkg/common"
 	"github.com/vhive-serverless/loader/pkg/metric"
 	"go.mongodb.org/mongo-driver/bson"
+	"strings"
 )
 
 type InputItem struct {
@@ -49,7 +50,39 @@ func composeDandelionMatMulBody(functionName string) *bytes.Buffer {
 
 	body, err := bson.Marshal(request)
 	if err != nil {
-		log.Debugf("Error encoding Dandelion MatMul request - %v", err)
+		logrus.Debugf("Error encoding Dandelion MatMul request - %v", err)
+		return nil
+	}
+
+	return bytes.NewBuffer(body)
+}
+
+func composeBusyLoopBody(functionName, image string, runtime, iterations int) *bytes.Buffer {
+	request := DandelionRequest{
+		Name: functionName,
+		Sets: []InputSet{
+			{
+				Identifier: "",
+				Items: []InputItem{
+					{
+						Identifier: "input.csv",
+						Key:        0,
+						Data: []byte(fmt.Sprintf(
+							"%s,%s,%d,%d",
+							functionName,
+							image,
+							runtime,
+							iterations,
+						)),
+					},
+				},
+			},
+		},
+	}
+
+	body, err := bson.Marshal(request)
+	if err != nil {
+		logrus.Debugf("Error encoding Dandelion MatMul request - %v", err)
 		return nil
 	}
 
@@ -63,15 +96,11 @@ func DeserializeDandelionResponse(function *common.Function, body []byte, record
 		return errors.New(fmt.Sprintf("Error deserializing response body - %v", err))
 	}
 
-	if len(result.Sets) != 1 {
-		return errors.New("error: Unexpected sets length")
-	} else if len(result.Sets[0].Items) != 1 {
-		return errors.New("error: Unexpected sets[0].items length")
-	}
+	rawResponseData := result.Sets[0].Items[0].Data
+	data := strings.Split(string(rawResponseData), ",")
 
-	responseData := result.Sets[0].Items[0].Data
-	if len(responseData) != 16 {
-		return errors.New("error: unexpected responseData length")
+	if len(data) > 0 && !strings.Contains(strings.ToLower(data[0]), "ok") {
+		record.FunctionTimeout = false
 	}
 
 	record.Instance = function.Name

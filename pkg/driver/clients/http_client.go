@@ -9,7 +9,6 @@ import (
 	mc "github.com/vhive-serverless/loader/pkg/metric"
 	"io"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 )
@@ -40,7 +39,10 @@ func InvokeHTTP(function *common.Function, runtimeSpec *common.RuntimeSpecificat
 	record.StartTime = start.UnixMicro()
 
 	requestBody := &bytes.Buffer{}
-	if body := composeDandelionMatMulBody(function.Name); isDandelion && body != nil {
+	/*if body := composeDandelionMatMulBody(function.Name); isDandelion && body != nil {
+		requestBody = body
+	}*/
+	if body := composeBusyLoopBody(function.Name, function.DirigentMetadata.Image, runtimeSpec.Runtime, function.DirigentMetadata.IterationMultiplier); isDandelion && body != nil {
 		requestBody = body
 	}
 
@@ -58,11 +60,11 @@ func InvokeHTTP(function *common.Function, runtimeSpec *common.RuntimeSpecificat
 		req.Host = function.Name
 	}
 
-	req.Header.Set("workload", function.DirigentMetadata.Image)
-	req.Header.Set("function", function.Name)
-	req.Header.Set("requested_cpu", strconv.Itoa(runtimeSpec.Runtime))
-	req.Header.Set("requested_memory", strconv.Itoa(runtimeSpec.Memory))
-	req.Header.Set("multiplier", strconv.Itoa(function.DirigentMetadata.IterationMultiplier))
+	//req.Header.Set("workload", function.DirigentMetadata.Image)
+	//req.Header.Set("function", function.Name)
+	//req.Header.Set("requested_cpu", strconv.Itoa(runtimeSpec.Runtime))
+	//req.Header.Set("requested_memory", strconv.Itoa(runtimeSpec.Memory))
+	//req.Header.Set("multiplier", strconv.Itoa(function.DirigentMetadata.IterationMultiplier))
 
 	if isDandelion {
 		req.URL.Path = "/hot/matmul"
