@@ -580,8 +580,8 @@ func (d *Driver) internalRun(skipIATGeneration bool, readIATFromFile bool) {
 	log.Infof("Trace has finished executing function invocation driver\n")
 	log.Infof("Number of successful invocations: \t%d", statSuccess)
 	log.Infof("Number of failed invocations: \t%d", statFailed)
-	log.Infof("Total invocations: \t%d", statSuccess+statFailed)
-	log.Infof("Failure rate: \t%.2f", float64(statFailed)/float64(statSuccess+statFailed))
+	log.Infof("Total invocations: \t\t\t%d", statSuccess+statFailed)
+	log.Infof("Failure rate: \t\t\t%.2f", float64(statFailed)*100.0/float64(statSuccess+statFailed))
 }
 
 func (d *Driver) RunExperiment(skipIATGeneration bool, readIATFromFIle bool) {
