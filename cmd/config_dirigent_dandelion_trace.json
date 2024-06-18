@@ -5,7 +5,7 @@
   "InvokeProtocol" : "http1",
   "EndpointPort": 80,
 
-  "DirigentControlPlaneIP": "127.0.0.1:9091",
+  "DirigentControlPlaneIP": "10.0.1.253:9091",
   "BusyLoopOnSandboxStartup": false,
 
   "TracePath": "data/traces/example",
