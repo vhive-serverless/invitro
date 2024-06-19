@@ -9,6 +9,7 @@ import (
 	mc "github.com/vhive-serverless/loader/pkg/metric"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -56,15 +57,16 @@ func InvokeHTTP(function *common.Function, runtimeSpec *common.RuntimeSpecificat
 		return false, record
 	}
 
+	// add system specific stuff
 	if !isKnative {
 		req.Host = function.Name
 	}
 
-	//req.Header.Set("workload", function.DirigentMetadata.Image)
-	//req.Header.Set("function", function.Name)
-	//req.Header.Set("requested_cpu", strconv.Itoa(runtimeSpec.Runtime))
-	//req.Header.Set("requested_memory", strconv.Itoa(runtimeSpec.Memory))
-	//req.Header.Set("multiplier", strconv.Itoa(function.DirigentMetadata.IterationMultiplier))
+	req.Header.Set("workload", function.DirigentMetadata.Image)
+	req.Header.Set("function", function.Name)
+	req.Header.Set("requested_cpu", strconv.Itoa(runtimeSpec.Runtime))
+	req.Header.Set("requested_memory", strconv.Itoa(runtimeSpec.Memory))
+	req.Header.Set("multiplier", strconv.Itoa(function.DirigentMetadata.IterationMultiplier))
 
 	if isDandelion {
 		req.URL.Path = "/hot/matmul"
