@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/json"
+	"fmt"
 	log "github.com/sirupsen/logrus"
 	"github.com/vhive-serverless/loader/pkg/common"
 	mc "github.com/vhive-serverless/loader/pkg/metric"
@@ -74,9 +75,15 @@ func InvokeDirigent(function *common.Function, runtimeSpec *common.RuntimeSpecif
 					Identifier: "",
 					Items: []InputItem{
 						{
-							Identifier: "",
+							Identifier: "input.csv",
 							Key:        0,
-							Data:       data_bytes,
+							Data: []byte(fmt.Sprintf(
+								"%s,%s,%d,%d",
+								function.Name,
+								function.DirigentMetadata.Image,
+								runtimeSpec.Runtime,
+								function.DirigentMetadata.IterationMultiplier,
+							)),
 						},
 					},
 				},
