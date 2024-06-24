@@ -81,7 +81,7 @@ func InvokeDirigent(function *common.Function, runtimeSpec *common.RuntimeSpecif
 								"%s,%s,%d,%d",
 								function.Name,
 								function.DirigentMetadata.Image,
-								runtimeSpec.Runtime,
+								10*runtimeSpec.Runtime,
 								function.DirigentMetadata.IterationMultiplier,
 							)),
 						},
