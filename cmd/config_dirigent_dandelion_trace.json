@@ -8,7 +8,7 @@
 
   "TracePath": "data/traces/100",
   "Granularity": "minute",
-  "OutputPathPrefix": "data/out/experiment_azure",
+  "OutputPathPrefix": "data/out/experiment_1_azure",
   "IATDistribution": "exponential",
   "CPULimit": "1vCPU",
   "ExperimentDuration": 2,

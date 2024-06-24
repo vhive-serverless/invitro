@@ -119,7 +119,7 @@ func InvokeDirigent(function *common.Function, runtimeSpec *common.RuntimeSpecif
 	req.Header.Set("multiplier", strconv.Itoa(function.DirigentMetadata.IterationMultiplier))
 
 	if isDandelion {
-		req.URL.Path = "/hot/io"
+		req.URL.Path = "/hot/matmul"
 	}
 
 	resp, err := client.Do(req)
