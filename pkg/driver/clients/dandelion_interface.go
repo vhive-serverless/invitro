@@ -71,6 +71,7 @@ func composeBusyLoopBody(functionName, image string, runtime, iterations int) *b
 							"%s,%s,%d,%d",
 							functionName,
 							image,
+							// TODO: bug in the current image '\0'. Remove '* 10' when new image is applied
 							runtime*10,
 							iterations,
 						)),
