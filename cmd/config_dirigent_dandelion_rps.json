@@ -2,7 +2,7 @@
   "Seed": 42,
 
   "Platform": "Dirigent-Dandelion-RPS",
-  "InvokeProtocol" : "http2",
+  "InvokeProtocol" : "http1",
   "EndpointPort": 80,
 
   "DirigentControlPlaneIP": "10.0.1.253:9091",
