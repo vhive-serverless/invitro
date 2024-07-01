@@ -102,6 +102,7 @@ func CreateRPSFunctions(cfg *config.LoaderConfiguration, warmFunction common.IAT
 				ScalingUpperBound:   1024,
 				ScalingLowerBound:   1,
 				IterationMultiplier: cfg.RpsIterationMultiplier,
+				IOPercentage:        0,
 			},
 
 			Specification: &common.FunctionSpecification{
@@ -127,6 +128,7 @@ func CreateRPSFunctions(cfg *config.LoaderConfiguration, warmFunction common.IAT
 				ScalingUpperBound:   1,
 				ScalingLowerBound:   0,
 				IterationMultiplier: cfg.RpsIterationMultiplier,
+				IOPercentage:        0,
 			},
 
 			Specification: &common.FunctionSpecification{
