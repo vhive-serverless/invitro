@@ -1,7 +1,7 @@
 {
   "Seed": 42,
 
-  "Platform": "Dirigent-Dandelion-RPS",
+  "Platform": "Dirigent-RPS",
   "InvokeProtocol" : "http2",
   "EndpointPort": 80,
 
@@ -15,7 +15,7 @@
   "RpsTarget": 1,
   "RpsColdStartRatioPercentage": 0,
   "RpsCooldownSeconds": 10,
-  "RpsImage": "empty",
+  "RpsImage": "docker.io/cvetkovic/dirigent_empty_function:latest",
   "RpsRuntimeMs": 10,
   "RpsMemoryMB": 2048,
   "RpsIterationMultiplier": 80,
