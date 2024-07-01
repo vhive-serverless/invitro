@@ -78,6 +78,7 @@ type DirigentMetadata struct {
 	ScalingUpperBound   int    `csv:"ScalingUpperBound"`
 	ScalingLowerBound   int    `csv:"ScalingLowerBound"`
 	IterationMultiplier int    `csv:"IterationMultiplier"`
+	IOPercentage        int    `csv:"IOPercentage"`
 }
 
 type Function struct {

@@ -67,6 +67,7 @@ func InvokeHTTP(function *common.Function, runtimeSpec *common.RuntimeSpecificat
 	req.Header.Set("requested_cpu", strconv.Itoa(runtimeSpec.Runtime))
 	req.Header.Set("requested_memory", strconv.Itoa(runtimeSpec.Memory))
 	req.Header.Set("multiplier", strconv.Itoa(function.DirigentMetadata.IterationMultiplier))
+	req.Header.Set("io_percentage", strconv.Itoa(function.DirigentMetadata.IOPercentage))
 
 	if isDandelion {
 		req.URL.Path = "/hot/matmul"
