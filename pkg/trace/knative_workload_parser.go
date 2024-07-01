@@ -61,6 +61,9 @@ func convertKnativeYamlToDirigentMetadata(path string) *common.DirigentMetadata 
 	iterationMultiplier := getNodeByName(env, "ITERATIONS_MULTIPLIER")
 	iterationMultiplierInt, _ := strconv.Atoi(iterationMultiplier["value"].(string))
 
+	ioPercentage := getNodeByName(env, "IO_PERCENTAGE")
+	ioPercentageInt, _ := strconv.Atoi(ioPercentage["value"].(string))
+
 	return &common.DirigentMetadata{
 		Image:               image,
 		Port:                portInt,
@@ -68,6 +71,6 @@ func convertKnativeYamlToDirigentMetadata(path string) *common.DirigentMetadata 
 		ScalingUpperBound:   upperScaleInt,
 		ScalingLowerBound:   lowerScaleInt,
 		IterationMultiplier: iterationMultiplierInt,
-		IOPercentage:        0,
+		IOPercentage:        ioPercentageInt,
 	}
 }
