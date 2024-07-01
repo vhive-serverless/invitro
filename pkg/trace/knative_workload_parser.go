@@ -68,5 +68,6 @@ func convertKnativeYamlToDirigentMetadata(path string) *common.DirigentMetadata 
 		ScalingUpperBound:   upperScaleInt,
 		ScalingLowerBound:   lowerScaleInt,
 		IterationMultiplier: iterationMultiplierInt,
+		IOPercentage:        0,
 	}
 }
