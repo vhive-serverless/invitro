@@ -33,6 +33,8 @@ spec:
               value: "false"
             - name: COLD_START_BUSY_LOOP_MS
               value: $COLD_START_BUSY_LOOP_MS
+            - name: IO_PERCENTAGE
+              value: "50"
           resources:
             limits:
               cpu: $CPU_LIMITS
