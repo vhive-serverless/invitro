@@ -125,7 +125,7 @@ func TestParserWrapper(t *testing.T) {
 	if len(functions) != 1 {
 		t.Error("Invalid function array length.")
 	}
-	if !strings.HasPrefix(functions[0].Name, "trace-func") ||
+	if !strings.HasPrefix(functions[0].Name, FunctionNamePrefix) ||
 		functions[0].InvocationStats == nil ||
 		functions[0].RuntimeStats == nil ||
 		functions[0].MemoryStats == nil {

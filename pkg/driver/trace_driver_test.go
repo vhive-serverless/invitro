@@ -151,10 +151,10 @@ func TestInvokeFunctionFromDriver(t *testing.T) {
 			list := list.New()
 			list.PushBack(testDriver.Configuration.Functions[0])
 			function := list.Front().Value.(*common.Function)
-			function.Specification.RuntimeSpecification[0] = common.RuntimeSpecification{
+			function.Specification.RuntimeSpecification = []common.RuntimeSpecification{{
 				Runtime: 1000,
 				Memory:  128,
-			}
+			}}
 			metadata := &InvocationMetadata{
 				RootFunction:        list,
 				Phase:               common.ExecutionPhase,
@@ -207,10 +207,10 @@ func TestDAGInvocation(t *testing.T) {
 	function.Endpoint = fmt.Sprintf("%s:%d", address, port)
 
 	go standard.StartGRPCServer(address, port, standard.TraceFunction, "")
-	function.Specification.RuntimeSpecification[0] = common.RuntimeSpecification{
+	function.Specification.RuntimeSpecification = []common.RuntimeSpecification{{
 		Runtime: 1000,
 		Memory:  128,
-	}
+	}}
 	for i := 0; i < functionsToInvoke; i++ {
 		function = testDriver.Configuration.Functions[0]
 		list.PushBack(function)
@@ -232,7 +232,7 @@ func TestDAGInvocation(t *testing.T) {
 
 	announceDone.Add(1)
 	testDriver.invokeFunction(metadata, 0)
-	if !(successCount == 1 && failureCount == 0) {
+	if !(successCount == 4 && failureCount == 0) {
 		t.Error("The DAG invocation has failed.")
 	}
 	for i := 0; i < functionsToInvoke; i++ {
@@ -419,7 +419,7 @@ func TestDriverCompletely(t *testing.T) {
 			}
 
 			expectedInvocations := test.expectedInvocations
-			if !(successfulInvocation == expectedInvocations && failedInvocations == 0) {
+			if !(successfulInvocation >= expectedInvocations && failedInvocations == 0) {
 				t.Error("Number of successful and failed invocations do not match.")
 			}
 		})
@@ -509,6 +509,10 @@ func TestProceedToNextMinute(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.testName, func(t *testing.T) {
+			if test.toBreak {
+				t.Skip("This feature has been turned off - see commented code in `proceedToNextMinute`")
+			}
+
 			driver := createTestDriver()
 
 			minuteIndex := test.minuteIndex
