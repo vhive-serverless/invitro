@@ -40,6 +40,8 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+const FunctionNamePrefix = "t"
+
 type AzureTraceParser struct {
 	DirectoryPath string
 	YAMLPath      string
@@ -108,7 +110,7 @@ func (p *AzureTraceParser) extractFunctions(invocations *[]common.FunctionInvoca
 		invocationStats := (*invocations)[i]
 
 		function := &common.Function{
-			Name: fmt.Sprintf("%s-%d", "t"+invocationStats.HashFunction[0:18], rand.Uint64()),
+			Name: fmt.Sprintf("%s-%d", FunctionNamePrefix+invocationStats.HashFunction[0:18], rand.Uint64()),
 
 			InvocationStats: &invocationStats,
 			RuntimeStats:    runtimeByHashFunction[invocationStats.HashFunction],

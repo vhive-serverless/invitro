@@ -48,15 +48,23 @@ func NewSpecificationGenerator(seed int64) *SpecificationGenerator {
 //////////////////////////////////////////////////
 
 // generateIATPerGranularity generates IAT for one minute based on given number of invocations and the given distribution
-func (s *SpecificationGenerator) generateIATPerGranularity(numberOfInvocations int, iatDistribution common.IatDistribution, shiftIAT bool, granularity common.TraceGranularity) ([]float64, float64) {
+func (s *SpecificationGenerator) generateIATPerGranularity(minuteIndex int, numberOfInvocations int, iatDistribution common.IatDistribution, shiftIAT bool, granularity common.TraceGranularity) ([]float64, float64) {
 	if numberOfInvocations == 0 {
 		return []float64{}, 0.0
 	}
 
 	var iatResult []float64
+
+	endIndex := numberOfInvocations
 	totalDuration := 0.0 // total non-scaled duration
 
-	for i := 0; i < numberOfInvocations; i++ {
+	if minuteIndex == 0 {
+		iatResult = []float64{0.0}
+		endIndex = numberOfInvocations - 1
+	}
+
+	// -1 because the first invocation happens at the beginning of minute
+	for i := 0; i < endIndex; i++ {
 		var iat float64
 
 		switch iatDistribution {
@@ -118,8 +126,6 @@ func (s *SpecificationGenerator) generateIATPerGranularity(numberOfInvocations i
 		finalIAT := append([]float64{beginningIAT}, iatResult[i+1:]...)
 		finalIAT = append(finalIAT, iatResult[:i]...)
 		iatResult = append(finalIAT, endIAT)
-	} else {
-		iatResult = append([]float64{0.0}, iatResult...)
 	}
 
 	return iatResult, totalDuration
@@ -135,7 +141,7 @@ func (s *SpecificationGenerator) generateIAT(invocationsPerMinute []int, iatDist
 
 	numberOfMinutes := len(invocationsPerMinute)
 	for i := 0; i < numberOfMinutes; i++ {
-		minuteIAT, duration := s.generateIATPerGranularity(invocationsPerMinute[i], iatDistribution, shiftIAT, granularity)
+		minuteIAT, duration := s.generateIATPerGranularity(i, invocationsPerMinute[i], iatDistribution, shiftIAT, granularity)
 
 		IAT = append(IAT, minuteIAT...)
 		perMinuteCount = append(perMinuteCount, len(minuteIAT))

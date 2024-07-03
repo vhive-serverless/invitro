@@ -476,6 +476,7 @@ func (d *Driver) internalRun(skipIATGeneration bool, readIATFromFile bool) {
 	var failedInvocations int64
 	var invocationsIssued int64
 	var functionsPerDAG int64
+
 	readOpenWhiskMetadata := sync.Mutex{}
 	allFunctionsInvoked := sync.WaitGroup{}
 	allIndividualDriversCompleted := sync.WaitGroup{}

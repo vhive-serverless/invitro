@@ -39,15 +39,8 @@ type openWhiskDeployer struct {
 	functions []*common.Function
 }
 
-type openWhiskDeploymentConfiguration struct {
-}
-
 func newOpenWhiskDeployer() *openWhiskDeployer {
 	return &openWhiskDeployer{}
-}
-
-func newOpenWhiskDeployerConfiguration(_ *config.Configuration) openWhiskDeploymentConfiguration {
-	return openWhiskDeploymentConfiguration{}
 }
 
 func (owd *openWhiskDeployer) Deploy(cfg *config.Configuration) {

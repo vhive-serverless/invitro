@@ -31,9 +31,6 @@ type DandelionDeserializeResponse struct {
 }
 
 /*func composeDandelionMatMulBody(functionName string) *bytes.Buffer {
-=======
-func composeDandelionMatMulBody(functionName string) *bytes.Buffer {
->>>>>>> b7d7d19 (Dandelion interface)
 	request := DandelionRequest{
 		Name: functionName,
 		Sets: []InputSet{
@@ -49,7 +46,7 @@ func composeDandelionMatMulBody(functionName string) *bytes.Buffer {
 			},
 		},
 	}
-<<<<<<< HEAD
+
 	body, err := bson.Marshal(request)
 	if err != nil {
 		logrus.Debugf("Error encoding Dandelion MatMul request - %v", err)
