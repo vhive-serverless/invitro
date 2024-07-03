@@ -158,8 +158,6 @@ func httpInvocation(dataString string, function *common.Function, AnnounceDoneEx
 		requestURL += "?" + dataString
 	}
 	req, err := http.NewRequest(http.MethodGet, requestURL, bytes.NewBuffer([]byte("")))
-	req.Header.Set("Content-Type", "application/json") // To avoid data being base64encoded
-
 	if err != nil {
 		log.Warnf("http request creation failed for function %s - %s", function.Name, err)
 
