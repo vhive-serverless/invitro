@@ -26,8 +26,6 @@ package driver
 
 import (
 	"container/list"
-	"context"
-	"crypto/tls"
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
@@ -35,8 +33,6 @@ import (
 	"github.com/vhive-serverless/loader/pkg/driver/clients"
 	"github.com/vhive-serverless/loader/pkg/driver/deployment"
 	"github.com/vhive-serverless/loader/pkg/driver/failure"
-	"golang.org/x/net/http2"
-	"net"
 	"net/http"
 	"os"
 	"strconv"
@@ -108,27 +104,6 @@ func DAGCreation(functions []*common.Function) *list.List {
 	return linkedList
 }
 
-func (d *Driver) getHttp1Transport() *http.Transport {
-	return &http.Transport{
-		DialContext: (&net.Dialer{
-			Timeout: time.Duration(d.Configuration.LoaderConfiguration.GRPCConnectionTimeoutSeconds) * time.Second,
-		}).DialContext,
-		IdleConnTimeout:     5 * time.Second,
-		MaxIdleConns:        100,
-		MaxIdleConnsPerHost: 10,
-		MaxConnsPerHost:     10,
-	}
-}
-
-func (d *Driver) getHttp2Transport() *http2.Transport {
-	return &http2.Transport{
-		AllowHTTP: true,
-		DialTLSContext: func(ctx context.Context, network, addr string, cfg *tls.Config) (net.Conn, error) {
-			return net.Dial(network, addr)
-		},
-	}
-}
-
 /////////////////////////////////////////
 // DRIVER LOGIC
 /////////////////////////////////////////
@@ -144,10 +119,8 @@ type InvocationMetadata struct {
 	FailedCount         *int64
 	FailedCountByMinute []int64
 
-	RecordOutputChannel   chan *mc.ExecutionRecord
-	AnnounceDoneWG        *sync.WaitGroup
-	AnnounceDoneExe       *sync.WaitGroup
-	ReadOpenWhiskMetadata *sync.Mutex
+	RecordOutputChannel chan *mc.ExecutionRecord
+	AnnounceDoneWG      *sync.WaitGroup
 }
 
 func composeInvocationID(timeGranularity common.TraceGranularity, minuteIndex int, invocationIndex int) string {
@@ -204,7 +177,7 @@ func (d *Driver) invokeFunction(metadata *InvocationMetadata, iatIndex int) {
 }
 
 func (d *Driver) functionsDriver(list *list.List, announceFunctionDone *sync.WaitGroup,
-	addInvocationsToGroup *sync.WaitGroup, readOpenWhiskMetadata *sync.Mutex, totalSuccessful *int64,
+	addInvocationsToGroup *sync.WaitGroup, totalSuccessful *int64,
 	totalFailed *int64, totalIssued *int64, recordOutputChannel chan *mc.ExecutionRecord) {
 
 	function := list.Front().Value.(*common.Function)
@@ -285,17 +258,15 @@ func (d *Driver) functionsDriver(list *list.List, announceFunctionDone *sync.Wai
 			waitForInvocations.Add(1)
 
 			go d.invokeFunction(&InvocationMetadata{
-				RootFunction:          list,
-				Phase:                 currentPhase,
-				MinuteIndex:           minuteIndex,
-				InvocationIndex:       invocationIndex,
-				SuccessCount:          &successfulInvocations,
-				FailedCount:           &failedInvocations,
-				FailedCountByMinute:   failedInvocationByMinute,
-				RecordOutputChannel:   recordOutputChannel,
-				AnnounceDoneWG:        &waitForInvocations,
-				AnnounceDoneExe:       addInvocationsToGroup,
-				ReadOpenWhiskMetadata: readOpenWhiskMetadata,
+				RootFunction:        list,
+				Phase:               currentPhase,
+				MinuteIndex:         minuteIndex,
+				InvocationIndex:     invocationIndex,
+				SuccessCount:        &successfulInvocations,
+				FailedCount:         &failedInvocations,
+				FailedCountByMinute: failedInvocationByMinute,
+				RecordOutputChannel: recordOutputChannel,
+				AnnounceDoneWG:      &waitForInvocations,
 			}, iatIndex)
 		} else {
 			// To be used from within the Golang testing framework
@@ -477,8 +448,6 @@ func (d *Driver) internalRun(skipIATGeneration bool, readIATFromFile bool) {
 	var invocationsIssued int64
 	var functionsPerDAG int64
 
-	readOpenWhiskMetadata := sync.Mutex{}
-	allFunctionsInvoked := sync.WaitGroup{}
 	allIndividualDriversCompleted := sync.WaitGroup{}
 	allRecordsWritten := sync.WaitGroup{}
 	allRecordsWritten.Add(1)
@@ -527,8 +496,7 @@ func (d *Driver) internalRun(skipIATGeneration bool, readIATFromFile bool) {
 		go d.functionsDriver(
 			functionLinkedList,
 			&allIndividualDriversCompleted,
-			&allFunctionsInvoked,
-			&readOpenWhiskMetadata,
+			&d.allFunctionsInvoked,
 			&successfulInvocations,
 			&failedInvocations,
 			&invocationsIssued,
@@ -544,8 +512,7 @@ func (d *Driver) internalRun(skipIATGeneration bool, readIATFromFile bool) {
 			go d.functionsDriver(
 				linkedList,
 				&allIndividualDriversCompleted,
-				&allFunctionsInvoked,
-				&readOpenWhiskMetadata,
+				&d.allFunctionsInvoked,
 				&successfulInvocations,
 				&failedInvocations,
 				&invocationsIssued,

@@ -80,44 +80,57 @@ func (i *openWhiskInvoker) Invoke(function *common.Function, runtimeSpec *common
 	}
 
 	/*activationID := res.Header.Get("X-Openwhisk-Activation-Id")
+		<<<<<<< HEAD
+			readOpenWhiskMetadata.Lock()
+		=======
+
 	<<<<<<< HEAD
+			ReadOpenWhiskMetadata.Lock()
+	=======
 		readOpenWhiskMetadata.Lock()
-	=======
+	>>>>>>> d204839 (Interface for invoking functions)
 
-		ReadOpenWhiskMetadata.Lock()
-
-	>>>>>>> 83ccae3 (Code reorganization and introduction of HTTP version in config)
-		//read data from OpenWhisk based on the activation ID
-		cmd := exec.Command("wsk", "-i", "activation", "get", activationID)
-		var out bytes.Buffer
-		cmd.Stdout = &out
-		err := cmd.Run()
-		if err != nil {
-			log.Debugf("error reading activation information from OpenWhisk %s - %s", function.Name, err)
-	<<<<<<< HEAD
+		>>>>>>> 83ccae3 (Code reorganization and introduction of HTTP version in config)
+			//read data from OpenWhisk based on the activation ID
+			cmd := exec.Command("wsk", "-i", "activation", "get", activationID)
+			var out bytes.Buffer
+			cmd.Stdout = &out
+			err := cmd.Run()
+			if err != nil {
+				log.Debugf("error reading activation information from OpenWhisk %s - %s", function.Name, err)
+		<<<<<<< HEAD
+				readOpenWhiskMetadata.Unlock()
+				return false, record
+			}
 			readOpenWhiskMetadata.Unlock()
-			return false, record
-		}
-		readOpenWhiskMetadata.Unlock()
-		err, activationMetadata := parseActivationMetadata(out.String())
-		if err != nil {
-			log.Debugf("error parsing activation metadata %s - %s", function.Name, err)
-	=======
+			err, activationMetadata := parseActivationMetadata(out.String())
+			if err != nil {
+				log.Debugf("error parsing activation metadata %s - %s", function.Name, err)
+		=======
 
-			ReadOpenWhiskMetadata.Unlock()
+				ReadOpenWhiskMetadata.Unlock()
 
-			return false, record
-		}
+				return false, record
+			}
 
-		ReadOpenWhiskMetadata.Unlock()
+			readOpenWhiskMetadata.Unlock()
 
-		err, activationMetadata := parseActivationMetadata(out.String())
-		if err != nil {
-			log.Debugf("error parsing activation metadata %s - %s", function.Name, err)
+			err, activationMetadata := parseActivationMetadata(out.String())
+			if err != nil {
+				log.Debugf("error parsing activation metadata %s - %s", function.Name, err)
 
-	>>>>>>> 83ccae3 (Code reorganization and introduction of HTTP version in config)
-			return false, record
-		}*/
+	<<<<<<< HEAD
+		>>>>>>> 83ccae3 (Code reorganization and introduction of HTTP version in config)
+				return false, record
+			}*/
+	/*readOpenWhiskMetadata.Unlock()
+
+	err, activationMetadata := parseActivationMetadata(out.String())
+	if err != nil {
+		log.Debugf("error parsing activation metadata %s - %s", function.Name, err)
+
+		return false, record
+	}*/
 
 	//record.ActualDuration = activationMetadata.Duration * 1000 //ms to micro sec
 	/*record.StartType = activationMetadata.StartType
@@ -174,8 +187,6 @@ func httpInvocation(dataString string, function *common.Function, AnnounceDoneEx
 		requestURL += "?" + dataString
 	}
 	req, err := http.NewRequest(http.MethodGet, requestURL, bytes.NewBuffer([]byte("")))
-	req.Header.Set("Content-Type", "application/json") // To avoid data being base64encoded
-
 	if err != nil {
 		log.Warnf("http request creation failed for function %s - %s", function.Name, err)
 
