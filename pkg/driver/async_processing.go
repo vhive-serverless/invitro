@@ -105,6 +105,10 @@ func (d *Driver) getAsyncResponseData(client *http.Client, endpoint string, guid
 
 	defer clients.HandleBodyClosing(resp)
 	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		log.Errorf("Failed to read Dirigent response body for %s - %v", guid, err)
+		return []byte{}, 0
+	}
 
 	hdr := resp.Header.Get("Duration-Microseconds")
 	e2e := 0

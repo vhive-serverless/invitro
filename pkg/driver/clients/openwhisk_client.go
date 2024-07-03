@@ -32,7 +32,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strings"
 	"sync"
 	"time"
 
@@ -129,7 +128,7 @@ func (i *openWhiskInvoker) Invoke(function *common.Function, runtimeSpec *common
 	return true, record
 }
 
-func parseActivationMetadata(response string) (error, ActivationMetadata) {
+/*func parseActivationMetadata(response string) (error, ActivationMetadata) {
 	var result ActivationMetadata
 	var jsonMap map[string]interface{}
 
@@ -155,7 +154,7 @@ func parseActivationMetadata(response string) (error, ActivationMetadata) {
 	}
 
 	return nil, result
-}
+}*/
 
 func httpInvocation(dataString string, function *common.Function, AnnounceDoneExe *sync.WaitGroup, tlsSkipVerify bool) (bool, *mc.ExecutionRecordBase, *http.Response) {
 	defer AnnounceDoneExe.Done()
