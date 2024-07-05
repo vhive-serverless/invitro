@@ -2,9 +2,6 @@ package deployment
 
 import (
 	"fmt"
-	log "github.com/sirupsen/logrus"
-	"github.com/vhive-serverless/loader/pkg/common"
-	"github.com/vhive-serverless/loader/pkg/config"
 	"io"
 	"math/rand"
 	"net"
@@ -12,7 +9,12 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
+
+	log "github.com/sirupsen/logrus"
+	"github.com/vhive-serverless/loader/pkg/common"
+	"github.com/vhive-serverless/loader/pkg/config"
 )
 
 type dirigentDeployer struct{}
@@ -34,15 +36,23 @@ func newDirigentDeployerConfiguration(cfg *config.Configuration) dirigentDeploym
 func (*dirigentDeployer) Deploy(cfg *config.Configuration) {
 	dirigentConfig := newDirigentDeployerConfiguration(cfg)
 
+	wg := &sync.WaitGroup{}
 	for i := 0; i < len(cfg.Functions); i++ {
-		deployDirigent(cfg.Functions[i], dirigentConfig.RegistrationServer, cfg.LoaderConfiguration.BusyLoopOnSandboxStartup)
+		wg.Add(1)
+		go func(function *common.Function) {
+			deployDirigent(function, dirigentConfig.RegistrationServer,
+				cfg.LoaderConfiguration.BusyLoopOnSandboxStartup,
+				cfg.LoaderConfiguration.PrepullMode)
+			wg.Done()
+		}(cfg.Functions[i])
 	}
+	wg.Wait()
 }
 
 func (*dirigentDeployer) Clean() {}
 
 var registrationClient = &http.Client{
-	Timeout: 5 * time.Second, // time for a request to timeout
+	Timeout: 300 * time.Second, // time for a request to timeout
 	Transport: &http.Transport{
 		DialContext: (&net.Dialer{
 			Timeout: 1500 * time.Millisecond, // time to open socket
@@ -53,13 +63,14 @@ var registrationClient = &http.Client{
 	},
 }
 
-func deployDirigent(function *common.Function, controlPlaneAddress string, busyLoopOnColdStart bool) {
+func deployDirigent(function *common.Function, controlPlaneAddress string, busyLoopOnColdStart bool, prepullMode string) {
 	metadata := function.DirigentMetadata
 
 	if metadata == nil {
 		log.Fatalf("No Dirigent metadata for function %s", function.Name)
 	}
 
+	log.Debugf("Requests: CPU = %d, MEM = %d", function.CPULimitsMilli, function.MemoryRequestsMiB)
 	payload := url.Values{
 		"name":                {function.Name},
 		"image":               {metadata.Image},
@@ -68,6 +79,7 @@ func deployDirigent(function *common.Function, controlPlaneAddress string, busyL
 		"scaling_lower_bound": {strconv.Itoa(metadata.ScalingLowerBound)},
 		"requested_cpu":       {strconv.Itoa(function.CPURequestsMilli)},
 		"requested_memory":    {strconv.Itoa(function.MemoryRequestsMiB)},
+		"prepull_mode":        {prepullMode},
 	}
 
 	if busyLoopOnColdStart {
@@ -90,10 +102,29 @@ func deployDirigent(function *common.Function, controlPlaneAddress string, busyL
 		return
 	}
 
+	if resp.StatusCode != http.StatusOK {
+		log.Errorf("Status code %d when registering a service. Body: %s", resp.StatusCode, body)
+		return
+	}
 	endpoints := strings.Split(string(body), ";")
 	if len(endpoints) == 0 {
 		log.Error("Function registration returned no data plane(s).")
 		return
 	}
 	function.Endpoint = endpoints[rand.Intn(len(endpoints))]
+
+	for {
+		resp, err := registrationClient.Get(fmt.Sprintf("http://%s/check?name=%s", controlPlaneAddress, function.Name))
+		if err == nil && resp.StatusCode == http.StatusOK {
+			log.Debugf("Function registration %s successful.", function.Name)
+			break
+		} else if err != nil {
+			log.Errorf("Failed to send check for registration status: %s", err.Error())
+		} else if resp.StatusCode == http.StatusNotFound {
+			log.Tracef("Function %s not yet registered.", function.Name)
+		} else {
+			log.Errorf("Status code %d when checking service registration.", resp.StatusCode)
+		}
+		time.Sleep(5 * time.Second)
+	}
 }

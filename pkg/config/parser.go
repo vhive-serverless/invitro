@@ -26,8 +26,9 @@ package config
 
 import (
 	"encoding/json"
-	log "github.com/sirupsen/logrus"
 	"os"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type LoaderConfiguration struct {
@@ -64,6 +65,7 @@ type LoaderConfiguration struct {
 	CPULimit           string `json:"CPULimit"`
 	ExperimentDuration int    `json:"ExperimentDuration"`
 	WarmupDuration     int    `json:"WarmupDuration"`
+	PrepullMode        string `json:"PrepullMode"`
 
 	IsPartiallyPanic            bool   `json:"IsPartiallyPanic"`
 	EnableZipkinTracing         bool   `json:"EnableZipkinTracing"`
