@@ -10,7 +10,7 @@ require (
 	golang.org/x/sys v0.21.0
 	gonum.org/v1/gonum v0.15.0
 	gonum.org/v1/plot v0.14.0
-	google.golang.org/grpc v1.63.2
+	google.golang.org/grpc v1.65.0
 )
 
 require (
@@ -22,7 +22,7 @@ require (
 )
 
 require (
-	cloud.google.com/go/compute/metadata v0.2.3 // indirect
+	cloud.google.com/go/compute/metadata v0.3.0 // indirect
 	git.sr.ht/~sbinet/gg v0.5.0 // indirect
 	github.com/ajstarks/svgo v0.0.0-20211024235047-1546f124cd8b // indirect
 	github.com/campoy/embedmd v1.0.0 // indirect
@@ -40,7 +40,7 @@ require (
 	go.opentelemetry.io/otel/exporters/zipkin v1.8.0 // indirect
 	golang.org/x/crypto v0.24.0 // indirect
 	golang.org/x/image v0.14.0 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20240227224415-6ceb2ff114de // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20240528184218-531527333157 // indirect
 )
 
 require (
@@ -52,5 +52,5 @@ require (
 	go.opentelemetry.io/otel/trace v1.11.1 // indirect
 	golang.org/x/net v0.26.0
 	golang.org/x/text v0.16.0 // indirect
-	google.golang.org/protobuf v1.33.0 // indirect
+	google.golang.org/protobuf v1.34.1 // indirect
 )
