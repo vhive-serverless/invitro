@@ -22,17 +22,16 @@
  * SOFTWARE.
  */
 
-package driver
+package clients
 
 import (
 	"bytes"
 	"crypto/tls"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
-	"os/exec"
-	"strings"
 	"sync"
 	"time"
 
@@ -53,11 +52,25 @@ type HTTPResBody struct {
 	MemoryUsageInKb    uint32 `json:"MemoryUsageInKb"`
 }
 
-func InvokeOpenWhisk(function *common.Function, runtimeSpec *common.RuntimeSpecification, AnnounceDoneExe *sync.WaitGroup, ReadOpenWhiskMetadata *sync.Mutex) (bool, *mc.ExecutionRecord) {
+type openWhiskInvoker struct {
+	announceDoneExe       *sync.WaitGroup
+	readOpenWhiskMetadata *sync.Mutex
+}
+
+func newOpenWhiskInvoker(announceDoneExe *sync.WaitGroup, readOpenWhiskMetadata *sync.Mutex) *openWhiskInvoker {
+	return &openWhiskInvoker{
+		announceDoneExe:       announceDoneExe,
+		readOpenWhiskMetadata: readOpenWhiskMetadata,
+	}
+}
+
+func (i *openWhiskInvoker) Invoke(function *common.Function, runtimeSpec *common.RuntimeSpecification) (bool, *mc.ExecutionRecord) {
 	log.Tracef("(Invoke)\t %s: %d[ms], %d[MiB]", function.Name, runtimeSpec.Runtime, runtimeSpec.Memory)
 
-	success, executionRecordBase, res := httpInvocation("", function, AnnounceDoneExe, true)
-	AnnounceDoneExe.Wait() // To postpone querying OpenWhisk during the experiment for performance reasons (Issue 329: https://github.com/vhive-serverless/invitro/issues/329)
+	qs := fmt.Sprintf("cpu=%d", runtimeSpec.Runtime)
+
+	success, executionRecordBase, res := httpInvocation(qs, function, i.announceDoneExe, true)
+	//announceDoneExe.Wait() // To postpone querying OpenWhisk during the experiment for performance reasons (Issue 329: https://github.com/vhive-serverless/invitro/issues/329)
 
 	executionRecordBase.RequestedDuration = uint32(runtimeSpec.Runtime * 1e3)
 	record := &mc.ExecutionRecord{ExecutionRecordBase: *executionRecordBase}
@@ -66,9 +79,9 @@ func InvokeOpenWhisk(function *common.Function, runtimeSpec *common.RuntimeSpeci
 		return false, record
 	}
 
-	activationID := res.Header.Get("X-Openwhisk-Activation-Id")
+	/*activationID := res.Header.Get("X-Openwhisk-Activation-Id")
 
-	ReadOpenWhiskMetadata.Lock()
+	readOpenWhiskMetadata.Lock()
 
 	//read data from OpenWhisk based on the activation ID
 	cmd := exec.Command("wsk", "-i", "activation", "get", activationID)
@@ -78,21 +91,21 @@ func InvokeOpenWhisk(function *common.Function, runtimeSpec *common.RuntimeSpeci
 	if err != nil {
 		log.Debugf("error reading activation information from OpenWhisk %s - %s", function.Name, err)
 
-		ReadOpenWhiskMetadata.Unlock()
+		readOpenWhiskMetadata.Unlock()
 
 		return false, record
 	}
 
-	ReadOpenWhiskMetadata.Unlock()
+	readOpenWhiskMetadata.Unlock()
 
 	err, activationMetadata := parseActivationMetadata(out.String())
 	if err != nil {
 		log.Debugf("error parsing activation metadata %s - %s", function.Name, err)
 
 		return false, record
-	}
+	}*/
 
-	record.ActualDuration = activationMetadata.Duration * 1000 //ms to micro sec
+	//record.ActualDuration = activationMetadata.Duration * 1000 //ms to micro sec
 	/*record.StartType = activationMetadata.StartType
 	record.InitTime = activationMetadata.InitTime * 1000 //ms to micro sec
 	record.WaitTime = activationMetadata.WaitTime * 1000 //ms to micro sec*/
@@ -102,7 +115,7 @@ func InvokeOpenWhisk(function *common.Function, runtimeSpec *common.RuntimeSpeci
 	return true, record
 }
 
-func parseActivationMetadata(response string) (error, ActivationMetadata) {
+/*func parseActivationMetadata(response string) (error, ActivationMetadata) {
 	var result ActivationMetadata
 	var jsonMap map[string]interface{}
 
@@ -128,46 +141,11 @@ func parseActivationMetadata(response string) (error, ActivationMetadata) {
 	}
 
 	return nil, result
-}
-
-func InvokeAWSLambda(function *common.Function, runtimeSpec *common.RuntimeSpecification, AnnounceDoneExe *sync.WaitGroup) (bool, *mc.ExecutionRecord) {
-	log.Tracef("(Invoke)\t %s: %d[ms], %d[MiB]", function.Name, runtimeSpec.Runtime, runtimeSpec.Memory)
-
-	dataString := fmt.Sprintf(`{"RuntimeInMilliSec": %d, "MemoryInMebiBytes": %d}`, runtimeSpec.Runtime, runtimeSpec.Memory)
-	success, executionRecordBase, res := httpInvocation(dataString, function, AnnounceDoneExe, false)
-
-	executionRecordBase.RequestedDuration = uint32(runtimeSpec.Runtime * 1e3)
-	record := &mc.ExecutionRecord{ExecutionRecordBase: *executionRecordBase}
-
-	if !success {
-		return false, record
-	}
-
-	// Read the response body
-	responseBody, err := io.ReadAll(res.Body)
-	if err != nil {
-		log.Debugf("Error reading response body:%s", err)
-		return false, record
-	}
-
-	// Create a variable to store the JSON data
-	var httpResBody HTTPResBody
-
-	// Unmarshal the response body into the JSON object
-	if err := json.Unmarshal(responseBody, &httpResBody); err != nil {
-		log.Debugf("Error unmarshaling JSON:%s", err)
-		return false, record
-	}
-
-	record.ActualDuration = httpResBody.DurationInMicroSec
-	record.ActualMemoryUsage = common.Kib2Mib(httpResBody.MemoryUsageInKb)
-
-	logInvocationSummary(function, &record.ExecutionRecordBase, res)
-
-	return true, record
-}
+}*/
 
 func httpInvocation(dataString string, function *common.Function, AnnounceDoneExe *sync.WaitGroup, tlsSkipVerify bool) (bool, *mc.ExecutionRecordBase, *http.Response) {
+	defer AnnounceDoneExe.Done()
+
 	record := &mc.ExecutionRecordBase{}
 
 	start := time.Now()
@@ -178,48 +156,78 @@ func httpInvocation(dataString string, function *common.Function, AnnounceDoneEx
 	if tlsSkipVerify {
 		http.DefaultTransport.(*http.Transport).TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 	}
-	req, err := http.NewRequest(http.MethodGet, requestURL, bytes.NewBuffer([]byte(dataString)))
-	req.Header.Set("Content-Type", "application/json") // To avoid data being base64encoded
 
+	if dataString != "" {
+		requestURL += "?" + dataString
+	}
+	req, err := http.NewRequest(http.MethodGet, requestURL, bytes.NewBuffer([]byte("")))
 	if err != nil {
-		log.Debugf("http request creation failed for function %s - %s", function.Name, err)
+		log.Warnf("http request creation failed for function %s - %s", function.Name, err)
 
 		record.ResponseTime = time.Since(start).Microseconds()
 		record.ConnectionTimeout = true
 
-		AnnounceDoneExe.Done()
-
 		return false, record, nil
 	}
 
-	res, err := http.DefaultClient.Do(req)
+	req.Header.Set("Content-Type", "application/json") // To avoid data being base64encoded
+
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		log.Debugf("http request for function %s failed - %s", function.Name, err)
 
 		record.ResponseTime = time.Since(start).Microseconds()
 		record.ConnectionTimeout = true
 
-		AnnounceDoneExe.Done()
-
-		return false, record, res
+		return false, record, resp
 	}
+	defer resp.Body.Close()
 
-	if res.StatusCode < 200 || res.StatusCode >= 300 {
-		log.Debugf("http request for function %s failed - error code: %s", function.Name, res.Status)
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		log.Debugf("http request for function %s failed - error code: %s", function.Name, resp.Status)
 
 		record.ResponseTime = time.Since(start).Microseconds()
 		record.ConnectionTimeout = true
 
-		AnnounceDoneExe.Done()
-
-		return false, record, res
+		return false, record, resp
 	}
 
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		log.Warnf("Failed to read output %s - %v", function.Name, err)
+
+		record.ResponseTime = time.Since(start).Microseconds()
+		record.FunctionTimeout = true
+
+		return false, record, resp
+	}
+
+	rawJson, err := base64.StdEncoding.DecodeString(string(bodyBytes))
+	if err != nil {
+		log.Warnf("Failed to decode base64 output %s - %v", function.Name, err)
+
+		record.ResponseTime = time.Since(start).Microseconds()
+		record.FunctionTimeout = true
+
+		return false, record, resp
+	}
+
+	var deserializedResponse FunctionResponse
+	err = json.Unmarshal(rawJson, &deserializedResponse)
+	if err != nil {
+		log.Warnf("Failed to deserialize response %s - %v", function.Name, err)
+
+		record.ResponseTime = time.Since(start).Microseconds()
+		record.FunctionTimeout = true
+
+		return false, record, resp
+	}
+
+	record.Instance = deserializedResponse.Function
 	record.ResponseTime = time.Since(start).Microseconds()
+	record.ActualDuration = uint32(deserializedResponse.ExecutionTime)
 
-	AnnounceDoneExe.Done()
-
-	return true, record, res
+	return true, record, resp
 }
 
 func logInvocationSummary(function *common.Function, record *mc.ExecutionRecordBase, res *http.Response) {
