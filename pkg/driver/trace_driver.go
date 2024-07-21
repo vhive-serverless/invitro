@@ -253,13 +253,24 @@ func (d *Driver) invokeFunction(metadata *InvocationMetadata) {
 			metadata.Function,
 			metadata.RuntimeSpecifications,
 			d.GetHTTPClient(),
+			false,
+			false,
 		)
-	case "Dirigent-Dandelion", "Dirigent-Dandelion-RPS":
+	case "Dirigent-Dandelion-RPS":
 		success, record = InvokeDirigent(
 			metadata.Function,
 			metadata.RuntimeSpecifications,
 			d.GetHTTPClient(),
 			true,
+			true,
+		)
+	case "Dirigent-Dandelion":
+		success, record = InvokeDirigent(
+			metadata.Function,
+			metadata.RuntimeSpecifications,
+			d.GetHTTPClient(),
+			true,
+			false,
 		)
 	default:
 		log.Fatal("Unsupported platform.")

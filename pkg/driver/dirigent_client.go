@@ -43,11 +43,24 @@ type DandelionDeserializeResponse struct {
 	Sets []InputSet `bson:"sets"`
 }
 
-func InvokeDirigent(function *common.Function, runtimeSpec *common.RuntimeSpecification, client *http.Client, isDandelionOptional ...bool) (bool, *mc.ExecutionRecord) {
-	isDandelion := false
-	if len(isDandelionOptional) > 0 {
-		isDandelion = true
+func createMatrixData(size uint64) []uint64 {
+	data := make([]uint64, 0)
+	data = append(data, size)
+	for i := uint64(1); i <= size*size; i++ {
+		data = append(data, uint64(i))
 	}
+	return data
+}
+
+func uint64SliceToByteSlice(data []uint64) []byte {
+	bytes := make([]byte, 0)
+	for _, v := range data {
+		bytes = binary.LittleEndian.AppendUint64(bytes, v)
+	}
+	return bytes
+}
+
+func InvokeDirigent(function *common.Function, runtimeSpec *common.RuntimeSpecification, client *http.Client, isDandelion bool, isMatmul bool) (bool, *mc.ExecutionRecord) {
 	log.Tracef("(Invoke)\t %s: %d[ms], %d[MiB]", function.Name, runtimeSpec.Runtime, runtimeSpec.Memory)
 
 	record := &mc.ExecutionRecord{
@@ -66,35 +79,61 @@ func InvokeDirigent(function *common.Function, runtimeSpec *common.RuntimeSpecif
 	iterations := (int64)(runtimeSpec.Runtime) * (int64)(function.DirigentMetadata.IterationMultiplier)
 
 	if isDandelion {
-		data_bytes := make([]byte, 8)
-		binary.LittleEndian.PutUint64(data_bytes, uint64(iterations))
-		matRequest := MatrixRequest{
-			Name: function.Name,
-			Sets: []InputSet{
-				{
-					Identifier: "",
-					Items: []InputItem{
-						{
-							Identifier: "input.csv",
-							Key:        0,
-							Data: []byte(fmt.Sprintf(
-								"%s,%s,%d,%d",
-								function.Name,
-								function.DirigentMetadata.Image,
-								10*runtimeSpec.Runtime,
-								function.DirigentMetadata.IterationMultiplier,
-							)),
+		if !isMatmul {
+			// busyloop function
+			data_bytes := make([]byte, 8)
+			binary.LittleEndian.PutUint64(data_bytes, uint64(iterations))
+			matRequest := MatrixRequest{
+				Name: "comp_" + function.Name,
+				Sets: []InputSet{
+					{
+						Identifier: "",
+						Items: []InputItem{
+							{
+								Identifier: "input.csv",
+								Key:        0,
+								Data: []byte(fmt.Sprintf(
+									"%s,%s,%d,%d",
+									function.Name,
+									function.DirigentMetadata.Image,
+									10*runtimeSpec.Runtime,
+									function.DirigentMetadata.IterationMultiplier,
+								)),
+							},
 						},
 					},
 				},
-			},
+			}
+			matRequestBody, err := bson.Marshal(matRequest)
+			if err != nil {
+				log.Debugf("Error encoding dandelion invoke request:", err)
+				return false, record
+			}
+			requestBody = bytes.NewBuffer(matRequestBody)
+		} else {
+			// matmul
+			matRequest := MatrixRequest{
+				Name: "comp_" + function.Name,
+				Sets: []InputSet{
+					{
+						Identifier: "",
+						Items: []InputItem{
+							{
+								Identifier: "",
+								Key:        0,
+								Data:       uint64SliceToByteSlice(createMatrixData(uint64(1))),
+							},
+						},
+					},
+				},
+			}
+			matRequestBody, err := bson.Marshal(matRequest)
+			if err != nil {
+				log.Debugf("Error encoding dandelion invoke request:", err)
+				return false, record
+			}
+			requestBody = bytes.NewBuffer(matRequestBody)
 		}
-		matRequestBody, err := bson.Marshal(matRequest)
-		if err != nil {
-			log.Debugf("Error encoding dandelion invoke request:", err)
-			return false, record
-		}
-		requestBody = bytes.NewBuffer(matRequestBody)
 	} else {
 		requestBody = bytes.NewBuffer([]byte{})
 	}

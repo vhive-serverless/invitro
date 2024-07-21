@@ -25,7 +25,7 @@
 package common
 
 const (
-	FunctionNamePrefix      = "trace-func"
+	FunctionNamePrefix      = "trace_func"
 	OneSecondInMicroseconds = 1_000_000.0
 )
 
