@@ -7,7 +7,7 @@ require (
 	github.com/golang/protobuf v1.5.4
 	github.com/sfreiberg/simplessh v0.0.0-20220719182921-185eafd40485
 	github.com/sirupsen/logrus v1.9.0
-	golang.org/x/sys v0.22.0
+	golang.org/x/sys v0.23.0
 	gonum.org/v1/gonum v0.15.0
 	gonum.org/v1/plot v0.14.0
 	google.golang.org/grpc v1.63.2
