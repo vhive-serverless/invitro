@@ -39,6 +39,8 @@ func InvokeHTTP(function *common.Function, runtimeSpec *common.RuntimeSpecificat
 	start := time.Now()
 	record.StartTime = start.UnixMicro()
 
+	record.Instance = function.Name // may get overwritten
+
 	requestBody := &bytes.Buffer{}
 	/*if body := composeDandelionMatMulBody(function.Name); isDandelion && body != nil {
 		requestBody = body
