@@ -57,6 +57,8 @@ func InvokeGRPC(function *common.Function, runtimeSpec *common.RuntimeSpecificat
 	start := time.Now()
 	record.StartTime = start.UnixMicro()
 
+	record.Instance = function.Name // may get overwritten
+
 	dialContext, cancelDialing := context.WithTimeout(context.Background(), time.Duration(cfg.GRPCConnectionTimeoutSeconds)*time.Second)
 	defer cancelDialing()
 
