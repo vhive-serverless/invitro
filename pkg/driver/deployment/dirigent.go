@@ -19,6 +19,7 @@ type dirigentDeployer struct{}
 
 type dirigentDeploymentConfiguration struct {
 	RegistrationServer string
+	ColdStartSweep     bool
 }
 
 func newDirigentDeployer() *dirigentDeployer {
@@ -28,6 +29,7 @@ func newDirigentDeployer() *dirigentDeployer {
 func newDirigentDeployerConfiguration(cfg *config.Configuration) dirigentDeploymentConfiguration {
 	return dirigentDeploymentConfiguration{
 		RegistrationServer: cfg.LoaderConfiguration.DirigentControlPlaneIP,
+		ColdStartSweep:     int(cfg.LoaderConfiguration.RpsTarget) != 0,
 	}
 }
 
@@ -35,7 +37,12 @@ func (*dirigentDeployer) Deploy(cfg *config.Configuration) {
 	dirigentConfig := newDirigentDeployerConfiguration(cfg)
 
 	for i := 0; i < len(cfg.Functions); i++ {
-		deployDirigent(cfg.Functions[i], dirigentConfig.RegistrationServer, cfg.LoaderConfiguration.BusyLoopOnSandboxStartup)
+		deployDirigent(
+			cfg.Functions[i],
+			dirigentConfig.RegistrationServer,
+			cfg.LoaderConfiguration.BusyLoopOnSandboxStartup,
+			dirigentConfig.ColdStartSweep,
+		)
 	}
 }
 
@@ -53,7 +60,7 @@ var registrationClient = &http.Client{
 	},
 }
 
-func deployDirigent(function *common.Function, controlPlaneAddress string, busyLoopOnColdStart bool) {
+func deployDirigent(function *common.Function, controlPlaneAddress string, busyLoopOnColdStart bool, coldStartSweep bool) {
 	metadata := function.DirigentMetadata
 
 	if metadata == nil {
@@ -68,6 +75,7 @@ func deployDirigent(function *common.Function, controlPlaneAddress string, busyL
 		"scaling_lower_bound": {strconv.Itoa(metadata.ScalingLowerBound)},
 		"requested_cpu":       {strconv.Itoa(function.CPURequestsMilli)},
 		"requested_memory":    {strconv.Itoa(function.MemoryRequestsMiB)},
+		"cold_start_sweep":    {strconv.FormatBool(coldStartSweep)},
 	}
 
 	if busyLoopOnColdStart {
