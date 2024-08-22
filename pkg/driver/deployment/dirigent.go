@@ -40,10 +40,14 @@ func (*dirigentDeployer) Deploy(cfg *config.Configuration) {
 	for i := 0; i < len(cfg.Functions); i++ {
 		wg.Add(1)
 		go func(function *common.Function) {
-			deployDirigent(function, dirigentConfig.RegistrationServer,
+			defer wg.Done()
+
+			deployDirigent(
+				function,
+				dirigentConfig.RegistrationServer,
 				cfg.LoaderConfiguration.BusyLoopOnSandboxStartup,
-				cfg.LoaderConfiguration.PrepullMode)
-			wg.Done()
+				cfg.LoaderConfiguration.PrepullMode,
+			)
 		}(cfg.Functions[i])
 	}
 	wg.Wait()
@@ -103,7 +107,7 @@ func deployDirigent(function *common.Function, controlPlaneAddress string, busyL
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		log.Errorf("Status code %d when registering a service. Body: %s", resp.StatusCode, body)
+		log.Errorf("Status code %d while registering %s. Body: %s", resp.StatusCode, function.Name, body)
 		return
 	}
 	endpoints := strings.Split(string(body), ";")
@@ -125,6 +129,7 @@ func deployDirigent(function *common.Function, controlPlaneAddress string, busyL
 		} else {
 			log.Errorf("Status code %d when checking service registration.", resp.StatusCode)
 		}
+
 		time.Sleep(5 * time.Second)
 	}
 }
