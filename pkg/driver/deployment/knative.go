@@ -22,23 +22,18 @@
  * SOFTWARE.
  */
 
-package driver
+package deployment
 
 import (
 	"bytes"
 	"fmt"
+	log "github.com/sirupsen/logrus"
 	"github.com/vhive-serverless/loader/pkg/common"
-	"io"
+	"github.com/vhive-serverless/loader/pkg/config"
 	"math"
-	"math/rand"
-	"net/http"
-	"net/url"
 	"os/exec"
 	"regexp"
 	"strconv"
-	"strings"
-
-	log "github.com/sirupsen/logrus"
 )
 
 const (
@@ -50,56 +45,54 @@ var (
 	urlRegex = regexp.MustCompile("at URL:\nhttp://([^\n]+)")
 )
 
-func DeployFunctions(functions []*common.Function, yamlPath string, isPartiallyPanic bool, endpointPort int, autoscalingMetric string) {
-	for i := 0; i < len(functions); i++ {
-		deployKnative(functions[i], yamlPath, isPartiallyPanic, endpointPort, autoscalingMetric)
+type knativeDeployer struct{}
+
+type knativeDeploymentConfiguration struct {
+	YamlPath          string
+	IsPartiallyPanic  bool
+	EndpointPort      int
+	AutoscalingMetric string
+}
+
+func newKnativeDeployer() *knativeDeployer {
+	return &knativeDeployer{}
+}
+
+func newKnativeDeployerConfiguration(cfg *config.Configuration) knativeDeploymentConfiguration {
+	return knativeDeploymentConfiguration{
+		YamlPath:          cfg.YAMLPath,
+		IsPartiallyPanic:  cfg.LoaderConfiguration.IsPartiallyPanic,
+		EndpointPort:      cfg.LoaderConfiguration.EndpointPort,
+		AutoscalingMetric: cfg.LoaderConfiguration.AutoscalingMetric,
 	}
 }
 
-func DeployDirigent(functions []*common.Function) {
-	for i := 0; i < len(functions); i++ {
-		deployDirigent(functions[i])
+func (*knativeDeployer) Deploy(cfg *config.Configuration) {
+	knativeConfig := newKnativeDeployerConfiguration(cfg)
+
+	for i := 0; i < len(cfg.Functions); i++ {
+		knativeDeploySingleFunction(
+			cfg.Functions[i],
+			knativeConfig.YamlPath,
+			knativeConfig.IsPartiallyPanic,
+			knativeConfig.EndpointPort,
+			knativeConfig.AutoscalingMetric,
+		)
 	}
 }
 
-func deployDirigent(function *common.Function) {
-	metadata := function.DirigentMetadata
+func (*knativeDeployer) Clean() {
+	cmd := exec.Command("kn", "service", "delete", "--all")
 
-	if metadata == nil {
-		log.Fatalf("No Dirigent metadata for function %s", function.Name)
+	var out bytes.Buffer
+	cmd.Stdout = &out
+
+	if err := cmd.Run(); err != nil {
+		log.Errorf("Unable to delete Knative services - %s", err)
 	}
-
-	payload := url.Values{
-		"name":                {function.Name},
-		"image":               {metadata.Image},
-		"port_forwarding":     {strconv.Itoa(metadata.Port), metadata.Protocol},
-		"scaling_upper_bound": {strconv.Itoa(metadata.ScalingUpperBound)},
-		"scaling_lower_bound": {strconv.Itoa(metadata.ScalingLowerBound)},
-		"requested_cpu":    {strconv.Itoa(function.CPURequestsMilli)},
-		"requested_memory": {strconv.Itoa(function.MemoryRequestsMiB)},
-	}
-
-	log.Debug(payload)
-
-	resp, err := http.PostForm("http://localhost:9091/registerService", payload)
-	if err != nil {
-		log.Fatal("Failed to register a service with the control plane - ", err.Error())
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		log.Fatal("Failed to read response body.")
-	}
-
-	endpoints := strings.Split(string(body), ";")
-	if len(endpoints) == 0 {
-		log.Fatal("Function registration returned no data plane(s).")
-	}
-	function.Endpoint = endpoints[rand.Intn(len(endpoints))]
 }
 
-func deployKnative(function *common.Function, yamlPath string, isPartiallyPanic bool, endpointPort int,
+func knativeDeploySingleFunction(function *common.Function, yamlPath string, isPartiallyPanic bool, endpointPort int,
 	autoscalingMetric string) bool {
 	panicWindow := "\"10.0\""
 	panicThreshold := "\"200.0\""
@@ -116,7 +109,7 @@ func deployKnative(function *common.Function, yamlPath string, isPartiallyPanic 
 
 	cmd := exec.Command(
 		"bash",
-		"./pkg/driver/deploy.sh",
+		"./pkg/driver/deployment/knative.sh",
 		yamlPath,
 		function.Name,
 
@@ -128,8 +121,10 @@ func deployKnative(function *common.Function, yamlPath string, isPartiallyPanic 
 		panicWindow,
 		panicThreshold,
 
-		"\""+autoscalingMetric+"\"",
-		"\""+strconv.Itoa(autoscalingTarget)+"\"",
+		wrapString(autoscalingMetric),
+		wrapString(strconv.Itoa(autoscalingTarget)),
+
+		wrapString(strconv.Itoa(function.ColdStartBusyLoopMs)),
 	)
 
 	stdoutStderr, err := cmd.CombinedOutput()
@@ -157,12 +152,6 @@ func deployKnative(function *common.Function, yamlPath string, isPartiallyPanic 
 	return true
 }
 
-func CleanKnative() {
-	cmd := exec.Command("kn", "service", "delete", "--all")
-	var out bytes.Buffer
-	cmd.Stdout = &out
-	err := cmd.Run()
-	if err != nil {
-		log.Debugf("Unable to delete Knative services - %s", err)
-	}
+func wrapString(value string) string {
+	return "\"" + value + "\""
 }

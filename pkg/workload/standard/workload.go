@@ -137,7 +137,8 @@ func readEnvironmentalVariables() {
 		IterationsMultiplier, _ = strconv.Atoi(os.Getenv("ITERATIONS_MULTIPLIER"))
 	} else {
 		// Cloudlab xl170 benchmark @ 1 second function execution time
-		IterationsMultiplier = 102
+		// With cpu contraints iteration multiplier is 102
+		IterationsMultiplier = 155
 	}
 
 	log.Infof("ITERATIONS_MULTIPLIER = %d\n", IterationsMultiplier)
