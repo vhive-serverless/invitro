@@ -33,7 +33,7 @@ import (
 	"github.com/vhive-serverless/loader/pkg/config"
 	"github.com/vhive-serverless/loader/pkg/workload/proto"
 
-	log "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
@@ -51,7 +51,7 @@ func newGRPCInvoker(cfg *config.LoaderConfiguration) *grpcInvoker {
 }
 
 func (i *grpcInvoker) Invoke(function *common.Function, runtimeSpec *common.RuntimeSpecification) (bool, *mc.ExecutionRecord) {
-	log.Tracef("(Invoke)\t %s: %d[ms], %d[MiB]", function.Name, runtimeSpec.Runtime, runtimeSpec.Memory)
+	logrus.Tracef("(Invoke)\t %s: %d[ms], %d[MiB]", function.Name, runtimeSpec.Runtime, runtimeSpec.Memory)
 
 	record := &mc.ExecutionRecord{
 		ExecutionRecordBase: mc.ExecutionRecordBase{
@@ -65,30 +65,25 @@ func (i *grpcInvoker) Invoke(function *common.Function, runtimeSpec *common.Runt
 	start := time.Now()
 	record.StartTime = start.UnixMicro()
 
-	dialContext, cancelDialing := context.WithTimeout(context.Background(), time.Duration(i.cfg.GRPCConnectionTimeoutSeconds)*time.Second)
-	defer cancelDialing()
-
 	var dialOptions []grpc.DialOption
 	dialOptions = append(dialOptions, grpc.WithTransportCredentials(insecure.NewCredentials()))
-	dialOptions = append(dialOptions, grpc.WithBlock())
 
 	grpcStart := time.Now()
 
-	conn, err := grpc.DialContext(dialContext, function.Endpoint, dialOptions...)
-	defer gRPCConnectionClose(conn)
+	conn, err := grpc.NewClient(function.Endpoint, dialOptions...)
 	if err != nil {
-		log.Debugf("Failed to establish a gRPC connection - %v\n", err)
+		logrus.Debugf("Failed to establish a gRPC connection - %v\n", err)
 
 		record.ResponseTime = time.Since(start).Microseconds()
 		record.ConnectionTimeout = true
 
 		return false, record
 	}
+	defer gRPCConnectionClose(conn)
 
 	record.GRPCConnectionEstablishTime = time.Since(grpcStart).Microseconds()
 
 	grpcClient := proto.NewExecutorClient(conn)
-
 	executionCxt, cancelExecution := context.WithTimeout(context.Background(), time.Duration(i.cfg.GRPCFunctionTimeoutSeconds)*time.Second)
 	defer cancelExecution()
 
@@ -99,9 +94,10 @@ func (i *grpcInvoker) Invoke(function *common.Function, runtimeSpec *common.Runt
 	})
 
 	if err != nil {
-		log.Debugf("gRPC timeout exceeded for function %s - %s", function.Name, err)
+		logrus.Debugf("gRPC timeout exceeded for function %s - %s", function.Name, err)
 
 		record.ResponseTime = time.Since(start).Microseconds()
+		record.ConnectionTimeout = true // WithBlock deprecated in new gRPC interface
 		record.FunctionTimeout = true
 
 		return false, record
@@ -117,9 +113,9 @@ func (i *grpcInvoker) Invoke(function *common.Function, runtimeSpec *common.Runt
 		record.ActualMemoryUsage = common.Kib2Mib(response.MemoryUsageInKb)
 	}
 
-	log.Tracef("(Replied)\t %s: %s, %.2f[ms], %d[MiB]", function.Name, response.Message,
+	logrus.Tracef("(Replied)\t %s: %s, %.2f[ms], %d[MiB]", function.Name, response.Message,
 		float64(response.DurationInMicroSec)/1e3, common.Kib2Mib(response.MemoryUsageInKb))
-	log.Tracef("(E2E Latency) %s: %.2f[ms]\n", function.Name, float64(record.ResponseTime)/1e3)
+	logrus.Tracef("(E2E Latency) %s: %.2f[ms]\n", function.Name, float64(record.ResponseTime)/1e3)
 
 	return true, record
 }
@@ -139,6 +135,6 @@ func gRPCConnectionClose(conn *grpc.ClientConn) {
 	}
 
 	if err := conn.Close(); err != nil {
-		log.Warnf("Error while closing gRPC connection - %s\n", err)
+		logrus.Warnf("Error while closing gRPC connection - %s\n", err)
 	}
 }
