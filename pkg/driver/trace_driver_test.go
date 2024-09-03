@@ -27,6 +27,7 @@ package driver
 import (
 	"container/list"
 	"fmt"
+	"github.com/vhive-serverless/loader/pkg/config"
 	"log"
 	"os"
 	"sync"
@@ -40,10 +41,21 @@ import (
 	"github.com/vhive-serverless/loader/pkg/workload/standard"
 )
 
+func createFakeLoaderConfiguration() *config.LoaderConfiguration {
+	return &config.LoaderConfiguration{
+		Platform:                     "Knative",
+		InvokeProtocol:               "grpc",
+		OutputPathPrefix:             "test",
+		EnableZipkinTracing:          true,
+		GRPCConnectionTimeoutSeconds: 5,
+		GRPCFunctionTimeoutSeconds:   15,
+	}
+}
+
 func createTestDriver() *Driver {
 	cfg := createFakeLoaderConfiguration()
 
-	driver := NewDriver(&DriverConfiguration{
+	driver := NewDriver(&config.Configuration{
 		LoaderConfiguration: cfg,
 		IATDistribution:     common.Equidistant,
 		TraceDuration:       1,
@@ -281,7 +293,7 @@ func TestGlobalMetricsCollector(t *testing.T) {
 	var record []metric.ExecutionRecord
 	err = gocsv.UnmarshalFile(f, &record)
 	if err != nil {
-		log.Fatalf(err.Error())
+		log.Fatal(err.Error())
 	}
 
 	for i := 0; i < driver.Configuration.Functions[0].InvocationStats.Invocations[0]; i++ {
@@ -372,7 +384,7 @@ func TestDriverCompletely(t *testing.T) {
 			var records []metric.ExecutionRecordBase
 			err = gocsv.UnmarshalFile(f, &records)
 			if err != nil {
-				log.Fatalf(err.Error())
+				log.Fatal(err.Error())
 			}
 
 			successfulInvocation, failedInvocations := 0, 0

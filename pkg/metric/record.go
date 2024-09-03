@@ -76,38 +76,11 @@ type ExecutionRecord struct {
 	ActualMemoryUsage       uint32 `csv:"actualMemoryUsage"`
 	MemoryAllocationTimeout bool   `csv:"memoryAllocationTimeout"`
 
-	// TODO: EVERYTHING BELOW ARE UNTESTED FIELDS
+	AsyncResponseID     string `csv:"-"`
+	TimeToSubmitMs      int64  `csv:"timeToSubmitMs"`
+	UserCodeExecutionMs int64  `csv:"userCodeExecutionMs"`
 
-	//* In KiB
-	/*Memory     uint32  `csv:"memory"`
-	MemoryLoad float64 `csv:"mem_load"`
-	Interval   int64   `csv:"interval"`
-
-	//* Infra statistics are all in percentages.
-	MasterCpu          float64 `csv:"master_cpu"`
-	MasterMem          float64 `csv:"master_mem"`
-	WorkerCpuAvg       float64 `csv:"worker_cpu_avg"`
-	WorkerCpuMax       float64 `csv:"worker_cpu_max"`
-	WorkerCpuActiveAvg float64 `csv:"worker_cpu_active_avg"`
-	WorkerMemAvg       float64 `csv:"worker_mem"`
-
-	DesiredPods   int `csv:"desired_pods"`
-	UnreadyPods   int `csv:"unready_pods"`
-	PendingPods   int `csv:"pending_pods"`
-	RequestedPods int `csv:"requested_pods"`
-	RunningPods   int `csv:"running_pods"`
-
-	ActivatorQueue        float64 `csv:"activator_queue"`
-	ActivatorRequestCount int     `csv:"activator_request_count"`
-	AutoscalerStableQueue float64 `csv:"autoscaler_stable_queue"`
-	AutoscalerPanicQueue  float64 `csv:"autoscaler_panic_queue"`
-
-	SchedulingP99   float64 `csv:"scheduling_p99"`
-	SchedulingP50   float64 `csv:"scheduling_p50"`
-	E2ePlacementP99 float64 `csv:"e2e_placement_p99"`
-	E2ePlacementP50 float64 `csv:"e2e_placement_p50"`
-
-	ColdStartCount int `csv:"coldstart_count"`*/
+	TimeToGetResponseMs int64 `csv:"timeToGetResponseMs"`
 }
 
 type DeploymentScale struct {
