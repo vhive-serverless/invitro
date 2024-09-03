@@ -754,3 +754,13 @@ lazar
 xvzf
 untar
 len
+CooldownSeconds
+RpsCooldownSeconds
+Dirigent
+RpsColdStartRatioPercentage
+RpsIterationMultiplier
+RpsMemoryMB
+RpsRuntimeMs
+RpsTarget
+SQRT
+RpsImage

@@ -78,6 +78,7 @@ type DirigentMetadata struct {
 	ScalingUpperBound   int    `csv:"ScalingUpperBound"`
 	ScalingLowerBound   int    `csv:"ScalingLowerBound"`
 	IterationMultiplier int    `csv:"IterationMultiplier"`
+	IOPercentage        int    `csv:"IOPercentage"`
 }
 
 type Function struct {
@@ -91,6 +92,8 @@ type Function struct {
 	RuntimeStats     *FunctionRuntimeStats
 	MemoryStats      *FunctionMemoryStats
 	DirigentMetadata *DirigentMetadata
+
+	ColdStartBusyLoopMs int
 
 	CPURequestsMilli  int
 	MemoryRequestsMiB int
