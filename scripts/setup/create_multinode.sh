@@ -164,7 +164,7 @@ function setup_workers() {
         fi
 
         if [ "$2" = "MASTER" ]; then
-            server_exec $node "sudo ${MASTER_LOGIN_TOKEN}"
+            server_exec $node "sudo ${MASTER_LOGIN_TOKEN} --apiserver-advertise-address 10.0.1.$((NODE_COUNTER + 1))"
             server_exec $node "kubectl taint nodes \$(hostname) node-role.kubernetes.io/control-plane-"
             server_exec $node "kubectl label nodes \$(hostname) loader-nodetype=master"
             echo "Backup master node $node has joined the cluster."
