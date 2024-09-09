@@ -7,7 +7,7 @@ require (
 	github.com/golang/protobuf v1.5.4
 	github.com/sfreiberg/simplessh v0.0.0-20220719182921-185eafd40485
 	github.com/sirupsen/logrus v1.9.0
-	golang.org/x/sys v0.24.0
+	golang.org/x/sys v0.25.0
 	gonum.org/v1/gonum v0.15.0
 	gonum.org/v1/plot v0.14.0
 	google.golang.org/grpc v1.63.2
@@ -38,7 +38,7 @@ require (
 	github.com/pkg/sftp v1.13.4 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	go.opentelemetry.io/otel/exporters/zipkin v1.8.0 // indirect
-	golang.org/x/crypto v0.25.0 // indirect
+	golang.org/x/crypto v0.27.0 // indirect
 	golang.org/x/image v0.14.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240227224415-6ceb2ff114de // indirect
 )
@@ -50,7 +50,7 @@ require (
 	go.opentelemetry.io/otel v1.11.1 // indirect
 	go.opentelemetry.io/otel/sdk v1.8.0 // indirect
 	go.opentelemetry.io/otel/trace v1.11.1 // indirect
-	golang.org/x/net v0.27.0
-	golang.org/x/text v0.16.0 // indirect
+	golang.org/x/net v0.29.0
+	golang.org/x/text v0.18.0 // indirect
 	google.golang.org/protobuf v1.33.0 // indirect
 )
