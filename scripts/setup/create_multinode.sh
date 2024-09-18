@@ -159,6 +159,11 @@ function setup_workers() {
         
         server_exec $node "pushd ~/vhive/scripts > /dev/null && ./setup_tool setup_worker_kubelet ${OPERATION_MODE} && popd > /dev/null"
 
+        server_exec $node "echo \"maxPods: ${PODS_PER_NODE}\" > >(sudo tee -a /var/lib/kubelet/config.yaml >/dev/null)"
+        server_exec $node "echo \"containerLogMaxSize: 512Mi\" > >(sudo tee -a /var/lib/kubelet/config.yaml >/dev/null)"
+        server_exec $node 'sudo systemctl restart kubelet'
+        server_exec $node 'sleep 10'
+
         if [ "$OPERATION_MODE" = "firecracker" ]; then
             setup_vhive_firecracker_daemon $node
         fi
