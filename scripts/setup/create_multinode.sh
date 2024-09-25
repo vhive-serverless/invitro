@@ -159,10 +159,10 @@ function setup_workers() {
         
         server_exec $node "pushd ~/vhive/scripts > /dev/null && ./setup_tool setup_worker_kubelet ${OPERATION_MODE} && popd > /dev/null"
 
-        server_exec $node "echo \"maxPods: ${PODS_PER_NODE}\" > >(sudo tee -a /var/lib/kubelet/config.yaml >/dev/null)"
-        server_exec $node "echo \"containerLogMaxSize: 512Mi\" > >(sudo tee -a /var/lib/kubelet/config.yaml >/dev/null)"
-        server_exec $node 'sudo systemctl restart kubelet'
-        server_exec $node 'sleep 10'
+        # server_exec $node "echo \"maxPods: ${PODS_PER_NODE}\" > >(sudo tee -a /var/lib/kubelet/config.yaml >/dev/null)"
+        # server_exec $node "echo \"containerLogMaxSize: 512Mi\" > >(sudo tee -a /var/lib/kubelet/config.yaml >/dev/null)"
+        # server_exec $node 'sudo systemctl restart kubelet'
+        # server_exec $node 'sleep 10'
 
         if [ "$OPERATION_MODE" = "firecracker" ]; then
             setup_vhive_firecracker_daemon $node
@@ -189,10 +189,10 @@ function setup_workers() {
         # Stretch the capacity of the worker node to 240 (k8s default: 110)
         # Empirically, this gives us a max. #pods being 240-40=200
         #echo "Stretching node capacity for $node."
-        #server_exec $node "echo \"maxPods: ${PODS_PER_NODE}\" > >(sudo tee -a /var/lib/kubelet/config.yaml >/dev/null)"
-        #server_exec $node "echo \"containerLogMaxSize: 512Mi\" > >(sudo tee -a /var/lib/kubelet/config.yaml >/dev/null)"
-        #server_exec $node 'sudo systemctl restart kubelet'
-        #server_exec $node 'sleep 10'
+        server_exec $node "echo \"maxPods: ${PODS_PER_NODE}\" > >(sudo tee -a /var/lib/kubelet/config.yaml >/dev/null)"
+        server_exec $node "echo \"containerLogMaxSize: 512Mi\" > >(sudo tee -a /var/lib/kubelet/config.yaml >/dev/null)"
+        server_exec $node 'sudo systemctl restart kubelet'
+        server_exec $node 'sleep 10'
 
         # Rejoin has to be performed although errors will be thrown. Otherwise, restarting the kubelet will cause the node unreachable for some reason
         #if [ $2 -eq "MASTER" ]; then

@@ -41,9 +41,6 @@ coreDns:
 
 
 kubeEtcd:
-  service:
-    port: 2379
-    targetPort: 2379
   serviceMonitor:
     interval: "15s"
 
