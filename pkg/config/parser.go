@@ -56,6 +56,7 @@ type LoaderConfiguration struct {
 	GRPCConnectionTimeoutSeconds int  `json:"GRPCConnectionTimeoutSeconds"`
 	GRPCFunctionTimeoutSeconds   int  `json:"GRPCFunctionTimeoutSeconds"`
 	DAGMode                      bool `json:"DAGMode"`
+	YAMLSpecificationPath      string `json:"YAMLSpecificationPath"`
 }
 
 func ReadConfigurationFile(path string) LoaderConfiguration {
