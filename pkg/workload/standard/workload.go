@@ -189,3 +189,25 @@ func StartGRPCServer(serverAddress string, serverPort int, functionType Function
 	err = grpcServer.Serve(lis)
 	util.Check(err)
 }
+
+func StartRelayGRPCServer(serverAddress string, serverPort int, f *funcServer) {
+	lis, err := net.Listen("tcp", fmt.Sprintf("%s:%d", serverAddress, serverPort))
+	if err != nil {
+		log.Fatalf("Failed to listen: %v", err)
+	}
+	var grpcServer *grpc.Server
+	grpcServer = grpc.NewServer()
+	sigc := make(chan os.Signal, 1)
+	signal.Notify(sigc, syscall.SIGTERM)
+
+	go func() {
+		<-sigc
+		log.Info("Gracefully shutting down")
+		grpcServer.GracefulStop()
+	}()
+
+	reflection.Register(grpcServer)
+	proto.RegisterExecutorServer(grpcServer, f)
+	err = grpcServer.Serve(lis)
+	util.Check(err)
+}

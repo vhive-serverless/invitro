@@ -147,20 +147,22 @@ func runTraceMode(cfg *config.LoaderConfiguration, iatOnly bool, generated bool)
 		log.Fatal("Unsupported IAT distribution.")
 	}
 
-	var yamlSpecificationPath string
-	switch cfg.YAMLSelector {
-	case "wimpy":
-		yamlSpecificationPath = "workloads/container/wimpy.yaml"
-	case "container":
-		yamlSpecificationPath = "workloads/container/trace_func_go.yaml"
-	case "firecracker":
-		yamlSpecificationPath = "workloads/firecracker/trace_func_go.yaml"
-	default:
-		if cfg.Platform != "Dirigent" {
-			log.Fatal("Invalid 'YAMLSelector' parameter.")
+	yamlSpecificationPath := cfg.YAMLSpecificationPath
+	if len(yamlSpecificationPath) == 0 {
+		switch cfg.YAMLSelector {
+		case "wimpy":
+			yamlSpecificationPath = "workloads/container/wimpy.yaml"
+		case "container":
+			yamlSpecificationPath = "workloads/container/trace_func_go.yaml"
+		case "firecracker":
+			yamlSpecificationPath = "workloads/firecracker/trace_func_go.yaml"
+		default:
+			if cfg.Platform != "Dirigent" {
+				log.Fatal("Invalid 'YAMLSelector' parameter.")
+			}
 		}
 	}
-
+	
 	var traceGranularity common.TraceGranularity
 	switch cfg.Granularity {
 	case "minute":

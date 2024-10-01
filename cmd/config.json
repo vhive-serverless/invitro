@@ -21,5 +21,6 @@
 
   "GRPCConnectionTimeoutSeconds": 15,
   "GRPCFunctionTimeoutSeconds": 900,
-  "DAGMode": false
+  "DAGMode": false,
+  "YAMLSpecificationPath": "/workloads/firecracker/trace_func_go.yaml"
 }
