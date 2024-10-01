@@ -29,10 +29,12 @@ import (
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"strings"
 	"time"
-
+	"github.com/google/uuid"
 	"github.com/vhive-serverless/loader/pkg/common"
 	"github.com/vhive-serverless/loader/pkg/config"
-	"github.com/vhive-serverless/loader/pkg/workload/proto"
+	//"github.com/vhive-serverless/loader/pkg/workload/proto"
+	//"github.com/vhive-serverless/vSwarm/tools/benchmarking_eventing/vhivemetadata"
+	proto "github.com/vhive-serverless/vSwarm/utils/protobuf/helloworld"
 
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
@@ -87,14 +89,23 @@ func (i *grpcInvoker) Invoke(function *common.Function, runtimeSpec *common.Runt
 
 	record.GRPCConnectionEstablishTime = time.Since(grpcStart).Microseconds()
 
-	grpcClient := proto.NewExecutorClient(conn)
+	grpcClient := proto.NewGreeterClient(conn)
 	executionCxt, cancelExecution := context.WithTimeout(context.Background(), time.Duration(i.cfg.GRPCFunctionTimeoutSeconds)*time.Second)
+
 	defer cancelExecution()
 
-	response, err := grpcClient.Execute(executionCxt, &proto.FaasRequest{
+	/*response, err := grpcClient.Execute(executionCxt, &proto.FaasRequest{
 		Message:           "nothing",
 		RuntimeInMilliSec: uint32(runtimeSpec.Runtime),
 		MemoryInMebiBytes: uint32(runtimeSpec.Memory),
+	})*/
+	response, err := grpcClient.SayHello(executionCxt, &proto.HelloRequest{
+		Name: "Invoke Relay",
+		VHiveMetadata: MakeVHiveMetadata(
+			uuid.New().String(),
+			uuid.New().String(),
+			time.Now().UTC(),
+		),
 	})
 
 	if err != nil {
@@ -107,14 +118,17 @@ func (i *grpcInvoker) Invoke(function *common.Function, runtimeSpec *common.Runt
 		return false, record
 	}
 
-	record.Instance = extractInstanceName(response.GetMessage())
+	//record.Instance = extractInstanceName(response.GetMessage())
+	//record.ResponseTime = time.Since(start).Microseconds()
+	//record.ActualDuration = response.DurationInMicroSec
 	record.ResponseTime = time.Since(start).Microseconds()
-	record.ActualDuration = response.DurationInMicroSec
+	record.ActualDuration = uint32(record.ResponseTime)
+	record.Instance = extractInstanceName(response.GetMessage())
 
 	if strings.HasPrefix(response.GetMessage(), "FAILURE - mem_alloc") {
 		record.MemoryAllocationTimeout = true
 	} else {
-		record.ActualMemoryUsage = common.Kib2Mib(response.MemoryUsageInKb)
+		record.ActualMemoryUsage = common.Kib2Mib(0) //common.Kib2Mib(response.MemoryUsageInKb)
 	}
 
 	logrus.Tracef("(Replied)\t %s: %s, %.2f[ms], %d[MiB]", function.Name, response.Message,
