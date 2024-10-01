@@ -160,7 +160,7 @@ func runTraceMode(cfg *config.LoaderConfiguration, iatOnly bool, generated bool)
 			log.Fatal("Invalid 'YAMLSelector' parameter.")
 		}
 	}
-
+	
 	var traceGranularity common.TraceGranularity
 	switch cfg.Granularity {
 	case "minute":

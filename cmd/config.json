@@ -21,5 +21,6 @@
 
   "GRPCConnectionTimeoutSeconds": 15,
   "GRPCFunctionTimeoutSeconds": 900,
-  "DAGMode": false
+  "DAGMode": false,
+  "YAMLSpecificationPath": "/users/aryans/invitro/workloads/firecracker/aes-go-tracing.yaml"
 }
