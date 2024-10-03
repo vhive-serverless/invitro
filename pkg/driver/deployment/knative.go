@@ -33,7 +33,9 @@ import (
 	"math"
 	"os/exec"
 	"regexp"
+	"runtime"
 	"strconv"
+	"sync"
 )
 
 const (
@@ -68,17 +70,25 @@ func newKnativeDeployerConfiguration(cfg *config.Configuration) knativeDeploymen
 }
 
 func (*knativeDeployer) Deploy(cfg *config.Configuration) {
+	queue := make(chan struct{}, runtime.NumCPU()) // message queue as a sync method
+	deployed := sync.WaitGroup{}
+	deployed.Add(len(cfg.Functions))
 	knativeConfig := newKnativeDeployerConfiguration(cfg)
 
 	for i := 0; i < len(cfg.Functions); i++ {
-		knativeDeploySingleFunction(
+		queue <- struct{}{}
+		go knativeDeploySingleFunction(
 			cfg.Functions[i],
 			knativeConfig.YamlPath,
 			knativeConfig.IsPartiallyPanic,
 			knativeConfig.EndpointPort,
 			knativeConfig.AutoscalingMetric,
+			&deployed,
+			queue,
 		)
+
 	}
+	deployed.Wait()
 }
 
 func (*knativeDeployer) Clean() {
@@ -93,7 +103,9 @@ func (*knativeDeployer) Clean() {
 }
 
 func knativeDeploySingleFunction(function *common.Function, yamlPath string, isPartiallyPanic bool, endpointPort int,
-	autoscalingMetric string) bool {
+	autoscalingMetric string, deployed *sync.WaitGroup, queue chan struct{}) bool {
+	defer deployed.Done()
+	defer func() { <-queue }()
 	panicWindow := "\"10.0\""
 	panicThreshold := "\"200.0\""
 	if isPartiallyPanic {
