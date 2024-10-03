@@ -257,6 +257,14 @@ function copy_k8s_certificates() {
     # patch knative to accept nodeselector
     server_exec $MASTER_NODE "cd loader; kubectl patch configmap config-features -n knative-serving -p '{\"data\": {\"kubernetes.podspec-nodeselector\": \"enabled\"}}'"
 
+    # update limits
+    server_exec $MASTER_NODE "kubectl patch deployment istio-ingressgateway -n istio-system --patch \
+        '{\"spec\":{\"template\":{\"spec\":{\"containers\":[{\"name\":\"istio-proxy\",\"resources\":{\"limits\":{\"cpu\":\"10\", \"memory\":\"20Gi\"}}}]}}}}'"
+    server_exec $MASTER_NODE "kubectl patch deployment cluster-local-gateway -n istio-system --patch \
+        '{\"spec\":{\"template\":{\"spec\":{\"containers\":[{\"name\":\"istio-proxy\",\"resources\":{\"limits\":{\"memory\":\"20Gi\"}}}]}}}}'"
+    server_exec $MASTER_NODE "kubectl patch deployment coredns -n kube-system --patch \
+        '{\"spec\":{\"template\":{\"spec\":{\"containers\":[{\"name\":\"coredns\",\"resources\":{\"limits\":{\"memory\":\"20Gi\"}}}]}}}}'"
+
     if [[ "$DEPLOY_PROMETHEUS" == true ]]; then
         $DIR/expose_infra_metrics.sh $MASTER_NODE
     fi
