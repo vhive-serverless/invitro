@@ -23,6 +23,7 @@ workerNodeNum
 durations
 dur
 ACM
+Acyclic
 addr
 adservice
 AdService
@@ -151,6 +152,7 @@ Ctrl
 currencyservice
 Daglis
 DAGMode
+DAGTracePath
 datacenter
 Datacenter
 dataflows
@@ -165,6 +167,7 @@ DeathStarBenchs
 debian
 deployer
 deps
+depth
 dev
 devmapper
 df
@@ -661,6 +664,7 @@ wc
 WDDD
 wget
 WIDX
+width
 WIOSCA
 WithBlock
 WithFields
@@ -710,6 +714,7 @@ cgroups
 noop
 YAMLs
 cgo
+EnableDAGDataset
 EnableMetricsScrapping
 EnableZipkinTracing
 EndpointPort

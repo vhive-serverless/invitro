@@ -179,6 +179,43 @@ For more options, please see the `Makefile`.
 
 For instructions on how to use the loader with OpenWhisk go to `openwhisk_setup/README.md`.
 
+## Workflow Invocation
+Generation of a Directed Acyclic Graph (DAG) workflow is supported by setting `"DAGMode: true"` in `cmd/config.json` (as specified in [`docs/configuration.md`](../docs/configuration.md)). Before invocation, a workflow will be generated for each deployed function, with that function serving as the entry function. The generated workflow will be reused for subsequent invocations of said function.
+
+ An example of the generated workflow can be seen here:
+
+DAG of Width = 3, Depth = 4 with entry function `f(0)`:
+
+```bash
+f(0) -> f(1) -> f(3) -> f(5)
+  \        
+   \ -> f(2) -> f(4) -> f(6)
+                  \
+                   \ -> f(7)
+```
+In this DAG, each invocation of the entry function `f(0)` will result in 8 total functions invoked, with parallel invocations per branch.
+
+To obtain [reference traces](https://github.com/vhive-serverless/invitro/blob/main/docs/sampler.md#reference-traces) for DAG execution, use the following command:
+
+```bash
+git lfs pull 
+tar -xzf data/traces/reference/sampled_150.tar.gz -C data/traces 
+```
+
+The shape of the workflow is generated using probabilities from past [Azure Traces](https://github.com/icanforce/Orion-OSDI22/tree/main/Public_Dataset) in `traces/example/dag_structure.csv`.
+To set the default shape, change the following parameters in [`docs/configuration.md`](../docs/configuration.md). Note that the number of functions in `DAGTracePath` must be large enough to support the maximum size of the DAG.
+```bash
+"EnableDAGDataset": false,
+"Width": <width>,
+"Depth": <depth>
+"DAGTracePath": "data/traces/sampled_150/<trace>",
+```
+
+Lastly, start the experiment:
+```bash
+go run cmd/loader.go --config cmd/config.json
+```
+
 ## Running on Cloud Using Serverless Framework
 
 **Currently supported vendors:** AWS
@@ -204,7 +241,6 @@ For instructions on how to use the loader with OpenWhisk go to `openwhisk_setup/
     ```bash
     go run cmd/loader.go --config cmd/config.json
     ```
-
 ---
 Note:
 - Current deployment is via container image.

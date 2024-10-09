@@ -27,9 +27,10 @@ package main
 import (
 	"flag"
 	"fmt"
-	"golang.org/x/exp/slices"
 	"os"
 	"time"
+
+	"golang.org/x/exp/slices"
 
 	"github.com/vhive-serverless/loader/pkg/common"
 	"github.com/vhive-serverless/loader/pkg/config"
@@ -99,6 +100,14 @@ func main() {
 
 	if !slices.Contains(supportedPlatforms, cfg.Platform) {
 		log.Fatal("Unsupported platform! Supported platforms are [Knative, OpenWhisk, AWSLambda, Dirigent]")
+	}
+
+	if cfg.DAGMode {
+		cfg.TracePath = cfg.DAGTracePath
+		_, err := os.Stat(cfg.DAGTracePath)
+		if err != nil {
+			log.Fatal("Trace not found")
+		}
 	}
 
 	runTraceMode(&cfg, *iatGeneration, *generated)

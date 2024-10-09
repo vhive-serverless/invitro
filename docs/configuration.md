@@ -19,7 +19,12 @@
 | MetricScrapingPeriodSeconds  | int       | > 0                                                                 | 15                  | Period of Prometheus metrics scrapping                                               |
 | GRPCConnectionTimeoutSeconds | int       | > 0                                                                 | 60                  | Timeout for establishing a gRPC connection                                           |
 | GRPCFunctionTimeoutSeconds   | int       | > 0                                                                 | 90                  | Maximum time given to function to execute[^4]                                        |
-| DAGMode             | bool      | true/false                                                          | false               | Sequential invocation of all functions one after another                                                    |
+| DAGMode                      | bool      | true/false                                                          | false               | Parallel invocation of DAG with each function acting as entry function                                                                                                   |
+| DAGTracePath                 | string    | string                                                              | data/traces/sampled_150/20               | Folder with Azure trace dimensions used for DAG Invocation[^5].                                                                                                      |
+| EnableDAGDataset             | bool      | true/false                                                          | true                |  Generate width and depth using dataset from DAGTracePath                                                                                               |
+| Width                        | int       | > 0                                                                 | 2                   | Default width of DAG                                                                 |
+| Depth                        | int       | > 0                                                                 | 2                   | Default depth of DAG                                                                 |
+
 [^1]: The second granularity feature interprets each column of the trace as a second, rather than as a minute, and
 generates IAT for each second. This feature is useful for fine-grained and precise invocation scheduling in experiments
 involving stable low load.
@@ -30,3 +35,5 @@ involving stable low load.
 
 [^4]: Function can execute for at most 15 minutes as in AWS
 Lambda; https://aws.amazon.com/about-aws/whats-new/2018/10/aws-lambda-supports-functions-that-can-run-up-to-15-minutes/
+
+[^5]: Instructions to download the [Reference Traces](https://github.com/vhive-serverless/invitro/blob/main/docs/sampler.md#reference-traces) can be found [here](https://github.com/vhive-serverless/invitro/blob/main/docs/loader.md#enabling-workflow-execution). Trace sizes start at 10 and increase by increments of 10 up to 200, then by 50 up to 3000, and by 1000 thereafter, reaching up to 24000.
