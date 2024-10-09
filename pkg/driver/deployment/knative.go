@@ -144,7 +144,7 @@ func knativeDeploySingleFunction(function *common.Function, yamlPath string, isP
 
 	if err != nil {
 		// TODO: there should be a toggle to turn off deployment because if this is fatal then we cannot test the thing locally
-		log.Warnf("Failed to deploy function %s: %v\n%s\n", function.Name, err, stdoutStderr)
+		log.Fatalf("Failed to deploy function %s: %v\n%s\n", function.Name, err, stdoutStderr)
 
 		return false
 	}
