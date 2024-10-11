@@ -199,7 +199,7 @@ func composeInvocationID(timeGranularity common.TraceGranularity, minuteIndex in
 	return fmt.Sprintf("%s%d.inv%d", timePrefix, minuteIndex, invocationIndex)
 }
 
-func (d *Driver) invokeFunction(metadata *InvocationMetadata) {
+func (d *Driver) invokeFunction(metadata *InvocationMetadata, warmup bool) {
 	defer metadata.AnnounceDoneWG.Done()
 
 	var success bool
@@ -222,9 +222,9 @@ func (d *Driver) invokeFunction(metadata *InvocationMetadata) {
 		}
 		node = node.Next()
 	}
-	if success {
+	if success && !warmup {
 		atomic.AddInt64(metadata.SuccessCount, 1)
-	} else {
+	} else if !warmup {
 		atomic.AddInt64(metadata.FailedCount, 1)
 		atomic.AddInt64(&metadata.FailedCountByMinute[metadata.MinuteIndex], 1)
 	}
@@ -251,6 +251,7 @@ func (d *Driver) functionsDriver(list *list.List, announceFunctionDone *sync.Wai
 	var failedInvocationByMinute = make([]int64, totalTraceDuration)
 	var numberOfIssuedInvocations int64
 	var currentPhase = common.ExecutionPhase
+	var warmup bool
 
 	waitForInvocations := sync.WaitGroup{}
 
@@ -308,6 +309,12 @@ func (d *Driver) functionsDriver(list *list.List, announceFunctionDone *sync.Wai
 			if !d.Configuration.TestMode {
 				waitForInvocations.Add(1)
 
+				if currentPhase == 1 {
+					warmup = true
+				} else {
+					warmup = false
+				}
+
 				go d.invokeFunction(&InvocationMetadata{
 					RootFunction:          list,
 					Phase:                 currentPhase,
@@ -320,7 +327,7 @@ func (d *Driver) functionsDriver(list *list.List, announceFunctionDone *sync.Wai
 					AnnounceDoneWG:        &waitForInvocations,
 					AnnounceDoneExe:       addInvocationsToGroup,
 					ReadOpenWhiskMetadata: readOpenWhiskMetadata,
-				})
+				}, warmup)
 			} else {
 				// To be used from within the Golang testing framework
 				log.Debugf("Test mode invocation fired.\n")
@@ -401,7 +408,10 @@ func isRequestTargetAchieved(ideal int, real int, assertType common.RuntimeAsser
 	}
 
 	ratio := float64(ideal-real) / float64(ideal)
-
+	// Print current relative difference between requested and issued number of invocations
+	if ratio > 0 {
+		log.Debugf("Relative difference between requested and issued number of invocations: %.2f\n", ratio)
+	}
 	var warnBound float64
 	var terminationBound float64
 	var warnMessage string

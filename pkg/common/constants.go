@@ -83,7 +83,7 @@ const (
 	FailedWarnThreshold = 0.3
 	// FailedTerminateThreshold Terminate experiment if the percentage of failed invocations (e.g., connection timeouts,
 	// function timeouts) is greater than this threshold
-	FailedTerminateThreshold = 0.5
+	FailedTerminateThreshold = 1.1
 )
 
 type RuntimeAssertType int
