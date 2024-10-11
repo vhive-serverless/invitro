@@ -90,9 +90,9 @@ def main():
     for function in trace_functions:
         trace_json[function] = {}
         # Function name here is the HashOwner + HashApp + HashFunction to be a unique identifier
-        trace_json[function]["function_name"] = trace_functions[function]["name"]
-        trace_json[function]["proxy-function"] = trace_functions[function]["proxy-function"]
-        trace_json[function]["proxy-correlation"] = trace_functions[function]["proxy-correlation"]
+        # trace_json[function]["function_name"] = trace_functions[function]["name"]
+        trace_json[function]["proxy-function"] = trace_functions[function]["proxy-function"] 
+        # trace_json[function]["proxy-correlation"] = trace_functions[function]["proxy-correlation"]
 
     try:
         with open(output_filepath, "w") as jf:

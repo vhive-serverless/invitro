@@ -33,6 +33,8 @@ import (
 	"math/rand"
 	"net/http"
 	"net/url"
+	"os"
+	"encoding/json"
 	"os/exec"
 	"regexp"
 	"strconv"
@@ -114,11 +116,55 @@ func deployKnative(function *common.Function, yamlPath string, isPartiallyPanic 
 		// second, then round to an integer as that is what the knative config expects
 	}
 
+	// Read and unmarshal the mapper output file into a map
+	
+	mapperFile, err := os.ReadFile("pkg/mapper/output.json")
+	if err != nil {
+		log.Warn("No mapper output file")
+	}
+	var mapperOutput map[string]string			// HashFunction mapped to vSwarm function yaml.
+	json.Unmarshal(mapperFile, &mapperOutput)
+
+	// Find the proxy name for the function
+	proxyName := mapperOutput[function.Name]
+
+	// Read the deployment info file for yaml locations and predeployment commands if any
+
+	deploymentInfoFile, err := os.ReadFile(yamlPath + "deploy_info.json")
+
+	if err != nil {
+		log.Warn("No deployment info file")
+	}
+
+	var deploymentInfo map[string]map[string]interface{}
+
+	json.Unmarshal(deploymentInfoFile, &deploymentInfo)
+
+	// Get the yaml location and predeployment commands for the function
+	yamlLocation := deploymentInfo[proxyName]["yaml-location"].(string)
+	// Modify the yaml location to drop the leading "./" and add the yaml path
+	yamlPath = yamlPath + yamlLocation[2:]
+	// Get the list of predeployment commands
+	predeploymentCommands := deploymentInfo[proxyName]["predeployment-commands"].([]interface{}) 
+
+	// Run the predeployment commands
+	for _, command := range predeploymentCommands {
+		cmd := exec.Command("bash", "-c", command.(string))
+		stdoutStderr, err := cmd.CombinedOutput()
+		log.Debug("Predeployment command response: ", string(stdoutStderr))
+		if err != nil {
+			log.Warnf("Failed to run predeployment command %s: %v\n%s\n", command, err, stdoutStderr)
+			return false
+		}
+	}
+
+	// Deploy the function
+
 	cmd := exec.Command(
 		"bash",
 		"./pkg/driver/deploy.sh",
 		yamlPath,
-		function.Name,
+		proxyName,
 
 		strconv.Itoa(function.CPURequestsMilli)+"m",
 		strconv.Itoa(function.CPULimitsMilli)+"m",
@@ -165,4 +211,13 @@ func CleanKnative() {
 	if err != nil {
 		log.Debugf("Unable to delete Knative services - %s", err)
 	}
+	log.Debugf("Deleted Knative services")
+	cmd = exec.Command("kubectl", "delete", "all", "--all", "-n", "default")
+	out.Reset()
+	cmd.Stdout = &out
+	err = cmd.Run()
+	if err != nil {
+		log.Debugf("Unable to delete kubectl pods - %s", err)
+	}
+	log.Debugf("Deleted kubectl pods")
 }

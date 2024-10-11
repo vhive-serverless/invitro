@@ -121,7 +121,7 @@ func runTraceMode(cfg *config.LoaderConfiguration, iatOnly bool, generated bool)
 	durationToParse := determineDurationToParse(cfg.ExperimentDuration, cfg.WarmupDuration)
 
 	traceParser := trace.NewAzureParser(cfg.TracePath, durationToParse)
-	functions := traceParser.Parse(cfg.Platform)
+	functions := traceParser.Parse(cfg.Platform)		// Indexed by hashfunction names
 
 	log.Infof("Traces contain the following %d functions:\n", len(functions))
 	for _, function := range functions {
@@ -152,7 +152,7 @@ func runTraceMode(cfg *config.LoaderConfiguration, iatOnly bool, generated bool)
 	case "wimpy":
 		yamlSpecificationPath = "workloads/container/wimpy.yaml"
 	case "container":
-		yamlSpecificationPath = "workloads/container/trace_func_go.yaml"
+		yamlSpecificationPath = "workloads/container/"
 	case "firecracker":
 		yamlSpecificationPath = "workloads/firecracker/trace_func_go.yaml"
 	default:
@@ -180,7 +180,7 @@ func runTraceMode(cfg *config.LoaderConfiguration, iatOnly bool, generated bool)
 		TraceGranularity:    traceGranularity,
 		TraceDuration:       durationToParse,
 
-		YAMLPath: yamlSpecificationPath,
+		YAMLPath: yamlSpecificationPath,		// For container it is the path to the directory containing the YAML files
 		TestMode: false,
 
 		Functions: functions,

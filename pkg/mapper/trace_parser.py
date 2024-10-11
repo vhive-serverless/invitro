@@ -42,8 +42,6 @@ def read_durations_csv(directory_name: str) -> Tuple[dict, int]:
                 log.error(f"Illegal header: {file_path}")
                 return {}, -1
             try:
-                hashowner_index = first_row.index("HashOwner")
-                hashapp_index = first_row.index("HashApp")
                 hashfunction_index = first_row.index("HashFunction")
                 average_index = first_row.index("Average")
                 count_index = first_row.index("Count")
@@ -69,8 +67,8 @@ def read_durations_csv(directory_name: str) -> Tuple[dict, int]:
                     continue
 
                 function_name = (
-                    row[hashowner_index] + row[hashapp_index] + row[hashfunction_index]
-                )  # HashOwner + HashApp + HashFunction
+                    row[hashfunction_index]
+                )  # HashFunction
                 functions[function_name] = {}
                 functions[function_name]["name"] = function_name
                 functions[function_name]["duration"] = {}
@@ -161,8 +159,6 @@ def read_memory_csv(directory_name: str) -> Tuple[dict, int]:
                 log.error(f"Illegal header: {file_path}")
                 return {}, -1
             try:
-                hashowner_index = first_row.index("HashOwner")
-                hashapp_index = first_row.index("HashApp")
                 hashfunction_index = first_row.index("HashFunction")
                 count_index = first_row.index("SampleCount")
                 average_index = first_row.index("AverageAllocatedMb")
@@ -187,8 +183,8 @@ def read_memory_csv(directory_name: str) -> Tuple[dict, int]:
                     continue
 
                 function_name = (
-                    row[hashowner_index] + row[hashapp_index] + row[hashfunction_index]
-                )  # HashOwner + HashApp + HashFunction
+                    row[hashfunction_index]
+                )  # HashFunction
                 functions[function_name] = {}
                 functions[function_name]["name"] = function_name
                 functions[function_name]["memory"] = {}
