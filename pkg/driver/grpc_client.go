@@ -32,7 +32,7 @@ import (
 	"github.com/vhive-serverless/loader/pkg/common"
 	"github.com/vhive-serverless/loader/pkg/config"
 	//"github.com/vhive-serverless/loader/pkg/workload/proto"
-	"github.com/vhive-serverless/vSwarm/tools/benchmarking_eventing/vhivemetadata"
+	//"github.com/vhive-serverless/vSwarm/tools/benchmarking_eventing/vhivemetadata"
 	proto "github.com/vhive-serverless/vSwarm/utils/protobuf/helloworld"
 
 	log "github.com/sirupsen/logrus"
@@ -98,7 +98,7 @@ func InvokeGRPC(function *common.Function, runtimeSpec *common.RuntimeSpecificat
 	})*/
 	response, err := grpcClient.SayHello(executionCxt, &proto.HelloRequest{
 		Name: "Invoke Relay",
-		Metadata: vhivemetadata.MakeVHiveMetadata(
+		Metadata: MakeVHiveMetadata(
 			uuid.New().String(),
 			uuid.New().String(),
 			time.Now().UTC(),
