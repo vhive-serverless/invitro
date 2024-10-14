@@ -101,8 +101,7 @@ func InvokeGRPC(function *common.Function, runtimeSpec *common.RuntimeSpecificat
 		Metadata: MakeVHiveMetadata(
 			uuid.New().String(),
 			uuid.New().String(),
-			time.Now().UTC(),
-		)
+			time.Now().UTC())
 	})
 
 	if err != nil {
