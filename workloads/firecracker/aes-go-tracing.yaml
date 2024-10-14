@@ -23,7 +23,7 @@
 apiVersion: serving.knative.dev/v1
 kind: Service
 metadata:
-  name: aes-go-tracing
+  name: $FUNC_NAME
   namespace: default
 spec:
   template:

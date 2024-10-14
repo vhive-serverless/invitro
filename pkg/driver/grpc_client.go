@@ -28,7 +28,7 @@ import (
 	"context"
 	"strings"
 	"time"
-
+	"github.com/google/uuid"
 	"github.com/vhive-serverless/loader/pkg/common"
 	"github.com/vhive-serverless/loader/pkg/config"
 	//"github.com/vhive-serverless/loader/pkg/workload/proto"
@@ -98,10 +98,11 @@ func InvokeGRPC(function *common.Function, runtimeSpec *common.RuntimeSpecificat
 	})*/
 	response, err := grpcClient.SayHello(executionCxt, &proto.HelloRequest{
 		Name: "Invoke Relay",
-		Metadata: MakeVHiveMetadata(
+		VHiveMetadata: MakeVHiveMetadata(
 			uuid.New().String(),
 			uuid.New().String(),
-			time.Now().UTC())
+			time.Now().UTC(),
+		),
 	})
 
 	if err != nil {
@@ -116,8 +117,8 @@ func InvokeGRPC(function *common.Function, runtimeSpec *common.RuntimeSpecificat
 	//record.Instance = extractInstanceName(response.GetMessage())
 	//record.ResponseTime = time.Since(start).Microseconds()
 	//record.ActualDuration = response.DurationInMicroSec
-	record.ResponseTIme = time.Since(start).Microseconds()
-	record.ActualDuration = record.ResponseTime 
+	record.ResponseTime = time.Since(start).Microseconds()
+	record.ActualDuration = uint32(record.ResponseTime)
 	record.Instance = extractInstanceName(response.GetMessage())
 
 	if strings.HasPrefix(response.GetMessage(), "FAILURE - mem_alloc") {
