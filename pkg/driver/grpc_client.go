@@ -31,7 +31,9 @@ import (
 
 	"github.com/vhive-serverless/loader/pkg/common"
 	"github.com/vhive-serverless/loader/pkg/config"
-	"github.com/vhive-serverless/loader/pkg/workload/proto"
+	//"github.com/vhive-serverless/loader/pkg/workload/proto"
+	"github.com/vhive-serverless/vSwarm/tools/benchmarking_eventing/vhivemetadata"
+	proto "github.com/vhive-serverless/vSwarm/utils/protobuf/helloworld"
 
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
@@ -83,15 +85,24 @@ func InvokeGRPC(function *common.Function, runtimeSpec *common.RuntimeSpecificat
 
 	record.GRPCConnectionEstablishTime = time.Since(grpcStart).Microseconds()
 
-	grpcClient := proto.NewExecutorClient(conn)
+	//grpcClient := proto.NewExecutorClient(conn)
+	grpcClient := proto.NewGreeterClient(conn)
 
 	executionCxt, cancelExecution := context.WithTimeout(context.Background(), time.Duration(cfg.GRPCFunctionTimeoutSeconds)*time.Second)
 	defer cancelExecution()
 
-	response, err := grpcClient.Execute(executionCxt, &proto.FaasRequest{
+	/*response, err := grpcClient.Execute(executionCxt, &proto.FaasRequest{
 		Message:           "nothing",
 		RuntimeInMilliSec: uint32(runtimeSpec.Runtime),
 		MemoryInMebiBytes: uint32(runtimeSpec.Memory),
+	})*/
+	response, err := grpcClient.SayHello(executionCxt, &proto.HelloRequest{
+		Name: "Invoke Relay",
+		Metadata: vhivemetadata.MakeVHiveMetadata(
+			uuid.New().String(),
+			uuid.New().String(),
+			time.Now().UTC(),
+		)
 	})
 
 	if err != nil {
@@ -103,18 +114,21 @@ func InvokeGRPC(function *common.Function, runtimeSpec *common.RuntimeSpecificat
 		return false, record
 	}
 
+	//record.Instance = extractInstanceName(response.GetMessage())
+	//record.ResponseTime = time.Since(start).Microseconds()
+	//record.ActualDuration = response.DurationInMicroSec
+	record.ResponseTIme = time.Since(start).Microseconds()
+	record.ActualDuration = record.ResponseTime 
 	record.Instance = extractInstanceName(response.GetMessage())
-	record.ResponseTime = time.Since(start).Microseconds()
-	record.ActualDuration = response.DurationInMicroSec
 
 	if strings.HasPrefix(response.GetMessage(), "FAILURE - mem_alloc") {
 		record.MemoryAllocationTimeout = true
 	} else {
-		record.ActualMemoryUsage = common.Kib2Mib(response.MemoryUsageInKb)
+		record.ActualMemoryUsage = common.Kib2Mib(0) //common.Kib2Mib(response.MemoryUsageInKb)
 	}
 
-	log.Tracef("(Replied)\t %s: %s, %.2f[ms], %d[MiB]", function.Name, response.Message,
-		float64(response.DurationInMicroSec)/1e3, common.Kib2Mib(response.MemoryUsageInKb))
+	//log.Tracef("(Replied)\t %s: %s, %.2f[ms], %d[MiB]", function.Name, response.Message,
+		//float64(response.DurationInMicroSec)/1e3, common.Kib2Mib(response.MemoryUsageInKb))
 	log.Tracef("(E2E Latency) %s: %.2f[ms]\n", function.Name, float64(record.ResponseTime)/1e3)
 
 	return true, record
