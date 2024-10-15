@@ -281,7 +281,7 @@ func TestGlobalMetricsCollector(t *testing.T) {
 	var record []metric.ExecutionRecord
 	err = gocsv.UnmarshalFile(f, &record)
 	if err != nil {
-		log.Fatalf(err.Error())
+		log.Fatal(err.Error())
 	}
 
 	for i := 0; i < driver.Configuration.Functions[0].InvocationStats.Invocations[0]; i++ {
@@ -372,7 +372,7 @@ func TestDriverCompletely(t *testing.T) {
 			var records []metric.ExecutionRecordBase
 			err = gocsv.UnmarshalFile(f, &records)
 			if err != nil {
-				log.Fatalf(err.Error())
+				log.Fatal(err.Error())
 			}
 
 			successfulInvocation, failedInvocations := 0, 0
