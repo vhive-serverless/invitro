@@ -637,7 +637,8 @@ func (d *Driver) RunExperiment(iatOnly bool, generated bool) {
 			}
 		}
 
-		return
+		log.Info("IATs have been generated. The program has exited.")
+		os.Exit(0)
 	}
 
 	if d.Configuration.WithWarmup() {
