@@ -8,6 +8,7 @@ jobs:
   automerge:
     name: Enable automerge on dependabot PRs
     runs-on: ubuntu-latest
+    if: github.actor == 'dependabot[bot]'
     steps:
       - name: Approve the PR
         uses: hmarr/auto-approve-action@v4
