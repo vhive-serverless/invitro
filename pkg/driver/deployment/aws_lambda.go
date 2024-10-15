@@ -1,17 +1,35 @@
-package driver
+package deployment
 
 import (
 	"fmt"
 	log "github.com/sirupsen/logrus"
 	"github.com/vhive-serverless/loader/pkg/common"
+	"github.com/vhive-serverless/loader/pkg/config"
 	"os/exec"
 	"strings"
 	"sync"
 	"sync/atomic"
 )
 
-// DeployFunctionsAWSLambda deploys functions to AWS Lambda using the Serverless.com framework, with additional dependencies on AWS CLI, Docker
-func DeployFunctionsAWSLambda(functions []*common.Function) {
+type awsLambdaDeployer struct {
+	functions []*common.Function
+}
+
+func newAWSLambdaDeployer() *awsLambdaDeployer {
+	return &awsLambdaDeployer{}
+}
+
+func (ld *awsLambdaDeployer) Deploy(cfg *config.Configuration) {
+	ld.functions = cfg.Functions
+
+	internalAWSDeployment(cfg.Functions)
+}
+
+func (ld *awsLambdaDeployer) Clean() {
+	CleanAWSLambda(ld.functions)
+}
+
+func internalAWSDeployment(functions []*common.Function) {
 	const provider = "aws"
 
 	// Check if all required dependencies are installed, verify that AWS account is clean and ready for deployment

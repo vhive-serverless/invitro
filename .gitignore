@@ -107,7 +107,6 @@ __pycache__/
 *$py.class
 
 # C extensions
-*.so
 
 # Distribution / packaging
 .Python
@@ -155,7 +154,6 @@ coverage.xml
 *.pot
 
 # Django stuff:
-*.log
 local_settings.py
 
 # Flask stuff:
@@ -187,7 +185,6 @@ celerybeat-schedule
 .env
 
 # virtualenv
-.venv
 venv/
 ENV/
 
@@ -205,7 +202,10 @@ ENV/
 .mypy_cache/
 
 # IDE settings
-.vscode/
 .idea/
 
 tools/plotter/test-out
+*.swp
+
+data/traces/azure_*
+data/traces/day*

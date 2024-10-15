@@ -34,10 +34,29 @@ import (
 type LoaderConfiguration struct {
 	Seed int64 `json:"Seed"`
 
-	Platform string `json:"Platform"`
+	Platform       string `json:"Platform"`
+	InvokeProtocol string `json:"InvokeProtocol"`
+	YAMLSelector   string `json:"YAMLSelector"`
+	EndpointPort   int    `json:"EndpointPort"`
 
-	YAMLSelector string `json:"YAMLSelector"`
-	EndpointPort int    `json:"EndpointPort"`
+	DirigentControlPlaneIP   string `json:"DirigentControlPlaneIP"`
+	BusyLoopOnSandboxStartup bool   `json:"BusyLoopOnSandboxStartup"`
+
+	AsyncMode             bool   `json:"AsyncMode"`
+	AsyncResponseURL      string `json:"AsyncResponseURL"`
+	AsyncWaitToCollectMin int    `json:"AsyncWaitToCollectMin"`
+
+	FailAt        int    `json:"FailAt"`
+	FailComponent string `json:"FailComponent"`
+	FailNode      string `json:"FailNode"`
+
+	RpsTarget                   float64 `json:"RpsTarget"`
+	RpsColdStartRatioPercentage float64 `json:"RpsColdStartRatioPercentage"`
+	RpsCooldownSeconds          int     `json:"RpsCooldownSeconds"`
+	RpsImage                    string  `json:"RpsImage"`
+	RpsRuntimeMs                int     `json:"RpsRuntimeMs"`
+	RpsMemoryMB                 int     `json:"RpsMemoryMB"`
+	RpsIterationMultiplier      int     `json:"RpsIterationMultiplier"`
 
 	TracePath          string `json:"TracePath"`
 	Granularity        string `json:"Granularity"`
