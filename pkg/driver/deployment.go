@@ -122,12 +122,12 @@ func deployKnative(function *common.Function, yamlPath string, isPartiallyPanic 
 	if err != nil {
 		log.Warn("No mapper output file")
 	}
-	var mapperOutput map[string]string			// HashFunction mapped to vSwarm function yaml.
+	var mapperOutput map[string]map[string]string		// HashFunction mapped to vSwarm function yaml.
 	json.Unmarshal(mapperFile, &mapperOutput)
 
 	// Find the proxy name for the function
-	proxyName := mapperOutput[function.Name]
-
+	proxyName := mapperOutput[function.HashFunction]["proxy-function"]
+	log.Info("Proxy name: ", proxyName)
 	// Read the deployment info file for yaml locations and predeployment commands if any
 
 	deploymentInfoFile, err := os.ReadFile(yamlPath + "deploy_info.json")
@@ -143,7 +143,7 @@ func deployKnative(function *common.Function, yamlPath string, isPartiallyPanic 
 	// Get the yaml location and predeployment commands for the function
 	yamlLocation := deploymentInfo[proxyName]["yaml-location"].(string)
 	// Modify the yaml location to drop the leading "./" and add the yaml path
-	yamlPath = yamlPath + yamlLocation[2:]
+	yamlPath = yamlLocation
 	// Get the list of predeployment commands
 	predeploymentCommands := deploymentInfo[proxyName]["predeployment-commands"].([]interface{}) 
 
