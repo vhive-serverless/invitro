@@ -18,16 +18,8 @@ spec:
         autoscaling.knative.dev/target: $AUTOSCALING_TARGET
     spec:
       containerConcurrency: 1
-      affinity:
-        nodeAffinity:
-          requiredDuringSchedulingIgnoredDuringExecution:
-            nodeSelectorTerms:
-            - matchExpressions:
-              - key: loader-nodetype
-                operator: In
-                values:
-                - worker
-                - singlenode
+      nodeSelector:
+        loader-nodetype: worker
       containers:
         - image: docker.io/cvetkovic/dirigent_trace_function:latest
           # imagePullPolicy: Always  # No need if the tag is `latest`.
@@ -42,7 +34,7 @@ spec:
             - name: COLD_START_BUSY_LOOP_MS
               value: $COLD_START_BUSY_LOOP_MS
             - name: IO_PERCENTAGE
-              value: "0"
+              value: "50"
           resources:
             limits:
               cpu: $CPU_LIMITS

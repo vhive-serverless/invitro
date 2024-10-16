@@ -22,7 +22,7 @@
  * SOFTWARE.
  */
 
-package driver
+package clients
 
 import (
 	"context"
@@ -42,7 +42,17 @@ import (
 	mc "github.com/vhive-serverless/loader/pkg/metric"
 )
 
-func InvokeGRPC(function *common.Function, runtimeSpec *common.RuntimeSpecification, cfg *config.LoaderConfiguration) (bool, *mc.ExecutionRecord) {
+type grpcInvoker struct {
+	cfg *config.LoaderConfiguration
+}
+
+func newGRPCInvoker(cfg *config.LoaderConfiguration) *grpcInvoker {
+	return &grpcInvoker{
+		cfg: cfg,
+	}
+}
+
+func (i *grpcInvoker) Invoke(function *common.Function, runtimeSpec *common.RuntimeSpecification) (bool, *mc.ExecutionRecord) {
 	log.Tracef("(Invoke)\t %s: %d[ms], %d[MiB]", function.Name, runtimeSpec.Runtime, runtimeSpec.Memory)
 
 	record := &mc.ExecutionRecord{
@@ -57,13 +67,13 @@ func InvokeGRPC(function *common.Function, runtimeSpec *common.RuntimeSpecificat
 	start := time.Now()
 	record.StartTime = start.UnixMicro()
 
-	dialContext, cancelDialing := context.WithTimeout(context.Background(), time.Duration(cfg.GRPCConnectionTimeoutSeconds)*time.Second)
+	dialContext, cancelDialing := context.WithTimeout(context.Background(), time.Duration(i.cfg.GRPCConnectionTimeoutSeconds)*time.Second)
 	defer cancelDialing()
 
 	var dialOptions []grpc.DialOption
 	dialOptions = append(dialOptions, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	dialOptions = append(dialOptions, grpc.WithBlock())
-	if cfg.EnableZipkinTracing {
+	if i.cfg.EnableZipkinTracing {
 		// NOTE: if enabled it will exclude Istio span from the Zipkin trace
 		dialOptions = append(dialOptions, grpc.WithUnaryInterceptor(otelgrpc.UnaryClientInterceptor()))
 	}
@@ -85,7 +95,7 @@ func InvokeGRPC(function *common.Function, runtimeSpec *common.RuntimeSpecificat
 
 	grpcClient := proto.NewExecutorClient(conn)
 
-	executionCxt, cancelExecution := context.WithTimeout(context.Background(), time.Duration(cfg.GRPCFunctionTimeoutSeconds)*time.Second)
+	executionCxt, cancelExecution := context.WithTimeout(context.Background(), time.Duration(i.cfg.GRPCFunctionTimeoutSeconds)*time.Second)
 	defer cancelExecution()
 
 	response, err := grpcClient.Execute(executionCxt, &proto.FaasRequest{
