@@ -12,7 +12,7 @@ usage: mapper.py [-h] -t TRACE_DIRECTORYPATH -p PROFILE_FILEPATH [-o OUTPUT_FILE
 Arguments:
   -h, --help            show this help message and exit
   -t TRACE_DIRECTORYPATH, --trace-directorypath TRACE_DIRECTORYPATH
-                        Path to the directory containing the trace files
+                        Path to the directory containing the trace files (required)
   -p PROFILE_FILEPATH, --profile-filepath PROFILE_FILEPATH
                         Path to the profile file containing the proxy functions
   -o OUTPUT_FILEPATH, --output-filepath OUTPUT_FILEPATH
@@ -20,7 +20,7 @@ Arguments:
   -u UNIQUE_ASSIGNMENT, --unique-assignment UNIQUE_ASSIGNMENT
                         Whether to assign unique proxy functions to each trace function
 ```
-The tool reads the trace information(memory, duration and invocation details) from the `trace/` directory (can be configured using `-t` or `--trace-directorypath` flags). The `trace/` directory must contain the `memory.csv` and `durations.csv` files containing the respective trace information of the format mentioned in [*Azure Functions Dataset 2019*](https://github.com/Azure/AzurePublicDataset/blob/master/AzureFunctionsDataset2019.md)
+The tool reads the trace information(memory and duration details) from the `trace/` directory (can be configured using `-t` or `--trace-directorypath` flags). The `trace/` directory must contain the `memory.csv` and `durations.csv` files containing the respective trace information of the format mentioned in [*Azure Functions Dataset 2019*](https://github.com/Azure/AzurePublicDataset/blob/master/AzureFunctionsDataset2019.md)
 
 #### Function Execution Duration `durations.csv` Schema
 
@@ -69,15 +69,17 @@ An example of a generated output file is as follows:
 
 ```json
 {
-    "c455703077a17a9b8d0fc655d939fcc6d24d819fa9a1066b74f710c35a43cbc868baea05aa0c3619b6feb78c80a07e27e4e68f921d714b8125f916c3b3370bf2c13acdc7567b225971cef2416a3a2b03c8a4d8d154df48afe75834e2f5c59ddf": {
-        "function_name": "c455703077a17a9b8d0fc655d939fcc6d24d819fa9a1066b74f710c35a43cbc868baea05aa0c3619b6feb78c80a07e27e4e68f921d714b8125f916c3b3370bf2c13acdc7567b225971cef2416a3a2b03c8a4d8d154df48afe75834e2f5c59ddf",
-        "proxy-function": "video-processing-python-10",
-        "proxy-correlation": 0.2522586233173147
+    "c13acdc7567b225971cef2416a3a2b03c8a4d8d154df48afe75834e2f5c59ddf": {
+        "proxy-function": "video-processing-python-10"
     },
-    "d7028b01f2422ea9d4f695cae4085800eb34540674081a46bb4e4388e7995f7ac8b8b9160f181010f509ee0af3266cbcb5a5f4c7700ba8d4396f1147e1ad3bbda2faad786b3c813b12ce57d349d5e62f6d0f22ceecfa86cd72a962853383b600": {
-        "function_name": "d7028b01f2422ea9d4f695cae4085800eb34540674081a46bb4e4388e7995f7ac8b8b9160f181010f509ee0af3266cbcb5a5f4c7700ba8d4396f1147e1ad3bbda2faad786b3c813b12ce57d349d5e62f6d0f22ceecfa86cd72a962853383b600",
-        "proxy-function": "image-rotate-go-11",
-        "proxy-correlation": 0.1586153559937426
+    "a2faad786b3c813b12ce57d349d5e62f6d0f22ceecfa86cd72a962853383b600": {
+        "proxy-function": "image-rotate-go-11"
+    },
+    "7dc5aeabc131669912e8c793c8925cc9928321f45f13a4af031592b4611630d7": {
+        "proxy-function": "video-processing-python-70"
+    },
+    "ae8a1640fa932024f59b38a0b001808b5c64612bd60c6f3eb80ba9461ba2d091": {
+        "proxy-function": "video-processing-python-20"
     }
 }
 ```
