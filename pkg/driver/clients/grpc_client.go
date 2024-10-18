@@ -26,6 +26,7 @@ package clients
 
 import (
 	"context"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"strings"
 	"time"
 
@@ -67,6 +68,9 @@ func (i *grpcInvoker) Invoke(function *common.Function, runtimeSpec *common.Runt
 
 	var dialOptions []grpc.DialOption
 	dialOptions = append(dialOptions, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if i.cfg.EnableZipkinTracing {
+		dialOptions = append(dialOptions, grpc.WithStatsHandler(otelgrpc.NewClientHandler()))
+	}
 
 	grpcStart := time.Now()
 
