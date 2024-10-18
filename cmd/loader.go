@@ -46,6 +46,7 @@ const (
 
 var (
 	configPath    = flag.String("config", "config_knative_trace.json", "Path to loader configuration file")
+	failurePath   = flag.String("failureConfig", "failure.json", "Path to the failure configuration file")
 	verbosity     = flag.String("verbosity", "info", "Logging verbosity - choose from [info, debug, trace]")
 	iatGeneration = flag.Bool("iatGeneration", false, "Generate iats only or run invocations as well")
 	iatFromFile   = flag.Bool("generated", false, "True if iats were already generated")
@@ -184,11 +185,13 @@ func runTraceMode(cfg *config.LoaderConfiguration, readIATFromFile bool, justGen
 	iatType, shiftIAT := parseIATDistribution(cfg)
 
 	experimentDriver := driver.NewDriver(&config.Configuration{
-		LoaderConfiguration: cfg,
-		IATDistribution:     iatType,
-		ShiftIAT:            shiftIAT,
-		TraceGranularity:    parseTraceGranularity(cfg),
-		TraceDuration:       durationToParse,
+		LoaderConfiguration:  cfg,
+		FailureConfiguration: config.ReadFailureConfiguration(*failurePath),
+
+		IATDistribution:  iatType,
+		ShiftIAT:         shiftIAT,
+		TraceGranularity: parseTraceGranularity(cfg),
+		TraceDuration:    durationToParse,
 
 		YAMLPath: yamlPath,
 		TestMode: false,

@@ -1,0 +1,7 @@
+{
+  "FailureEnabled": false,
+
+  "FailAt": 600,
+  "FailComponent": "control_plane",
+  "FailNode": ""
+}

@@ -30,15 +30,33 @@
 | GRPCConnectionTimeoutSeconds | int       | > 0                                                                 | 60                  | Timeout for establishing a gRPC connection                                           |
 | GRPCFunctionTimeoutSeconds   | int       | > 0                                                                 | 90                  | Maximum time given to function to execute[^5]                                        |
 | DAGMode                      | bool      | true/false                                                          | false               | Sequential invocation of all functions one after another                             |
+
 [^1]: To run RPS experiments add suffix `-RPS`.
 
 [^2]: The second granularity feature interprets each column of the trace as a second, rather than as a minute, and
 generates IAT for each second. This feature is useful for fine-grained and precise invocation scheduling in experiments
 involving stable low load.
 
-[^3]: `_shift` modifies the IAT generation in the following way: by default, generation will create first invocation in the beginning of the minute, with `_shift` modifier, it will be shifted inside the minute to remove the burst of invocations from all the functions.
+[^3]: `_shift` modifies the IAT generation in the following way: by default, generation will create first invocation in
+the beginning of the minute, with `_shift` modifier, it will be shifted inside the minute to remove the burst of
+invocations from all the functions.
 
-[^4]: Limits are set by resource->limits->CPU in the service YAML. `1vCPU` means limit of 1CPU is set, at the same time execution is also limited by the container concurrency limit of 1. `GCP` means limits are set to multiples of 1/12th of vCPU, based on the memory consumption of the function according to this [table](https://cloud.google.com/functions/pricing#compute_time) for Google Cloud Functions.
+[^4]: Limits are set by resource->limits->CPU in the service YAML. `1vCPU` means limit of 1CPU is set, at the same time
+execution is also limited by the container concurrency limit of 1. `GCP` means limits are set to multiples of 1/12th of
+vCPU, based on the memory consumption of the function according to
+this [table](https://cloud.google.com/functions/pricing#compute_time) for Google Cloud Functions.
 
 [^5]: Function can execute for at most 15 minutes as in AWS
 Lambda; https://aws.amazon.com/about-aws/whats-new/2018/10/aws-lambda-supports-functions-that-can-run-up-to-15-minutes/
+
+---
+
+InVitro can cause failure on cluster manager components. To do so, please configure the `cmd/failure.json`. Make sure
+that the node on which you run InVitro has SSH access to the target node.
+
+| Parameter name | Description                                                                        |
+|----------------|------------------------------------------------------------------------------------|
+| FailureEnabled | Toggle to enable this feature                                                      |
+| FailAt         | Time in seconds since the beginning of the experiment when to trigger a failure    | 
+| FailComponent  | Which component to fail (choose from 'control_plane', 'data_plane', 'worker_node') |
+| FailNode       | Which node(s) to fail (specify separated by blank space)                           |

@@ -5,11 +5,13 @@ import (
 )
 
 type Configuration struct {
-	LoaderConfiguration *LoaderConfiguration
-	IATDistribution     common.IatDistribution
-	ShiftIAT            bool // shift the invocations inside minute
-	TraceGranularity    common.TraceGranularity
-	TraceDuration       int // in minutes
+	LoaderConfiguration  *LoaderConfiguration
+	FailureConfiguration *FailureConfiguration
+
+	IATDistribution  common.IatDistribution
+	ShiftIAT         bool // shift the invocations inside minute
+	TraceGranularity common.TraceGranularity
+	TraceDuration    int // in minutes
 
 	YAMLPath string
 	TestMode bool
