@@ -21,5 +21,9 @@
 
   "GRPCConnectionTimeoutSeconds": 15,
   "GRPCFunctionTimeoutSeconds": 900,
-  "DAGMode": false
+  "DAGMode": false,
+  "DAGTracePath": "data/traces/sampled_150/20",
+  "EnableDAGDataset": true,
+  "Width": 2,
+  "Depth": 2
 }
