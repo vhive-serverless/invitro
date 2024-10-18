@@ -114,7 +114,7 @@ Cloudlab `xl170` or `d430` machines. (Date of measurement: 18-Oct-2022)
 To run load generator use the following command:
 
 ```bash
-$ go run cmd/loader.go --config cmd/config.json
+$ go run cmd/loader.go --config cmd/config_knative_trace.json
 ```
 
 Additionally, one can specify log verbosity argument as `--verbosity [info, debug, trace]`. The default value is `info`.
@@ -195,14 +195,14 @@ For instructions on how to use the loader with OpenWhisk go to `openwhisk_setup/
     export AWS_DEFAULT_REGION=us-east-1
     ```
    > For more fine-grained IAM setup, please refer to Serverless [setup guide](https://www.serverless.com/framework/docs/providers/aws/guide/credentials/)
-3. In `cmd/config.json`, change `"Platform": "Knative"` to `"Platform": "AWSLambda"` (as specified in [`docs/configuration.md`](../docs/configuration.md))
+3. In `cmd/config_knative_trace.json`, change `"Platform": "Knative"` to `"Platform": "AWSLambda"` (as specified in [`docs/configuration.md`](../docs/configuration.md))
     ```bash
     cd loader/
-    sed -i 's/"Platform": "Knative"/"Platform": "AWSLambda"/g' cmd/config.json
+    sed -i 's/"Platform": "Knative"/"Platform": "AWSLambda"/g' cmd/config_knative_trace.json
     ```
 4. Start the AWS deployment experiment:
     ```bash
-    go run cmd/loader.go --config cmd/config.json
+    go run cmd/loader.go --config cmd/config_knative_trace.json
     ```
 
 ---

@@ -29,6 +29,9 @@ import (
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
+	"github.com/vhive-serverless/loader/pkg/config"
+	"github.com/vhive-serverless/loader/pkg/driver/clients"
+	"github.com/vhive-serverless/loader/pkg/driver/deployment"
 	"math"
 	"os"
 	"strconv"
@@ -39,43 +42,32 @@ import (
 	"github.com/gocarina/gocsv"
 	log "github.com/sirupsen/logrus"
 	"github.com/vhive-serverless/loader/pkg/common"
-	"github.com/vhive-serverless/loader/pkg/config"
 	"github.com/vhive-serverless/loader/pkg/generator"
 	mc "github.com/vhive-serverless/loader/pkg/metric"
 	"github.com/vhive-serverless/loader/pkg/trace"
 )
 
-type DriverConfiguration struct {
-	LoaderConfiguration *config.LoaderConfiguration
-	IATDistribution     common.IatDistribution
-	ShiftIAT            bool // shift the invocations inside minute
-	TraceGranularity    common.TraceGranularity
-	TraceDuration       int // in minutes
-
-	YAMLPath string
-	TestMode bool
-
-	Functions []*common.Function
-}
-
 type Driver struct {
-	Configuration          *DriverConfiguration
+	Configuration          *config.Configuration
 	SpecificationGenerator *generator.SpecificationGenerator
+	Invoker                clients.Invoker
+
+	readOpenWhiskMetadata sync.Mutex
+	allFunctionsInvoked   sync.WaitGroup
 }
 
-func NewDriver(driverConfig *DriverConfiguration) *Driver {
-	return &Driver{
+func NewDriver(driverConfig *config.Configuration) *Driver {
+	d := &Driver{
 		Configuration:          driverConfig,
 		SpecificationGenerator: generator.NewSpecificationGenerator(driverConfig.LoaderConfiguration.Seed),
-	}
-}
 
-func (c *DriverConfiguration) WithWarmup() bool {
-	if c.LoaderConfiguration.WarmupDuration > 0 {
-		return true
-	} else {
-		return false
+		readOpenWhiskMetadata: sync.Mutex{},
+		allFunctionsInvoked:   sync.WaitGroup{},
 	}
+
+	d.Invoker = clients.CreateInvoker(driverConfig.LoaderConfiguration, &d.allFunctionsInvoked, &d.readOpenWhiskMetadata)
+
+	return d
 }
 
 // ///////////////////////////////////////
@@ -217,35 +209,9 @@ func (d *Driver) invokeFunction(metadata *InvocationMetadata) {
 	for node != nil {
 		function := node.Value.(*common.Function)
 		runtimeSpecifications = &function.Specification.RuntimeSpecification[metadata.MinuteIndex][metadata.InvocationIndex]
-		switch d.Configuration.LoaderConfiguration.Platform {
-		case "Knative":
-			success, record = InvokeGRPC(
-				function,
-				runtimeSpecifications,
-				d.Configuration.LoaderConfiguration,
-			)
-		case "OpenWhisk":
-			success, record = InvokeOpenWhisk(
-				function,
-				runtimeSpecifications,
-				metadata.AnnounceDoneExe,
-				metadata.ReadOpenWhiskMetadata,
-			)
-		case "AWSLambda":
-			success, record = InvokeAWSLambda(
-				function,
-				runtimeSpecifications,
-				metadata.AnnounceDoneExe,
-			)
-		case "Dirigent":
-			success, record = InvokeDirigent(
-				function,
-				runtimeSpecifications,
-				d.Configuration.LoaderConfiguration,
-			)
-		default:
-			log.Fatal("Unsupported platform.")
-		}
+
+		success, record = d.Invoker.Invoke(function, runtimeSpecifications)
+
 		record.Phase = int(metadata.Phase)
 		record.InvocationID = composeInvocationID(d.Configuration.TraceGranularity, metadata.MinuteIndex, metadata.InvocationIndex)
 		metadata.RecordOutputChannel <- record
@@ -671,7 +637,8 @@ func (d *Driver) RunExperiment(iatOnly bool, generated bool) {
 			}
 		}
 
-		return
+		log.Info("IATs have been generated. The program has exited.")
+		os.Exit(0)
 	}
 
 	if d.Configuration.WithWarmup() {
@@ -680,32 +647,12 @@ func (d *Driver) RunExperiment(iatOnly bool, generated bool) {
 
 	trace.ApplyResourceLimits(d.Configuration.Functions, d.Configuration.LoaderConfiguration.CPULimit)
 
-	switch d.Configuration.LoaderConfiguration.Platform {
-	case "Knative":
-		DeployFunctions(d.Configuration.Functions,
-			d.Configuration.YAMLPath,
-			d.Configuration.LoaderConfiguration.IsPartiallyPanic,
-			d.Configuration.LoaderConfiguration.EndpointPort,
-			d.Configuration.LoaderConfiguration.AutoscalingMetric)
-	case "OpenWhisk":
-		DeployFunctionsOpenWhisk(d.Configuration.Functions)
-	case "AWSLambda":
-		DeployFunctionsAWSLambda(d.Configuration.Functions)
-	case "Dirigent":
-		DeployDirigent(d.Configuration.Functions)
-	default:
-		log.Fatal("Unsupported platform.")
-	}
+	deployer := deployment.CreateDeployer(d.Configuration)
+	deployer.Deploy(d.Configuration)
 
 	// Generate load
 	d.internalRun(iatOnly, generated)
 
 	// Clean up
-	if d.Configuration.LoaderConfiguration.Platform == "Knative" {
-		CleanKnative()
-	} else if d.Configuration.LoaderConfiguration.Platform == "OpenWhisk" {
-		CleanOpenWhisk(d.Configuration.Functions)
-	} else if d.Configuration.LoaderConfiguration.Platform == "AWSLambda" {
-		CleanAWSLambda(d.Configuration.Functions)
-	}
+	deployer.Clean()
 }

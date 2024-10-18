@@ -22,23 +22,24 @@
  * SOFTWARE.
  */
 
-package driver
+package clients
 
 import (
 	"fmt"
+	"github.com/vhive-serverless/loader/pkg/config"
 	"os"
 	"testing"
 	"time"
 
 	"github.com/sirupsen/logrus"
 	"github.com/vhive-serverless/loader/pkg/common"
-	"github.com/vhive-serverless/loader/pkg/config"
 	"github.com/vhive-serverless/loader/pkg/workload/standard"
 )
 
 func createFakeLoaderConfiguration() *config.LoaderConfiguration {
 	return &config.LoaderConfiguration{
 		Platform:                     "Knative",
+		InvokeProtocol:               "grpc",
 		OutputPathPrefix:             "test",
 		EnableZipkinTracing:          true,
 		GRPCConnectionTimeoutSeconds: 5,
@@ -59,7 +60,8 @@ func TestGRPCClientWithServerUnreachable(t *testing.T) {
 	cfg := createFakeLoaderConfiguration()
 	cfg.EnableZipkinTracing = true
 
-	success, record := InvokeGRPC(&testFunction, &testRuntimeSpecs, cfg)
+	invoker := CreateInvoker(cfg, nil, nil)
+	success, record := invoker.Invoke(&testFunction, &testRuntimeSpecs)
 
 	if record.Instance != "" ||
 		record.RequestedDuration != uint32(testRuntimeSpecs.Runtime*1000) ||
@@ -73,7 +75,7 @@ func TestGRPCClientWithServerUnreachable(t *testing.T) {
 }
 
 func TestGRPCClientWithServerReachable(t *testing.T) {
-	address, port := "localhost", 8080
+	address, port := "localhost", 18080
 	testFunction.Endpoint = fmt.Sprintf("%s:%d", address, port)
 
 	go standard.StartGRPCServer(address, port, standard.TraceFunction, "")
@@ -82,9 +84,10 @@ func TestGRPCClientWithServerReachable(t *testing.T) {
 	time.Sleep(2 * time.Second)
 
 	cfg := createFakeLoaderConfiguration()
+	invoker := CreateInvoker(cfg, nil, nil)
 
 	start := time.Now()
-	success, record := InvokeGRPC(&testFunction, &testRuntimeSpecs, cfg)
+	success, record := invoker.Invoke(&testFunction, &testRuntimeSpecs)
 	logrus.Info("Elapsed: ", time.Since(start).Milliseconds(), " ms")
 
 	if !success ||
@@ -106,7 +109,7 @@ func TestGRPCClientWithServerBatchWorkload(t *testing.T) {
 		t.Error(err)
 	}
 
-	address, port := "localhost", 8081
+	address, port := "localhost", 18081
 	testFunction.Endpoint = fmt.Sprintf("%s:%d", address, port)
 
 	go standard.StartGRPCServer(address, port, standard.TraceFunction, "")
@@ -115,9 +118,10 @@ func TestGRPCClientWithServerBatchWorkload(t *testing.T) {
 	time.Sleep(2 * time.Second)
 
 	cfg := createFakeLoaderConfiguration()
+	invoker := CreateInvoker(cfg, nil, nil)
 
 	for i := 0; i < 50; i++ {
-		success, record := InvokeGRPC(&testFunction, &testRuntimeSpecs, cfg)
+		success, record := invoker.Invoke(&testFunction, &testRuntimeSpecs)
 
 		if !success ||
 			record.MemoryAllocationTimeout != false ||

@@ -27,17 +27,16 @@ package main
 import (
 	"flag"
 	"fmt"
-	"golang.org/x/exp/slices"
-	"os"
-	"time"
-
 	"github.com/vhive-serverless/loader/pkg/common"
 	"github.com/vhive-serverless/loader/pkg/config"
 	"github.com/vhive-serverless/loader/pkg/driver"
 	"github.com/vhive-serverless/loader/pkg/trace"
+	"golang.org/x/exp/slices"
+	"os"
+	"strings"
+	"time"
 
 	log "github.com/sirupsen/logrus"
-
 	tracer "github.com/vhive-serverless/vSwarm/utils/tracing/go"
 )
 
@@ -46,10 +45,10 @@ const (
 )
 
 var (
-	configPath    = flag.String("config", "config.json", "Path to loader configuration file")
+	configPath    = flag.String("config", "config_knative_trace.json", "Path to loader configuration file")
 	verbosity     = flag.String("verbosity", "info", "Logging verbosity - choose from [info, debug, trace]")
 	iatGeneration = flag.Bool("iatGeneration", false, "Generate iats only or run invocations as well")
-	generated     = flag.Bool("generated", false, "True if iats were already generated")
+	iatFromFile   = flag.Bool("generated", false, "True if iats were already generated")
 )
 
 func init() {
@@ -73,35 +72,41 @@ func init() {
 
 func main() {
 	cfg := config.ReadConfigurationFile(*configPath)
-
 	if cfg.EnableZipkinTracing {
 		// TODO: how not to exclude Zipkin spans here? - file a feature request
 		log.Warnf("Zipkin tracing has been enabled. This will exclude Istio spans from the Zipkin traces.")
-
 		shutdown, err := tracer.InitBasicTracer(zipkinAddr, "loader")
 		if err != nil {
 			log.Print(err)
 		}
-
 		defer shutdown()
 	}
-
 	if cfg.ExperimentDuration < 1 {
 		log.Fatal("Runtime duration should be longer, at least a minute.")
 	}
 
 	supportedPlatforms := []string{
 		"Knative",
+		"Knative-RPS",
 		"OpenWhisk",
+		"OpenWhisk-RPS",
 		"AWSLambda",
+		"AWSLambda-RPS",
 		"Dirigent",
+		"Dirigent-RPS",
+		"Dirigent-Dandelion-RPS",
+		"Dirigent-Dandelion",
 	}
 
 	if !slices.Contains(supportedPlatforms, cfg.Platform) {
-		log.Fatal("Unsupported platform! Supported platforms are [Knative, OpenWhisk, AWSLambda, Dirigent]")
+		log.Fatal("Unsupported platform!")
 	}
 
-	runTraceMode(&cfg, *iatGeneration, *generated)
+	if !strings.HasSuffix(cfg.Platform, "-RPS") {
+		runTraceMode(&cfg, *iatFromFile, *iatGeneration)
+	} else {
+		runRPSMode(&cfg, *iatGeneration)
+	}
 }
 
 func determineDurationToParse(runtimeDuration int, warmupDuration int) int {
@@ -117,8 +122,56 @@ func determineDurationToParse(runtimeDuration int, warmupDuration int) int {
 	return result
 }
 
-func runTraceMode(cfg *config.LoaderConfiguration, iatOnly bool, generated bool) {
+func parseIATDistribution(cfg *config.LoaderConfiguration) (common.IatDistribution, bool) {
+	switch cfg.IATDistribution {
+	case "exponential":
+		return common.Exponential, false
+	case "exponential_shift":
+		return common.Exponential, true
+	case "uniform":
+		return common.Uniform, false
+	case "uniform_shift":
+		return common.Uniform, true
+	case "equidistant":
+		return common.Equidistant, false
+	default:
+		log.Fatal("Unsupported IAT distribution.")
+	}
+
+	return common.Exponential, false
+}
+
+func parseYAMLSpecification(cfg *config.LoaderConfiguration) string {
+	switch cfg.YAMLSelector {
+	case "container":
+		return "workloads/container/trace_func_go.yaml"
+	case "firecracker":
+		return "workloads/firecracker/trace_func_go.yaml"
+	default:
+		if cfg.Platform != "Dirigent" && cfg.Platform != "Dirigent-RPS" && cfg.Platform != "Dirigent-Dandelion-RPS" && cfg.Platform != "Dirigent-Dandelion" {
+			log.Fatal("Invalid 'YAMLSelector' parameter.")
+		}
+	}
+
+	return ""
+}
+
+func parseTraceGranularity(cfg *config.LoaderConfiguration) common.TraceGranularity {
+	switch cfg.Granularity {
+	case "minute":
+		return common.MinuteGranularity
+	case "second":
+		return common.SecondGranularity
+	default:
+		log.Fatal("Invalid trace granularity parameter.")
+	}
+
+	return common.MinuteGranularity
+}
+
+func runTraceMode(cfg *config.LoaderConfiguration, readIATFromFile bool, justGenerateIAT bool) {
 	durationToParse := determineDurationToParse(cfg.ExperimentDuration, cfg.WarmupDuration)
+	yamlPath := parseYAMLSpecification(cfg)
 
 	traceParser := trace.NewAzureParser(cfg.TracePath, durationToParse)
 	functions := traceParser.Parse(cfg.Platform)
@@ -128,63 +181,26 @@ func runTraceMode(cfg *config.LoaderConfiguration, iatOnly bool, generated bool)
 		fmt.Printf("\t%s\n", function.Name)
 	}
 
-	var iatType common.IatDistribution
-	shiftIAT := false
-	switch cfg.IATDistribution {
-	case "exponential":
-		iatType = common.Exponential
-	case "exponential_shift":
-		iatType = common.Exponential
-		shiftIAT = true
-	case "uniform":
-		iatType = common.Uniform
-	case "uniform_shift":
-		iatType = common.Uniform
-		shiftIAT = true
-	case "equidistant":
-		iatType = common.Equidistant
-	default:
-		log.Fatal("Unsupported IAT distribution.")
-	}
+	iatType, shiftIAT := parseIATDistribution(cfg)
 
-	var yamlSpecificationPath string
-	switch cfg.YAMLSelector {
-	case "wimpy":
-		yamlSpecificationPath = "workloads/container/wimpy.yaml"
-	case "container":
-		yamlSpecificationPath = "workloads/container/trace_func_go.yaml"
-	case "firecracker":
-		yamlSpecificationPath = "workloads/firecracker/trace_func_go.yaml"
-	default:
-		if cfg.Platform != "Dirigent" {
-			log.Fatal("Invalid 'YAMLSelector' parameter.")
-		}
-	}
-
-	var traceGranularity common.TraceGranularity
-	switch cfg.Granularity {
-	case "minute":
-		traceGranularity = common.MinuteGranularity
-	case "second":
-		traceGranularity = common.SecondGranularity
-	default:
-		log.Fatal("Invalid trace granularity parameter.")
-	}
-
-	log.Infof("Using %s as a service YAML specification file.\n", yamlSpecificationPath)
-
-	experimentDriver := driver.NewDriver(&driver.DriverConfiguration{
+	experimentDriver := driver.NewDriver(&config.Configuration{
 		LoaderConfiguration: cfg,
 		IATDistribution:     iatType,
 		ShiftIAT:            shiftIAT,
-		TraceGranularity:    traceGranularity,
+		TraceGranularity:    parseTraceGranularity(cfg),
 		TraceDuration:       durationToParse,
 
-		YAMLPath: yamlSpecificationPath,
+		YAMLPath: yamlPath,
 		TestMode: false,
 
 		Functions: functions,
 	})
 
-	experimentDriver.RunExperiment(iatOnly, generated)
+	log.Infof("Using %s as a service YAML specification file.\n", experimentDriver.Configuration.YAMLPath)
+
+	experimentDriver.RunExperiment(justGenerateIAT, readIATFromFile)
+}
+
+func runRPSMode(cfg *config.LoaderConfiguration, justGenerateIAT bool) {
+	panic("Not yet implemented")
 }

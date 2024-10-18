@@ -140,12 +140,12 @@ $ wsk  property  set  --auth  23bc46b1-71f6-4ed5-8c54-816aa4f8c502:123zO3xZCLrMN
 
 ## Single execution  
 
-First go to `cmd/config.json` and set the `Platform` parameter to `OpenWhisk`.
+First go to `cmd/config_knative_trace.json` and set the `Platform` parameter to `OpenWhisk`.
 
 Then, to run load generator use the following command:
 
 ```bash
-$ go  run  cmd/loader.go  --config  cmd/config.json
+$ go  run  cmd/loader.go  --config  cmd/config_knative_trace.json
 ```
 
 Additionally, one can specify log verbosity argument as `--verbosity [info, debug, trace]`. The default value is `info`.

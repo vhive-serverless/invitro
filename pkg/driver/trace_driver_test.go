@@ -27,6 +27,7 @@ package driver
 import (
 	"container/list"
 	"fmt"
+	"github.com/vhive-serverless/loader/pkg/config"
 	"log"
 	"os"
 	"sync"
@@ -40,10 +41,21 @@ import (
 	"github.com/vhive-serverless/loader/pkg/workload/standard"
 )
 
+func createFakeLoaderConfiguration() *config.LoaderConfiguration {
+	return &config.LoaderConfiguration{
+		Platform:                     "Knative",
+		InvokeProtocol:               "grpc",
+		OutputPathPrefix:             "test",
+		EnableZipkinTracing:          true,
+		GRPCConnectionTimeoutSeconds: 5,
+		GRPCFunctionTimeoutSeconds:   15,
+	}
+}
+
 func createTestDriver() *Driver {
 	cfg := createFakeLoaderConfiguration()
 
-	driver := NewDriver(&DriverConfiguration{
+	driver := NewDriver(&config.Configuration{
 		LoaderConfiguration: cfg,
 		IATDistribution:     common.Equidistant,
 		TraceDuration:       1,
