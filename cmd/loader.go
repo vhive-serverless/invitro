@@ -50,6 +50,7 @@ var (
 	verbosity     = flag.String("verbosity", "info", "Logging verbosity - choose from [info, debug, trace]")
 	iatGeneration = flag.Bool("iatGeneration", false, "Generate iats only or run invocations as well")
 	generated     = flag.Bool("generated", false, "True if iats were already generated")
+	mapperMode    = flag.Bool("mapper-mode", false, "Whether to use mapper output for deploying functions")
 )
 
 func init() {
@@ -100,8 +101,12 @@ func main() {
 	if !slices.Contains(supportedPlatforms, cfg.Platform) {
 		log.Fatal("Unsupported platform! Supported platforms are [Knative, OpenWhisk, AWSLambda, Dirigent]")
 	}
-
-	runTraceMode(&cfg, *iatGeneration, *generated)
+	if *mapperMode {
+		runMapperMode(&cfg, *iatGeneration, *generated)
+	} else {
+		runTraceMode(&cfg, *iatGeneration, *generated)
+	}
+	
 }
 
 func determineDurationToParse(runtimeDuration int, warmupDuration int) int {
@@ -116,8 +121,26 @@ func determineDurationToParse(runtimeDuration int, warmupDuration int) int {
 
 	return result
 }
+func runMapperMode(cfg *config.LoaderConfiguration, iatOnly bool, generated bool) {
+	//look at output.json
+}
 
 func runTraceMode(cfg *config.LoaderConfiguration, iatOnly bool, generated bool) {
+	yamlSpecificationPath := cfg.YAMLSpecificationPath
+	if len(yamlSpecificationPath) == 0 {
+		switch cfg.YAMLSelector {
+		case "wimpy":
+			yamlSpecificationPath = "workloads/container/wimpy.yaml"
+		case "container":
+			yamlSpecificationPath = "workloads/container/trace_func_go.yaml"
+		case "firecracker":
+			yamlSpecificationPath = "workloads/firecracker/trace_func_go.yaml"
+		default:
+			if cfg.Platform != "Dirigent" {
+				log.Fatal("Invalid 'YAMLSelector' parameter.")
+			}
+		}
+	}
 	durationToParse := determineDurationToParse(cfg.ExperimentDuration, cfg.WarmupDuration)
 
 	traceParser := trace.NewAzureParser(cfg.TracePath, durationToParse)
@@ -160,7 +183,7 @@ func runTraceMode(cfg *config.LoaderConfiguration, iatOnly bool, generated bool)
 			log.Fatal("Invalid 'YAMLSelector' parameter.")
 		}
 	}
-
+	
 	var traceGranularity common.TraceGranularity
 	switch cfg.Granularity {
 	case "minute":
