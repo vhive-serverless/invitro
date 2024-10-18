@@ -32,6 +32,7 @@ import (
 	"github.com/vhive-serverless/loader/pkg/config"
 	"github.com/vhive-serverless/loader/pkg/driver/clients"
 	"github.com/vhive-serverless/loader/pkg/driver/deployment"
+	"github.com/vhive-serverless/loader/pkg/driver/failure"
 	"math"
 	"os"
 	"strconv"
@@ -649,6 +650,8 @@ func (d *Driver) RunExperiment(iatOnly bool, generated bool) {
 
 	deployer := deployment.CreateDeployer(d.Configuration)
 	deployer.Deploy(d.Configuration)
+
+	go failure.ScheduleFailure(d.Configuration.LoaderConfiguration.Platform, d.Configuration.FailureConfiguration)
 
 	// Generate load
 	d.internalRun(iatOnly, generated)
