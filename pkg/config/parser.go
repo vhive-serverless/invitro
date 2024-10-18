@@ -31,6 +31,14 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+type FailureConfiguration struct {
+	FailureEnabled bool `json:"FailureEnabled"`
+
+	FailAt        int    `json:"FailAt"`
+	FailComponent string `json:"FailComponent"`
+	FailNode      string `json:"FailNode"`
+}
+
 type LoaderConfiguration struct {
 	Seed int64 `json:"Seed"`
 
@@ -45,10 +53,6 @@ type LoaderConfiguration struct {
 	AsyncMode             bool   `json:"AsyncMode"`
 	AsyncResponseURL      string `json:"AsyncResponseURL"`
 	AsyncWaitToCollectMin int    `json:"AsyncWaitToCollectMin"`
-
-	FailAt        int    `json:"FailAt"`
-	FailComponent string `json:"FailComponent"`
-	FailNode      string `json:"FailNode"`
 
 	RpsTarget                   float64 `json:"RpsTarget"`
 	RpsColdStartRatioPercentage float64 `json:"RpsColdStartRatioPercentage"`
@@ -90,4 +94,22 @@ func ReadConfigurationFile(path string) LoaderConfiguration {
 	}
 
 	return config
+}
+
+func ReadFailureConfiguration(path string) *FailureConfiguration {
+	byteValue, err := os.ReadFile(path)
+	if err != nil {
+		log.Errorf("Failure configuration not found at '%s'...", path)
+		return &FailureConfiguration{}
+	}
+
+	log.Infof("Failure configuration found.")
+
+	var config FailureConfiguration
+	err = json.Unmarshal(byteValue, &config)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	return &config
 }
