@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os/exec"
+	"strings"
 	"sync"
 	"time"
 
@@ -22,6 +24,7 @@ type ActivationMetadata struct {
 	WaitTime  int64 //ms
 	InitTime  int64 //ms
 }
+
 type HTTPResBody struct {
 	DurationInMicroSec uint32 `json:"DurationInMicroSec"`
 	MemoryUsageInKb    uint32 `json:"MemoryUsageInKb"`
@@ -45,7 +48,7 @@ func (i *openWhiskInvoker) Invoke(function *common.Function, runtimeSpec *common
 	qs := fmt.Sprintf("cpu=%d", runtimeSpec.Runtime)
 
 	success, executionRecordBase, res := httpInvocation(qs, function, i.announceDoneExe, true)
-	//announceDoneExe.Wait() // To postpone querying OpenWhisk during the experiment for performance reasons (Issue 329: https://github.com/vhive-serverless/invitro/issues/329)
+	i.announceDoneExe.Wait() // To postpone querying OpenWhisk during the experiment for performance reasons (Issue 329: https://github.com/vhive-serverless/invitro/issues/329)
 
 	executionRecordBase.RequestedDuration = uint32(runtimeSpec.Runtime * 1e3)
 	record := &mc.ExecutionRecord{ExecutionRecordBase: *executionRecordBase}
@@ -53,8 +56,9 @@ func (i *openWhiskInvoker) Invoke(function *common.Function, runtimeSpec *common
 		return false, record
 	}
 
-	/*activationID := res.Header.Get("X-Openwhisk-Activation-Id")
-	readOpenWhiskMetadata.Lock()
+	activationID := res.Header.Get("X-Openwhisk-Activation-Id")
+	i.readOpenWhiskMetadata.Lock()
+
 	//read data from OpenWhisk based on the activation ID
 	cmd := exec.Command("wsk", "-i", "activation", "get", activationID)
 	var out bytes.Buffer
@@ -62,31 +66,54 @@ func (i *openWhiskInvoker) Invoke(function *common.Function, runtimeSpec *common
 	err := cmd.Run()
 	if err != nil {
 		log.Debugf("error reading activation information from OpenWhisk %s - %s", function.Name, err)
-		readOpenWhiskMetadata.Unlock()
+		i.readOpenWhiskMetadata.Unlock()
 		return false, record
 	}
-	readOpenWhiskMetadata.Unlock()
+
+	i.readOpenWhiskMetadata.Unlock()
 	err, activationMetadata := parseActivationMetadata(out.String())
 	if err != nil {
 		log.Debugf("error parsing activation metadata %s - %s", function.Name, err)
 		return false, record
-	}*/
+	}
 
-	//record.ActualDuration = activationMetadata.Duration * 1000 //ms to micro sec
+	record.ActualDuration = activationMetadata.Duration * 1000 //ms to micro sec
 	/*record.StartType = activationMetadata.StartType
 	record.InitTime = activationMetadata.InitTime * 1000 //ms to micro sec
 	record.WaitTime = activationMetadata.WaitTime * 1000 //ms to micro sec*/
+
 	logInvocationSummary(function, &record.ExecutionRecordBase, res)
+
 	return true, record
 }
 
-/*func parseActivationMetadata(response string) (error, ActivationMetadata) {
+func parseActivationMetadata(response string) (error, ActivationMetadata) {
 	var result ActivationMetadata
 	var jsonMap map[string]interface{}
-	@@ -128,46 +141,11 @@ func parseActivationMetadata(response string) (error, ActivationMetadata) {
+
+	ind := strings.Index(response, "{")
+	err := json.Unmarshal([]byte(response[ind:]), &jsonMap)
+	if err != nil {
+		return err, result
 	}
+
+	result.Duration = uint32(jsonMap["duration"].(float64))
+	result.StartType = mc.Hot
+	result.InitTime = 0
+	annotations := jsonMap["annotations"].([]interface{})
+	for i := 0; i < len(annotations); i++ {
+		annotation := annotations[i].(map[string]interface{})
+
+		if annotation["key"] == "waitTime" {
+			result.WaitTime = int64(annotation["value"].(float64))
+		} else if annotation["key"] == "initTime" {
+			result.StartType = mc.Cold
+			result.InitTime = int64(annotation["value"].(float64))
+		}
+	}
+
 	return nil, result
-}*/
+}
 
 func httpInvocation(dataString string, function *common.Function, AnnounceDoneExe *sync.WaitGroup, tlsSkipVerify bool) (bool, *mc.ExecutionRecordBase, *http.Response) {
 	defer AnnounceDoneExe.Done()
