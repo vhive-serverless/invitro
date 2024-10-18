@@ -12,7 +12,7 @@ import (
 const NodeSeparator = " "
 
 func ScheduleFailure(platform string, config *config.FailureConfiguration) {
-	if config.FailAt != 0 && config.FailComponent != "" {
+	if config != nil && config.FailAt != 0 && config.FailComponent != "" {
 		switch platform {
 		case "Knative", "Knative-RPS":
 			triggerKnativeFailure(config.FailNode, config.FailComponent, config.FailAt)
