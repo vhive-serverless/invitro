@@ -46,6 +46,7 @@ type DandelionDeserializeResponse struct {
 			},
 		},
 	}
+
 	body, err := bson.Marshal(request)
 	if err != nil {
 		logrus.Debugf("Error encoding Dandelion MatMul request - %v", err)
