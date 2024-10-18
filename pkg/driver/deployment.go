@@ -27,7 +27,6 @@ package driver
 import (
 	"bytes"
 	"fmt"
-	"github.com/vhive-serverless/loader/pkg/common"
 	"io"
 	"math"
 	"math/rand"
@@ -35,8 +34,12 @@ import (
 	"net/url"
 	"os/exec"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
+	"sync"
+
+	"github.com/vhive-serverless/loader/pkg/common"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -51,9 +54,14 @@ var (
 )
 
 func DeployFunctions(functions []*common.Function, yamlPath string, isPartiallyPanic bool, endpointPort int, autoscalingMetric string) {
+	queue := make(chan struct{}, runtime.NumCPU()) // message queue as a sync method
+	deployed := sync.WaitGroup{}
+	deployed.Add(len(functions))
 	for i := 0; i < len(functions); i++ {
-		deployKnative(functions[i], yamlPath, isPartiallyPanic, endpointPort, autoscalingMetric)
+		queue <- struct{}{}
+		go deployKnative(functions[i], yamlPath, isPartiallyPanic, endpointPort, autoscalingMetric, &deployed, queue)
 	}
+	deployed.Wait()
 }
 
 func DeployDirigent(functions []*common.Function) {
@@ -75,8 +83,8 @@ func deployDirigent(function *common.Function) {
 		"port_forwarding":     {strconv.Itoa(metadata.Port), metadata.Protocol},
 		"scaling_upper_bound": {strconv.Itoa(metadata.ScalingUpperBound)},
 		"scaling_lower_bound": {strconv.Itoa(metadata.ScalingLowerBound)},
-		"requested_cpu":    {strconv.Itoa(function.CPURequestsMilli)},
-		"requested_memory": {strconv.Itoa(function.MemoryRequestsMiB)},
+		"requested_cpu":       {strconv.Itoa(function.CPURequestsMilli)},
+		"requested_memory":    {strconv.Itoa(function.MemoryRequestsMiB)},
 	}
 
 	log.Debug(payload)
@@ -100,7 +108,9 @@ func deployDirigent(function *common.Function) {
 }
 
 func deployKnative(function *common.Function, yamlPath string, isPartiallyPanic bool, endpointPort int,
-	autoscalingMetric string) bool {
+	autoscalingMetric string, deployed *sync.WaitGroup, queue chan struct{}) bool {
+	defer deployed.Done()
+	defer func() { <-queue }()
 	panicWindow := "\"10.0\""
 	panicThreshold := "\"200.0\""
 	if isPartiallyPanic {
