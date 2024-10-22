@@ -73,6 +73,10 @@ type LoaderConfiguration struct {
 
 	GRPCConnectionTimeoutSeconds int `json:"GRPCConnectionTimeoutSeconds"`
 	GRPCFunctionTimeoutSeconds   int `json:"GRPCFunctionTimeoutSeconds"`
+
+	// only used in dandelion workflows
+	WorkflowFunctionNames []string `json:"WorkflowFunctionNames"`
+	WorkflowFunctionPaths []string `json:"WorkflowFunctionPaths"`
 }
 
 func ReadConfigurationFile(path string) LoaderConfiguration {

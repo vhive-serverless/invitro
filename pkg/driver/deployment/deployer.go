@@ -15,7 +15,9 @@ func CreateDeployer(cfg *config.Configuration) FunctionDeployer {
 	case "AWSLambda", "AWSLambda-RPS":
 		return newAWSLambdaDeployer()
 	case "Dirigent", "Dirigent-RPS", "Dirigent-Dandelion", "Dirigent-Dandelion-RPS":
-		return newDirigentDeployer()
+		return newDirigentDeployer(false)
+	case "Dirigent-Dandelion-Workflow", "Dirigent-Dandelion-Workflow-RPS":
+		return newDirigentDeployer(true)
 	case "Knative", "Knative-RPS":
 		return newKnativeDeployer()
 	case "OpenWhisk", "OpenWhisk-RPS":

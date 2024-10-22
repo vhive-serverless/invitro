@@ -8,6 +8,7 @@ import (
 	"github.com/vhive-serverless/loader/pkg/common"
 	"github.com/vhive-serverless/loader/pkg/metric"
 	"go.mongodb.org/mongo-driver/bson"
+	"net/url"
 	"strings"
 )
 
@@ -90,18 +91,44 @@ func composeBusyLoopBody(functionName, image string, runtime, iterations int) *b
 	return bytes.NewBuffer(body)
 }
 
-func DeserializeDandelionResponse(function *common.Function, body []byte, record *metric.ExecutionRecord) error {
+func WorkflowInvocationBody(wfName string, inData *DandelionRequest) *bytes.Buffer {
+	var wfInput []byte
+	var err error
+	if inData == nil {
+		wfInput = []byte{}
+	} else {
+		wfInput, err = bson.Marshal(inData)
+		if err != nil {
+			logrus.Errorf("Error encoding input data - %v\n", err)
+			return nil
+		}
+	}
+
+	body := url.Values{
+		"name":  {wfName},
+		"input": {string(wfInput)},
+	}
+	return bytes.NewBufferString(body.Encode())
+}
+
+func DeserializeDandelionResponse(function *common.Function, body []byte, record *metric.ExecutionRecord, allowEmptyResponse bool) error {
 	var result DandelionDeserializeResponse
 	err := bson.Unmarshal(body, &result)
 	if err != nil {
 		return errors.New(fmt.Sprintf("Error deserializing response body - %v", err))
 	}
 
-	rawResponseData := result.Sets[0].Items[0].Data
-	data := strings.Split(string(rawResponseData), ",")
+	if len(result.Sets) > 0 && len(result.Sets[0].Items) > 0 {
+		rawResponseData := result.Sets[0].Items[0].Data
+		data := strings.Split(string(rawResponseData), ",")
 
-	if len(data) > 0 && !strings.Contains(strings.ToLower(data[0]), "ok") {
-		record.FunctionTimeout = false
+		if len(data) > 0 && !strings.Contains(strings.ToLower(data[0]), "ok") {
+			record.FunctionTimeout = false
+		}
+	} else {
+		if allowEmptyResponse {
+			record.FunctionTimeout = false
+		}
 	}
 
 	record.Instance = function.Name

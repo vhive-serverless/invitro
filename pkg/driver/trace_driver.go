@@ -212,7 +212,7 @@ func (d *Driver) invokeFunction(metadata *InvocationMetadata) {
 				d.Configuration.LoaderConfiguration,
 			)
 		}
-	case "Dirigent-Dandelion", "Dirigent-Dandelion-RPS":
+	case "Dirigent-Dandelion", "Dirigent-Dandelion-RPS", "Dirigent-Dandelion-Workflow", "Dirigent-Dandelion-Workflow-RPS":
 		success, record = clients.InvokeHTTP(
 			metadata.Function,
 			metadata.RuntimeSpecifications,
