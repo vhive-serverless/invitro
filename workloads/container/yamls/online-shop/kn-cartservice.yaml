@@ -80,3 +80,13 @@ spec:
               value: "1"
             - name: REDIS_ADDR
               value: "online-shop-database:6379"
+            - name: ITERATIONS_MULTIPLIER
+              value: "102"
+            - name: ENABLE_TRACING
+              value: "false"
+          resources:
+            limits:
+              cpu: $CPU_LIMITS
+            requests:
+              cpu: $CPU_REQUEST
+              memory: $MEMORY_REQUESTS

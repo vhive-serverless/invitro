@@ -74,7 +74,7 @@ func NewDriver(driverConfig *config.Configuration) *Driver {
 // HELPER METHODS
 // ///////////////////////////////////////
 func (d *Driver) outputFilename(name string) string {
-	return fmt.Sprintf("%s_%s_%d.csv", d.Configuration.LoaderConfiguration.OutputPathPrefix, name, d.Configuration.TraceDuration)
+	return fmt.Sprintf("%s_%s_%d_%d.csv", d.Configuration.LoaderConfiguration.OutputPathPrefix, name, d.Configuration.TraceDuration, len(d.Configuration.Functions))
 }
 
 func (d *Driver) runCSVWriter(records chan interface{}, filename string, writerDone *sync.WaitGroup) {
@@ -217,7 +217,7 @@ func (d *Driver) invokeFunction(metadata *InvocationMetadata, warmup bool) {
 		metadata.RecordOutputChannel <- record
 
 		if !success {
-			log.Debugf("Invocation failed at minute: %d for %s", metadata.MinuteIndex, function.Name)
+			log.Debugf("Invocation failed at minute: %d for %s", metadata.MinuteIndex, function.Endpoint)
 			break
 		}
 		node = node.Next()

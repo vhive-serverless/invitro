@@ -68,3 +68,14 @@ spec:
             - --dataset-path=python/data/cnn_eval.json
             - --mlperf_conf=python/config/mlperf.conf
             - --user_conf=python/config/user.conf
+          env:
+            - name: ITERATIONS_MULTIPLIER
+              value: "102"
+            - name: ENABLE_TRACING
+              value: "false"
+          resources:
+            limits:
+              cpu: $CPU_LIMITS
+            requests:
+              cpu: $CPU_REQUEST
+              memory: $MEMORY_REQUESTS

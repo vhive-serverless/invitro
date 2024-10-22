@@ -52,6 +52,17 @@ spec:
             - --port=50051
             - --default_language=French
             - --num_strings=15
+          env:
+            - name: ITERATIONS_MULTIPLIER
+              value: "102"
+            - name: ENABLE_TRACING
+              value: "false"
+          resources:
+            limits:
+              cpu: $CPU_LIMITS
+            requests:
+              cpu: $CPU_REQUEST
+              memory: $MEMORY_REQUESTS
 """
 
 # List of x values
