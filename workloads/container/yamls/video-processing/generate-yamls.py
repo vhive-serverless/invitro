@@ -50,6 +50,17 @@ spec:
             - --db_addr=mongodb://video-processing-database:27017
             - --default_video=default.mp4
             - --num_frames={x}
+          env:
+            - name: ITERATIONS_MULTIPLIER
+              value: "102"
+            - name: ENABLE_TRACING
+              value: "false"
+          resources:
+            limits:
+              cpu: $CPU_LIMITS
+            requests:
+              cpu: $CPU_REQUEST
+              memory: $MEMORY_REQUESTS
 """
 
 # List of x values

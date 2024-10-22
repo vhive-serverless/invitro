@@ -72,3 +72,14 @@ spec:
             - --port=8083
             - --db_addr=hotel-app-database:27017
             - --memcached_addr=hotel-app-mmc:11211
+          env:
+            - name: ITERATIONS_MULTIPLIER
+              value: "102"
+            - name: ENABLE_TRACING
+              value: "false"
+          resources:
+            limits:
+              cpu: $CPU_LIMITS
+            requests:
+              cpu: $CPU_REQUEST
+              memory: $MEMORY_REQUESTS

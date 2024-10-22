@@ -50,6 +50,17 @@ spec:
         - image: docker.io/vhiveease/aes-go:latest
           args:
             - --addr=0.0.0.0:50051
+          env:
+            - name: ITERATIONS_MULTIPLIER
+              value: "102"
+            - name: ENABLE_TRACING
+              value: "false"
+          resources:
+            limits:
+              cpu: $CPU_LIMITS
+            requests:
+              cpu: $CPU_REQUEST
+              memory: $MEMORY_REQUESTS
 """
 
 # List of x values
