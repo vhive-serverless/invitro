@@ -25,18 +25,21 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
-	"github.com/vhive-serverless/loader/pkg/common"
-	"github.com/vhive-serverless/loader/pkg/config"
-	"github.com/vhive-serverless/loader/pkg/driver"
-	"github.com/vhive-serverless/loader/pkg/trace"
+	"github.com/vhive-serverless/loader/pkg/generator"
 	"golang.org/x/exp/slices"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
 	log "github.com/sirupsen/logrus"
+	"github.com/vhive-serverless/loader/pkg/common"
+	"github.com/vhive-serverless/loader/pkg/config"
+	"github.com/vhive-serverless/loader/pkg/driver"
+	"github.com/vhive-serverless/loader/pkg/trace"
 	tracer "github.com/vhive-serverless/vSwarm/utils/tracing/go"
 )
 
@@ -85,6 +88,15 @@ func main() {
 		log.Fatal("Runtime duration should be longer, at least a minute.")
 	}
 
+	if *iatGeneration {
+		durationToParse := determineDurationToParse(cfg.ExperimentDuration, cfg.WarmupDuration)
+		iatDistribution, shiftIAT := parseIATDistribution(&cfg)
+		traceParser := trace.NewAzureParser(cfg.TracePath, parseYAMLSpecification(&cfg), durationToParse)
+		functions := traceParser.Parse(cfg.Platform)
+
+		justGenerateIAT(cfg.Seed, iatDistribution, shiftIAT, parseTraceGranularity(&cfg), functions)
+	}
+
 	supportedPlatforms := []string{
 		"Knative",
 		"Knative-RPS",
@@ -105,7 +117,7 @@ func main() {
 	if !strings.HasSuffix(cfg.Platform, "-RPS") {
 		runTraceMode(&cfg, *iatFromFile, *iatGeneration)
 	} else {
-		runRPSMode(&cfg, *iatGeneration)
+		runRPSMode(&cfg, *iatFromFile, *iatGeneration)
 	}
 }
 
@@ -173,7 +185,7 @@ func runTraceMode(cfg *config.LoaderConfiguration, readIATFromFile bool, justGen
 	durationToParse := determineDurationToParse(cfg.ExperimentDuration, cfg.WarmupDuration)
 	yamlPath := parseYAMLSpecification(cfg)
 
-	traceParser := trace.NewAzureParser(cfg.TracePath, durationToParse)
+	traceParser := trace.NewAzureParser(cfg.TracePath, yamlPath, durationToParse)
 	functions := traceParser.Parse(cfg.Platform)
 
 	log.Infof("Traces contain the following %d functions:\n", len(functions))
@@ -182,6 +194,8 @@ func runTraceMode(cfg *config.LoaderConfiguration, readIATFromFile bool, justGen
 	}
 
 	iatType, shiftIAT := parseIATDistribution(cfg)
+
+	log.Infof("Using %s as a service YAML specification file.\n", yamlPath)
 
 	experimentDriver := driver.NewDriver(&config.Configuration{
 		LoaderConfiguration: cfg,
@@ -196,11 +210,47 @@ func runTraceMode(cfg *config.LoaderConfiguration, readIATFromFile bool, justGen
 		Functions: functions,
 	})
 
-	log.Infof("Using %s as a service YAML specification file.\n", experimentDriver.Configuration.YAMLPath)
-
 	experimentDriver.RunExperiment(justGenerateIAT, readIATFromFile)
 }
 
-func runRPSMode(cfg *config.LoaderConfiguration, justGenerateIAT bool) {
-	panic("Not yet implemented")
+func justGenerateIAT(seed int64, iatDistribution common.IatDistribution, shiftIAT bool, traceGranularity common.TraceGranularity, functions []*common.Function) {
+	specificationGenerator := generator.NewSpecificationGenerator(seed)
+
+	for i, function := range functions {
+		spec := specificationGenerator.GenerateInvocationData(
+			function,
+			iatDistribution,
+			shiftIAT,
+			traceGranularity,
+		)
+		functions[i].Specification = spec
+
+		file, _ := json.MarshalIndent(spec, "", " ")
+		err := os.WriteFile("iat"+strconv.Itoa(i)+".json", file, 0644)
+		if err != nil {
+			log.Fatalf("Writing the loader config file failed: %s", err)
+		}
+	}
+}
+
+func runRPSMode(cfg *config.LoaderConfiguration, readIATFromFile bool, justGenerateIAT bool) {
+	rpsTarget := cfg.RpsTarget
+	coldStartPercentage := cfg.RpsColdStartRatioPercentage
+
+	warmStartRPS := rpsTarget * (100 - coldStartPercentage) / 100
+	coldStartRPS := rpsTarget * coldStartPercentage / 100
+
+	warmFunction, warmStartCount := generator.GenerateWarmStartFunction(cfg.ExperimentDuration, warmStartRPS)
+	coldFunctions, coldStartCount := generator.GenerateColdStartFunctions(cfg.ExperimentDuration, coldStartRPS, cfg.RpsCooldownSeconds)
+
+	experimentDriver := driver.NewDriver(&config.Configuration{
+		LoaderConfiguration: cfg,
+		TraceDuration:       determineDurationToParse(cfg.ExperimentDuration, cfg.WarmupDuration),
+
+		YAMLPath: parseYAMLSpecification(cfg),
+
+		Functions: generator.CreateRPSFunctions(cfg, warmFunction, warmStartCount, coldFunctions, coldStartCount),
+	})
+
+	experimentDriver.RunExperiment(justGenerateIAT, readIATFromFile)
 }

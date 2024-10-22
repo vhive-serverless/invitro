@@ -1,3 +1,27 @@
+/*
+ * MIT License
+ *
+ * Copyright (c) 2023 EASL and the vHive community
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
+
 package deployment
 
 import (
@@ -11,8 +35,8 @@ import (
 	"strings"
 )
 
-// Serverless describes the serverless.yml contents.
-type Serverless struct {
+// awsServerless describes the serverless.yml contents.
+type awsServerless struct {
 	Service          string                  `yaml:"service"`
 	FrameworkVersion string                  `yaml:"frameworkVersion"`
 	Provider         slsProvider             `yaml:"provider"`
@@ -41,7 +65,7 @@ type slsFunction struct {
 }
 
 // CreateHeader sets the fields Service, FrameworkVersion, and Provider
-func (s *Serverless) CreateHeader(index int, provider string) {
+func (s *awsServerless) CreateHeader(index int, provider string) {
 	s.Service = fmt.Sprintf("loader-%d", index)
 	s.FrameworkVersion = "3"
 	s.Provider = slsProvider{
@@ -64,14 +88,14 @@ func stringContains(s []string, str string) bool {
 }
 
 // AddPackagePattern adds a string pattern to Package.Pattern as long as such a pattern does not already exist in Package.Pattern
-func (s *Serverless) AddPackagePattern(pattern string) {
+func (s *awsServerless) AddPackagePattern(pattern string) {
 	if !stringContains(s.Package.Patterns, pattern) {
 		s.Package.Patterns = append(s.Package.Patterns, pattern)
 	}
 }
 
 // AddFunctionConfig adds the function configuration for serverless.com deployment
-func (s *Serverless) AddFunctionConfig(function *common.Function, provider string, awsAccountId string) {
+func (s *awsServerless) AddFunctionConfig(function *common.Function, provider string, awsAccountId string) {
 	// Extract trace-func-0 from trace-func-0-2642643831809466437 by splitting on "-"
 	shortName := fmt.Sprintf("%s-%s", common.FunctionNamePrefix, strings.Split(function.Name, "-")[2])
 
@@ -90,7 +114,7 @@ func (s *Serverless) AddFunctionConfig(function *common.Function, provider strin
 }
 
 // CreateServerlessConfigFile dumps the contents of the Serverless struct into a yml file (serverless-<index>.yml)
-func (s *Serverless) CreateServerlessConfigFile(index int) {
+func (s *awsServerless) CreateServerlessConfigFile(index int) {
 	data, err := yaml.Marshal(&s)
 	if err != nil {
 		log.Fatal(err)
