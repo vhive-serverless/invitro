@@ -114,6 +114,8 @@ func main() {
 		"Dirigent-RPS",
 		"Dirigent-Dandelion-RPS",
 		"Dirigent-Dandelion",
+		"Dirigent-Dandelion-Workflow-RPS",
+		"Dirigent-Dandelion-Workflow",
 	}
 
 	if !slices.Contains(supportedPlatforms, cfg.Platform) {
@@ -168,7 +170,8 @@ func parseYAMLSpecification(cfg *config.LoaderConfiguration) string {
 	case "firecracker":
 		return "workloads/firecracker/trace_func_go.yaml"
 	default:
-		if cfg.Platform != "Dirigent" && cfg.Platform != "Dirigent-RPS" && cfg.Platform != "Dirigent-Dandelion-RPS" && cfg.Platform != "Dirigent-Dandelion" {
+		if cfg.Platform != "Dirigent" && cfg.Platform != "Dirigent-RPS" && cfg.Platform != "Dirigent-Dandelion-RPS" && cfg.Platform != "Dirigent-Dandelion" &&
+			cfg.Platform != "Dirigent-Dandelion-Workflow-RPS" && cfg.Platform != "Dirigent-Dandelion-Workflow" {
 			log.Fatal("Invalid 'YAMLSelector' parameter.")
 		}
 	}
