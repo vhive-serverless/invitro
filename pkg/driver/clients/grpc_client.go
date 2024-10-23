@@ -32,7 +32,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/vhive-serverless/loader/pkg/common"
 	"github.com/vhive-serverless/loader/pkg/config"
-	//"github.com/vhive-serverless/loader/pkg/workload/proto"
+	protoExec "github.com/vhive-serverless/loader/pkg/workload/proto"
 	//"github.com/vhive-serverless/vSwarm/tools/benchmarking_eventing/vhivemetadata"
 	proto "github.com/vhive-serverless/vSwarm/utils/protobuf/helloworld"
 
@@ -93,14 +93,21 @@ func (i *grpcInvoker) Invoke(function *common.Function, runtimeSpec *common.Runt
 	executionCxt, cancelExecution := context.WithTimeout(context.Background(), time.Duration(i.cfg.GRPCFunctionTimeoutSeconds)*time.Second)
 
 	defer cancelExecution()
-	var err error
 	if !vSwarm {
-		grpcClient := proto.NewExecutorClient(conn)
-		response, err := grpcClient.Execute(executionCxt, &proto.FaasRequest{
+		grpcClient := protoExec.NewExecutorClient(conn)
+		response, err := grpcClient.Execute(executionCxt, &protoExec.FaasRequest{
 			Message:           "nothing",
 			RuntimeInMilliSec: uint32(runtimeSpec.Runtime),
 			MemoryInMebiBytes: uint32(runtimeSpec.Memory),
 		})
+		if err != nil {
+			log.Debugf("gRPC timeout exceeded for function %s - %s", function.Name, err)
+	
+			record.ResponseTime = time.Since(start).Microseconds()
+			record.FunctionTimeout = true
+	
+			return false, record
+		}
 		record.Instance = extractInstanceName(response.GetMessage())
 		record.ResponseTime = time.Since(start).Microseconds()
 		record.ActualDuration = response.DurationInMicroSec
@@ -122,6 +129,14 @@ func (i *grpcInvoker) Invoke(function *common.Function, runtimeSpec *common.Runt
 				time.Now().UTC(),
 			),
 		})
+		if err != nil {
+			log.Debugf("gRPC timeout exceeded for function %s - %s", function.Name, err)
+	
+			record.ResponseTime = time.Since(start).Microseconds()
+			record.FunctionTimeout = true
+	
+			return false, record
+		}
 		record.ResponseTime = time.Since(start).Microseconds()
 		record.ActualDuration = uint32(record.ResponseTime)
 		record.Instance = extractInstanceName(response.GetMessage())
