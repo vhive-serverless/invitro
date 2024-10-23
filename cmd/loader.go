@@ -49,6 +49,7 @@ var (
 	verbosity     = flag.String("verbosity", "info", "Logging verbosity - choose from [info, debug, trace]")
 	iatGeneration = flag.Bool("iatGeneration", false, "Generate iats only or run invocations as well")
 	iatFromFile   = flag.Bool("generated", false, "True if iats were already generated")
+	vSwarm = flag.Bool("vSwarm", false, "True if the vSwarm-functions are to be used")
 )
 
 func init() {
@@ -198,7 +199,7 @@ func runTraceMode(cfg *config.LoaderConfiguration, readIATFromFile bool, justGen
 
 	log.Infof("Using %s as a service YAML specification file.\n", experimentDriver.Configuration.YAMLPath)
 
-	experimentDriver.RunExperiment(justGenerateIAT, readIATFromFile)
+	experimentDriver.RunExperiment(justGenerateIAT, readIATFromFile, *vSwarm)
 }
 
 func runRPSMode(cfg *config.LoaderConfiguration, justGenerateIAT bool) {
