@@ -628,7 +628,7 @@ func (d *Driver) internalRun(iatOnly bool, generated bool) {
 	log.Infof("Number of failed invocations: \t%d\n", atomic.LoadInt64(&failedInvocations))
 }
 
-func (d *Driver) RunExperiment(iatOnly bool, generated bool) {
+func (d *Driver) RunExperiment(iatOnly bool, generated bool, vSwarm bool) {
 	if iatOnly {
 		log.Info("Generating IAT and runtime specifications for all the functions")
 		for i, function := range d.Configuration.Functions {
