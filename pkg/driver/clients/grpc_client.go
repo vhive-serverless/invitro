@@ -53,7 +53,7 @@ func newGRPCInvoker(cfg *config.LoaderConfiguration) *grpcInvoker {
 	}
 }
 
-func (i *grpcInvoker) Invoke(function *common.Function, runtimeSpec *common.RuntimeSpecification) (bool, *mc.ExecutionRecord) {
+func (i *grpcInvoker) Invoke(function *common.Function, runtimeSpec *common.RuntimeSpecification, vSwarm bool) (bool, *mc.ExecutionRecord) {
 	logrus.Tracef("(Invoke)\t %s: %d[ms], %d[MiB]", function.Name, runtimeSpec.Runtime, runtimeSpec.Memory)
 
 	record := &mc.ExecutionRecord{
@@ -93,20 +93,44 @@ func (i *grpcInvoker) Invoke(function *common.Function, runtimeSpec *common.Runt
 	executionCxt, cancelExecution := context.WithTimeout(context.Background(), time.Duration(i.cfg.GRPCFunctionTimeoutSeconds)*time.Second)
 
 	defer cancelExecution()
+	var err error
+	if !vSwarm {
+		grpcClient := proto.NewExecutorClient(conn)
+		response, err := grpcClient.Execute(executionCxt, &proto.FaasRequest{
+			Message:           "nothing",
+			RuntimeInMilliSec: uint32(runtimeSpec.Runtime),
+			MemoryInMebiBytes: uint32(runtimeSpec.Memory),
+		})
+		record.Instance = extractInstanceName(response.GetMessage())
+		record.ResponseTime = time.Since(start).Microseconds()
+		record.ActualDuration = response.DurationInMicroSec
 
-	/*response, err := grpcClient.Execute(executionCxt, &proto.FaasRequest{
-		Message:           "nothing",
-		RuntimeInMilliSec: uint32(runtimeSpec.Runtime),
-		MemoryInMebiBytes: uint32(runtimeSpec.Memory),
-	})*/
-	response, err := grpcClient.SayHello(executionCxt, &proto.HelloRequest{
-		Name: "Invoke Relay",
-		VHiveMetadata: MakeVHiveMetadata(
-			uuid.New().String(),
-			uuid.New().String(),
-			time.Now().UTC(),
-		),
-	})
+		if strings.HasPrefix(response.GetMessage(), "FAILURE - mem_alloc") {
+			record.MemoryAllocationTimeout = true
+		} else {
+			record.ActualMemoryUsage = common.Kib2Mib(response.MemoryUsageInKb)
+		}
+		log.Tracef("(Replied)\t %s: %s, %.2f[ms], %d[MiB]", function.Name, response.Message,
+			float64(response.DurationInMicroSec)/1e3, common.Kib2Mib(response.MemoryUsageInKb))
+	} else {
+		grpcClient := proto.NewGreeterClient(conn)
+		response, err := grpcClient.SayHello(executionCxt, &proto.HelloRequest{
+			Name: "Invoke Relay",
+			VHiveMetadata: MakeVHiveMetadata(
+				uuid.New().String(),
+				uuid.New().String(),
+				time.Now().UTC(),
+			),
+		})
+		record.ResponseTime = time.Since(start).Microseconds()
+		record.ActualDuration = uint32(record.ResponseTime)
+		record.Instance = extractInstanceName(response.GetMessage())
+		if strings.HasPrefix(response.GetMessage(), "FAILURE - mem_alloc") {
+			record.MemoryAllocationTimeout = true
+		} else {
+			record.ActualMemoryUsage = common.Kib2Mib(0) //common.Kib2Mib(response.MemoryUsageInKb)
+		}
+	}
 
 	if err != nil {
 		logrus.Debugf("gRPC timeout exceeded for function %s - %s", function.Name, err)

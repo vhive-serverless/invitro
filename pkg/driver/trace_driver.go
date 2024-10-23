@@ -199,7 +199,7 @@ func composeInvocationID(timeGranularity common.TraceGranularity, minuteIndex in
 	return fmt.Sprintf("%s%d.inv%d", timePrefix, minuteIndex, invocationIndex)
 }
 
-func (d *Driver) invokeFunction(metadata *InvocationMetadata, warmup bool) {
+func (d *Driver) invokeFunction(metadata *InvocationMetadata, warmup bool, vSwarm bool) {
 	defer metadata.AnnounceDoneWG.Done()
 
 	var success bool
@@ -210,7 +210,7 @@ func (d *Driver) invokeFunction(metadata *InvocationMetadata, warmup bool) {
 		function := node.Value.(*common.Function)
 		runtimeSpecifications = &function.Specification.RuntimeSpecification[metadata.MinuteIndex][metadata.InvocationIndex]
 
-		success, record = d.Invoker.Invoke(function, runtimeSpecifications)
+		success, record = d.Invoker.Invoke(function, runtimeSpecifications, vSwarm)
 
 		record.Phase = int(metadata.Phase)
 		record.InvocationID = composeInvocationID(d.Configuration.TraceGranularity, metadata.MinuteIndex, metadata.InvocationIndex)
@@ -232,7 +232,7 @@ func (d *Driver) invokeFunction(metadata *InvocationMetadata, warmup bool) {
 
 func (d *Driver) functionsDriver(list *list.List, announceFunctionDone *sync.WaitGroup,
 	addInvocationsToGroup *sync.WaitGroup, readOpenWhiskMetadata *sync.Mutex, totalSuccessful *int64,
-	totalFailed *int64, totalIssued *int64, recordOutputChannel chan interface{}) {
+	totalFailed *int64, totalIssued *int64, recordOutputChannel chan interface{}, vSwarm bool) {
 
 	function := list.Front().Value.(*common.Function)
 	numberOfInvocations := 0
@@ -327,7 +327,7 @@ func (d *Driver) functionsDriver(list *list.List, announceFunctionDone *sync.Wai
 					AnnounceDoneWG:        &waitForInvocations,
 					AnnounceDoneExe:       addInvocationsToGroup,
 					ReadOpenWhiskMetadata: readOpenWhiskMetadata,
-				}, warmup)
+				}, warmup, vSwarm)
 			} else {
 				// To be used from within the Golang testing framework
 				log.Debugf("Test mode invocation fired.\n")
@@ -532,7 +532,7 @@ func (d *Driver) startBackgroundProcesses(allRecordsWritten *sync.WaitGroup) (*s
 	return auxiliaryProcessBarrier, globalMetricsCollector, totalIssuedChannel, finishCh
 }
 
-func (d *Driver) internalRun(iatOnly bool, generated bool) {
+func (d *Driver) internalRun(iatOnly bool, generated bool, vSwarm bool) {
 	var successfulInvocations int64
 	var failedInvocations int64
 	var invocationsIssued int64
@@ -593,6 +593,7 @@ func (d *Driver) internalRun(iatOnly bool, generated bool) {
 			&failedInvocations,
 			&invocationsIssued,
 			globalMetricsCollector,
+			vSwarm,
 		)
 	} else {
 		log.Infof("Starting function invocation driver\n")
@@ -610,6 +611,7 @@ func (d *Driver) internalRun(iatOnly bool, generated bool) {
 				&failedInvocations,
 				&invocationsIssued,
 				globalMetricsCollector,
+				vSwarm,
 			)
 		}
 	}
@@ -661,7 +663,7 @@ func (d *Driver) RunExperiment(iatOnly bool, generated bool, vSwarm bool) {
 	deployer.Deploy(d.Configuration)
 
 	// Generate load
-	d.internalRun(iatOnly, generated)
+	d.internalRun(iatOnly, generated, vSwarm)
 
 	// Clean up
 	deployer.Clean()
