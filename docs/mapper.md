@@ -1,4 +1,4 @@
-# Trace to Proxy Function Mapper
+# Mapper
 
 The mapper tool can be used to map the functions in a given trace directory (with memory and duration traces) to the proxy functions in the [`vSwarm`](https://github.com/vhive-serverless/vSwarm/tree/main/) benchmark suite. The benchmarks present in the vSwarm benchmark suite have been profiled and their memory utilization and duration traces have been collected and stored in the `profile.json` file. Each function in the trace is mapped to a function in the benchmark suite as its closest proxy (based on memory and duration correlation).
 

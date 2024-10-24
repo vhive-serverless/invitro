@@ -93,7 +93,7 @@ func knativeDeploySingleFunction(function *common.Function, yamlPath string, isP
 	if vSwarm {
 		// Read and unmarshal the mapper output file into a map
 		
-		mapperFile, err := os.ReadFile("pkg/mapper/output.json")
+		mapperFile, err := os.ReadFile("tools/mapper/output.json")
 		if err != nil {
 			log.Warn("No mapper output file")
 		}
@@ -154,6 +154,11 @@ func knativeDeploySingleFunction(function *common.Function, yamlPath string, isP
 
 	stdoutStderr, err := cmd.CombinedOutput()
 	log.Debug("CMD response: ", string(stdoutStderr))
+	// Wait for 2 seconds to allow the function to be deployed
+
+	cmd = exec.Command("sleep", "2")
+	cmd.Run()
+
 	if err != nil {
 		// TODO: there should be a toggle to turn off deployment because if this is fatal then we cannot test the thing locally
 		log.Warnf("Failed to deploy function %s: %v\n%s\n", function.Name, err, stdoutStderr)
