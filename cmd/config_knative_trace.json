@@ -24,5 +24,6 @@
 
   "GRPCConnectionTimeoutSeconds": 15,
   "GRPCFunctionTimeoutSeconds": 900,
-  "DAGMode": false
+  "DAGMode": false,
+  "vSwarm": false
 }

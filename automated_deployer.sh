@@ -4,14 +4,13 @@
 # and the OutputPathPrefix field as: "data/out/$EXPERIMENT/experiment"
 
 # Run the script as follows:
-# ./automated_deployer.sh <start number of functions> <stop number of functions> <step size> <experiment name> <vSwarm flag>
+# ./automated_deployer.sh <start number of functions> <stop number of functions> <step size> <experiment name>
 
 
 start=$1
 stop=$2
 step=$3
 EXPERIMENT=$4
-vSwarm=$5
 
 counter=$start
 
@@ -25,21 +24,13 @@ do
         counter=$((counter + step))
         continue
     fi
-    if [ $vSwarm -eq 1 ]; then
-        echo "Using vSwarm functions"
-        cd pkg/mapper/
-        python3 mapper.py -t ../../data/traces/reference/sampled_150/$counter/ -p profile.json
-        cd ../..
-        cat cmd/config.json | envsubst '${EXPERIMENT},${FUNC}' > cmd/config_tmp.json
-        mkdir -p data/out/$EXPERIMENT
-        go run cmd/loader.go -config cmd/config_tmp.json -verbosity debug -vSwarm true | tee data/out/$EXPERIMENT/loader_$FUNC.log
 
-    else
-        echo "Using dummy functions"
-        cat cmd/config.json | envsubst '${EXPERIMENT},${FUNC}' > cmd/config_tmp.json
-        mkdir -p data/out/$EXPERIMENT
-        go run cmd/loader.go -config cmd/config_tmp.json -verbosity debug | tee data/out/$EXPERIMENT/loader_$FUNC.log
-    fi
+    cd pkg/mapper/
+    python3 mapper.py -t ../../data/traces/reference/sampled_150/$counter/ -p profile.json
+    cd ../..
+    cat cmd/config_knative_trace.json | envsubst '${EXPERIMENT},${FUNC}' > cmd/config_tmp.json
+    mkdir -p data/out/$EXPERIMENT
+    go run cmd/loader.go -config cmd/config_tmp.json -verbosity debug | tee data/out/$EXPERIMENT/loader_$FUNC.log
     counter=$((counter + step))
 done
 
