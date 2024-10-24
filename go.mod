@@ -2,6 +2,8 @@ module github.com/vhive-serverless/loader
 
 go 1.22
 
+toolchain go1.22.0
+
 require (
 	github.com/gocarina/gocsv v0.0.0-20211203214250-4735fba0c1d9
 	github.com/golang/protobuf v1.5.4
@@ -15,7 +17,10 @@ require (
 
 require (
 	github.com/aws/aws-lambda-go v1.47.0
+	github.com/containerd/log v0.1.0
+	github.com/google/uuid v1.6.0
 	github.com/stretchr/testify v1.9.0
+	github.com/vhive-serverless/vSwarm/utils/protobuf/helloworld v0.0.0-20240827121957-11be651eb39a
 	github.com/vhive-serverless/vSwarm/utils/tracing/go v0.0.0-20240827121957-11be651eb39a
 	go.mongodb.org/mongo-driver v1.17.1
 	golang.org/x/exp v0.0.0-20231110203233-9a3e6036ecaa
@@ -26,7 +31,6 @@ require (
 	git.sr.ht/~sbinet/gg v0.5.0 // indirect
 	github.com/ajstarks/svgo v0.0.0-20211024235047-1546f124cd8b // indirect
 	github.com/campoy/embedmd v1.0.0 // indirect
-	github.com/containerd/log v0.1.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/davidmz/go-pageant v1.0.2 // indirect
 	github.com/go-fonts/liberation v0.3.2 // indirect
@@ -35,7 +39,6 @@ require (
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-pdf/fpdf v0.9.0 // indirect
 	github.com/golang/freetype v0.0.0-20170609003504-e2365dfdc4a0 // indirect
-	github.com/google/uuid v1.6.0 // indirect
 	github.com/kr/fs v0.1.0 // indirect
 	github.com/pkg/sftp v1.13.4 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
