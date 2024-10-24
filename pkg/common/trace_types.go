@@ -84,6 +84,7 @@ type DirigentMetadata struct {
 type Function struct {
 	Name     string
 	Endpoint string
+	HashFunction string
 
 	// From the static trace profiler
 	InitialScale int

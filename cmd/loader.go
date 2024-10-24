@@ -144,7 +144,11 @@ func parseIATDistribution(cfg *config.LoaderConfiguration) (common.IatDistributi
 func parseYAMLSpecification(cfg *config.LoaderConfiguration) string {
 	switch cfg.YAMLSelector {
 	case "container":
-		return "workloads/container/trace_func_go.yaml"
+		if cfg.VSwarm {
+			return "workloads/container/yamls/"
+		} else {
+			return "workloads/container/trace_func_go.yaml"
+		}
 	case "firecracker":
 		return "workloads/firecracker/trace_func_go.yaml"
 	default:
@@ -174,7 +178,7 @@ func runTraceMode(cfg *config.LoaderConfiguration, readIATFromFile bool, justGen
 	yamlPath := parseYAMLSpecification(cfg)
 
 	traceParser := trace.NewAzureParser(cfg.TracePath, durationToParse)
-	functions := traceParser.Parse(cfg.Platform)
+	functions := traceParser.Parse(cfg.Platform)		// Indexed by hashfunction names
 
 	log.Infof("Traces contain the following %d functions:\n", len(functions))
 	for _, function := range functions {
