@@ -21,7 +21,7 @@ spec:
       nodeSelector:
         loader-nodetype: worker
       containers:
-        - image: docker.io/cvetkovic/dirigent_trace_function:latest
+        - image: docker.io/lightxyz/dirigent_trace_function:latest
           # imagePullPolicy: Always  # No need if the tag is `latest`.
           ports:
             - name: h2c  # For gRPC support
