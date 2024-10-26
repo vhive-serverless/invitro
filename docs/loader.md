@@ -210,10 +210,16 @@ For instructions on how to use the loader with OpenWhisk go to `openwhisk_setup/
 
 The vSwarm benchmark suite consists of real world benchmarks that have been profiled. Each function in the trace is mapped to a function in the benchmark suite as its closest proxy (based on memory and duration correlation). 
 
-We first need to generate all the yaml files for the vSwarm proxy functions. This can be done by running the following commands:
+We first need to generate all the yaml files for the vSwarm proxy functions and profiles. This can be done by running the following commands (assuming you are in the `loader` directory):
 
 ```bash
-cd workloads/container/yamls
+cd tools/mapper/
+# Unzip the profile.json file
+tar -xvzf profile.tar.gz
+cd ../../workloads/container/
+# Unzip the vSwarm yamls
+tar -xvzf vSwarm_yamls.tar.gz
+cd yamls/
 python3 generate_all_yamls.py
 # If the deploy_info file is not present, then run the following command after generating yamls
 python3 generate_deploy_info.py
@@ -222,6 +228,8 @@ python3 generate_deploy_info.py
 We then need to map the functions in the trace to the proxy functions in the vSwarm benchmark suite. This can be done by running the mapper tool as specified in the mapper documentation.
 
 Modify the `config_knative_trace.json` according to the run specifications with `vSwarm` set to true, and then run the loader as usual with the config file.
+
+**Currently, vSwarm proxy functions are only supported in Knative clusters.**
 
 ---
 Note:

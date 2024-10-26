@@ -26,14 +26,13 @@ package clients
 
 import (
 	"context"
-	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
-	"strings"
-	"time"
 	"github.com/google/uuid"
 	"github.com/vhive-serverless/loader/pkg/common"
 	"github.com/vhive-serverless/loader/pkg/config"
 	protoExec "github.com/vhive-serverless/loader/pkg/workload/proto"
-	//"github.com/vhive-serverless/vSwarm/tools/benchmarking_eventing/vhivemetadata"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
+	"strings"
+	"time"
 	proto "github.com/vhive-serverless/vSwarm/utils/protobuf/helloworld"
 
 	"github.com/sirupsen/logrus"
@@ -92,7 +91,7 @@ func (i *grpcInvoker) Invoke(function *common.Function, runtimeSpec *common.Runt
 	executionCxt, cancelExecution := context.WithTimeout(context.Background(), time.Duration(i.cfg.GRPCFunctionTimeoutSeconds)*time.Second)
 
 	defer cancelExecution()
-	if !i.cfg.VSwarm{
+	if !i.cfg.VSwarm {
 		grpcClient := protoExec.NewExecutorClient(conn)
 		response, err := grpcClient.Execute(executionCxt, &protoExec.FaasRequest{
 			Message:           "nothing",
@@ -101,10 +100,10 @@ func (i *grpcInvoker) Invoke(function *common.Function, runtimeSpec *common.Runt
 		})
 		if err != nil {
 			logrus.Debugf("gRPC timeout exceeded for function %s - %s", function.Name, err)
-	
+
 			record.ResponseTime = time.Since(start).Microseconds()
 			record.FunctionTimeout = true
-	
+
 			return false, record
 		}
 		record.Instance = extractInstanceName(response.GetMessage())
@@ -130,10 +129,10 @@ func (i *grpcInvoker) Invoke(function *common.Function, runtimeSpec *common.Runt
 		})
 		if err != nil {
 			logrus.Debugf("gRPC timeout exceeded for function %s - %s", function.Name, err)
-	
+
 			record.ResponseTime = time.Since(start).Microseconds()
 			record.FunctionTimeout = true
-	
+
 			return false, record
 		}
 		record.ResponseTime = time.Since(start).Microseconds()

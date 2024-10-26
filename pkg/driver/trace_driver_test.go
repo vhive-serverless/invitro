@@ -169,7 +169,7 @@ func TestInvokeFunctionFromDriver(t *testing.T) {
 			}
 
 			announceDone.Add(1)
-			testDriver.invokeFunction(metadata)
+			testDriver.invokeFunction(metadata, common.ExecutionPhase)
 
 			switch test.forceFail {
 			case true:
@@ -235,7 +235,7 @@ func TestDAGInvocation(t *testing.T) {
 	}
 
 	announceDone.Add(1)
-	testDriver.invokeFunction(metadata)
+	testDriver.invokeFunction(metadata, common.ExecutionPhase)
 	if !(successCount == 1 && failureCount == 0) {
 		t.Error("The DAG invocation has failed.")
 	}

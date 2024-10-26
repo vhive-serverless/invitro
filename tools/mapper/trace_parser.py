@@ -194,7 +194,7 @@ def read_memory_csv(directory_name: str) -> Tuple[dict, int]:
                     functions[function_name]["memory"]["count"] = float(
                         row[count_index]
                     )
-                    functions[function_name]["memory"]["averag"] = float(
+                    functions[function_name]["memory"]["average"] = float(
                         row[average_index]
                     )
                     functions[function_name]["memory"]["1-percentile"] = float(

@@ -145,11 +145,14 @@ func parseYAMLSpecification(cfg *config.LoaderConfiguration) string {
 	switch cfg.YAMLSelector {
 	case "container":
 		if cfg.VSwarm {
-			return "workloads/container/yamls/"
+			return "workloads/container/vSwarm_yamls/"
 		} else {
 			return "workloads/container/trace_func_go.yaml"
 		}
 	case "firecracker":
+		if cfg.VSwarm {
+			log.Fatal("Firecracker is not supported in vSwarm as of now.")
+		}
 		return "workloads/firecracker/trace_func_go.yaml"
 	default:
 		if cfg.Platform != "Dirigent" && cfg.Platform != "Dirigent-RPS" && cfg.Platform != "Dirigent-Dandelion-RPS" && cfg.Platform != "Dirigent-Dandelion" {
@@ -178,7 +181,7 @@ func runTraceMode(cfg *config.LoaderConfiguration, readIATFromFile bool, justGen
 	yamlPath := parseYAMLSpecification(cfg)
 
 	traceParser := trace.NewAzureParser(cfg.TracePath, durationToParse)
-	functions := traceParser.Parse(cfg.Platform)		// Indexed by hashfunction names
+	functions := traceParser.Parse(cfg.Platform)
 
 	log.Infof("Traces contain the following %d functions:\n", len(functions))
 	for _, function := range functions {

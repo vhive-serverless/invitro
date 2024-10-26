@@ -25,14 +25,6 @@ def main():
         required=True,
     )
     parser.add_argument(
-        "-o",
-        "--output-filepath",
-        type=str,
-        help="Path to the output file",
-        default="output.json",
-        required=False,
-    )
-    parser.add_argument(
         "-u",
         "--unique-assignment",
         type=bool,
@@ -43,7 +35,7 @@ def main():
     args = parser.parse_args()
     trace_directorypath = args.trace_directorypath
     profile_filepath = args.profile_filepath
-    output_filepath = args.output_filepath
+    output_filepath = trace_directorypath + "/mapper_output.json"
     unique_assignment = args.unique_assignment
     trace_functions, err = load_trace(trace_directorypath)
     if err == -1:
