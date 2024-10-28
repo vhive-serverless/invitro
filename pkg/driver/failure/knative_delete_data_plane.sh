@@ -8,6 +8,3 @@ kubectl delete pod $(kubectl get pods -n istio-system -o name | grep cluster-loc
 
 # istio-ingressgateway
 kubectl delete pod $(kubectl get pods -n istio-system -o name | grep istio-ingressgateway | cut -c 5- | tail -n 1) -n istio-system &
-
-# istiod
-kubectl delete pod $(kubectl get pods -n istio-system -o name | grep istiod | cut -c 5- | tail -n 1) -n istio-system &
