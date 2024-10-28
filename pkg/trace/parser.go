@@ -26,6 +26,7 @@ package trace
 
 import (
 	"encoding/csv"
+	"encoding/json"
 	"fmt"
 	"github.com/gocarina/gocsv"
 	"github.com/vhive-serverless/loader/pkg/common"
@@ -126,7 +127,7 @@ func (p *AzureTraceParser) Parse(platform string) []*common.Function {
 	invocationPath := p.DirectoryPath + "/invocations.csv"
 	runtimePath := p.DirectoryPath + "/durations.csv"
 	memoryPath := p.DirectoryPath + "/memory.csv"
-	dirigentPath := p.DirectoryPath + "/dirigent.csv"
+	dirigentPath := p.DirectoryPath + "/dirigent.json"
 
 	invocationTrace := parseInvocationTrace(invocationPath, p.duration)
 	runtimeTrace := parseRuntimeTrace(runtimePath)
@@ -258,21 +259,20 @@ func parseMemoryTrace(traceFile string) *[]common.FunctionMemoryStats {
 }
 
 func parseDirigentMetadata(traceFile string, platform string) *[]common.DirigentMetadata {
-	if platform != "Dirigent" {
+	if strings.ToLower(platform) != "dirigent" {
 		return nil
 	}
 
 	log.Infof("Parsing Dirigent metadata: %s", traceFile)
 
-	f, err := os.Open(traceFile)
+	data, err := os.ReadFile(traceFile)
 	if err != nil {
-		log.Error("Failed to open trace memory specification file.")
+		log.Error("Failed to read Dirigent trace file.")
 		return nil
 	}
-	defer f.Close()
 
 	var metadata []common.DirigentMetadata
-	err = gocsv.UnmarshalFile(f, &metadata)
+	err = json.Unmarshal(data, &metadata)
 	if err != nil {
 		log.Fatal("Failed to parse trace runtime specification.")
 	}

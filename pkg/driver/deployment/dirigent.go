@@ -53,18 +53,6 @@ var registrationClient = &http.Client{
 	},
 }
 
-const CSVColumnDelimiter = " "
-
-func prepareEnvVars(data string) []string {
-	// FORMAT: arg1=value1 arg2=value2
-	return strings.Split(data, CSVColumnDelimiter)
-}
-
-func prepareProgramArgs(data string) []string {
-	// FORMAT: arg1 val1 arg2 val2
-	return strings.Split(data, CSVColumnDelimiter)
-}
-
 func deployDirigent(function *common.Function, controlPlaneAddress string, busyLoopOnColdStart bool) {
 	metadata := function.DirigentMetadata
 
@@ -80,8 +68,8 @@ func deployDirigent(function *common.Function, controlPlaneAddress string, busyL
 		"scaling_lower_bound": {strconv.Itoa(metadata.ScalingLowerBound)},
 		"requested_cpu":       {strconv.Itoa(function.CPURequestsMilli)},
 		"requested_memory":    {strconv.Itoa(function.MemoryRequestsMiB)},
-		"env_vars":            prepareEnvVars(metadata.EnvVars),
-		"program_args":        prepareProgramArgs(metadata.ProgramArgs),
+		"env_vars":            metadata.EnvVars,     // FORMAT: arg1=value1 arg2=value2 ...
+		"program_args":        metadata.ProgramArgs, // FORMAT: arg1 arg2 ...
 	}
 
 	if busyLoopOnColdStart {

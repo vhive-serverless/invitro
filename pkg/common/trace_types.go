@@ -71,16 +71,16 @@ type FunctionMemoryStats struct {
 }
 
 type DirigentMetadata struct {
-	HashFunction        string `csv:"HashFunction"`
-	Image               string `csv:"Image"`
-	Port                int    `csv:"Port"`
-	Protocol            string `csv:"Protocol"`
-	ScalingUpperBound   int    `csv:"ScalingUpperBound"`
-	ScalingLowerBound   int    `csv:"ScalingLowerBound"`
-	IterationMultiplier int    `csv:"IterationMultiplier"`
-	IOPercentage        int    `csv:"IOPercentage"`
-	EnvVars             string `csv:"EnvVars"`
-	ProgramArgs         string `csv:"ProgramArgs"`
+	HashFunction        string   `json:"HashFunction"`
+	Image               string   `json:"Image"`
+	Port                int      `json:"Port"`
+	Protocol            string   `json:"Protocol"`
+	ScalingUpperBound   int      `json:"ScalingUpperBound"`
+	ScalingLowerBound   int      `json:"ScalingLowerBound"`
+	IterationMultiplier int      `json:"IterationMultiplier"`
+	IOPercentage        int      `json:"IOPercentage"`
+	EnvVars             []string `json:"EnvVars"`
+	ProgramArgs         []string `json:"ProgramArgs"`
 }
 
 type Function struct {
