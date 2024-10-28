@@ -9,98 +9,92 @@ import (
 	"time"
 )
 
-const NodeSeparator = " "
+const (
+	NodeSeparator = " "
+
+	ControlPlaneFailure = "control_plane"
+	DataPlaneFailure    = "data_plane"
+	WorkerNodeFailure   = "worker_node"
+)
 
 func ScheduleFailure(platform string, config *config.FailureConfiguration) {
 	if config != nil && config.FailAt != 0 && config.FailComponent != "" {
+		time.Sleep(time.Duration(config.FailAt) * time.Second)
+
 		switch platform {
 		case "Knative", "Knative-RPS":
-			triggerKnativeFailure(config.FailNode, config.FailComponent, config.FailAt)
+			triggerKnativeFailure(config.FailNode, config.FailComponent)
 		case "Dirigent", "Dirigent-RPS":
-			triggerDirigentFailure(config.FailNode, config.FailComponent, config.FailAt)
+			triggerDirigentFailure(config.FailNode, config.FailComponent)
 		default:
 			logrus.Errorf("No specified failure handler for given type of system.")
 		}
 	}
 }
 
-func triggerKnativeFailure(nodes string, component string, t int) {
-	time.Sleep(time.Duration(t) * time.Second)
+func invokeRemotely(command []string, nodes string) {
+	splitNodes := strings.Split(nodes, NodeSeparator)
+	wg := &sync.WaitGroup{}
 
+	for _, node := range splitNodes {
+		wg.Add(1)
+
+		go func(command []string, node string) {
+			defer wg.Done()
+
+			finalCommand := append([]string{"ssh", "-o", "StrictHostKeyChecking=no", node}, command...)
+			invokeLocally(finalCommand)
+		}(command, node)
+	}
+
+	wg.Wait()
+}
+
+func triggerKnativeFailure(nodes string, component string) {
 	var command []string
 	switch component {
-	case "control_plane":
+	case ControlPlaneFailure:
 		command = []string{"bash", "./pkg/driver/failure/knative_delete_control_plane.sh"}
-	case "data_plane":
+	case DataPlaneFailure:
 		command = []string{"bash", "./pkg/driver/failure/knative_delete_data_plane.sh"}
-	case "worker_node":
+	case WorkerNodeFailure:
 		command = []string{"sudo", "systemctl", "restart", "kubelet"}
 	default:
 		logrus.Fatal("Invalid component to fail.")
 	}
 
 	if component != "worker_node" {
-		invokeCommand(command, t)
+		invokeLocally(command)
 	} else {
-		splitNodes := strings.Split(nodes, NodeSeparator)
-		wg := &sync.WaitGroup{}
-
-		for _, node := range splitNodes {
-			wg.Add(1)
-
-			go func(command []string, node string, t int) {
-				defer wg.Done()
-
-				finalCommand := append([]string{"ssh", "-o", "StrictHostKeyChecking=no", node}, command...)
-				invokeCommand(finalCommand, t)
-			}(command, node, t)
-		}
-
-		wg.Wait()
+		invokeRemotely(command, nodes)
 	}
 }
 
-func triggerDirigentFailure(nodes string, component string, t int) {
-	time.Sleep(time.Duration(t) * time.Second)
-
+func triggerDirigentFailure(nodes string, component string) {
 	var command []string
 	switch component {
-	case "control_plane":
+	case ControlPlaneFailure:
 		command = []string{"sudo", "systemctl", "restart", "control_plane"}
-	case "data_plane":
+	case DataPlaneFailure:
 		command = []string{"sudo", "systemctl", "restart", "data_plane"}
-	case "worker_node":
+	case WorkerNodeFailure:
 		command = []string{"sudo", "systemctl", "restart", "worker_node"}
 	default:
 		logrus.Fatal("Invalid component to fail.")
 	}
 
 	if nodes == "" {
-		invokeCommand(command, t)
+		invokeLocally(command)
 	} else {
-		splitNodes := strings.Split(nodes, " ")
-		wg := &sync.WaitGroup{}
-
-		for _, node := range splitNodes {
-			wg.Add(1)
-
-			go func(command []string, node string, t int) {
-				defer wg.Done()
-
-				finalCommand := append([]string{"ssh", "-o", "StrictHostKeyChecking=no", node}, command...)
-				invokeCommand(finalCommand, t)
-			}(command, node, t)
-		}
-
-		wg.Wait()
+		invokeRemotely(command, nodes)
 	}
 }
 
-func invokeCommand(command []string, t int) {
+func invokeLocally(command []string) {
 	cmd := exec.Command(command[0], command[1:]...)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		logrus.Errorf("Error triggering %s failure at t = %d - %v", command, t, err)
+		logrus.Errorf("Error triggering %s failure - %v", command, err)
 		return
 	}
 
