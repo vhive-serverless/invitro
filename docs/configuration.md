@@ -23,6 +23,7 @@
 | CPULimit                     | string    | 1vCPU, GCP                                                          | 1vCPU               | Imposed CPU limits on worker containers (only applicable for 'Knative' platform)[^4] |
 | ExperimentDuration           | int       | > 0                                                                 | 1                   | Experiment duration in minutes of trace to execute excluding warmup                  |
 | WarmupDuration               | int       | > 0                                                                 | 0                   | Warmup duration in minutes(disabled if zero)                                         |
+| PrepullMode                  | string    | all_sync, all_async, one_sync, one_async, none                      | none                | Prepull image before starting experiments sync or async                              |
 | IsPartiallyPanic             | bool      | true/false                                                          | false               | Pseudo-panic-mode only in Knative                                                    |
 | EnableZipkinTracing          | bool      | true/false                                                          | false               | Show loader span in Zipkin traces                                                    |
 | EnableMetricsScrapping       | bool      | true/false                                                          | false               | Scrap cluster-wide metrics                                                           |
