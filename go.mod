@@ -1,6 +1,7 @@
 module github.com/vhive-serverless/loader
 
-go 1.22
+go 1.22.0
+
 toolchain go1.22.5
 
 require (
@@ -16,6 +17,7 @@ require (
 
 require (
 	github.com/aws/aws-lambda-go v1.47.0
+	github.com/containerd/log v0.1.0
 	github.com/stretchr/testify v1.9.0
 	github.com/vhive-serverless/vSwarm/utils/tracing/go v0.0.0-20240827121957-11be651eb39a
 	go.mongodb.org/mongo-driver v1.17.1

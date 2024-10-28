@@ -1,0 +1,37 @@
+[
+  {
+    "HashFunction": "c13acdc7567b225971cef2416a3a2b03c8a4d8d154df48afe75834e2f5c59ddf",
+    "Image": "docker.io/vhiveease/relay:latest",
+    "Port": 50000,
+    "Protocol": "tcp",
+    "ScalingUpperBound": 1,
+    "ScalingLowerBound": 1,
+    "IterationMultiplier": 80,
+    "IOPercentage": 0,
+    "EnvVars": [
+      "ENABLE_TRACING=true"
+    ],
+    "ProgramArgs": [
+      "--addr=0.0.0.0:50000",
+      "--function-endpoint-url=0.0.0.0",
+      "--function-endpoint-port=50051",
+      "--function-name=aes-go",
+      "--value=10",
+      "--generator=random",
+      "--lowerBound=1000",
+      "--upperBound=1001"
+    ]
+  },
+  {
+    "HashFunction": "ae8a1640fa932024f59b38a0b001808b5c64612bd60c6f3eb80ba9461ba2d091",
+    "Image": "docker.io/cvetkovic/dirigent_grpc_function:latest",
+    "Port": 80,
+    "Protocol": "tcp",
+    "ScalingUpperBound": 1,
+    "ScalingLowerBound": 0,
+    "IterationMultiplier": 80,
+    "IOPercentage": 0,
+    "EnvVars": [],
+    "ProgramArgs": []
+  }
+]
