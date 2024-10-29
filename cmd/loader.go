@@ -27,14 +27,15 @@ package main
 import (
 	"flag"
 	"fmt"
+	"os"
+	"strings"
+	"time"
+
 	"github.com/vhive-serverless/loader/pkg/common"
 	"github.com/vhive-serverless/loader/pkg/config"
 	"github.com/vhive-serverless/loader/pkg/driver"
 	"github.com/vhive-serverless/loader/pkg/trace"
 	"golang.org/x/exp/slices"
-	"os"
-	"strings"
-	"time"
 
 	log "github.com/sirupsen/logrus"
 	tracer "github.com/vhive-serverless/vSwarm/utils/tracing/go"
@@ -45,8 +46,8 @@ const (
 )
 
 var (
-	configPath    = flag.String("config", "config_knative_trace.json", "Path to loader configuration file")
-	failurePath   = flag.String("failureConfig", "failure.json", "Path to the failure configuration file")
+	configPath    = flag.String("config", "cmd/config_knative_trace.json", "Path to loader configuration file")
+	failurePath   = flag.String("failureConfig", "cmd/failure.json", "Path to the failure configuration file")
 	verbosity     = flag.String("verbosity", "info", "Logging verbosity - choose from [info, debug, trace]")
 	iatGeneration = flag.Bool("iatGeneration", false, "Generate iats only or run invocations as well")
 	iatFromFile   = flag.Bool("generated", false, "True if iats were already generated")
