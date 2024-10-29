@@ -112,6 +112,7 @@ const (
 	PlatformDirigent  string = "dirigent"
 	PlatformOpenWhisk string = "openwhisk"
 	PlatformAWSLambda string = "awslambda"
+	PlatformURL       string = "url"
 )
 
 // dirigent backend

@@ -95,6 +95,7 @@ func main() {
 		common.PlatformOpenWhisk,
 		common.PlatformAWSLambda,
 		common.PlatformDirigent,
+		common.PlatformURL,
 	}
 	if !slices.Contains(supportedPlatforms, cfg.Platform) {
 		log.Fatal("Unsupported platform!")
