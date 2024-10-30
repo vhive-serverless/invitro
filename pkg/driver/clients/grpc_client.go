@@ -34,7 +34,6 @@
 	 "strings"
 	 "time"
 	 proto "github.com/vhive-serverless/vSwarm/utils/protobuf/helloworld"
-	 "github.com/vhive-serverless/vSwarm/tools/eventing/vhivemetadata"
 	 "github.com/sirupsen/logrus"
 	 "google.golang.org/grpc"
 	 "google.golang.org/grpc/credentials/insecure"
@@ -172,7 +171,7 @@
 	 grpcClient := proto.NewGreeterClient(conn)
 	 response, err := grpcClient.SayHello(executionCxt, &proto.HelloRequest{
 		 Name: "Invoke Relay",
-		 VHiveMetadata: vhivemetadata.MakeVHiveMetadata(
+		 VHiveMetadata: MakeVHiveMetadata(
 			 uuid.New().String(),
 			 uuid.New().String(),
 			 time.Now().UTC(),
