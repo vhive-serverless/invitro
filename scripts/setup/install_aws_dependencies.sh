@@ -53,7 +53,7 @@ source "$DIR/setup.cfg"
 echo "Installing the dependencies for AWS deployment"
 
 # ========== Get loader ==========
-server_exec "git clone --depth=1 --branch=$LOADER_BRANCH https://github.com/vhive-serverless/invitro.git loader"
+server_exec "git clone --depth=1 --branch=$LOADER_BRANCH $LOADER_REPO loader"
 echo "Installed the Github repository for the loader"
 
 # ========== Install AWS CLI ==========

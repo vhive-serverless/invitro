@@ -58,7 +58,7 @@ server_exec() {
 
 common_init() {
     internal_init() {
-        server_exec $1 "git clone --branch=$VHIVE_BRANCH https://github.com/vhive-serverless/vhive"
+        server_exec $1 "git clone --branch=$VHIVE_BRANCH $VHIVE_REPO"
 
         server_exec $1 "pushd ~/vhive/scripts > /dev/null && ./install_go.sh && source /etc/profile && go build -o setup_tool && ./setup_tool setup_node ${OPERATION_MODE} && popd > /dev/null"
         
@@ -189,7 +189,7 @@ function extend_CIDR() {
 }
 
 function clone_loader() {
-    server_exec $1 "git clone --depth=1 --branch=$LOADER_BRANCH https://github.com/vhive-serverless/invitro.git loader"
+    server_exec $1 "git clone --depth=1 --branch=$LOADER_BRANCH $LOADER_REPO loader"
     server_exec $1 'echo -en "\n\n" | sudo apt-get install -y python3-pip python-dev'
     server_exec $1 'cd; cd loader; pip install -r config/requirements.txt'
 }

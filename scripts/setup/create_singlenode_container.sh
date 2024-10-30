@@ -36,12 +36,12 @@ server_exec() {
 {
     # Spin up vHive under container mode.
     server_exec 'sudo DEBIAN_FRONTEND=noninteractive apt-get autoremove' 
-    server_exec "git clone --branch=$VHIVE_BRANCH https://github.com/ease-lab/vhive"
+    server_exec "git clone --branch=$VHIVE_BRANCH $VHIVE_REPO"
 
     server_exec "pushd ~/vhive/scripts > /dev/null && ./install_go.sh && source /etc/profile && go build -o setup_tool && ./setup_tool setup_node stock-only && popd > /dev/null"
 
     # Get loader and dependencies.
-    server_exec "git clone --branch=$LOADER_BRANCH https://github.com/vhive-serverless/invitro.git loader"
+    server_exec "git clone --branch=$LOADER_BRANCH $LOADER_REPO loader"
     server_exec 'echo -en "\n\n" | sudo apt-get install python3-pip python-dev'
     server_exec 'cd; cd loader; pip install -r config/requirements.txt'
     
