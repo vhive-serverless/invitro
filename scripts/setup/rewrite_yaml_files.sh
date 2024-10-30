@@ -7,7 +7,7 @@ MASTER_NODE_IP=$(ip route | awk '{print $(NF)}' | awk '/^10\..*/')
 IFACE=$(netstat -ie | grep -B1 $MASTER_NODE_IP | head -n1 | awk '{print $1}' | cut -d ':' -f 1)
 
 # we set these limits high enough but to fit in the budget of a typical master node server
-cpu_limit_net_istio=2
+cpu_limit_net_istio=20
 memory_limit_net_istio="30Gi"
 cpu_limit_serving_core=28
 memory_limit_serving_core="30Gi"
