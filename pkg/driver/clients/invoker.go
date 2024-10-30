@@ -26,7 +26,11 @@ func CreateInvoker(cfg *config.LoaderConfiguration, announceDoneExe *sync.WaitGr
 		return newHTTPInvoker(cfg)
 	case "Knative", "Knative-RPS":
 		if cfg.InvokeProtocol == "grpc" {
-			return newGRPCInvoker(cfg)
+			if !cfg.VSwarm {
+				return newGRPCInvoker(cfg)
+			} else {
+				return newGRPCVSwarmInvoker(cfg)
+			}
 		} else {
 			return newHTTPInvoker(cfg)
 		}
