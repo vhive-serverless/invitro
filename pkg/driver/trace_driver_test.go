@@ -130,7 +130,7 @@ func TestInvokeFunctionFromDriver(t *testing.T) {
 			var successCount int64 = 0
 			var failureCount int64 = 0
 
-			invocationRecordOutputChannel := make(chan interface{}, 1)
+			invocationRecordOutputChannel := make(chan *metric.ExecutionRecord, 1)
 			announceDone := &sync.WaitGroup{}
 
 			testDriver := createTestDriver()
@@ -182,7 +182,7 @@ func TestInvokeFunctionFromDriver(t *testing.T) {
 				}
 			}
 
-			record := (<-invocationRecordOutputChannel).(*metric.ExecutionRecord)
+			record := <-invocationRecordOutputChannel
 			announceDone.Wait()
 
 			if record.Phase != int(metadata.Phase) ||
@@ -197,7 +197,7 @@ func TestDAGInvocation(t *testing.T) {
 	var successCount int64 = 0
 	var failureCount int64 = 0
 	var functionsToInvoke int = 4
-	invocationRecordOutputChannel := make(chan interface{}, functionsToInvoke)
+	invocationRecordOutputChannel := make(chan *metric.ExecutionRecord, functionsToInvoke)
 	announceDone := &sync.WaitGroup{}
 
 	testDriver := createTestDriver()
@@ -240,7 +240,7 @@ func TestDAGInvocation(t *testing.T) {
 		t.Error("The DAG invocation has failed.")
 	}
 	for i := 0; i < functionsToInvoke; i++ {
-		record := (<-invocationRecordOutputChannel).(*metric.ExecutionRecord)
+		record := <-invocationRecordOutputChannel
 		if record.Phase != int(metadata.Phase) ||
 			record.InvocationID != composeInvocationID(common.MinuteGranularity, metadata.MinuteIndex, metadata.InvocationIndex) {
 
@@ -251,7 +251,7 @@ func TestDAGInvocation(t *testing.T) {
 func TestGlobalMetricsCollector(t *testing.T) {
 	driver := createTestDriver()
 
-	inputChannel := make(chan interface{})
+	inputChannel := make(chan *metric.ExecutionRecord)
 	totalIssuedChannel := make(chan int64)
 	collectorReady, collectorFinished := &sync.WaitGroup{}, &sync.WaitGroup{}
 
