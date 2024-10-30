@@ -68,6 +68,18 @@ var registrationClient = &http.Client{
 	},
 }
 
+var checkClient = &http.Client{
+	Timeout: 5 * time.Second, // time for a request to timeout
+	Transport: &http.Transport{
+		DialContext: (&net.Dialer{
+			Timeout: 1500 * time.Millisecond, // time to open socket
+		}).DialContext,
+		IdleConnTimeout:     2 * time.Second, // unused connections from pool expire after
+		MaxIdleConns:        2,
+		MaxIdleConnsPerHost: 2,
+	},
+}
+
 func deployDirigent(function *common.Function, controlPlaneAddress string, busyLoopOnColdStart bool, prepullMode string) {
 	metadata := function.DirigentMetadata
 
@@ -120,15 +132,23 @@ func deployDirigent(function *common.Function, controlPlaneAddress string, busyL
 	}
 	function.Endpoint = endpoints[rand.Intn(len(endpoints))]
 
+	checkForRegistration(controlPlaneAddress, function.Name, prepullMode)
+}
+
+func checkForRegistration(controlPlaneAddress, functionName, prepullMode string) {
+	if prepullMode == "" || prepullMode == "none" {
+		return
+	}
+
 	for {
-		resp, err := registrationClient.Get(fmt.Sprintf("http://%s/check?name=%s", controlPlaneAddress, function.Name))
+		resp, err := checkClient.Get(fmt.Sprintf("http://%s/check?name=%s", controlPlaneAddress, functionName))
 		if err == nil && resp.StatusCode == http.StatusOK {
-			log.Debugf("Function registration %s successful.", function.Name)
+			log.Debugf("Function registration %s successful.", functionName)
 			break
 		} else if err != nil {
 			log.Errorf("Failed to send check for registration status: %s", err.Error())
 		} else if resp.StatusCode == http.StatusNotFound {
-			log.Tracef("Function %s not yet registered.", function.Name)
+			log.Tracef("Function %s not yet registered.", functionName)
 		} else {
 			log.Errorf("Status code %d when checking service registration.", resp.StatusCode)
 		}
