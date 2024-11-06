@@ -100,7 +100,7 @@ cat serving-core.yaml |
         (
             .spec.template.metadata.labels.app == "autoscaler"
         ) | .spec.template.spec.containers[0].env
-    ) += [{"name": "KUBE_API_BURST", "value": "20"}, {"name": "KUBE_API_QPS", "value": "10"}]' |
+    ) += [{"name": "KUBE_API_BURST", "value": "2000"}, {"name": "KUBE_API_QPS", "value": "1000"}]' |
     yq '
     (
         select
