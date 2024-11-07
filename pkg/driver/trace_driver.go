@@ -227,10 +227,6 @@ func (d *Driver) invokeFunction(metadata *InvocationMetadata) {
 
 		if !success {
 			log.Debugf("Invocation failed at minute: %d for %s", metadata.MinuteIndex, function.Name)
-
-			atomic.AddInt64(metadata.FailedCount, 1)
-			atomic.AddInt64(&metadata.FailedCountByMinute[metadata.MinuteIndex], 1)
-
 			break
 		}
 
