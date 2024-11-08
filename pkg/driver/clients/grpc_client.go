@@ -33,6 +33,7 @@ import (
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"strings"
 	"time"
+	"regexp"
 	proto "github.com/vhive-serverless/vSwarm/utils/protobuf/helloworld"
 
 	"github.com/sirupsen/logrus"
@@ -91,7 +92,8 @@ func (i *grpcInvoker) Invoke(function *common.Function, runtimeSpec *common.Runt
 	executionCxt, cancelExecution := context.WithTimeout(context.Background(), time.Duration(i.cfg.GRPCFunctionTimeoutSeconds)*time.Second)
 
 	defer cancelExecution()
-	if !i.cfg.VSwarm {
+	match, _ := regexp.MatchString("trace-func-*", function.Name)
+	if match {
 		grpcClient := protoExec.NewExecutorClient(conn)
 		response, err := grpcClient.Execute(executionCxt, &protoExec.FaasRequest{
 			Message:           "nothing",

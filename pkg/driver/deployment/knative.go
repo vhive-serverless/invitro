@@ -93,7 +93,6 @@ func knativeDeploySingleFunction(function *common.Function, yamlPath string, isP
 
 	if vSwarm {
 		// Read and unmarshal the mapper output file into a map
-
 		mapperFile, err := os.ReadFile(mapperPath + "/mapper_output.json")
 		if err != nil {
 			log.Warn("No mapper output file")
@@ -121,9 +120,10 @@ func knativeDeploySingleFunction(function *common.Function, yamlPath string, isP
 			log.Warn("Failed to unmarshal deployment info file")
 		}
 
-		if proxyName != "trace_func_go" {
-
+		if proxyName != "trace-func-go" {
+			function.Name = proxyName
 			// Get the yaml location and predeployment commands for the function
+			log.Info("YAML location: ", deploymentInfo[proxyName]["yaml-location"])
 			yamlLocation := deploymentInfo[proxyName]["yaml-location"].(string)
 			// Modify the yaml location to drop the leading "./" and add the yaml path
 			yamlPath = yamlLocation
@@ -142,6 +142,7 @@ func knativeDeploySingleFunction(function *common.Function, yamlPath string, isP
 			}
 		} else {
 			// If the function is the trace function, use the default yaml path
+			proxyName = function.Name
 			yamlPath = "workloads/container/trace_func_go.yaml"
 		}
 	}
