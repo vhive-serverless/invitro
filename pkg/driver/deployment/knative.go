@@ -121,22 +121,28 @@ func knativeDeploySingleFunction(function *common.Function, yamlPath string, isP
 			log.Warn("Failed to unmarshal deployment info file")
 		}
 
-		// Get the yaml location and predeployment commands for the function
-		yamlLocation := deploymentInfo[proxyName]["yaml-location"].(string)
-		// Modify the yaml location to drop the leading "./" and add the yaml path
-		yamlPath = yamlLocation
-		// Get the list of predeployment commands
-		predeploymentCommands := deploymentInfo[proxyName]["predeployment-commands"].([]interface{})
+		if proxyName != "trace_func_go" {
 
-		// Run the predeployment commands
-		for _, command := range predeploymentCommands {
-			cmd := exec.Command("bash", "-c", command.(string))
-			stdoutStderr, err := cmd.CombinedOutput()
-			log.Debug("Predeployment command response: ", string(stdoutStderr))
-			if err != nil {
-				log.Warnf("Failed to run predeployment command %s: %v\n%s\n", command, err, stdoutStderr)
-				return false
+			// Get the yaml location and predeployment commands for the function
+			yamlLocation := deploymentInfo[proxyName]["yaml-location"].(string)
+			// Modify the yaml location to drop the leading "./" and add the yaml path
+			yamlPath = yamlLocation
+			// Get the list of predeployment commands
+			predeploymentCommands := deploymentInfo[proxyName]["predeployment-commands"].([]interface{})
+
+			// Run the predeployment commands
+			for _, command := range predeploymentCommands {
+				cmd := exec.Command("bash", "-c", command.(string))
+				stdoutStderr, err := cmd.CombinedOutput()
+				log.Debug("Predeployment command response: ", string(stdoutStderr))
+				if err != nil {
+					log.Warnf("Failed to run predeployment command %s: %v\n%s\n", command, err, stdoutStderr)
+					return false
+				}
 			}
+		} else {
+			// If the function is the trace function, use the default yaml path
+			yamlPath = "workloads/container/trace_func_go.yaml"
 		}
 	}
 

@@ -2,8 +2,6 @@ import numpy as np
 import scipy.optimize as sp
 import math
 
-from collections import OrderedDict
-
 from log_config import *
 from typing import Tuple
 
@@ -60,9 +58,6 @@ def get_proxy_function_using_linear_sum_assignment(
     """
 
     try:
-
-        trace_functions = OrderedDict(trace_functions)
-        proxy_functions = OrderedDict(proxy_functions)
 
         trace_list = []
         for tf in trace_functions:
@@ -200,9 +195,6 @@ def get_proxy_function(
     - `dict`: Dictionary containing information regarding trace functions with the associated proxy functions
     - `int`: 0 if no error. -1 if error
     """
-
-    trace_functions = OrderedDict(trace_functions)
-    proxy_functions = OrderedDict(proxy_functions)
 
     log.info(
         f"Lower the correlation value, the proxy function is a better proxy of the trace function"
