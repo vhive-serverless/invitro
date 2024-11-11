@@ -1,8 +1,7 @@
 module github.com/vhive-serverless/loader
 
 go 1.22.0
-
-toolchain go1.22.5
+toolchain go1.22.9
 
 require (
 	github.com/gocarina/gocsv v0.0.0-20211203214250-4735fba0c1d9
@@ -12,12 +11,11 @@ require (
 	golang.org/x/sys v0.26.0
 	gonum.org/v1/gonum v0.15.1
 	gonum.org/v1/plot v0.15.0
-	google.golang.org/grpc v1.65.0
+	google.golang.org/grpc v1.68.0
 )
 
 require (
 	github.com/aws/aws-lambda-go v1.47.0
-	github.com/containerd/log v0.1.0
 	github.com/stretchr/testify v1.9.0
 	github.com/vhive-serverless/vSwarm/utils/tracing/go v0.0.0-20240827121957-11be651eb39a
 	go.mongodb.org/mongo-driver v1.17.1
@@ -45,7 +43,7 @@ require (
 	go.opentelemetry.io/otel/metric v1.28.0 // indirect
 	golang.org/x/crypto v0.28.0 // indirect
 	golang.org/x/image v0.21.0 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20240822170219-fc7c04adadcd // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20240903143218-8af14fe29dc1 // indirect
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
 )
 
