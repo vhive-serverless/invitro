@@ -26,28 +26,97 @@ package clients
 
 import (
 	"context"
-	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
-	"strings"
-	"time"
-
+	"github.com/google/uuid"
+	"github.com/sirupsen/logrus"
 	"github.com/vhive-serverless/loader/pkg/common"
 	"github.com/vhive-serverless/loader/pkg/config"
 	"github.com/vhive-serverless/loader/pkg/workload/proto"
-
-	"github.com/sirupsen/logrus"
+	helloworld "github.com/vhive-serverless/vSwarm/utils/protobuf/helloworld"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"strings"
+	"time"
 
 	mc "github.com/vhive-serverless/loader/pkg/metric"
 )
 
-type grpcInvoker struct {
-	cfg *config.LoaderConfiguration
+type invoker interface {
+	Invoke(function *common.Function, runtimeSpec *common.RuntimeSpecification, conn *grpc.ClientConn, record *mc.ExecutionRecord, executionCxt context.Context) bool
 }
 
-func newGRPCInvoker(cfg *config.LoaderConfiguration) *grpcInvoker {
+type ExecutorRPC struct {
+}
+
+func (i ExecutorRPC) Invoke(function *common.Function, runtimeSpec *common.RuntimeSpecification, conn *grpc.ClientConn, record *mc.ExecutionRecord, executionCxt context.Context) bool {
+	grpcClient := proto.NewExecutorClient(conn)
+
+	response, err := grpcClient.Execute(executionCxt, &proto.FaasRequest{
+		Message:           "nothing",
+		RuntimeInMilliSec: uint32(runtimeSpec.Runtime),
+		MemoryInMebiBytes: uint32(runtimeSpec.Memory),
+	})
+
+	if err != nil {
+		logrus.Debugf("gRPC timeout exceeded for function %s - %s", function.Name, err)
+
+		record.ConnectionTimeout = true // WithBlock deprecated in new gRPC interface
+		record.FunctionTimeout = true
+
+		return false
+	}
+
+	record.Instance = extractInstanceName(response.GetMessage())
+	record.ActualDuration = response.DurationInMicroSec
+
+	if strings.HasPrefix(response.GetMessage(), "FAILURE - mem_alloc") {
+		record.MemoryAllocationTimeout = true
+	} else {
+		record.ActualMemoryUsage = common.Kib2Mib(response.MemoryUsageInKb)
+	}
+
+	logrus.Tracef("(Replied)\t %s: %s, %.2f[ms], %d[MiB]", function.Name, response.Message,
+		float64(response.DurationInMicroSec)/1e3, common.Kib2Mib(response.MemoryUsageInKb))
+
+	return true
+}
+
+type SayHelloRPC struct {
+}
+
+func (i SayHelloRPC) Invoke(function *common.Function, runtimeSpec *common.RuntimeSpecification, conn *grpc.ClientConn, record *mc.ExecutionRecord, executionCxt context.Context) bool {
+	grpcClient := helloworld.NewGreeterClient(conn)
+	response, err := grpcClient.SayHello(executionCxt, &helloworld.HelloRequest{
+		Name: "Invoke Relay",
+		VHiveMetadata: MakeVHiveMetadata(
+			uuid.New().String(),
+			uuid.New().String(),
+			time.Now().UTC(),
+		),
+	})
+	if err != nil {
+		logrus.Debugf("gRPC timeout exceeded for function %s - %s", function.Name, err)
+		record.ConnectionTimeout = true
+		record.FunctionTimeout = true
+
+		return false
+	}
+	record.ActualDuration = 0
+	record.Instance = extractSwarmFunction(response.GetMessage())
+	record.ActualMemoryUsage = common.Kib2Mib(0) //Memory usage may not be available for all vSwarm benchmarks
+
+	return true
+}
+
+type grpcInvoker struct {
+	cfg     *config.LoaderConfiguration
+	invoker invoker
+}
+
+func newGRPCInvoker(cfg *config.LoaderConfiguration, invoker invoker) *grpcInvoker {
 	return &grpcInvoker{
-		cfg: cfg,
+		cfg:     cfg,
+		invoker: invoker,
 	}
 }
 
@@ -89,42 +158,12 @@ func (i *grpcInvoker) Invoke(function *common.Function, runtimeSpec *common.Runt
 	defer gRPCConnectionClose(conn)
 
 	record.GRPCConnectionEstablishTime = time.Since(grpcStart).Microseconds()
-
-	grpcClient := proto.NewExecutorClient(conn)
 	executionCxt, cancelExecution := context.WithTimeout(context.Background(), time.Duration(i.cfg.GRPCFunctionTimeoutSeconds)*time.Second)
 	defer cancelExecution()
-
-	response, err := grpcClient.Execute(executionCxt, &proto.FaasRequest{
-		Message:           "nothing",
-		RuntimeInMilliSec: uint32(runtimeSpec.Runtime),
-		MemoryInMebiBytes: uint32(runtimeSpec.Memory),
-	})
-
-	if err != nil {
-		logrus.Debugf("gRPC timeout exceeded for function %s - %s", function.Name, err)
-
-		record.ResponseTime = time.Since(start).Microseconds()
-		record.ConnectionTimeout = true // WithBlock deprecated in new gRPC interface
-		record.FunctionTimeout = true
-
-		return false, record
-	}
-
-	record.Instance = extractInstanceName(response.GetMessage())
+	success := i.invoker.Invoke(function, runtimeSpec, conn, record, executionCxt)
 	record.ResponseTime = time.Since(start).Microseconds()
-	record.ActualDuration = response.DurationInMicroSec
-
-	if strings.HasPrefix(response.GetMessage(), "FAILURE - mem_alloc") {
-		record.MemoryAllocationTimeout = true
-	} else {
-		record.ActualMemoryUsage = common.Kib2Mib(response.MemoryUsageInKb)
-	}
-
-	logrus.Tracef("(Replied)\t %s: %s, %.2f[ms], %d[MiB]", function.Name, response.Message,
-		float64(response.DurationInMicroSec)/1e3, common.Kib2Mib(response.MemoryUsageInKb))
 	logrus.Tracef("(E2E Latency) %s: %.2f[ms]\n", function.Name, float64(record.ResponseTime)/1e3)
-
-	return true, record
+	return success, record
 }
 
 func extractInstanceName(data string) string {
@@ -134,6 +173,17 @@ func extractInstanceName(data string) string {
 	}
 
 	return data[indexOfHyphen:]
+}
+func extractSwarmFunction(data string) string {
+	index := strings.Index(data, "fn: ")
+	verticalBarIndex := strings.Index(data, " |")
+	if index == -1 {
+		return data
+	}
+	if verticalBarIndex == -1 {
+		return data[index+4:]
+	}
+	return data[index+4 : verticalBarIndex]
 }
 
 func gRPCConnectionClose(conn *grpc.ClientConn) {
