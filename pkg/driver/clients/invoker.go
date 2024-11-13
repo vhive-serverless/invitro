@@ -19,7 +19,7 @@ func CreateInvoker(cfg *config.LoaderConfiguration, announceDoneExe *sync.WaitGr
 		return newAWSLambdaInvoker(announceDoneExe)
 	case "Dirigent":
 		if cfg.InvokeProtocol == "grpc" {
-			return newGRPCInvoker(cfg)
+			return newGRPCInvoker(cfg, ExecutorRPC{})
 		} else {
 			return newHTTPInvoker(cfg)
 		}
@@ -27,7 +27,11 @@ func CreateInvoker(cfg *config.LoaderConfiguration, announceDoneExe *sync.WaitGr
 		return newHTTPInvoker(cfg)
 	case "Knative":
 		if cfg.InvokeProtocol == "grpc" {
-			return newGRPCInvoker(cfg)
+			if !cfg.VSwarm {
+				return newGRPCInvoker(cfg, ExecutorRPC{})
+			} else {
+				return newGRPCInvoker(cfg, SayHelloRPC{})
+			}
 		} else {
 			return newHTTPInvoker(cfg)
 		}

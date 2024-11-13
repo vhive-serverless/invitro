@@ -83,6 +83,7 @@ type LoaderConfiguration struct {
 	EnableDAGDataset             bool `json:"EnableDAGDataset"`
 	Width                        int  `json:"Width"`
 	Depth                        int  `json:"Depth"`
+	VSwarm                       bool `json:"VSwarm"`
 }
 
 func ReadConfigurationFile(path string) LoaderConfiguration {
