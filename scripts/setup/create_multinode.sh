@@ -57,8 +57,8 @@ if [ "$#" -lt $CONTROL_PLANE_REPLICAS ]; then
     exit 1
 fi
 
-if [ "$CONTROL_PLANE_REPLICAS" != 1 ] && [ "$CONTROL_PLANE_REPLICAS" != 3 ] && [ "$CONTROL_PLANE_REPLICAS" != 5 ]; then
-    echo "Number of control plane replicas can only be 1, 3, or 5."
+if [ "$CONTROL_PLANE_REPLICAS" != 1 ] && [ "$CONTROL_PLANE_REPLICAS" != 3 ] && [ "$CONTROL_PLANE_REPLICAS" != 5 ] && [ "$CONTROL_PLANE_REPLICAS" != 7 ]; then
+    echo "Number of control plane replicas can only be 1, 3, 5, or 7."
     exit 1
 fi
 
