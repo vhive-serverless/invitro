@@ -8,6 +8,7 @@ data/azure
 !data/traces/example/
 pkg/generator/*.png
 pkg/generator/*.txt
+!pkg/generator/requirements.txt
 pkg/driver/*.csv
 pkg/workload/openwhisk/*.zip
 *.log

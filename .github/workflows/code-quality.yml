@@ -18,7 +18,7 @@ jobs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
       - name: Checkout Sources
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - id: set-matrix
         run: ./utils/golangci-lint/resolve-modules.sh
 
@@ -39,7 +39,7 @@ jobs:
         run: sudo apt update && sudo apt install libsnmp-dev
 
       - name: Checkout code into go module directory
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         
       - name: Lint with golangci-lint
         uses: golangci/golangci-lint-action@v6.1.0

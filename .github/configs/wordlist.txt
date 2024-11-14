@@ -775,3 +775,6 @@ FailureEnabled
 Prepull
 PrepullMode
 async
+AsyncMode
+AsyncResponseURL
+AsyncWaitToCollectMin

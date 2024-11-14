@@ -11,7 +11,7 @@ idna==3.7
 language-selector==0.1
 lxml==5.3.0
 netifaces==0.11.0
-numpy==2.1.3
+numpy==1.26.4
 packaging==24.2
 pandas==2.0.3
 patsy==0.5.2
@@ -31,7 +31,7 @@ scipy==1.13.0
 six==1.16.0
 soupsieve==2.5
 ssh-import-id==5.11
-statsmodels==0.14.0
+statsmodels==0.14.4
 ubuntu-advantage-tools==20.3
 ufw==0.36
 unattended-upgrades==0.1

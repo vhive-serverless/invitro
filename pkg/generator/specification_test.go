@@ -371,6 +371,8 @@ func TestSerialGenerateIAT(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.testName, func(t *testing.T) {
+			log.SetLevel(log.TraceLevel)
+
 			sg := NewSpecificationGenerator(seed)
 
 			testFunction.InvocationStats = &common.FunctionInvocationStats{Invocations: test.invocations}
@@ -476,7 +478,7 @@ func checkDistribution(data [][]float64, nonScaledDuration []float64, distributi
 		// NOTE: the script generates a histogram in PNG format that can be used as a sanity-check
 		if err := statisticalTest.Wait(); err != nil {
 			output, _ := statisticalTest.Output()
-			log.Debug(string(output))
+			log.Info(string(output))
 
 			switch statisticalTest.ProcessState.ExitCode() {
 			case 0:
