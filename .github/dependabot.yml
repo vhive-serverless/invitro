@@ -4,7 +4,7 @@ updates:
   - package-ecosystem: "pip"
     directory: "/"
     schedule:
-      interval: "weekly"
+      interval: "monthly"
     ignore:
       - dependency-name: "*"
         update-types: [ "version-update:semver-patch" ]
@@ -12,7 +12,7 @@ updates:
   - package-ecosystem: "gomod"
     directory: "/"
     schedule:
-      interval: "weekly"
+      interval: "monthly"
     ignore:
       - dependency-name: "*"
         update-types: [ "version-update:semver-patch" ]
@@ -20,7 +20,7 @@ updates:
   - package-ecosystem: "gomod"
     directory: "/tools/invoker"
     schedule:
-      interval: "weekly"
+      interval: "monthly"
     ignore:
       - dependency-name: "*"
         update-types: [ "version-update:semver-patch" ]
@@ -28,7 +28,7 @@ updates:
   - package-ecosystem: "gomod"
     directory: "/tools/benchmark/"
     schedule:
-      interval: "weekly"
+      interval: "monthly"
     ignore:
       - dependency-name: "*"
         update-types: [ "version-update:semver-patch" ]
@@ -36,7 +36,7 @@ updates:
   - package-ecosystem: "gomod"
     directory: "/tools/generateTimeline/"
     schedule:
-      interval: "weekly"
+      interval: "monthly"
     ignore:
       - dependency-name: "*"
         update-types: ["version-update:semver-patch"]
@@ -44,7 +44,7 @@ updates:
   - package-ecosystem: "gomod"
     directory: "/tools/helloworld"
     schedule:
-      interval: "weekly"
+      interval: "monthly"
     ignore:
       - dependency-name: "*"
         update-types: [ "version-update:semver-patch" ]
@@ -54,7 +54,7 @@ updates:
     # Look for `.github/workflows` in the `root` directory
     directory: "/"
     schedule:
-      interval: "weekly"
+      interval: "monthly"
     ignore:
       - dependency-name: "*"
         update-types: [ "version-update:semver-patch" ]
@@ -62,7 +62,7 @@ updates:
   - package-ecosystem: "pip"
     directory: "/tools/trace_synthesizer/"
     schedule:
-      interval: "weekly"
+      interval: "monthly"
     ignore:
       - dependency-name: "*"
         update-types: [ "version-update:semver-patch" ]
@@ -70,7 +70,7 @@ updates:
   - package-ecosystem: "pip"
     directory: "/sampler/"
     schedule:
-      interval: "weekly"
+      interval: "monthly"
     ignore:
       - dependency-name: "*"
         update-types: [ "version-update:semver-patch" ]
