@@ -2,8 +2,6 @@ name: End-to-End AWS Tests
 
 on:
  workflow_dispatch:
- push:
-   branches: [main]
 
 env:
   GOOS: linux
