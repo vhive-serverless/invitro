@@ -24,7 +24,6 @@
 
 package common
 
-// IATMatrix - columns are minutes, rows are IATs
 type IATArray []float64
 
 // ProbabilisticDuration used for testing the exponential distribution

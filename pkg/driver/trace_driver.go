@@ -514,37 +514,46 @@ func (d *Driver) internalRun(generated bool) {
 	log.Infof("Number of failed invocations: \t%d\n", atomic.LoadInt64(&failedInvocations))
 }
 
+func (d *Driver) generateSpecs() {
+	log.Info("Generating IAT and runtime specifications for all the functions")
+
+	for i, function := range d.Configuration.Functions {
+		// Equalising all the InvocationStats to the first function
+		if d.Configuration.LoaderConfiguration.DAGMode {
+			function.InvocationStats.Invocations = d.Configuration.Functions[0].InvocationStats.Invocations
+		}
+		spec := d.SpecificationGenerator.GenerateInvocationData(
+			function,
+			d.Configuration.IATDistribution,
+			d.Configuration.ShiftIAT,
+			d.Configuration.TraceGranularity,
+		)
+
+		d.Configuration.Functions[i].Specification = spec
+	}
+}
+
+func (d *Driver) outputIATsToFile() {
+	for i, function := range d.Configuration.Functions {
+		file, _ := json.MarshalIndent(function.Specification, "", " ")
+		err := os.WriteFile("iat"+strconv.Itoa(i)+".json", file, 0644)
+		if err != nil {
+			log.Fatalf("Writing the loader config file failed: %s", err)
+		}
+	}
+}
+
 func (d *Driver) RunExperiment(generateSpecs bool, writeIATsToFile bool, readIATsFromFile bool) {
 	if generateSpecs && readIATsFromFile {
 		log.Fatal("Invalid loader configuration. Cannot be forced to generate IATs and read the from file in the same experiment.")
 	}
 
 	if generateSpecs {
-		log.Info("Generating IAT and runtime specifications for all the functions")
-		for i, function := range d.Configuration.Functions {
-			// Equalising all the InvocationStats to the first function
-			if d.Configuration.LoaderConfiguration.DAGMode {
-				function.InvocationStats.Invocations = d.Configuration.Functions[0].InvocationStats.Invocations
-			}
-			spec := d.SpecificationGenerator.GenerateInvocationData(
-				function,
-				d.Configuration.IATDistribution,
-				d.Configuration.ShiftIAT,
-				d.Configuration.TraceGranularity,
-			)
-
-			d.Configuration.Functions[i].Specification = spec
-		}
+		d.generateSpecs()
 	}
 
 	if writeIATsToFile {
-		for i, function := range d.Configuration.Functions {
-			file, _ := json.MarshalIndent(function.Specification, "", " ")
-			err := os.WriteFile("iat"+strconv.Itoa(i)+".json", file, 0644)
-			if err != nil {
-				log.Fatalf("Writing the loader config file failed: %s", err)
-			}
-		}
+		d.outputIATsToFile()
 
 		log.Info("IATs have been generated. The program has exited.")
 		os.Exit(0)
