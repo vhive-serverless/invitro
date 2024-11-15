@@ -441,7 +441,7 @@ func (d *Driver) startBackgroundProcesses(allRecordsWritten *sync.WaitGroup) (*s
 	return auxiliaryProcessBarrier, globalMetricsCollector, totalIssuedChannel, finishCh
 }
 
-func (d *Driver) internalRun(generated bool) {
+func (d *Driver) internalRun() {
 	var successfulInvocations int64
 	var failedInvocations int64
 	var invocationsIssued int64
@@ -453,7 +453,6 @@ func (d *Driver) internalRun(generated bool) {
 	allRecordsWritten.Add(1)
 
 	backgroundProcessesInitializationBarrier, globalMetricsCollector, totalIssuedChannel, scraperFinishCh := d.startBackgroundProcesses(&allRecordsWritten)
-
 	backgroundProcessesInitializationBarrier.Wait()
 
 	if d.Configuration.LoaderConfiguration.DAGMode {
@@ -509,9 +508,14 @@ func (d *Driver) internalRun(generated bool) {
 		allRecordsWritten.Wait()
 	}
 
+	statSuccess := atomic.LoadInt64(&successfulInvocations)
+	statFailed := atomic.LoadInt64(&failedInvocations)
+
 	log.Infof("Trace has finished executing function invocation driver\n")
-	log.Infof("Number of successful invocations: \t%d\n", atomic.LoadInt64(&successfulInvocations))
-	log.Infof("Number of failed invocations: \t%d\n", atomic.LoadInt64(&failedInvocations))
+	log.Infof("Number of successful invocations: \t%d", statSuccess)
+	log.Infof("Number of failed invocations: \t%d", statFailed)
+	log.Infof("Total invocations: \t\t\t%d", statSuccess+statFailed)
+	log.Infof("Failure rate: \t\t\t%.2f", float64(statFailed)*100.0/float64(statSuccess+statFailed))
 }
 
 func (d *Driver) generateSpecs() {
@@ -585,7 +589,7 @@ func (d *Driver) RunExperiment(generateSpecs bool, writeIATsToFile bool, readIAT
 	go failure.ScheduleFailure(d.Configuration.LoaderConfiguration.Platform, d.Configuration.FailureConfiguration)
 
 	// Generate load
-	d.internalRun(readIATsFromFile)
+	d.internalRun()
 
 	// Clean up
 	deployer.Clean()
