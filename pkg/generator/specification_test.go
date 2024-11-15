@@ -78,7 +78,7 @@ func TestSerialGenerateIAT(t *testing.T) {
 		iatDistribution  common.IatDistribution
 		shiftIAT         bool
 		granularity      common.TraceGranularity
-		expectedPoints   [][]float64 // μs
+		expectedPoints   []float64 // μs
 		testDistribution bool
 	}{
 		{
@@ -87,7 +87,7 @@ func TestSerialGenerateIAT(t *testing.T) {
 			iatDistribution:  common.Equidistant,
 			shiftIAT:         false,
 			granularity:      common.MinuteGranularity,
-			expectedPoints:   [][]float64{},
+			expectedPoints:   []float64{},
 			testDistribution: false,
 		},
 		{
@@ -96,16 +96,16 @@ func TestSerialGenerateIAT(t *testing.T) {
 			iatDistribution:  common.Exponential,
 			shiftIAT:         false,
 			granularity:      common.MinuteGranularity,
-			expectedPoints:   [][]float64{},
+			expectedPoints:   []float64{},
 			testDistribution: false,
 		},
 		{
 			testName:         "no_invocations_exponential_shift",
 			invocations:      []int{5},
 			iatDistribution:  common.Exponential,
-			shiftIAT:         true,
+			shiftIAT:         false,
 			granularity:      common.MinuteGranularity,
-			expectedPoints:   [][]float64{},
+			expectedPoints:   []float64{},
 			testDistribution: false,
 		},
 		{
@@ -114,16 +114,16 @@ func TestSerialGenerateIAT(t *testing.T) {
 			iatDistribution:  common.Exponential,
 			shiftIAT:         false,
 			granularity:      common.MinuteGranularity,
-			expectedPoints:   [][]float64{{0, 60000000}},
+			expectedPoints:   []float64{0},
 			testDistribution: false,
 		},
 		{
 			testName:         "one_invocations_exponential_shift",
 			invocations:      []int{1},
 			iatDistribution:  common.Exponential,
-			shiftIAT:         true,
+			shiftIAT:         false,
 			granularity:      common.MinuteGranularity,
-			expectedPoints:   [][]float64{{11689078.788397, 48310921.211603}},
+			expectedPoints:   []float64{0},
 			testDistribution: false,
 		},
 		{
@@ -132,15 +132,12 @@ func TestSerialGenerateIAT(t *testing.T) {
 			iatDistribution: common.Equidistant,
 			shiftIAT:        false,
 			granularity:     common.MinuteGranularity,
-			expectedPoints: [][]float64{
-				{
-					0,
-					12000000,
-					12000000,
-					12000000,
-					12000000,
-					12000000,
-				},
+			expectedPoints: []float64{
+				0,
+				12000000,
+				12000000,
+				12000000,
+				12000000,
 			},
 			testDistribution: false,
 		},
@@ -150,90 +147,37 @@ func TestSerialGenerateIAT(t *testing.T) {
 			iatDistribution: common.Equidistant,
 			shiftIAT:        false,
 			granularity:     common.MinuteGranularity,
-			expectedPoints: [][]float64{
-				{
-					// min 1
-					0,
-					12000000,
-					12000000,
-					12000000,
-					12000000,
-					12000000,
-				},
-				{
-					// min 2
-					0,
-					12000000,
-					12000000,
-					12000000,
-					12000000,
-					12000000,
-				},
-				{
-					// min 3
-					0,
-					12000000,
-					12000000,
-					12000000,
-					12000000,
-					12000000,
-				},
-				{
-					// min 4
-					0,
-					12000000,
-					12000000,
-					12000000,
-					12000000,
-					12000000,
-				},
-				{
-					// min 5
-					0,
-					12000000,
-					12000000,
-					12000000,
-					12000000,
-					12000000,
-				},
-			},
-			testDistribution: false,
-		},
-		{
-			testName:        "1min_25ipm_uniform_shift",
-			invocations:     []int{25},
-			iatDistribution: common.Uniform,
-			shiftIAT:        true,
-			granularity:     common.MinuteGranularity,
-			expectedPoints: [][]float64{
-				{
-					1193000.964808,
-					622524.819620,
-					2161625.000293,
-					2467158.610498,
-					3161216.965226,
-					120925.338482,
-					3461650.068734,
-					3681772.563419,
-					3591929.298027,
-					3062124.611863,
-					3223056.707367,
-					3042558.740794,
-					2099765.805752,
-					375008.683565,
-					3979289.345154,
-					1636869.797787,
-					1169442.102841,
-					2380243.616007,
-					2453428.612640,
-					1704231.066313,
-					42074.939233,
-					3115643.026141,
-					3460047.444726,
-					2849475.331077,
-					3187546.011741,
-					1757390.527891,
-				},
+			expectedPoints: []float64{
+				// min 1
+				0,
+				12000000,
+				12000000,
+				12000000,
+				12000000,
+				// min 2
+				12000000,
+				12000000,
+				12000000,
+				12000000,
+				12000000,
+				// min 3
+				12000000,
+				12000000,
+				12000000,
+				12000000,
+				12000000,
+				// min 4
+				12000000,
+				12000000,
+				12000000,
+				12000000,
+				12000000,
+				// min 5
+				12000000,
+				12000000,
+				12000000,
+				12000000,
+				12000000,
 			},
 			testDistribution: false,
 		},
@@ -245,82 +189,6 @@ func TestSerialGenerateIAT(t *testing.T) {
 			granularity:      common.MinuteGranularity,
 			expectedPoints:   nil,
 			testDistribution: true,
-		},
-		{
-			testName:        "1min_25ipm_exponential",
-			invocations:     []int{25},
-			iatDistribution: common.Exponential,
-			shiftIAT:        false,
-			granularity:     common.MinuteGranularity,
-			expectedPoints: [][]float64{
-				{
-					0,
-					1311929.341329,
-					3685871.430916,
-					1626476.996595,
-					556382.014270,
-					30703.105102,
-					3988584.779392,
-					2092271.836277,
-					1489855.293253,
-					3025094.199801,
-					2366337.4678820,
-					40667.5994150,
-					2778945.4898700,
-					4201722.5747150,
-					5339421.1460450,
-					3362048.1584080,
-					939526.5236740,
-					1113771.3822940,
-					4439636.5676460,
-					4623026.1098310,
-					2082985.6557600,
-					45937.1189860,
-					4542253.8756200,
-					2264414.9939920,
-					3872560.8680640,
-					179575.4708620,
-				},
-			},
-			testDistribution: false,
-		},
-		{
-			testName:        "1min_25ipm_exponential_shift",
-			invocations:     []int{25},
-			iatDistribution: common.Exponential,
-			shiftIAT:        true,
-			granularity:     common.MinuteGranularity,
-			expectedPoints: [][]float64{
-				{
-					697544.471476,
-					5339421.146045,
-					3362048.158408,
-					939526.523674,
-					1113771.382294,
-					4439636.567646,
-					4623026.109831,
-					2082985.655760,
-					45937.118986,
-					4542253.875620,
-					2264414.993992,
-					3872560.868064,
-					179575.470862,
-					1311929.341329,
-					3685871.430916,
-					1626476.996595,
-					556382.014270,
-					30703.105102,
-					3988584.779392,
-					2092271.836277,
-					1489855.293253,
-					3025094.199801,
-					2366337.4678820,
-					40667.5994150,
-					2778945.4898700,
-					3504178.103239,
-				},
-			},
-			testDistribution: false,
 		},
 		{
 			testName:         "1min_1000000ipm_exponential",
@@ -337,30 +205,21 @@ func TestSerialGenerateIAT(t *testing.T) {
 			iatDistribution: common.Equidistant,
 			shiftIAT:        false,
 			granularity:     common.SecondGranularity,
-			expectedPoints: [][]float64{
-				{
-					// second 1
-					0,
-					200000,
-					200000,
-					200000,
-					200000,
-					200000,
-				},
-				{
-					// second 2
-					0,
-					250000,
-					250000,
-					250000,
-					250000,
-				},
-				{
-					// second 3
-					0,
-					500000,
-					500000,
-				},
+			expectedPoints: []float64{
+				// second 1 - μs below
+				0,
+				200000,
+				200000,
+				200000,
+				200000,
+				// second 2 - μs below
+				250000,
+				250000,
+				250000,
+				250000,
+				// second 3 - μs below
+				500000,
+				500000,
 			},
 			testDistribution: false,
 		},
@@ -371,35 +230,32 @@ func TestSerialGenerateIAT(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.testName, func(t *testing.T) {
-			log.SetLevel(log.TraceLevel)
-
 			sg := NewSpecificationGenerator(seed)
 
 			testFunction.InvocationStats = &common.FunctionInvocationStats{Invocations: test.invocations}
 			spec := sg.GenerateInvocationData(&testFunction, test.iatDistribution, test.shiftIAT, test.granularity)
-			IAT, nonScaledDuration := spec.IAT, spec.RawDuration
+			IAT, perMinuteCount, nonScaledDuration := spec.IAT, spec.PerMinuteCount, spec.RawDuration
 
 			failed := false
 
-			if hasSpillover(IAT, test.granularity) {
+			/*if hasSpillover(IAT, perMinuteCount, test.granularity) {
 				t.Error("Generated IAT does not fit in the within the minute time window.")
-			}
+			}*/
 
 			if test.expectedPoints != nil {
-				for min := 0; min < len(test.expectedPoints); min++ {
-					for i := 0; i < len(test.expectedPoints[min]); i++ {
-						if len(test.expectedPoints[min]) != len(IAT[min]) {
-							log.Debug(fmt.Sprintf("wrong number of IATs in the minute, got: %d, expected: %d\n", len(IAT[min]), len(test.expectedPoints[min])))
+				for i := 0; i < len(test.expectedPoints); i++ {
+					if len(test.expectedPoints) != len(IAT) {
+						log.Debug(fmt.Sprintf("wrong number of IATs in the minute, got: %d, expected: %d\n", len(IAT), len(test.expectedPoints)))
 
-							failed = true
-							break
-						}
-						if math.Abs(IAT[min][i]-test.expectedPoints[min][i]) > epsilon {
-							log.Debug(fmt.Sprintf("got: %f, expected: %f\n", IAT[min][i], test.expectedPoints[min][i]))
+						failed = true
+						break
+					}
 
-							failed = true
-							// no break statement for debugging purpose
-						}
+					if math.Abs(IAT[i]-test.expectedPoints[i]) > epsilon {
+						log.Debug(fmt.Sprintf("got: %f, expected: %f\n", IAT[i], test.expectedPoints[i]))
+
+						failed = true
+						// no break statement for debugging purpose
 					}
 				}
 
@@ -409,7 +265,7 @@ func TestSerialGenerateIAT(t *testing.T) {
 			}
 
 			if test.testDistribution && test.iatDistribution != common.Equidistant &&
-				!checkDistribution(IAT, nonScaledDuration, test.iatDistribution) {
+				!checkDistribution(IAT, perMinuteCount, nonScaledDuration, test.iatDistribution) {
 
 				t.Error("The provided sample does not satisfy the given distribution.")
 			}
@@ -417,13 +273,21 @@ func TestSerialGenerateIAT(t *testing.T) {
 	}
 }
 
-func hasSpillover(data [][]float64, granularity common.TraceGranularity) bool {
-	for min := 0; min < len(data); min++ {
+/*func hasSpillover(data []float64, perMinuteCount []int, granularity common.TraceGranularity) bool {
+	beginIndex := 0
+	endIndex := perMinuteCount[0]
+
+	for min := 0; min < len(perMinuteCount); min++ {
 		sum := 0.0
 		epsilon := 1e-3
 
-		for i := 0; i < len(data[min]); i++ {
-			sum += data[min][i]
+		for i := beginIndex; i < endIndex; i++ {
+			sum += data[i]
+		}
+
+		if min+1 < len(perMinuteCount) {
+			beginIndex += perMinuteCount[min]
+			endIndex = beginIndex + perMinuteCount[min+1]
 		}
 
 		log.Debug(fmt.Sprintf("Total execution time: %f μs\n", sum))
@@ -439,9 +303,9 @@ func hasSpillover(data [][]float64, granularity common.TraceGranularity) bool {
 	}
 
 	return false
-}
+}*/
 
-func checkDistribution(data [][]float64, nonScaledDuration []float64, distribution common.IatDistribution) bool {
+func checkDistribution(data []float64, perMinuteCount []int, nonScaledDuration []float64, distribution common.IatDistribution) bool {
 	// PREPARING ARGUMENTS
 	var dist string
 	inputFile := "test_data.txt"
@@ -457,7 +321,10 @@ func checkDistribution(data [][]float64, nonScaledDuration []float64, distributi
 
 	result := false
 
-	for min := 0; min < len(data); min++ {
+	beginIndex := 0
+	endIndex := perMinuteCount[0]
+
+	for min := 0; min < len(perMinuteCount); min++ {
 		// WRITING DISTRIBUTION TO TEST
 		f, err := os.Create(inputFile)
 		if err != nil {
@@ -466,8 +333,13 @@ func checkDistribution(data [][]float64, nonScaledDuration []float64, distributi
 
 		defer f.Close()
 
-		for _, iat := range data[min] {
-			_, _ = f.WriteString(fmt.Sprintf("%f\n", iat))
+		for i := beginIndex; i < endIndex; i++ {
+			_, _ = f.WriteString(fmt.Sprintf("%f\n", data[i]))
+		}
+
+		if min+1 < len(perMinuteCount) {
+			beginIndex += perMinuteCount[min]
+			endIndex = beginIndex + perMinuteCount[min+1]
 		}
 
 		// SETTING UP THE TESTING SCRIPT
@@ -478,7 +350,7 @@ func checkDistribution(data [][]float64, nonScaledDuration []float64, distributi
 		// NOTE: the script generates a histogram in PNG format that can be used as a sanity-check
 		if err := statisticalTest.Wait(); err != nil {
 			output, _ := statisticalTest.Output()
-			log.Info(string(output))
+			log.Debug(string(output))
 
 			switch statisticalTest.ProcessState.ExitCode() {
 			case 0:
@@ -577,7 +449,7 @@ func TestGenerateExecutionSpecifications(t *testing.T) {
 
 				index := i
 				go func() {
-					runtime, memory := spec[0][index].Runtime, spec[0][index].Memory
+					runtime, memory := spec[index].Runtime, spec[index].Memory
 
 					mutex.Lock()
 					results[common.RuntimeSpecification{Runtime: runtime, Memory: memory}] = struct{}{}

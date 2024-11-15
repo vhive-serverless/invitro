@@ -27,6 +27,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"github.com/vhive-serverless/loader/pkg/generator"
 	"os"
 	"strings"
 	"time"
@@ -49,7 +50,7 @@ var (
 	configPath    = flag.String("config", "cmd/config_knative_trace.json", "Path to loader configuration file")
 	failurePath   = flag.String("failureConfig", "cmd/failure.json", "Path to the failure configuration file")
 	verbosity     = flag.String("verbosity", "info", "Logging verbosity - choose from [info, debug, trace]")
-	iatGeneration = flag.Bool("iatGeneration", false, "Generate iats only or run invocations as well")
+	iatGeneration = flag.Bool("iatGeneration", false, "Generate IATs only or run invocations as well")
 	iatFromFile   = flag.Bool("generated", false, "True if iats were already generated")
 )
 
@@ -107,7 +108,7 @@ func main() {
 	if !strings.HasSuffix(cfg.Platform, "-RPS") {
 		runTraceMode(&cfg, *iatFromFile, *iatGeneration)
 	} else {
-		runRPSMode(&cfg, *iatGeneration)
+		runRPSMode(&cfg, *iatFromFile, *iatGeneration)
 	}
 }
 
@@ -175,7 +176,7 @@ func runTraceMode(cfg *config.LoaderConfiguration, readIATFromFile bool, justGen
 	durationToParse := determineDurationToParse(cfg.ExperimentDuration, cfg.WarmupDuration)
 	yamlPath := parseYAMLSpecification(cfg)
 
-	traceParser := trace.NewAzureParser(cfg.TracePath, durationToParse)
+	traceParser := trace.NewAzureParser(cfg.TracePath, yamlPath, durationToParse)
 	functions := traceParser.Parse(cfg.Platform)
 
 	log.Infof("Traces contain the following %d functions:\n", len(functions))
@@ -205,6 +206,24 @@ func runTraceMode(cfg *config.LoaderConfiguration, readIATFromFile bool, justGen
 	experimentDriver.RunExperiment(justGenerateIAT, readIATFromFile)
 }
 
-func runRPSMode(cfg *config.LoaderConfiguration, justGenerateIAT bool) {
-	panic("Not yet implemented")
+func runRPSMode(cfg *config.LoaderConfiguration, readIATFromFile bool, justGenerateIAT bool) {
+	rpsTarget := cfg.RpsTarget
+	coldStartPercentage := cfg.RpsColdStartRatioPercentage
+
+	warmStartRPS := rpsTarget * (100 - coldStartPercentage) / 100
+	coldStartRPS := rpsTarget * coldStartPercentage / 100
+
+	warmFunction, warmStartCount := generator.GenerateWarmStartFunction(cfg.ExperimentDuration, warmStartRPS)
+	coldFunctions, coldStartCount := generator.GenerateColdStartFunctions(cfg.ExperimentDuration, coldStartRPS, cfg.RpsCooldownSeconds)
+
+	experimentDriver := driver.NewDriver(&config.Configuration{
+		LoaderConfiguration: cfg,
+		TraceDuration:       determineDurationToParse(cfg.ExperimentDuration, cfg.WarmupDuration),
+
+		YAMLPath: parseYAMLSpecification(cfg),
+
+		Functions: generator.CreateRPSFunctions(cfg, warmFunction, warmStartCount, coldFunctions, coldStartCount),
+	})
+
+	experimentDriver.RunExperiment(justGenerateIAT, readIATFromFile)
 }

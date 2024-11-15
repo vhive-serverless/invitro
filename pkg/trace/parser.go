@@ -30,6 +30,7 @@ import (
 	"fmt"
 	"github.com/gocarina/gocsv"
 	"github.com/vhive-serverless/loader/pkg/common"
+	"github.com/vhive-serverless/loader/pkg/generator"
 	"io"
 	"math/rand"
 	"os"
@@ -42,14 +43,16 @@ import (
 
 type AzureTraceParser struct {
 	DirectoryPath string
+	YAMLPath      string
 
 	duration              int
 	functionNameGenerator *rand.Rand
 }
 
-func NewAzureParser(directoryPath string, totalDuration int) *AzureTraceParser {
+func NewAzureParser(directoryPath string, yamlPath string, totalDuration int) *AzureTraceParser {
 	return &AzureTraceParser{
 		DirectoryPath: directoryPath,
+		YAMLPath:      yamlPath,
 
 		duration:              totalDuration,
 		functionNameGenerator: rand.New(rand.NewSource(time.Now().UnixNano())),
@@ -90,7 +93,8 @@ func (p *AzureTraceParser) extractFunctions(
 	invocations *[]common.FunctionInvocationStats,
 	runtime *[]common.FunctionRuntimeStats,
 	memory *[]common.FunctionMemoryStats,
-	dirigentMetadata *[]common.DirigentMetadata) []*common.Function {
+	dirigentMetadata *[]common.DirigentMetadata,
+	platform string) []*common.Function {
 
 	var result []*common.Function
 
@@ -102,6 +106,8 @@ func (p *AzureTraceParser) extractFunctions(
 		dirigentMetadataByHashFunction = createDirigentMetadataMap(dirigentMetadata)
 	}
 
+	gen := rand.New(rand.NewSource(time.Now().UnixNano()))
+
 	for i := 0; i < len(*invocations); i++ {
 		invocationStats := (*invocations)[i]
 
@@ -111,10 +117,15 @@ func (p *AzureTraceParser) extractFunctions(
 			InvocationStats: &invocationStats,
 			RuntimeStats:    runtimeByHashFunction[invocationStats.HashFunction],
 			MemoryStats:     memoryByHashFunction[invocationStats.HashFunction],
+
+			ColdStartBusyLoopMs: generator.ComputeBusyLoopPeriod(generator.GenerateMemorySpec(gen, gen.Float64(), memoryByHashFunction[invocationStats.HashFunction])),
 		}
 
 		if dirigentMetadata != nil {
 			function.DirigentMetadata = dirigentMetadataByHashFunction[invocationStats.HashFunction]
+		} else if strings.Contains(strings.ToLower(platform), "knative") {
+			// values are not used for Knative so they are irrelevant
+			function.DirigentMetadata = convertKnativeYamlToDirigentMetadata(p.YAMLPath)
 		}
 
 		result = append(result, function)
@@ -134,7 +145,7 @@ func (p *AzureTraceParser) Parse(platform string) []*common.Function {
 	memoryTrace := parseMemoryTrace(memoryPath)
 	dirigentMetadata := parseDirigentMetadata(dirigentPath, platform)
 
-	return p.extractFunctions(invocationTrace, runtimeTrace, memoryTrace, dirigentMetadata)
+	return p.extractFunctions(invocationTrace, runtimeTrace, memoryTrace, dirigentMetadata, platform)
 }
 
 func parseInvocationTrace(traceFile string, traceDuration int) *[]common.FunctionInvocationStats {
@@ -259,7 +270,7 @@ func parseMemoryTrace(traceFile string) *[]common.FunctionMemoryStats {
 }
 
 func parseDirigentMetadata(traceFile string, platform string) *[]common.DirigentMetadata {
-	if strings.ToLower(platform) != "dirigent" {
+	if !strings.Contains(strings.ToLower(platform), "dirigent") {
 		return nil
 	}
 
