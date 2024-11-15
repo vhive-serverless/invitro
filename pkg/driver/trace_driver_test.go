@@ -232,8 +232,8 @@ func TestDAGInvocation(t *testing.T) {
 
 	announceDone.Add(1)
 	testDriver.invokeFunction(metadata, 0)
-	if !(successCount == 4 && failureCount == 0) {
-		t.Error("The DAG invocation has failed.")
+	if !(successCount == 1 && failureCount == 0) { // not 4 invocations, since a workflow is considered as 1 invocation
+		t.Error("Number of successful and failed invocations not as expected.")
 	}
 	for i := 0; i < functionsToInvoke; i++ {
 		record := <-invocationRecordOutputChannel
