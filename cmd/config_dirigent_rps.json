@@ -5,7 +5,7 @@
   "InvokeProtocol" : "http2",
   "EndpointPort": 80,
 
-  "DirigentControlPlaneIP": "10.0.1.253:9092",
+  "DirigentControlPlaneIP": "localhost:9092",
   "BusyLoopOnSandboxStartup": false,
 
   "AsyncMode": false,

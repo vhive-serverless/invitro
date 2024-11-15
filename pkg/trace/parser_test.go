@@ -25,6 +25,7 @@
 package trace
 
 import (
+	"github.com/vhive-serverless/loader/pkg/common"
 	"math"
 	"strings"
 	"testing"
@@ -119,13 +120,13 @@ func TestParseMemoryTrace(t *testing.T) {
 }
 
 func TestParserWrapper(t *testing.T) {
-	parser := NewAzureParser("test_data", 10)
+	parser := NewAzureParser("test_data", "test_data/service.yaml", 10)
 	functions := parser.Parse("Knative")
 
 	if len(functions) != 1 {
 		t.Error("Invalid function array length.")
 	}
-	if !strings.HasPrefix(functions[0].Name, "trace-func") ||
+	if !strings.HasPrefix(functions[0].Name, common.FunctionNamePrefix) ||
 		functions[0].InvocationStats == nil ||
 		functions[0].RuntimeStats == nil ||
 		functions[0].MemoryStats == nil {

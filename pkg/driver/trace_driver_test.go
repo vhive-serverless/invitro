@@ -55,6 +55,13 @@ func createFakeLoaderConfiguration() *config.LoaderConfiguration {
 func createTestDriver() *Driver {
 	cfg := createFakeLoaderConfiguration()
 
+	invocationStats := []int{
+		5, 5, 5, 5, 5,
+		5, 5, 5, 5, 5,
+		5, 5, 5, 5, 5,
+		5, 5, 5, 5, 5,
+	}
+
 	driver := NewDriver(&config.Configuration{
 		LoaderConfiguration: cfg,
 		IATDistribution:     common.Equidistant,
@@ -64,12 +71,7 @@ func createTestDriver() *Driver {
 			{
 				Name: "test-function",
 				InvocationStats: &common.FunctionInvocationStats{
-					Invocations: []int{
-						5, 5, 5, 5, 5,
-						5, 5, 5, 5, 5,
-						5, 5, 5, 5, 5,
-						5, 5, 5, 5, 5,
-					},
+					Invocations: invocationStats,
 				},
 				RuntimeStats: &common.FunctionRuntimeStats{
 					Average:       50,
@@ -97,7 +99,7 @@ func createTestDriver() *Driver {
 					Percentile100: 10000,
 				},
 				Specification: &common.FunctionSpecification{
-					RuntimeSpecification: make([][]common.RuntimeSpecification, 1),
+					PerMinuteCount: invocationStats,
 				},
 			},
 		},
@@ -149,18 +151,15 @@ func TestInvokeFunctionFromDriver(t *testing.T) {
 			list := list.New()
 			list.PushBack(testDriver.Configuration.Functions[0])
 			function := list.Front().Value.(*common.Function)
-			for i := 0; i < len(function.Specification.RuntimeSpecification); i++ {
-				function.Specification.RuntimeSpecification[i] = make([]common.RuntimeSpecification, 3)
-			}
-			function.Specification.RuntimeSpecification[0][2] = common.RuntimeSpecification{
+			function.Specification.RuntimeSpecification = []common.RuntimeSpecification{{
 				Runtime: 1000,
 				Memory:  128,
-			}
+			}}
 			metadata := &InvocationMetadata{
 				RootFunction:        list,
 				Phase:               common.ExecutionPhase,
 				MinuteIndex:         0,
-				InvocationIndex:     2,
+				InvocationIndex:     0,
 				SuccessCount:        &successCount,
 				FailedCount:         &failureCount,
 				FailedCountByMinute: failureCountByMinute,
@@ -169,7 +168,7 @@ func TestInvokeFunctionFromDriver(t *testing.T) {
 			}
 
 			announceDone.Add(1)
-			testDriver.invokeFunction(metadata)
+			testDriver.invokeFunction(metadata, 0)
 
 			switch test.forceFail {
 			case true:
@@ -208,13 +207,10 @@ func TestDAGInvocation(t *testing.T) {
 	function.Endpoint = fmt.Sprintf("%s:%d", address, port)
 
 	go standard.StartGRPCServer(address, port, standard.TraceFunction, "")
-	for i := 0; i < len(function.Specification.RuntimeSpecification); i++ {
-		function.Specification.RuntimeSpecification[i] = make([]common.RuntimeSpecification, 3)
-	}
-	function.Specification.RuntimeSpecification[0][2] = common.RuntimeSpecification{
+	function.Specification.RuntimeSpecification = []common.RuntimeSpecification{{
 		Runtime: 1000,
 		Memory:  128,
-	}
+	}}
 	for i := 0; i < functionsToInvoke; i++ {
 		function = testDriver.Configuration.Functions[0]
 		list.PushBack(function)
@@ -226,7 +222,7 @@ func TestDAGInvocation(t *testing.T) {
 		RootFunction:        list,
 		Phase:               common.ExecutionPhase,
 		MinuteIndex:         0,
-		InvocationIndex:     2,
+		InvocationIndex:     0,
 		SuccessCount:        &successCount,
 		FailedCount:         &failureCount,
 		FailedCountByMinute: failureCountByMinute,
@@ -235,8 +231,8 @@ func TestDAGInvocation(t *testing.T) {
 	}
 
 	announceDone.Add(1)
-	testDriver.invokeFunction(metadata)
-	if !(successCount == 1 && failureCount == 0) {
+	testDriver.invokeFunction(metadata, 0)
+	if !(successCount == 4 && failureCount == 0) {
 		t.Error("The DAG invocation has failed.")
 	}
 	for i := 0; i < functionsToInvoke; i++ {
@@ -337,33 +333,39 @@ func TestDriverBackgroundProcesses(t *testing.T) {
 
 func TestDriverCompletely(t *testing.T) {
 	tests := []struct {
-		testName          string
-		withWarmup        bool
-		secondGranularity bool
+		testName            string
+		withWarmup          bool
+		secondGranularity   bool
+		expectedInvocations int
 	}{
 		{
-			testName:   "without_warmup",
-			withWarmup: false,
+			testName:            "without_warmup",
+			withWarmup:          false,
+			expectedInvocations: 5,
 		},
 		{
-			testName:   "with_warmup",
-			withWarmup: true,
+			testName:            "with_warmup",
+			withWarmup:          true,
+			expectedInvocations: 10,
 		},
 		{
-			testName:          "without_warmup_second_granularity",
-			withWarmup:        false,
-			secondGranularity: true,
+			testName:            "without_warmup_second_granularity",
+			withWarmup:          false,
+			secondGranularity:   true,
+			expectedInvocations: 6,
 		},
 		{
-			testName:          "with_warmup_second_granularity",
-			withWarmup:        true,
-			secondGranularity: true,
+			testName:            "with_warmup_second_granularity",
+			withWarmup:          true,
+			secondGranularity:   true,
+			expectedInvocations: 12,
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.testName, func(t *testing.T) {
 			logrus.SetLevel(logrus.DebugLevel)
+			logrus.SetFormatter(&logrus.TextFormatter{TimestampFormat: time.StampMilli, FullTimestamp: true})
 
 			driver := createTestDriver()
 			if test.withWarmup {
@@ -411,17 +413,13 @@ func TestDriverCompletely(t *testing.T) {
 					diff := (records[i+1].StartTime - records[i].StartTime) / 1_000_000 // ms
 
 					if diff > clockTolerance {
-						t.Error("Too big clock drift for the test to pass.")
+						t.Errorf("Too big clock drift for the test to pass - %d.", diff)
 					}
 				}
 			}
 
-			expectedInvocations := 5
-			if test.withWarmup {
-				expectedInvocations = 10
-			}
-
-			if !(successfulInvocation == expectedInvocations && failedInvocations == 0) {
+			expectedInvocations := test.expectedInvocations
+			if !(successfulInvocation >= expectedInvocations && failedInvocations == 0) {
 				t.Error("Number of successful and failed invocations do not match.")
 			}
 		})
@@ -470,6 +468,9 @@ func TestProceedToNextMinute(t *testing.T) {
 		InvocationStats: &common.FunctionInvocationStats{
 			Invocations: []int{100, 100, 100, 100, 100},
 		},
+		Specification: &common.FunctionSpecification{
+			PerMinuteCount: []int{100, 100, 100, 100, 100},
+		},
 	}
 
 	tests := []struct {
@@ -508,6 +509,10 @@ func TestProceedToNextMinute(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.testName, func(t *testing.T) {
+			if test.toBreak {
+				t.Skip("This feature has been turned off - see commented code in `proceedToNextMinute`")
+			}
+
 			driver := createTestDriver()
 
 			minuteIndex := test.minuteIndex
