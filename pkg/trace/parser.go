@@ -89,12 +89,8 @@ func createDirigentMetadataMap(metadata *[]common.DirigentMetadata) map[string]*
 	return result
 }
 
-func (p *AzureTraceParser) extractFunctions(
-	invocations *[]common.FunctionInvocationStats,
-	runtime *[]common.FunctionRuntimeStats,
-	memory *[]common.FunctionMemoryStats,
-	dirigentMetadata *[]common.DirigentMetadata,
-	platform string) []*common.Function {
+func (p *AzureTraceParser) extractFunctions(invocations *[]common.FunctionInvocationStats, runtime *[]common.FunctionRuntimeStats,
+	memory *[]common.FunctionMemoryStats, dirigentMetadata *[]common.DirigentMetadata, platform string) []*common.Function {
 
 	var result []*common.Function
 

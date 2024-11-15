@@ -9,7 +9,7 @@
   "BusyLoopOnSandboxStartup": false,
 
   "AsyncMode": false,
-  "AsyncResponseURL": "10.0.1.3:8082",
+  "AsyncResponseURL": "10.0.1.253:8082",
   "AsyncWaitToCollectMin": 1,
 
   "TracePath": "data/traces/example",
