@@ -30,6 +30,10 @@ spec:
               value: "ghcr.io/vhive-serverless/invitro_trace_function_firecracker:latest"
             - name: ITERATIONS_MULTIPLIER
               value: "102"
+            - name: COLD_START_BUSY_LOOP_MS
+              value: $COLD_START_BUSY_LOOP_MS
+            - name: IO_PERCENTAGE
+              value: "0"
           resources:
             limits:
               cpu: $CPU_LIMITS
