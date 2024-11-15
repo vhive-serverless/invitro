@@ -203,7 +203,7 @@ func runTraceMode(cfg *config.LoaderConfiguration, readIATFromFile bool, justGen
 
 	log.Infof("Using %s as a service YAML specification file.\n", experimentDriver.Configuration.YAMLPath)
 
-	experimentDriver.RunExperiment(justGenerateIAT, readIATFromFile)
+	experimentDriver.RunExperiment(true, justGenerateIAT, readIATFromFile)
 }
 
 func runRPSMode(cfg *config.LoaderConfiguration, readIATFromFile bool, justGenerateIAT bool) {
@@ -225,5 +225,5 @@ func runRPSMode(cfg *config.LoaderConfiguration, readIATFromFile bool, justGener
 		Functions: generator.CreateRPSFunctions(cfg, warmFunction, warmStartCount, coldFunctions, coldStartCount),
 	})
 
-	experimentDriver.RunExperiment(justGenerateIAT, readIATFromFile)
+	experimentDriver.RunExperiment(false, justGenerateIAT, false)
 }

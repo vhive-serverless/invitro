@@ -456,20 +456,6 @@ func (d *Driver) internalRun(generated bool) {
 
 	backgroundProcessesInitializationBarrier.Wait()
 
-	if generated {
-		for i := range d.Configuration.Functions {
-			var spec common.FunctionSpecification
-
-			iatFile, _ := os.ReadFile("iat" + strconv.Itoa(i) + ".json")
-			err := json.Unmarshal(iatFile, &spec)
-			if err != nil {
-				log.Fatalf("Failed tu unmarshal iat file: %s", err)
-			}
-
-			d.Configuration.Functions[i].Specification = &spec
-		}
-	}
-
 	if d.Configuration.LoaderConfiguration.DAGMode {
 		log.Infof("Starting DAG invocation driver\n")
 		functionLinkedList := DAGCreation(d.Configuration.Functions)
@@ -528,8 +514,12 @@ func (d *Driver) internalRun(generated bool) {
 	log.Infof("Number of failed invocations: \t%d\n", atomic.LoadInt64(&failedInvocations))
 }
 
-func (d *Driver) RunExperiment(iatOnly bool, generated bool) {
-	if iatOnly {
+func (d *Driver) RunExperiment(generateSpecs bool, writeIATsToFile bool, readIATsFromFile bool) {
+	if generateSpecs && readIATsFromFile {
+		log.Fatal("Invalid loader configuration. Cannot be forced to generate IATs and read the from file in the same experiment.")
+	}
+
+	if generateSpecs {
 		log.Info("Generating IAT and runtime specifications for all the functions")
 		for i, function := range d.Configuration.Functions {
 			// Equalising all the InvocationStats to the first function
@@ -544,8 +534,12 @@ func (d *Driver) RunExperiment(iatOnly bool, generated bool) {
 			)
 
 			d.Configuration.Functions[i].Specification = spec
+		}
+	}
 
-			file, _ := json.MarshalIndent(spec, "", " ")
+	if writeIATsToFile {
+		for i, function := range d.Configuration.Functions {
+			file, _ := json.MarshalIndent(function.Specification, "", " ")
 			err := os.WriteFile("iat"+strconv.Itoa(i)+".json", file, 0644)
 			if err != nil {
 				log.Fatalf("Writing the loader config file failed: %s", err)
@@ -554,6 +548,20 @@ func (d *Driver) RunExperiment(iatOnly bool, generated bool) {
 
 		log.Info("IATs have been generated. The program has exited.")
 		os.Exit(0)
+	}
+
+	if readIATsFromFile {
+		for i := range d.Configuration.Functions {
+			var spec common.FunctionSpecification
+
+			iatFile, _ := os.ReadFile("iat" + strconv.Itoa(i) + ".json")
+			err := json.Unmarshal(iatFile, &spec)
+			if err != nil {
+				log.Fatalf("Failed tu unmarshal iat file: %s", err)
+			}
+
+			d.Configuration.Functions[i].Specification = &spec
+		}
 	}
 
 	if d.Configuration.WithWarmup() {
@@ -568,7 +576,7 @@ func (d *Driver) RunExperiment(iatOnly bool, generated bool) {
 	go failure.ScheduleFailure(d.Configuration.LoaderConfiguration.Platform, d.Configuration.FailureConfiguration)
 
 	// Generate load
-	d.internalRun(generated)
+	d.internalRun(readIATsFromFile)
 
 	// Clean up
 	deployer.Clean()
