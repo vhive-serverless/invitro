@@ -25,11 +25,15 @@
 package common
 
 import (
+	"encoding/json"
 	"hash/fnv"
 	"log"
 	"math/rand"
+	"os/exec"
 	"strconv"
 	"strings"
+
+	logger "github.com/sirupsen/logrus"
 )
 
 type Pair struct {
@@ -146,4 +150,42 @@ func GetName(function *Function) int {
 		log.Fatal(err)
 	}
 	return functionId
+}
+
+func DeepCopy[T any](a T) (T, error) {
+	var b T
+	byt, err := json.Marshal(a)
+	if err != nil {
+		return b, err
+	}
+	err = json.Unmarshal(byt, &b)
+	return b, err
+}
+
+func RunScript(command string) {
+	if command == "" {
+		return
+	}
+	logger.Info("Running command ", command)
+	cmd, err := exec.Command("/bin/sh", command).Output()
+	if err != nil {
+		log.Fatal(err)
+	}
+	logger.Info(string(cmd))
+}
+
+func ParseLogType(logString string) string {
+	logTypeArr := strings.Split(logString, "level=")
+	if len(logTypeArr) > 1 {
+		return strings.Split(logTypeArr[1], " ")[0]
+	}
+	return "info"
+}
+
+func ParseLogMessage(logString string) string {
+	message := strings.Split(logString, "msg=")
+	if len(message) > 1 {
+		return message[1][1 : len(message[1])-1]
+	}
+	return logString
 }
