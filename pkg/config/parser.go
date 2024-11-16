@@ -29,6 +29,7 @@ import (
 	"os"
 
 	log "github.com/sirupsen/logrus"
+	"github.com/vhive-serverless/loader/pkg/common"
 )
 
 type FailureConfiguration struct {
@@ -117,4 +118,19 @@ func ReadFailureConfiguration(path string) *FailureConfiguration {
 	}
 
 	return &config
+}
+
+func ReadMultiLoaderConfigurationFile(path string) common.MultiLoaderConfiguration {
+	byteValue, err := os.ReadFile(path)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	var config common.MultiLoaderConfiguration
+	err = json.Unmarshal(byteValue, &config)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	return config
 }
