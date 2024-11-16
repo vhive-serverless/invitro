@@ -27,10 +27,11 @@ package main
 import (
 	"flag"
 	"fmt"
-	"github.com/vhive-serverless/loader/pkg/generator"
 	"os"
 	"strings"
 	"time"
+
+	"github.com/vhive-serverless/loader/pkg/generator"
 
 	"golang.org/x/exp/slices"
 
@@ -53,6 +54,7 @@ var (
 	verbosity     = flag.String("verbosity", "info", "Logging verbosity - choose from [info, debug, trace]")
 	iatGeneration = flag.Bool("iatGeneration", false, "Generate IATs only or run invocations as well")
 	iatFromFile   = flag.Bool("generated", false, "True if iats were already generated")
+	dryRun        = flag.Bool("dryRun", false, "Dry run mode - do not deploy functions or generate invocations")
 )
 
 func init() {
@@ -104,6 +106,10 @@ func main() {
 
 	if !slices.Contains(supportedPlatforms, cfg.Platform) {
 		log.Fatal("Unsupported platform!")
+	}
+
+	if cfg.Platform == "Knative" || cfg.Platform == "Knative-RPS" {
+		common.CheckCPULimit(cfg.CPULimit)
 	}
 
 	if !strings.HasSuffix(cfg.Platform, "-RPS") {
@@ -206,6 +212,11 @@ func runTraceMode(cfg *config.LoaderConfiguration, readIATFromFile bool, writeIA
 		Functions: functions,
 	})
 
+	// Skip experiments execution during dry run mode
+	if *dryRun {
+		return
+	}
+
 	log.Infof("Using %s as a service YAML specification file.\n", experimentDriver.Configuration.YAMLPath)
 
 	experimentDriver.GenerateSpecification()
@@ -233,6 +244,11 @@ func runRPSMode(cfg *config.LoaderConfiguration, readIATFromFile bool, writeIATs
 
 		Functions: generator.CreateRPSFunctions(cfg, warmFunction, warmStartCount, coldFunctions, coldStartCount),
 	})
+
+	// Skip experiments execution during dry run mode
+	if *dryRun {
+		return
+	}
 
 	experimentDriver.ReadOrWriteFileSpecification(writeIATsToFile, readIATFromFile)
 	experimentDriver.RunExperiment()
