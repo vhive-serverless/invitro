@@ -1,0 +1,45 @@
+name: CI Knative Setup
+description: Sets up the CI environment with Kind, Serving, and Kourier for Knative platform type
+inputs:
+  go-version:
+    description: Version of Go to set up
+    required: true
+    default: '1.22'
+runs:
+  using: "composite"
+  steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        lfs: "true"
+
+    - name: Checkout LFS objects
+      shell: bash
+      run: git lfs checkout
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: ${{ inputs.go-version }}
+
+    - name: Create k8s Kind Cluster
+      shell: bash
+      run: bash ./scripts/konk-ci/01-kind.sh
+
+    - name: Install Serving
+      shell: bash
+      run: bash ./scripts/konk-ci/02-serving.sh
+
+    - name: Install Kourier
+      shell: bash
+      run: bash ./scripts/konk-ci/02-kourier.sh
+
+    - name: Setup domain and autoscaler
+      shell: bash
+      run: |
+        INGRESS_HOST="127.0.0.1"
+        KNATIVE_DOMAIN=$INGRESS_HOST.sslip.io
+        kubectl patch configmap -n knative-serving config-domain -p "{\"data\": {\"$KNATIVE_DOMAIN\": \"\"}}"
+        kubectl patch configmap -n knative-serving config-autoscaler -p "{\"data\": {\"allow-zero-initial-scale\": \"true\"}}"
+        kubectl patch configmap -n knative-serving config-features -p "{\"data\": {\"kubernetes.podspec-affinity\": \"enabled\"}}"
+        kubectl label node knative-control-plane loader-nodetype=worker
