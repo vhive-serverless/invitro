@@ -166,12 +166,12 @@ func RunScript(command string) {
 	if command == "" {
 		return
 	}
-	logger.Info("Running command ", command)
+	logger.Debug("Running command ", command)
 	cmd, err := exec.Command("/bin/sh", command).Output()
 	if err != nil {
 		log.Fatal(err)
 	}
-	logger.Info(string(cmd))
+	logger.Debug(string(cmd))
 }
 
 func ParseLogType(logString string) string {
