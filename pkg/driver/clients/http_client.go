@@ -173,14 +173,17 @@ func HandleBodyClosing(response *http.Response) {
 	}
 }
 
+var payload []byte = nil
+
 func CreateRequestPayload(sizeInMB float64) *bytes.Buffer {
 	byteCount := int(sizeInMB * 1024.0 * 1024.0) // MB -> B
-	tmp := make([]byte, byteCount)
 
-	n, err := rand.Read(tmp)
-	if err != nil || n != byteCount {
-		log.Errorf("Failed to generate random %d bytes.", byteCount)
+	if payload == nil {
+		n, err := rand.Read(payload)
+		if err != nil || n != byteCount {
+			log.Errorf("Failed to generate random %d bytes.", byteCount)
+		}
 	}
 
-	return bytes.NewBuffer(tmp)
+	return bytes.NewBuffer(payload)
 }
