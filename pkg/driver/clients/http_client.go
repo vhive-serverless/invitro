@@ -179,6 +179,8 @@ func CreateRequestPayload(sizeInMB float64) *bytes.Buffer {
 	byteCount := int(sizeInMB * 1024.0 * 1024.0) // MB -> B
 
 	if payload == nil {
+		payload = make([]byte, byteCount)
+
 		n, err := rand.Read(payload)
 		if err != nil || n != byteCount {
 			log.Errorf("Failed to generate random %d bytes.", byteCount)
