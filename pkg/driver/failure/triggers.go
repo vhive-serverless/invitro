@@ -1,12 +1,13 @@
 package failure
 
 import (
-	"github.com/sirupsen/logrus"
-	"github.com/vhive-serverless/loader/pkg/config"
 	"os/exec"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/sirupsen/logrus"
+	"github.com/vhive-serverless/loader/pkg/config"
 )
 
 const (

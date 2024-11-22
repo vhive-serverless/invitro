@@ -6,7 +6,9 @@ import (
 	"math"
 	"os/exec"
 	"regexp"
+	"runtime"
 	"strconv"
+	"sync"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -47,16 +49,25 @@ func newKnativeDeployerConfiguration(cfg *config.Configuration) knativeDeploymen
 
 func (*knativeDeployer) Deploy(cfg *config.Configuration) {
 	knativeConfig := newKnativeDeployerConfiguration(cfg)
+	queue := make(chan struct{}, runtime.NumCPU()) // message queue as a sync method
+	deployed := sync.WaitGroup{}
+	deployed.Add(len(cfg.Functions))
 
 	for i := 0; i < len(cfg.Functions); i++ {
-		knativeDeploySingleFunction(
+		queue <- struct{}{}
+
+		go knativeDeploySingleFunction(
 			cfg.Functions[i],
 			knativeConfig.YamlPath,
 			knativeConfig.IsPartiallyPanic,
 			knativeConfig.EndpointPort,
 			knativeConfig.AutoscalingMetric,
+			&deployed,
+			queue,
 		)
 	}
+
+	deployed.Wait()
 
 	start := time.Now()
 	cmd := exec.Command("kubectl", "annotate", "--overwrite", "PodAutoscaler", "-n", "default", "--selector=app=server", "autoscaling.knative.dev/min-scale=0")
@@ -79,8 +90,9 @@ func (*knativeDeployer) Clean() {
 	}
 }
 
-func knativeDeploySingleFunction(function *common.Function, yamlPath string, isPartiallyPanic bool, endpointPort int,
-	autoscalingMetric string) bool {
+func knativeDeploySingleFunction(function *common.Function, yamlPath string, isPartiallyPanic bool, endpointPort int, autoscalingMetric string, deployed *sync.WaitGroup, queue chan struct{}) bool {
+	defer deployed.Done()
+	defer func() { <-queue }()
 	panicWindow := "\"10.0\""
 	panicThreshold := "\"200.0\""
 	if isPartiallyPanic {
