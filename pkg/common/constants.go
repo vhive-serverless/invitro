@@ -97,3 +97,11 @@ const (
 	AwsRegion                  = "us-east-1"
 	AwsTraceFuncRepositoryName = "invitro_trace_function_aws"
 )
+
+// CPULimits
+const (
+	CPULimit1vCPU string = "1vCPU"
+	CPULimitGCP   string = "GCP"
+)
+
+var ValidCPULimits = []string{CPULimit1vCPU, CPULimitGCP}

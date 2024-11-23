@@ -105,6 +105,10 @@ func main() {
 		log.Fatal("Unsupported platform!")
 	}
 
+	if cfg.Platform == "Knative" || cfg.Platform == "Knative-RPS" {
+		common.CheckCPULimit(cfg.CPULimit)
+	}
+
 	if !strings.HasSuffix(cfg.Platform, "-RPS") {
 		runTraceMode(&cfg, *iatFromFile, *iatGeneration)
 	} else {
