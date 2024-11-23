@@ -1,12 +1,13 @@
 package failure
 
 import (
-	"github.com/sirupsen/logrus"
-	"github.com/vhive-serverless/loader/pkg/config"
 	"os/exec"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/sirupsen/logrus"
+	"github.com/vhive-serverless/loader/pkg/config"
 )
 
 const (
@@ -18,7 +19,7 @@ const (
 )
 
 func ScheduleFailure(platform string, config *config.FailureConfiguration) {
-	if config != nil && config.FailAt != 0 && config.FailComponent != "" {
+	if config != nil && config.FailureEnabled && config.FailAt != 0 && config.FailComponent != "" {
 		time.Sleep(time.Duration(config.FailAt) * time.Second)
 
 		switch platform {
