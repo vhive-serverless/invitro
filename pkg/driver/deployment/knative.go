@@ -53,17 +53,19 @@ func (*knativeDeployer) Deploy(cfg *config.Configuration) {
 	deployed.Add(len(cfg.Functions))
 
 	for i := 0; i < len(cfg.Functions); i++ {
-		queue <- struct{}{}
+		go func() {
+			queue <- struct{}{}
 
-		knativeDeploySingleFunction(
-			cfg.Functions[i],
-			knativeConfig.YamlPath,
-			knativeConfig.IsPartiallyPanic,
-			knativeConfig.EndpointPort,
-			knativeConfig.AutoscalingMetric,
-			&deployed,
-			queue,
-		)
+			knativeDeploySingleFunction(
+				cfg.Functions[i],
+				knativeConfig.YamlPath,
+				knativeConfig.IsPartiallyPanic,
+				knativeConfig.EndpointPort,
+				knativeConfig.AutoscalingMetric,
+				&deployed,
+				queue,
+			)
+		}()
 	}
 
 	deployed.Wait()
