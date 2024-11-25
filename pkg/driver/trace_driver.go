@@ -223,7 +223,7 @@ func (d *Driver) functionsDriver(list *list.List, announceFunctionDone *sync.Wai
 
 		iatIndex := currentSum + invocationIndex
 
-		if minuteIndex >= totalTraceDuration {
+		if minuteIndex >= totalTraceDuration || iatIndex >= len(IAT) {
 			// Check whether the end of trace has been reached
 			break
 		} else if function.Specification.PerMinuteCount[minuteIndex] == 0 {
