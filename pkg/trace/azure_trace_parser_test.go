@@ -120,8 +120,8 @@ func TestParseMemoryTrace(t *testing.T) {
 }
 
 func TestParserWrapper(t *testing.T) {
-	parser := NewAzureParser("test_data", "test_data/service.yaml", 10)
-	functions := parser.Parse("Knative")
+	parser := NewAzureParser("test_data", 10)
+	functions := parser.Parse()
 
 	if len(functions) != 1 {
 		t.Error("Invalid function array length.")
@@ -130,42 +130,6 @@ func TestParserWrapper(t *testing.T) {
 		functions[0].InvocationStats == nil ||
 		functions[0].RuntimeStats == nil ||
 		functions[0].MemoryStats == nil {
-
-		t.Error("Unexpected results.")
-	}
-}
-
-func TestDirigentParser(t *testing.T) {
-	data := *parseDirigentMetadata("test_data/dirigent.json", "Dirigent")
-
-	if len(data) != 2 {
-		t.Error("Unexpected results.")
-	}
-
-	if !(data[0].HashFunction == "c13acdc7567b225971cef2416a3a2b03c8a4d8d154df48afe75834e2f5c59ddf" &&
-		data[0].Image == "docker.io/vhiveease/relay:latest" &&
-		data[0].Port == 50000 &&
-		data[0].Protocol == "tcp" &&
-		data[0].ScalingUpperBound == 1 &&
-		data[0].ScalingLowerBound == 1 &&
-		data[0].IterationMultiplier == 80 &&
-		data[0].IOPercentage == 0 &&
-		len(data[0].EnvVars) == 1 &&
-		len(data[0].ProgramArgs) == 8) {
-
-		t.Error("Unexpected results.")
-	}
-
-	if !(data[1].HashFunction == "ae8a1640fa932024f59b38a0b001808b5c64612bd60c6f3eb80ba9461ba2d091" &&
-		data[1].Image == "docker.io/cvetkovic/dirigent_grpc_function:latest" &&
-		data[1].Port == 80 &&
-		data[1].Protocol == "tcp" &&
-		data[1].ScalingUpperBound == 1 &&
-		data[1].ScalingLowerBound == 0 &&
-		data[1].IterationMultiplier == 80 &&
-		data[1].IOPercentage == 0 &&
-		len(data[1].EnvVars) == 0 &&
-		len(data[1].ProgramArgs) == 0) {
 
 		t.Error("Unexpected results.")
 	}

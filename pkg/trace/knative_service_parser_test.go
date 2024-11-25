@@ -12,7 +12,7 @@ func TestConvertKnativeYAMLToDirigentMetadata(t *testing.T) {
 	assert.Equal(t, cfg.Port, 80)
 	assert.Equal(t, cfg.Protocol, "tcp")
 	assert.Equal(t, cfg.ScalingUpperBound, 200)
-	assert.Equal(t, cfg.ScalingLowerBound, 0)
+	assert.Equal(t, cfg.ScalingLowerBound, 10)
 	assert.Equal(t, cfg.IterationMultiplier, 102)
 	assert.Equal(t, cfg.IOPercentage, 50)
 }

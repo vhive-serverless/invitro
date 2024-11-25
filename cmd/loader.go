@@ -176,8 +176,13 @@ func runTraceMode(cfg *config.LoaderConfiguration, readIATFromFile bool, justGen
 	durationToParse := determineDurationToParse(cfg.ExperimentDuration, cfg.WarmupDuration)
 	yamlPath := parseYAMLSpecification(cfg)
 
-	traceParser := trace.NewAzureParser(cfg.TracePath, yamlPath, durationToParse)
-	functions := traceParser.Parse(cfg.Platform)
+	// Azure trace parsing
+	traceParser := trace.NewAzureParser(cfg.TracePath, durationToParse)
+	functions := traceParser.Parse()
+
+	// Dirigent metadata parsing
+	dirigentMetadataParser := trace.NewDirigentMetadataParser(cfg.TracePath, functions, yamlPath, cfg.Platform)
+	dirigentMetadataParser.Parse()
 
 	log.Infof("Traces contain the following %d functions:\n", len(functions))
 	for _, function := range functions {
