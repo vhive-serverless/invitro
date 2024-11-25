@@ -286,6 +286,31 @@ func TestSerialGenerateIAT(t *testing.T) {
 			},
 			testDistribution: false,
 		},
+		{
+			testName:        "long_trace",
+			invocations:     []int{0, 5, 4, 0, 0, 1, 0, 0, 0, 1},
+			iatDistribution: common.Equidistant,
+			shiftIAT:        false,
+			granularity:     common.MinuteGranularity,
+			expectedPoints: []float64{
+				// minute 1
+				60_000_000,
+				12_000_000,
+				12_000_000,
+				12_000_000,
+				12_000_000,
+				// minute 2
+				15_000_000,
+				15_000_000,
+				15_000_000,
+				15_000_000,
+				// minute 5
+				120_000_000,
+				// minute 9
+				180_000_000,
+			},
+			testDistribution: false,
+		},
 	}
 
 	var seed int64 = 123456789

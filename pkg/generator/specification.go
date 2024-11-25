@@ -158,12 +158,13 @@ func (s *SpecificationGenerator) generateIAT(invocationsPerMinute []int, iatDist
 		} else if accumulatedIdle != 0 {
 			IAT = append(IAT, accumulatedIdle)
 			IAT = append(IAT, minuteIAT[1:]...)
+			perMinuteCount = append(perMinuteCount, len(minuteIAT)-1)
 			accumulatedIdle = 0.0
 		} else {
 			IAT = append(IAT, minuteIAT...)
+			perMinuteCount = append(perMinuteCount, len(minuteIAT))
 		}
 
-		perMinuteCount = append(perMinuteCount, len(minuteIAT)-1)
 		nonScaledDuration = append(nonScaledDuration, duration)
 	}
 
