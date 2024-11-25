@@ -570,7 +570,7 @@ func (d *Driver) RunExperiment(generateSpecs bool, writeIATsToFile bool, readIAT
 			iatFile, _ := os.ReadFile("iat" + strconv.Itoa(i) + ".json")
 			err := json.Unmarshal(iatFile, &spec)
 			if err != nil {
-				log.Fatalf("Failed tu unmarshal iat file: %s", err)
+				log.Fatalf("Failed to unmarshal IAT file: %s", err)
 			}
 
 			d.Configuration.Functions[i].Specification = &spec
