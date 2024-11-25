@@ -131,6 +131,14 @@ func (s *SpecificationGenerator) generateIATPerGranularity(minuteIndex int, numb
 	return iatResult, totalDuration
 }
 
+func getBlankTimeUnit(granularity common.TraceGranularity) float64 {
+	if granularity == common.MinuteGranularity {
+		return 60_000_000
+	} else {
+		return 1_000_000
+	}
+}
+
 // GenerateIAT generates IAT according to the given distribution. Number of minutes is the length of invocationsPerMinute array
 func (s *SpecificationGenerator) generateIAT(invocationsPerMinute []int, iatDistribution common.IatDistribution,
 	shiftIAT bool, granularity common.TraceGranularity) (common.IATArray, []int, common.ProbabilisticDuration) {
@@ -139,12 +147,23 @@ func (s *SpecificationGenerator) generateIAT(invocationsPerMinute []int, iatDist
 	var perMinuteCount []int
 	var nonScaledDuration []float64
 
+	accumulatedIdle := 0.0
+
 	numberOfMinutes := len(invocationsPerMinute)
 	for i := 0; i < numberOfMinutes; i++ {
 		minuteIAT, duration := s.generateIATPerGranularity(i, invocationsPerMinute[i], iatDistribution, shiftIAT, granularity)
+		if len(minuteIAT) == 0 {
+			accumulatedIdle += getBlankTimeUnit(granularity)
+			continue
+		} else if accumulatedIdle != 0 {
+			IAT = append(IAT, accumulatedIdle)
+			IAT = append(IAT, minuteIAT[1:]...)
+			accumulatedIdle = 0.0
+		} else {
+			IAT = append(IAT, minuteIAT...)
+		}
 
-		IAT = append(IAT, minuteIAT...)
-		perMinuteCount = append(perMinuteCount, len(minuteIAT))
+		perMinuteCount = append(perMinuteCount, len(minuteIAT)-1)
 		nonScaledDuration = append(nonScaledDuration, duration)
 	}
 
