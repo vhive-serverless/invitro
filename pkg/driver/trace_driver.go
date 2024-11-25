@@ -518,7 +518,7 @@ func (d *Driver) internalRun() {
 	log.Infof("Failure rate: \t\t\t%.2f", float64(statFailed)*100.0/float64(statSuccess+statFailed))
 }
 
-func (d *Driver) generateSpecs() {
+func (d *Driver) GenerateSpecification() {
 	log.Info("Generating IAT and runtime specifications for all the functions")
 
 	for i, function := range d.Configuration.Functions {
@@ -547,13 +547,9 @@ func (d *Driver) outputIATsToFile() {
 	}
 }
 
-func (d *Driver) RunExperiment(generateSpecs bool, writeIATsToFile bool, readIATsFromFile bool) {
-	if generateSpecs && readIATsFromFile {
-		log.Fatal("Invalid loader configuration. Cannot be forced to generate IATs and read the from file in the same experiment.")
-	}
-
-	if generateSpecs {
-		d.generateSpecs()
+func (d *Driver) DumpSpecification(writeIATsToFile bool, readIATsFromFile bool) {
+	if writeIATsToFile && readIATsFromFile {
+		log.Fatal("Invalid loader configuration. No point to read and write IATs within the same run.")
 	}
 
 	if writeIATsToFile {
@@ -576,7 +572,9 @@ func (d *Driver) RunExperiment(generateSpecs bool, writeIATsToFile bool, readIAT
 			d.Configuration.Functions[i].Specification = &spec
 		}
 	}
+}
 
+func (d *Driver) RunExperiment() {
 	if d.Configuration.WithWarmup() {
 		trace.DoStaticTraceProfiling(d.Configuration.Functions)
 	}

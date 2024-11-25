@@ -376,7 +376,8 @@ func TestDriverCompletely(t *testing.T) {
 				driver.Configuration.TraceGranularity = common.SecondGranularity
 			}
 
-			driver.RunExperiment(true, false, false)
+			driver.GenerateSpecification()
+			driver.RunExperiment()
 
 			f, err := os.Open(driver.outputFilename("duration"))
 			if err != nil {
