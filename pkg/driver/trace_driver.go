@@ -206,7 +206,7 @@ func (d *Driver) functionsDriver(list *list.List, announceFunctionDone *sync.Wai
 
 		iatIndex := invokedSinceExperimentStarted + invocationIndex
 
-		if minuteIndex >= totalTraceDuration {
+		if minuteIndex >= totalTraceDuration || iatIndex >= len(IAT) {
 			// Check whether the end of trace has been reached
 			break
 		} else if function.Specification.PerMinuteCount[minuteIndex] == 0 {
@@ -237,6 +237,39 @@ func (d *Driver) functionsDriver(list *list.List, announceFunctionDone *sync.Wai
 
 		previousIATSum += iat.Microseconds()
 
+		if !d.Configuration.TestMode {
+			waitForInvocations.Add(1)
+
+			go d.invokeFunction(&InvocationMetadata{
+				RootFunction:          list,
+				Phase:                 currentPhase,
+				MinuteIndex:           minuteIndex,
+				InvocationIndex:       invocationIndex,
+				SuccessCount:          &successfulInvocations,
+				FailedCount:           &failedInvocations,
+				FailedCountByMinute:   failedInvocationByMinute,
+				RecordOutputChannel:   recordOutputChannel,
+				AnnounceDoneWG:        &waitForInvocations,
+				AnnounceDoneExe:       addInvocationsToGroup,
+				ReadOpenWhiskMetadata: readOpenWhiskMetadata,
+			}, iatIndex)
+		} else {
+			// To be used from within the Golang testing framework
+			log.Debugf("Test mode invocation fired.\n")
+
+			recordOutputChannel <- &mc.ExecutionRecord{
+				ExecutionRecordBase: mc.ExecutionRecordBase{
+					Phase:        int(currentPhase),
+					InvocationID: composeInvocationID(d.Configuration.TraceGranularity, minuteIndex, invocationIndex),
+					StartTime:    time.Now().UnixNano(),
+				},
+			}
+
+			successfulInvocations++
+		}
+		numberOfIssuedInvocations++
+		invocationIndex++
+
 		if function.InvocationStats.Invocations[minuteIndex] == invocationIndex || hasMinuteExpired(startOfMinute) {
 			readyToBreak := d.proceedToNextMinute(function, &minuteIndex, &invocationIndex, &startOfMinute,
 				false, &currentPhase, failedInvocationByMinute, &previousIATSum)
@@ -244,39 +277,6 @@ func (d *Driver) functionsDriver(list *list.List, announceFunctionDone *sync.Wai
 			if readyToBreak {
 				break
 			}
-		} else {
-			if !d.Configuration.TestMode {
-				waitForInvocations.Add(1)
-
-				go d.invokeFunction(&InvocationMetadata{
-					RootFunction:          list,
-					Phase:                 currentPhase,
-					MinuteIndex:           minuteIndex,
-					InvocationIndex:       invocationIndex,
-					SuccessCount:          &successfulInvocations,
-					FailedCount:           &failedInvocations,
-					FailedCountByMinute:   failedInvocationByMinute,
-					RecordOutputChannel:   recordOutputChannel,
-					AnnounceDoneWG:        &waitForInvocations,
-					AnnounceDoneExe:       addInvocationsToGroup,
-					ReadOpenWhiskMetadata: readOpenWhiskMetadata,
-				}, iatIndex)
-			} else {
-				// To be used from within the Golang testing framework
-				log.Debugf("Test mode invocation fired.\n")
-
-				recordOutputChannel <- &mc.ExecutionRecord{
-					ExecutionRecordBase: mc.ExecutionRecordBase{
-						Phase:        int(currentPhase),
-						InvocationID: composeInvocationID(d.Configuration.TraceGranularity, minuteIndex, invocationIndex),
-						StartTime:    time.Now().UnixNano(),
-					},
-				}
-
-				successfulInvocations++
-			}
-			numberOfIssuedInvocations++
-			invocationIndex++
 		}
 	}
 
@@ -498,7 +498,7 @@ func (d *Driver) internalRun() {
 	log.Infof("Number of successful invocations: \t%d", statSuccess)
 	log.Infof("Number of failed invocations: \t%d", statFailed)
 	log.Infof("Total invocations: \t\t\t%d", statSuccess+statFailed)
-	log.Infof("Failure rate: \t\t\t%.2f", float64(statFailed)*100.0/float64(statSuccess+statFailed))
+	log.Infof("Failure rate: \t\t\t%.2f%%", float64(statFailed)*100.0/float64(statSuccess+statFailed))
 }
 
 func (d *Driver) GenerateSpecification() {
