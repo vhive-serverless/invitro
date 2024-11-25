@@ -26,7 +26,6 @@ package driver
 
 import (
 	"container/list"
-	"encoding/csv"
 	"encoding/json"
 	"fmt"
 	"github.com/vhive-serverless/loader/pkg/config"
@@ -39,7 +38,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/gocarina/gocsv"
 	log "github.com/sirupsen/logrus"
 	"github.com/vhive-serverless/loader/pkg/common"
 	"github.com/vhive-serverless/loader/pkg/generator"
@@ -77,21 +75,6 @@ func NewDriver(driverConfig *config.Configuration) *Driver {
 // ///////////////////////////////////////
 func (d *Driver) outputFilename(name string) string {
 	return fmt.Sprintf("%s_%s_%d.csv", d.Configuration.LoaderConfiguration.OutputPathPrefix, name, d.Configuration.TraceDuration)
-}
-
-func (d *Driver) runCSVWriter(records chan interface{}, filename string, writerDone *sync.WaitGroup) {
-	log.Debugf("Starting writer for %s", filename)
-
-	file, err := os.Create(filename)
-	common.Check(err)
-	defer file.Close()
-
-	writer := gocsv.NewSafeCSVWriter(csv.NewWriter(file))
-	if err := gocsv.MarshalChan(records, writer); err != nil {
-		log.Fatal(err)
-	}
-
-	writerDone.Done()
 }
 
 func DAGCreation(functions []*common.Function) *list.List {
@@ -433,7 +416,7 @@ func (d *Driver) startBackgroundProcesses(allRecordsWritten *sync.WaitGroup) (*s
 
 	globalMetricsCollector := make(chan *mc.ExecutionRecord)
 	totalIssuedChannel := make(chan int64)
-	go d.createGlobalMetricsCollector(d.outputFilename("duration"), globalMetricsCollector, auxiliaryProcessBarrier, allRecordsWritten, totalIssuedChannel)
+	go mc.CreateGlobalMetricsCollector(d.outputFilename("duration"), globalMetricsCollector, auxiliaryProcessBarrier, allRecordsWritten, totalIssuedChannel)
 
 	traceDurationInMinutes := d.Configuration.TraceDuration
 	go d.globalTimekeeper(traceDurationInMinutes, auxiliaryProcessBarrier)
