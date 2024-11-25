@@ -60,10 +60,10 @@ func (s *SpecificationGenerator) generateIATPerGranularity(minuteIndex int, numb
 
 	if minuteIndex == 0 {
 		iatResult = []float64{0.0}
+		// -1 because the first invocation happens as soon as the experiment starts
 		endIndex = numberOfInvocations - 1
 	}
 
-	// -1 because the first invocation happens at the beginning of minute
 	for i := 0; i < endIndex; i++ {
 		var iat float64
 

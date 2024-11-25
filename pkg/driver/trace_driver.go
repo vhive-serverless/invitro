@@ -183,7 +183,7 @@ func (d *Driver) functionsDriver(list *list.List, announceFunctionDone *sync.Wai
 	var currentPhase = common.ExecutionPhase
 
 	waitForInvocations := sync.WaitGroup{}
-	currentMinute, currentSum := 0, 0
+	currentMinute, invokedSinceExperimentStarted := 0, 0
 
 	if d.Configuration.WithWarmup() {
 		currentPhase = common.WarmupPhase
@@ -200,11 +200,11 @@ func (d *Driver) functionsDriver(list *list.List, announceFunctionDone *sync.Wai
 	for {
 		if minuteIndex != currentMinute {
 			// postpone summation of invocation count for the beginning of each minute
-			currentSum += function.Specification.PerMinuteCount[currentMinute]
+			invokedSinceExperimentStarted += function.Specification.PerMinuteCount[currentMinute]
 			currentMinute = minuteIndex
 		}
 
-		iatIndex := currentSum + invocationIndex
+		iatIndex := invokedSinceExperimentStarted + invocationIndex
 
 		if minuteIndex >= totalTraceDuration {
 			// Check whether the end of trace has been reached
