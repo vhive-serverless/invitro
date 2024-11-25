@@ -346,7 +346,7 @@ func TestDriverCompletely(t *testing.T) {
 		{
 			testName:            "with_warmup",
 			withWarmup:          true,
-			expectedInvocations: 9,
+			expectedInvocations: 10,
 		},
 		{
 			testName:            "without_warmup_second_granularity",
@@ -420,7 +420,7 @@ func TestDriverCompletely(t *testing.T) {
 			}
 
 			expectedInvocations := test.expectedInvocations
-			if !(successfulInvocation >= expectedInvocations && failedInvocations == 0) {
+			if !(successfulInvocation == expectedInvocations && failedInvocations == 0) {
 				t.Error("Number of successful and failed invocations do not match.")
 			}
 		})
