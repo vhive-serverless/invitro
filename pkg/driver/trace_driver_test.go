@@ -254,7 +254,7 @@ func TestGlobalMetricsCollector(t *testing.T) {
 	collectorReady.Add(1)
 	collectorFinished.Add(1)
 
-	go driver.createGlobalMetricsCollector(driver.outputFilename("duration"), inputChannel, collectorReady, collectorFinished, totalIssuedChannel)
+	go metric.CreateGlobalMetricsCollector(driver.outputFilename("duration"), inputChannel, collectorReady, collectorFinished, totalIssuedChannel)
 	collectorReady.Wait()
 
 	bogusRecord := &metric.ExecutionRecord{
