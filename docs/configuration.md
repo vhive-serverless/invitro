@@ -14,7 +14,7 @@
 | AsyncWaitToCollectMin [^6]   | int       | >= 0                                                                | 0                   | Time after experiment ends after which to collect invocation results                 |  
 | RpsTarget                    | int       | >= 0                                                                | 0                   | Number of requests per second to issue                                               | 
 | RpsColdStartRatioPercentage  | int       | >= 0 && <= 100                                                      | 0                   | Percentage of cold starts out of specified RPS                                       | 
-| RpsCooldownSeconds           | int       | > 0                                                                 | 0                   | The time it takes for the autoscaler to downscale function (higher for higher RPS)   |
+| RpsCooldownSeconds [^7]      | int       | > 0                                                                 | 0                   | The time it takes for the autoscaler to downscale function (higher for higher RPS)   |
 | RpsImage                     | string    | N/A                                                                 | N/A                 | Function image to use for RPS experiments                                            |
 | RpsRuntimeMs                 | int       | >=0                                                                 | 0                   | Requested execution time                                                             |
 | RpsMemoryMB                  | int       | >=0                                                                 | 0                   | Requested memory                                                                     |
@@ -54,6 +54,13 @@ this [table](https://cloud.google.com/functions/pricing#compute_time) for Google
 Lambda; https://aws.amazon.com/about-aws/whats-new/2018/10/aws-lambda-supports-functions-that-can-run-up-to-15-minutes/
 
 [^6]: Dirigent specific
+
+[^7] Because Knative's minimum autoscaling stable window is 6s, the minimum keep-alive for a function is 6s. This means
+that we need multiple functions to achieve RPS=1, each scaling up/and down with a 1-second delay from each other. In RPS
+mode, the number of functions for the cold start experiment is determined by the `RpsCooldownSeconds` parameter, which
+is the minimum keep-alive. Due to the implementation complexity, the cold start experiment sleeps for the first
+`RpsCooldownSeconds` seconds. In the results, the user should discard the first and the last `RpsCooldownSeconds` of the
+results, since the RPS at those points is lower than the requested one.
 
 ---
 
