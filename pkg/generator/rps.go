@@ -34,6 +34,11 @@ func generateFunctionByRPS(experimentDuration int, rpsTarget float64) (common.IA
 		}
 	}
 
+	// make the first invocation be fired right away
+	if len(iatResult) > 0 {
+		iatResult[0] = 0
+	}
+
 	return iatResult, countResult
 }
 
@@ -52,6 +57,13 @@ func GenerateWarmStartFunction(experimentDuration int, rpsTarget float64) (commo
 	return generateFunctionByRPS(experimentDuration, rpsTarget)
 }
 
+// GenerateColdStartFunctions Because Knative's minimum autoscaling stable window is 6s, the minimum keep-alive for a
+// function is 6s. This means that we need multiple functions to achieve RPS=1, each scaling up/and down with a 1-second
+// delay from each other. In RPS mode, the number of functions for the cold start experiment is determined by the
+// RpsCooldownSeconds parameter, which is the minimum keep-alive. This produces the IAT array as above. Due to the
+// implementation complexity, the cold start experiment sleeps for the first RpsCooldownSeconds seconds. In the results,
+// the user should discard the first and the last RpsCooldownSeconds of the results, since the RPS at those points is
+// lower than the requested one.
 func GenerateColdStartFunctions(experimentDuration int, rpsTarget float64, cooldownSeconds int) ([]common.IATArray, [][]int) {
 	iat := 1000000.0 / float64(rpsTarget) // ms
 	totalFunctions := int(math.Ceil(rpsTarget * float64(cooldownSeconds)))
