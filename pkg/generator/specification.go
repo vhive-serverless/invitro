@@ -55,13 +55,11 @@ func (s *SpecificationGenerator) generateIATPerGranularity(numberOfInvocations i
 	}
 
 	var iatResult []float64
-
-	endIndex := numberOfInvocations
 	totalDuration := 0.0 // total non-scaled duration
 
 	// first invocation at the beginning of minute
 	iatResult = []float64{0.0}
-	endIndex = numberOfInvocations - 1
+	endIndex := numberOfInvocations - 1
 
 	for i := 0; i < endIndex; i++ {
 		var iat float64
