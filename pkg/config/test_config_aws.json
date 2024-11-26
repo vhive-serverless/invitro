@@ -21,5 +21,8 @@
 
   "GRPCConnectionTimeoutSeconds": 15,
   "GRPCFunctionTimeoutSeconds": 900,
-  "DAGMode": false
+  "DAGMode": false,
+  "EnableDAGDataset": true,
+  "Width": 2,
+  "Depth": 2
 }

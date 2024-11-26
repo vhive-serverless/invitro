@@ -33,7 +33,10 @@
 | MetricScrapingPeriodSeconds  | int       | > 0                                                                 | 15                  | Period of Prometheus metrics scrapping                                               |
 | GRPCConnectionTimeoutSeconds | int       | > 0                                                                 | 60                  | Timeout for establishing a gRPC connection                                           |
 | GRPCFunctionTimeoutSeconds   | int       | > 0                                                                 | 90                  | Maximum time given to function to execute[^5]                                        |
-| DAGMode                      | bool      | true/false                                                          | false               | Sequential invocation of all functions one after another                             |
+| DAGMode                      | bool      | true/false                                                          | false               | Generates DAG workflows iteratively with functions in TracePath [^8]. Frequency and IAT of the DAG follows their respective entry function, while Duration and Memory of each function will follow their respective values in TracePath.                                                                                                              |                            
+| EnableDAGDataset             | bool      | true/false                                                          | true                |  Generate width and depth from dag_structure.csv in TracePath[^9]                                                                                                      |
+| Width                        | int       | > 0                                                                 | 2                   | Default width of DAG                                                                 |
+| Depth                        | int       | > 0                                                                 | 2                   | Default depth of DAG                                                                 |
 
 [^1]: To run RPS experiments add suffix `-RPS`.
 
@@ -56,6 +59,10 @@ Lambda; https://aws.amazon.com/about-aws/whats-new/2018/10/aws-lambda-supports-f
 [^6]: Dirigent specific
 
 [^7] It is recommended that the first 10% of cold starts are discarded from the experiment results for low cold start RPS.
+
+[^8]: The generated DAGs consist of unique functions. The shape of each DAG is determined either ```Width,Depth``` or calculated based on ```EnableDAGDAtaset```.
+
+[^9]: A [data sample](https://github.com/icanforce/Orion-OSDI22/blob/main/Public_Dataset/dag_structure.xlsx) of DAG structures has been created based on past Microsoft Azure traces. Width and Depth are determined based on probabilities of this sample.
 
 ---
 
