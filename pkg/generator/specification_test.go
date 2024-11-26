@@ -29,6 +29,7 @@ import (
 	"math"
 	"os"
 	"os/exec"
+	"strconv"
 	"sync"
 	"testing"
 
@@ -62,6 +63,73 @@ var testFunction = common.Function{
 		Percentile99:  9900,
 		Percentile100: 10000,
 	},
+}
+
+func TestGenerateDistribution(t *testing.T) {
+	tests := []struct {
+		count           int
+		iatDistribution common.IatDistribution
+		granularity     common.TraceGranularity
+		expectedPoints  []float64 // μs
+	}{
+		{
+			count:           0,
+			iatDistribution: common.Equidistant,
+			granularity:     common.MinuteGranularity,
+			expectedPoints:  []float64{},
+		},
+		{
+			count:           1,
+			iatDistribution: common.Equidistant,
+			granularity:     common.MinuteGranularity,
+			expectedPoints:  []float64{0},
+		},
+		{
+			count:           2,
+			iatDistribution: common.Equidistant,
+			granularity:     common.MinuteGranularity,
+			expectedPoints:  []float64{0, 30_000_000},
+		},
+		{
+			count:           4,
+			iatDistribution: common.Equidistant,
+			granularity:     common.MinuteGranularity,
+			expectedPoints:  []float64{0, 15_000_000, 15_000_000, 15_000_000},
+		},
+	}
+
+	for _, test := range tests {
+		testName := "inv_cnt_" + strconv.Itoa(test.count)
+		epsilon := 10e-3
+
+		t.Run(testName, func(t *testing.T) {
+			sg := NewSpecificationGenerator(123)
+			data, _ := sg.generateIATPerGranularity(test.count, test.iatDistribution, false, test.granularity)
+
+			failed := false
+			if test.expectedPoints != nil {
+				for i := 0; i < len(test.expectedPoints); i++ {
+					if len(test.expectedPoints) != len(data) {
+						log.Debug(fmt.Sprintf("wrong number of IATs in the minute, got: %d, expected: %d\n", len(data), len(test.expectedPoints)))
+
+						failed = true
+						break
+					}
+
+					if math.Abs(data[i]-test.expectedPoints[i]) > epsilon {
+						log.Debug(fmt.Sprintf("got: %f, expected: %f\n", data[i], test.expectedPoints[i]))
+
+						failed = true
+						// no break statement for debugging purpose
+					}
+				}
+
+				if failed {
+					t.Error("Test " + testName + " has failed due to incorrectly generated IAT.")
+				}
+			}
+		})
+	}
 }
 
 /*
@@ -220,26 +288,26 @@ func TestSerialGenerateIAT(t *testing.T) {
 			testDistribution: true,
 		},
 		{
-			testName:        "2sec_5qps_equidistant",
+			testName:        "2min_5ipm_with_zero_equidistant",
 			invocations:     []int{5, 4, 2},
 			iatDistribution: common.Equidistant,
 			shiftIAT:        false,
 			granularity:     common.SecondGranularity,
 			expectedPoints: []float64{
 				// second 1 - μs below
-				0,
-				200000,
-				200000,
-				200000,
-				200000,
+				0,      // 0ms
+				200000, // 200ms
+				200000, // 400ms
+				200000, // 600ms
+				200000, // 800ms
 				// second 2 - μs below
-				250000,
-				250000,
-				250000,
-				250000,
+				200000, // 1000ms
+				250000, // 1250ms
+				250000, // 1500ms
+				250000, // 1750ms
 				// second 3 - μs below
-				500000,
-				500000,
+				250000, // 2000ms
+				500000, // 2500ms
 			},
 			testDistribution: false,
 		},
@@ -259,39 +327,54 @@ func TestSerialGenerateIAT(t *testing.T) {
 			testDistribution: false,
 		},
 		{
-			testName:        "6min_5ipm_with_zero__equidistant",
+			testName:        "6min_5ipm_with_zero_equidistant",
 			invocations:     []int{0, 5, 0, 5, 0, 5},
 			iatDistribution: common.Equidistant,
 			shiftIAT:        false,
 			granularity:     common.MinuteGranularity,
 			expectedPoints: []float64{
-				60_000_000,
-				12_000_000,
-				12_000_000,
-				12_000_000,
-				12_000_000,
-				60_000_000,
-				12_000_000,
-				12_000_000,
-				12_000_000,
-				12_000_000,
-				60_000_000,
-				12_000_000,
-				12_000_000,
-				12_000_000,
-				12_000_000,
+				// minute 1
+				60_000_000, // 1min 0s
+				12_000_000, // 1min 12s
+				12_000_000, // 1min 24s
+				12_000_000, // 1min 36s
+				12_000_000, // 1min 48s
+				// minute 3
+				72_000_000, // 3min 0s
+				12_000_000, // 3min 12s
+				12_000_000, // 3min 24s
+				12_000_000, // 3min 36s
+				12_000_000, // 3min 48s
+				// minute 5
+				72_000_000, // 5min 0s
+				12_000_000, // 5min 12s
+				12_000_000, // 5min 24s
+				12_000_000, // 5min 36s
+				12_000_000, // 5min 48s
 			},
 			testDistribution: false,
 		},
 		{
-			testName:        "2min_5ipm_with_zero_equidistant",
+			testName:        "2sec_5ipm_with_zero_equidistant",
 			invocations:     []int{0, 1, 0, 1},
 			iatDistribution: common.Equidistant,
 			shiftIAT:        false,
 			granularity:     common.SecondGranularity,
 			expectedPoints: []float64{
 				1_000_000,
-				1_000_000,
+				2_000_000,
+			},
+			testDistribution: false,
+		},
+		{
+			testName:        "2min_5ipm_with_zero_equidistant",
+			invocations:     []int{0, 1, 0, 0, 1},
+			iatDistribution: common.Equidistant,
+			shiftIAT:        false,
+			granularity:     common.MinuteGranularity,
+			expectedPoints: []float64{
+				60_000_000,
+				180_000_000,
 			},
 			testDistribution: false,
 		},
@@ -307,27 +390,92 @@ func TestSerialGenerateIAT(t *testing.T) {
 			testDistribution: false,
 		},
 		{
-			testName:        "long_trace",
+			testName:        "long_trace_0",
 			invocations:     []int{0, 5, 4, 0, 0, 1, 0, 0, 0, 1},
 			iatDistribution: common.Equidistant,
 			shiftIAT:        false,
 			granularity:     common.MinuteGranularity,
 			expectedPoints: []float64{
 				// minute 1
-				60_000_000,
-				12_000_000,
-				12_000_000,
-				12_000_000,
-				12_000_000,
+				60_000_000, // 1min 0s
+				12_000_000, // 1min 12s
+				12_000_000, // 1min 24s
+				12_000_000, // 1min 36s
+				12_000_000, // 1min 48s
 				// minute 2
-				15_000_000,
-				15_000_000,
-				15_000_000,
-				15_000_000,
+				12_000_000, // 2min 0s
+				15_000_000, // 2min 15s
+				15_000_000, // 2min 30s
+				15_000_000, // 2min 45s
 				// minute 5
-				120_000_000,
+				135_000_000, // 5min 0s
 				// minute 9
-				180_000_000,
+				240_000_000, // 9min 0s
+			},
+			testDistribution: false,
+		},
+		{
+			testName:        "long_trace_1",
+			invocations:     []int{0, 1, 0, 1, 0, 0, 1, 0, 0, 0, 1},
+			iatDistribution: common.Equidistant,
+			shiftIAT:        false,
+			granularity:     common.MinuteGranularity,
+			expectedPoints: []float64{
+				// minute 1
+				60_000_000, // 1min 0s
+				// minute 3
+				120_000_000, // 3min 0s
+				// minute 5
+				180_000_000, // 7min 0s
+				// minute 9
+				240_000_000, // 11min 0s
+			},
+			testDistribution: false,
+		},
+		{
+			testName:        "long_trace_2",
+			invocations:     []int{0, 2, 0, 2, 0, 0, 2, 0, 0, 0, 2},
+			iatDistribution: common.Equidistant,
+			shiftIAT:        false,
+			granularity:     common.MinuteGranularity,
+			expectedPoints: []float64{
+				// minute 1
+				60_000_000, // 1min 0s
+				30_000_000,
+				// minute 3
+				90_000_000, // 3min 0s
+				30_000_000,
+				// minute 5
+				150_000_000, // 7min 0s
+				30_000_000,
+				// minute 9
+				210_000_000, // 11min 0s
+				30_000_000,
+			},
+			testDistribution: false,
+		},
+		{
+			testName:        "long_trace_3",
+			invocations:     []int{0, 0, 4, 0, 1, 5, 0, 0, 0, 1, 0},
+			iatDistribution: common.Equidistant,
+			shiftIAT:        false,
+			granularity:     common.MinuteGranularity,
+			expectedPoints: []float64{
+				// minute 2
+				120_000_000, // 2min 0s
+				15_000_000,  // 2min 15s
+				15_000_000,  // 2min 30s
+				15_000_000,  // 2min 45s
+				// minute 4
+				75_000_000, // 3min 0s
+				// minute 5
+				60_000_000, // 5min 0s
+				12_000_000, // 5min 12s
+				12_000_000, // 5min 24s
+				12_000_000, // 5min 36s
+				12_000_000, // 5min 48s
+				// minute 9
+				192_000_000, // 9min 0s
 			},
 			testDistribution: false,
 		},
