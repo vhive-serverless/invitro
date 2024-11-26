@@ -27,12 +27,13 @@ package driver
 import (
 	"container/list"
 	"fmt"
-	"github.com/vhive-serverless/loader/pkg/config"
 	"log"
 	"os"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/vhive-serverless/loader/pkg/config"
 
 	"github.com/gocarina/gocsv"
 	"github.com/sirupsen/logrus"
@@ -129,7 +130,7 @@ func TestInvokeFunctionFromDriver(t *testing.T) {
 			announceDone := &sync.WaitGroup{}
 
 			testDriver := createTestDriver([]int{1})
-
+			var functionsInvoked int64
 			if !test.forceFail {
 				address, port := "localhost", test.port
 				testDriver.Configuration.Functions[0].Endpoint = fmt.Sprintf("%s:%d", address, port)
@@ -139,10 +140,10 @@ func TestInvokeFunctionFromDriver(t *testing.T) {
 				// make sure that the gRPC server is running
 				time.Sleep(2 * time.Second)
 			}
-
+			function := testDriver.Configuration.Functions[0]
+			node := &common.Node{Function: testDriver.Configuration.Functions[0]}
 			list := list.New()
-			list.PushBack(testDriver.Configuration.Functions[0])
-			function := list.Front().Value.(*common.Function)
+			list.PushBack(node)
 			function.Specification.RuntimeSpecification = []common.RuntimeSpecification{{
 				Runtime: 1000,
 				Memory:  128,
@@ -154,6 +155,7 @@ func TestInvokeFunctionFromDriver(t *testing.T) {
 				InvocationID:        composeInvocationID(common.MinuteGranularity, 0, 0),
 				SuccessCount:        &successCount,
 				FailedCount:         &failureCount,
+				FunctionsInvoked:    &functionsInvoked,
 				RecordOutputChannel: invocationRecordOutputChannel,
 				AnnounceDoneWG:      announceDone,
 			}
@@ -163,11 +165,11 @@ func TestInvokeFunctionFromDriver(t *testing.T) {
 
 			switch test.forceFail {
 			case true:
-				if !(successCount == 0 && failureCount == 1) {
+				if !(successCount == 0 && failureCount == 1 && functionsInvoked == 1) {
 					t.Error("The function somehow managed to execute.")
 				}
 			case false:
-				if !(successCount == 1 && failureCount == 0) {
+				if !(successCount == 1 && failureCount == 0 && functionsInvoked == 1) {
 					t.Error("The function should not have failed.")
 				}
 			}
@@ -187,12 +189,12 @@ func TestInvokeFunctionFromDriver(t *testing.T) {
 func TestDAGInvocation(t *testing.T) {
 	var successCount int64 = 0
 	var failureCount int64 = 0
-	var functionsToInvoke = 4
+	var functionsToInvoke int = 3
+	var functionsInvoked int64
 	invocationRecordOutputChannel := make(chan *metric.ExecutionRecord, functionsToInvoke)
 	announceDone := &sync.WaitGroup{}
 
 	testDriver := createTestDriver([]int{4})
-	list := list.New()
 	address, port := "localhost", 8085
 	function := testDriver.Configuration.Functions[0]
 	function.Endpoint = fmt.Sprintf("%s:%d", address, port)
@@ -202,27 +204,47 @@ func TestDAGInvocation(t *testing.T) {
 		Runtime: 1000,
 		Memory:  128,
 	}}
-	for i := 0; i < functionsToInvoke; i++ {
-		function = testDriver.Configuration.Functions[0]
-		list.PushBack(function)
+	functionList := make([]*common.Function, 3)
+	for i := 0; i < len(functionList); i++ {
+		functionList[i] = function
+	}
+	originalBranch := []*list.List{
+		func() *list.List {
+			l := list.New()
+			l.PushBack(&common.Node{Function: functionList[0], Depth: 0})
+			l.PushBack(&common.Node{Function: functionList[1], Depth: 1})
+			return l
+		}(),
 	}
 
+	newBranch := []*list.List{
+		func() *list.List {
+			l := list.New()
+			l.PushBack(&common.Node{Function: functionList[2], Depth: 1})
+			return l
+		}(),
+	}
+
+	rootFunction := originalBranch[0]
+	rootFunction.Front().Value.(*common.Node).Branches = newBranch
 	time.Sleep(2 * time.Second)
 
 	metadata := &InvocationMetadata{
-		RootFunction:        list,
+		RootFunction:        rootFunction,
 		Phase:               common.ExecutionPhase,
 		IatIndex:            0,
 		InvocationID:        composeInvocationID(common.MinuteGranularity, 0, 0),
 		SuccessCount:        &successCount,
 		FailedCount:         &failureCount,
+		FunctionsInvoked:    &functionsInvoked,
 		RecordOutputChannel: invocationRecordOutputChannel,
 		AnnounceDoneWG:      announceDone,
 	}
 
 	announceDone.Add(1)
 	testDriver.invokeFunction(metadata)
-	if !(successCount == 1 && failureCount == 0) { // not 4 invocations, since a workflow is considered as 1 invocation
+	announceDone.Wait()
+	if !(successCount == 3 && failureCount == 0) {
 		t.Error("Number of successful and failed invocations not as expected.")
 	}
 	for i := 0; i < functionsToInvoke; i++ {

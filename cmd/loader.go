@@ -32,11 +32,12 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/exp/slices"
+
 	"github.com/vhive-serverless/loader/pkg/common"
 	"github.com/vhive-serverless/loader/pkg/config"
 	"github.com/vhive-serverless/loader/pkg/driver"
 	"github.com/vhive-serverless/loader/pkg/trace"
-	"golang.org/x/exp/slices"
 
 	log "github.com/sirupsen/logrus"
 	tracer "github.com/vhive-serverless/vSwarm/utils/tracing/go"

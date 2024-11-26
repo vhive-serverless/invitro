@@ -28,15 +28,16 @@ import (
 	"container/list"
 	"encoding/json"
 	"fmt"
-	"github.com/vhive-serverless/loader/pkg/config"
-	"github.com/vhive-serverless/loader/pkg/driver/clients"
-	"github.com/vhive-serverless/loader/pkg/driver/deployment"
-	"github.com/vhive-serverless/loader/pkg/driver/failure"
 	"os"
 	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/vhive-serverless/loader/pkg/config"
+	"github.com/vhive-serverless/loader/pkg/driver/clients"
+	"github.com/vhive-serverless/loader/pkg/driver/deployment"
+	"github.com/vhive-serverless/loader/pkg/driver/failure"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/vhive-serverless/loader/pkg/common"
@@ -77,15 +78,6 @@ func (d *Driver) outputFilename(name string) string {
 	return fmt.Sprintf("%s_%s_%d.csv", d.Configuration.LoaderConfiguration.OutputPathPrefix, name, d.Configuration.TraceDuration)
 }
 
-func DAGCreation(functions []*common.Function) *list.List {
-	linkedList := list.New()
-	// Assigning nodes one after another
-	for _, function := range functions {
-		linkedList.PushBack(function)
-	}
-	return linkedList
-}
-
 /////////////////////////////////////////
 // DRIVER LOGIC
 /////////////////////////////////////////
@@ -97,9 +89,9 @@ type InvocationMetadata struct {
 	InvocationID string
 	IatIndex     int
 
-	SuccessCount *int64
-	FailedCount  *int64
-
+	SuccessCount        *int64
+	FailedCount         *int64
+	FunctionsInvoked    *int64
 	RecordOutputChannel chan *mc.ExecutionRecord
 	AnnounceDoneWG      *sync.WaitGroup
 	AnnounceDoneExe     *sync.WaitGroup
@@ -127,13 +119,21 @@ func (d *Driver) invokeFunction(metadata *InvocationMetadata) {
 	node := metadata.RootFunction.Front()
 	var record *mc.ExecutionRecord
 	var runtimeSpecifications *common.RuntimeSpecification
+	var branches []*list.List
+	var invocationRetries int
 	for node != nil {
-		function := node.Value.(*common.Function)
+		function := node.Value.(*common.Node).Function
 		runtimeSpecifications = &function.Specification.RuntimeSpecification[metadata.IatIndex]
 
 		success, record = d.Invoker.Invoke(function, runtimeSpecifications)
 
+		if !success && (d.Configuration.LoaderConfiguration.DAGMode && invocationRetries == 0) {
+			log.Debugf("Invocation with for function %s with ID %s failed. Retrying Invocation", function.Name, metadata.InvocationID)
+			invocationRetries += 1
+			continue
+		}
 		record.Phase = int(metadata.Phase)
+		record.Instance = fmt.Sprintf("%s%s", node.Value.(*common.Node).DAG, record.Instance)
 		record.InvocationID = metadata.InvocationID
 
 		if !d.Configuration.LoaderConfiguration.AsyncMode || record.AsyncResponseID == "" {
@@ -142,25 +142,30 @@ func (d *Driver) invokeFunction(metadata *InvocationMetadata) {
 			record.TimeToSubmitMs = record.ResponseTime
 			d.AsyncRecords.Enqueue(record)
 		}
-
+		atomic.AddInt64(metadata.FunctionsInvoked, 1)
 		if !success {
 			log.Errorf("Invocation with for function %s with ID %s failed.", function.Name, metadata.InvocationID)
+			atomic.AddInt64(metadata.FailedCount, 1)
 			break
+		}
+		atomic.AddInt64(metadata.SuccessCount, 1)
+		branches = node.Value.(*common.Node).Branches
+		for i := 0; i < len(branches); i++ {
+			newMetadataValue := *metadata
+			newMetadata := &newMetadataValue
+			newMetadata.RootFunction = branches[i]
+			newMetadata.AnnounceDoneWG.Add(1)
+			go d.invokeFunction(newMetadata)
 		}
 
 		node = node.Next()
 	}
-	if success {
-		atomic.AddInt64(metadata.SuccessCount, 1)
-	} else {
-		atomic.AddInt64(metadata.FailedCount, 1)
-	}
 }
 
-func (d *Driver) functionsDriver(list *list.List, announceFunctionDone *sync.WaitGroup, addInvocationsToGroup *sync.WaitGroup, totalSuccessful *int64, totalFailed *int64, totalIssued *int64, recordOutputChannel chan *mc.ExecutionRecord) {
+func (d *Driver) functionsDriver(functionLinkedList *list.List, announceFunctionDone *sync.WaitGroup, addInvocationsToGroup *sync.WaitGroup, totalSuccessful *int64, totalFailed *int64, totalIssued *int64, recordOutputChannel chan *mc.ExecutionRecord) {
 	defer announceFunctionDone.Done()
 
-	function := list.Front().Value.(*common.Function)
+	function := functionLinkedList.Front().Value.(*common.Node).Function
 	invocationCount := len(function.Specification.IAT)
 	addInvocationsToGroup.Add(invocationCount)
 
@@ -179,6 +184,7 @@ func (d *Driver) functionsDriver(list *list.List, announceFunctionDone *sync.Wai
 
 	var successfulInvocations int64
 	var failedInvocations int64
+	var functionsInvoked int64
 	var currentPhase = common.ExecutionPhase
 
 	waitForInvocations := sync.WaitGroup{}
@@ -208,14 +214,14 @@ func (d *Driver) functionsDriver(list *list.List, announceFunctionDone *sync.Wai
 
 		if !d.Configuration.TestMode {
 			waitForInvocations.Add(1)
-
 			go d.invokeFunction(&InvocationMetadata{
-				RootFunction:        list,
+				RootFunction:        functionLinkedList,
 				Phase:               currentPhase,
 				InvocationID:        composeInvocationID(d.Configuration.TraceGranularity, minuteIndex, invocationSinceTheBeginningOfMinute),
 				IatIndex:            iatIndex,
 				SuccessCount:        &successfulInvocations,
 				FailedCount:         &failedInvocations,
+				FunctionsInvoked:    &functionsInvoked,
 				RecordOutputChannel: recordOutputChannel,
 				AnnounceDoneWG:      &waitForInvocations,
 				AnnounceDoneExe:     addInvocationsToGroup,
@@ -232,7 +238,7 @@ func (d *Driver) functionsDriver(list *list.List, announceFunctionDone *sync.Wai
 					StartTime:    time.Now().UnixNano(),
 				},
 			}
-
+			functionsInvoked++
 			successfulInvocations++
 		}
 
@@ -254,7 +260,7 @@ func (d *Driver) functionsDriver(list *list.List, announceFunctionDone *sync.Wai
 
 	atomic.AddInt64(totalSuccessful, successfulInvocations)
 	atomic.AddInt64(totalFailed, failedInvocations)
-	atomic.AddInt64(totalIssued, int64(iatIndex))
+	atomic.AddInt64(totalIssued, int64(functionsInvoked))
 }
 
 func (d *Driver) announceWarmupEnd(minuteIndex int, currentPhase *common.ExperimentPhase) {
@@ -356,7 +362,6 @@ func (d *Driver) internalRun() {
 	var successfulInvocations int64
 	var failedInvocations int64
 	var invocationsIssued int64
-	var functionsPerDAG int64
 
 	allFunctionsInvoked := sync.WaitGroup{}
 	allIndividualDriversCompleted := sync.WaitGroup{}
@@ -367,28 +372,29 @@ func (d *Driver) internalRun() {
 	backgroundProcessesInitializationBarrier.Wait()
 
 	if d.Configuration.LoaderConfiguration.DAGMode {
+		functions := d.Configuration.Functions
+		dagLists := generator.GenerateDAGs(d.Configuration.LoaderConfiguration, functions, false)
 		log.Infof("Starting DAG invocation driver\n")
-		functionLinkedList := DAGCreation(d.Configuration.Functions)
-		functionsPerDAG = int64(len(d.Configuration.Functions))
-		allIndividualDriversCompleted.Add(1)
-		go d.functionsDriver(
-			functionLinkedList,
-			&allIndividualDriversCompleted,
-			&allFunctionsInvoked,
-			&successfulInvocations,
-			&failedInvocations,
-			&invocationsIssued,
-			globalMetricsCollector,
-		)
+		for i := range len(dagLists) {
+			allIndividualDriversCompleted.Add(1)
+			go d.functionsDriver(
+				dagLists[i],
+				&allIndividualDriversCompleted,
+				&allFunctionsInvoked,
+				&successfulInvocations,
+				&failedInvocations,
+				&invocationsIssued,
+				globalMetricsCollector,
+			)
+		}
 	} else {
 		log.Infof("Starting function invocation driver\n")
-		functionsPerDAG = 1
 		for _, function := range d.Configuration.Functions {
 			allIndividualDriversCompleted.Add(1)
-			linkedList := list.New()
-			linkedList.PushBack(function)
+			functionLinkedList := list.New()
+			functionLinkedList.PushBack(&common.Node{Function: function, Depth: 0})
 			go d.functionsDriver(
-				linkedList,
+				functionLinkedList,
 				&allIndividualDriversCompleted,
 				&allFunctionsInvoked,
 				&successfulInvocations,
@@ -410,8 +416,7 @@ func (d *Driver) internalRun() {
 
 			d.writeAsyncRecordsToLog(globalMetricsCollector)
 		}
-
-		totalIssuedChannel <- atomic.LoadInt64(&invocationsIssued) * functionsPerDAG
+		totalIssuedChannel <- atomic.LoadInt64(&invocationsIssued)
 		scraperFinishCh <- 0 // Ask the scraper to finish metrics collection
 
 		allRecordsWritten.Wait()

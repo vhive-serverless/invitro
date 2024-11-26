@@ -179,6 +179,53 @@ For more options, please see the `Makefile`.
 
 For instructions on how to use the loader with OpenWhisk go to `openwhisk_setup/README.md`.
 
+## Workflow Invocation
+Generation of a Directed Acyclic Graph (DAG) workflow is supported by setting `"DAGMode: true"` in `cmd/config_knative_trace.json` (as specified in [`docs/configuration.md`](../docs/configuration.md)). 
+
+Before invocation, DAGs will be iteratively generated based on the parameters: `width`,`depth`,`EnableDAGDataset`, until the remaining functions are insufficient to maintain the desired DAG structure. The remaining functions will be unused for the rest of the experiment. 
+
+An example of the generated workflow can be seen here:
+
+```bash
+Functions available: 20
+Width: 3
+Depth: 4
+EnableDAGDataset: false
+
+DAG 1: f(0) -> f(1) -> f(3) -> f(5)
+         \        
+          \ -> f(2) -> f(4) -> f(6)
+                        \
+                         \ -> f(7)
+
+DAG 2: f(8) -> f(9) -> f(12) -> f(15)
+        \        
+         \ -> f(10) -> f(13) -> f(16)
+          \
+           \-> f(11) -> f(14) -> f(17)
+```
+In the example, a single invocation of DAG 1 will result in 8 total functions invoked, with parallel invocations per branch. Invocation Frequency and IAT of DAGs 1 and 2 will depend on entry functions f(0) and f(8) respectively.
+
+To obtain [reference traces](https://github.com/vhive-serverless/invitro/blob/main/docs/sampler.md#reference-traces) for DAG execution, use the following command:
+```bash
+git lfs pull 
+tar -xzf data/traces/reference/sampled_150.tar.gz -C data/traces 
+```
+Microsoft has publicly released Microsoft Azure traces of function invocations from 10/18/2021 to 10/31/2021. From this trace, a [data sample](https://github.com/icanforce/Orion-OSDI22/blob/main/Public_Dataset) of DAG structures, representing the cumulative distribution of width and depth of DAGs during that period, was generated. Probabilities were applied to the data to derive the shape of the DAGs. The file `data/traces/example/dag_structure.csv` provides a simplified sample of the publicly released traces.
+
+By default, the shape of the DAGs are automatically calculated at every iteration using the above mentioned cumulative distribution.
+To manually set the shape of the DAGs, change the following parameters in `cmd/config_knative_trace.json`. Note that the number of functions in `TracePath` must be large enough to support the maximum size of the DAG. This ensures all DAGs generated will have the same width and depth.
+```bash
+"EnableDAGDataset": false,
+"Width": <width>,
+"Depth": <depth>
+```
+
+Lastly, start the experiment. This invokes all the generated DAGs with their respective frequencies.
+```bash
+go run cmd/loader.go --config cmd/config_knative_trace.json
+```
+
 ## Running on Cloud Using Serverless Framework
 
 **Currently supported vendors:** AWS
@@ -204,7 +251,6 @@ For instructions on how to use the loader with OpenWhisk go to `openwhisk_setup/
     ```bash
     go run cmd/loader.go --config cmd/config_knative_trace.json
     ```
-
 ---
 Note:
 - Current deployment is via container image.
