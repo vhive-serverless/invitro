@@ -8,30 +8,16 @@ import (
 	"math/rand"
 )
 
-func generateFunctionByRPS(experimentDuration int, rpsTarget float64) (common.IATArray, []int) {
+func generateFunctionByRPS(experimentDuration int, rpsTarget float64) common.IATArray {
 	iat := 1000000.0 / float64(rpsTarget) // μs
-
-	var iatResult []float64
-	var countResult []int
 
 	duration := 0.0 // μs
 	totalExperimentDurationMs := float64(experimentDuration * 60_000_000.0)
 
-	currentMinute := 0
-	currentCount := 0
-
+	var iatResult []float64
 	for duration < totalExperimentDurationMs {
 		iatResult = append(iatResult, iat)
 		duration += iat
-		currentCount++
-
-		// count the number of invocations in minute
-		if int(duration)/60_000_000 != currentMinute {
-			countResult = append(countResult, currentCount)
-
-			currentMinute++
-			currentCount = 0
-		}
 	}
 
 	// make the first invocation be fired right away
@@ -39,13 +25,33 @@ func generateFunctionByRPS(experimentDuration int, rpsTarget float64) (common.IA
 		iatResult[0] = 0
 	}
 
-	return iatResult, countResult
+	return iatResult
+}
+
+func countNumberOfInvocationsPerMinute(experimentDuration int, iatResult []float64) []int {
+	result := make([]int, experimentDuration)
+
+	cnt := make(map[int]int)
+	timestamp := 0.0
+	for i := 0; i < len(iatResult); i++ {
+		t := timestamp + iatResult[i]
+		minute := int(t) / 60_000_000
+		cnt[minute]++
+		timestamp = t
+	}
+
+	for i := 0; i < len(result); i++ {
+		result[i] = cnt[i]
+	}
+
+	return result
 }
 
 func generateFunctionByRPSWithOffset(experimentDuration int, rpsTarget float64, offset float64) (common.IATArray, []int) {
-	iat, count := generateFunctionByRPS(experimentDuration, rpsTarget)
+	iat := generateFunctionByRPS(experimentDuration, rpsTarget)
 	iat[0] += offset
 
+	count := countNumberOfInvocationsPerMinute(experimentDuration, iat)
 	return iat, count
 }
 
@@ -54,7 +60,9 @@ func GenerateWarmStartFunction(experimentDuration int, rpsTarget float64) (commo
 		return nil, nil
 	}
 
-	return generateFunctionByRPS(experimentDuration, rpsTarget)
+	iat := generateFunctionByRPS(experimentDuration, rpsTarget)
+	count := countNumberOfInvocationsPerMinute(experimentDuration, iat)
+	return iat, count
 }
 
 // GenerateColdStartFunctions Because Knative's minimum autoscaling stable window is 6s, the minimum keep-alive for a

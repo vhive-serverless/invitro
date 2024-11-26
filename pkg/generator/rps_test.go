@@ -8,18 +8,18 @@ import (
 
 func TestWarmStartMatrix(t *testing.T) {
 	tests := []struct {
-		testName           string
-		experimentDuration int
-		rpsTarget          float64
-		expectedIAT        common.IATArray
-		expectedCount      []int
+		testName               string
+		experimentDuration     int
+		rpsTarget              float64
+		expectedIAT            common.IATArray
+		expectedPerMinuteCount []int
 	}{
 		{
-			testName:           "2min_0rps",
-			experimentDuration: 2,
-			rpsTarget:          0,
-			expectedIAT:        []float64{},
-			expectedCount:      []int{},
+			testName:               "2min_0rps",
+			experimentDuration:     2,
+			rpsTarget:              0,
+			expectedIAT:            []float64{},
+			expectedPerMinuteCount: []int{},
 		},
 		{
 			testName:           "2min_1rps",
@@ -41,7 +41,7 @@ func TestWarmStartMatrix(t *testing.T) {
 				1_000_000, 1_000_000, 1_000_000, 1_000_000, 1_000_000, 1_000_000, 1_000_000, 1_000_000, 1_000_000, 1_000_000,
 				1_000_000, 1_000_000, 1_000_000, 1_000_000, 1_000_000, 1_000_000, 1_000_000, 1_000_000, 1_000_000, 1_000_000,
 			},
-			expectedCount: []int{60, 60},
+			expectedPerMinuteCount: []int{60, 60},
 		},
 		{
 			testName:           "2min_0.5rps",
@@ -63,7 +63,7 @@ func TestWarmStartMatrix(t *testing.T) {
 				2_000_000, 2_000_000, 2_000_000, 2_000_000, 2_000_000,
 				2_000_000, 2_000_000, 2_000_000, 2_000_000, 2_000_000,
 			},
-			expectedCount: []int{30, 30},
+			expectedPerMinuteCount: []int{30, 30},
 		},
 		{
 			testName:           "2min_0.125rps",
@@ -75,21 +75,30 @@ func TestWarmStartMatrix(t *testing.T) {
 				// minute 2
 				8_000_000, 8_000_000, 8_000_000, 8_000_000, 8_000_000, 8_000_000, 8_000_000,
 			},
-			expectedCount: []int{8, 7},
+			expectedPerMinuteCount: []int{8, 7},
+		},
+		{
+			testName:           "6min_0.01rps",
+			experimentDuration: 6,
+			rpsTarget:          0.01,
+			expectedIAT: []float64{
+				0, 100_000_000, 100_000_000, 100_000_000,
+			},
+			expectedPerMinuteCount: []int{1, 1, 0, 1, 0, 1},
 		},
 	}
 
 	epsilon := 0.01
 
 	for _, test := range tests {
-		t.Run("warm_start"+test.testName, func(t *testing.T) {
+		t.Run("warm_start_"+test.testName, func(t *testing.T) {
 			matrix, minuteCount := GenerateWarmStartFunction(test.experimentDuration, test.rpsTarget)
 
 			if len(matrix) != len(test.expectedIAT) {
 				t.Errorf("Unexpected IAT array size - got: %d, expected: %d", len(matrix), len(test.expectedIAT))
 			}
-			if len(minuteCount) != len(test.expectedCount) {
-				t.Errorf("Unexpected count array size - got: %d, expected: %d", len(minuteCount), len(test.expectedCount))
+			if len(minuteCount) != len(test.expectedPerMinuteCount) {
+				t.Errorf("Unexpected count array size - got: %d, expected: %d", len(minuteCount), len(test.expectedPerMinuteCount))
 			}
 
 			sum := 0.0
@@ -102,6 +111,12 @@ func TestWarmStartMatrix(t *testing.T) {
 
 				sum += matrix[i]
 				count++
+			}
+
+			for i := 0; i < len(minuteCount); i++ {
+				if test.expectedPerMinuteCount[i] != minuteCount[i] {
+					t.Error("Unexpected per minute count.")
+				}
 			}
 		})
 	}
@@ -328,6 +343,32 @@ func TestColdStartMatrix(t *testing.T) {
 				{12}, {12}, {12}, {12}, {12},
 			},
 		},
+		{
+			testName:           "6min_0.01rps_10s_cooldown",
+			experimentDuration: 6,
+			rpsTarget:          0.01,
+			cooldownSeconds:    10,
+			expectedIAT: []common.IATArray{
+				{0, 100_000_000, 100_000_000, 100_000_000},
+			},
+			expectedCount: [][]int{
+				{1, 1, 0, 1, 0, 1},
+			},
+		},
+		{
+			testName:           "6min_0.01rps_120s_cooldown",
+			experimentDuration: 6,
+			rpsTarget:          0.01,
+			cooldownSeconds:    120,
+			expectedIAT: []common.IATArray{
+				{0, 200_000_000},
+				{100_000_000, 200_000_000},
+			},
+			expectedCount: [][]int{
+				{1, 0, 0, 1, 0, 0},
+				{0, 1, 0, 0, 0, 1},
+			},
+		},
 	}
 
 	epsilon := 0.01
@@ -362,6 +403,12 @@ func TestColdStartMatrix(t *testing.T) {
 
 					if matrix[fIndex][i] >= 0 {
 						sum += matrix[fIndex][i]
+					}
+				}
+
+				for i := 0; i < len(test.expectedCount[fIndex]); i++ {
+					if test.expectedCount[fIndex][i] != minuteCounts[fIndex][i] {
+						t.Error("Unexpected per minute count.")
 					}
 				}
 			}
