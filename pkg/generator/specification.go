@@ -93,6 +93,10 @@ func (s *SpecificationGenerator) generateIATPerGranularity(minuteIndex int, numb
 		totalDuration += iat
 	}
 
+	if totalDuration == 0 {
+		totalDuration = 1
+	}
+
 	if iatDistribution == common.Uniform || iatDistribution == common.Exponential {
 		// Uniform: 		we need to scale IAT from [0, 1) to [0, 60 seconds)
 		// Exponential: 	we need to scale IAT from [0, +MaxFloat64) to [0, 60 seconds)
@@ -121,11 +125,14 @@ func (s *SpecificationGenerator) generateIATPerGranularity(minuteIndex int, numb
 				break
 			}
 		}
-		beginningIAT := sum - split
-		endIAT := iatResult[i] - beginningIAT
-		finalIAT := append([]float64{beginningIAT}, iatResult[i+1:]...)
-		finalIAT = append(finalIAT, iatResult[:i]...)
-		iatResult = append(finalIAT, endIAT)
+
+		if i < len(iatResult) && i+1 < len(iatResult) {
+			beginningIAT := sum - split
+			endIAT := iatResult[i] - beginningIAT
+			finalIAT := append([]float64{beginningIAT}, iatResult[i+1:]...)
+			finalIAT = append(finalIAT, iatResult[:i]...)
+			iatResult = append(finalIAT, endIAT)
+		}
 	}
 
 	return iatResult, totalDuration
