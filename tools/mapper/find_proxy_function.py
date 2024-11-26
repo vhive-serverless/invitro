@@ -7,6 +7,39 @@ from collections import OrderedDict
 from log_config import *
 from typing import Tuple
 
+def get_duration_errors(trace_function, proxy_function) -> float:
+    """
+    Returns a float value on how close the trace function is to the proxy function. Lower the value, better the correlation.
+    Euclidean distance between only duration is considered for EcoFaaS functions.
+
+    Parameters:
+    - `trace_function` (dict): Dictionary containing information regarding trace function
+    - `proxy_function` (dict): Dictionary containing information regarding proxy function
+
+    Returns:
+    - `float`: closeness value
+    """
+
+    try:
+        trace_duration = trace_function["duration"]["75-percentile"]
+        proxy_duration = proxy_function["duration"]["75-percentile"]
+    except KeyError as e:
+        log.warning(f"Correlation cannot be found. Error: {e}")
+        return math.inf
+
+    # NOTE: Better Error mechanisms can be considered to improve the correlation
+    # Currently only the 75%tile memory and duration are considered.
+    # Euclidean distance between normalized memory and duration is considered
+    try:
+        if trace_duration == 0: trace_duration += 0.01 
+        diff_duration = (math.log(trace_duration) - math.log(proxy_duration)) 
+        error = diff_duration
+        return error
+    except ValueError as e:
+        log.warning(f"Correlation cannot be found. Error: {e}")
+        return math.inf
+
+
 def get_error(trace_function, proxy_function) -> float:
     """
     Returns a float value on how close the trace function is to the proxy function. Lower the value, better the correlation.
@@ -45,7 +78,7 @@ def get_error(trace_function, proxy_function) -> float:
 
 
 def get_proxy_function_using_linear_sum_assignment(
-    trace_functions: dict, proxy_functions: dict
+    trace_functions: dict, proxy_functions: dict, mode: str
 ) -> Tuple[dict, int]:
     """
     Obtains the one-to-one mapped proxy function for every trace function
@@ -83,7 +116,10 @@ def get_proxy_function_using_linear_sum_assignment(
         # Time complexity : O(n^3) where n is the largest of number of rows/columns
         for i in range(m):
             for j in range(n):
-                error_matrix[i, j] = get_error(trace_list[i], proxy_list[j])
+                if mode != "EcoFaaS":
+                    error_matrix[i, j] = get_error(trace_list[i], proxy_list[j])
+                else:
+                    error_matrix[i, j] = get_duration_errors(trace_list[i], proxy_list[i])
 
         # Do the linear sum assignment problem
         row_indices, col_indices = sp.linear_sum_assignment(error_matrix)
@@ -104,9 +140,12 @@ def get_proxy_function_using_linear_sum_assignment(
                     proxy = pf
                     break
             trace_functions[trace]["proxy-function"] = proxy
-            trace_functions[trace]["proxy-correlation"] = get_error(
-                trace_functions[trace], proxy_functions[proxy]
-            )
+            if mode == "EcoFaaS":
+                trace_functions[trace]["proxy-correlation"] = get_duration_errors(trace_functions[trace], proxy_functions[proxy])
+            else:
+                trace_functions[trace]["proxy-correlation"] = get_error(
+                    trace_functions[trace], proxy_functions[proxy]
+                )
             log.debug(
                 f"Found proxy function for {trace}: {trace_functions[trace]['proxy-function']} with correlation: {trace_functions[trace]['proxy-correlation']}"
             )
@@ -132,7 +171,7 @@ def get_proxy_function_using_linear_sum_assignment(
 
 
 def get_closest_proxy_function(
-    trace_functions: dict, proxy_functions: dict
+    trace_functions: dict, proxy_functions: dict, mode: str
 ) -> Tuple[dict, int]:
     """
     Obtains the closest proxy function for every trace function
@@ -156,7 +195,10 @@ def get_closest_proxy_function(
             min_error = math.inf
             min_error_index = -1
             for i in range(0, len(proxy_list)):
-                error = get_error(trace_functions[function_name], proxy_list[i])
+                if mode == "EcoFaaS":
+                    error = get_duration_errors(trace_functions[function_name], proxy_list[i])
+                else:
+                    error = get_error(trace_functions[function_name], proxy_list[i])
                 if error < min_error:
                     min_error = error
                     min_error_index = i
@@ -168,9 +210,12 @@ def get_closest_proxy_function(
             trace_functions[function_name]["proxy-function"] = proxy_list[
                 min_error_index
             ]["name"]
-            trace_functions[function_name]["proxy-correlation"] = get_error(
-                trace_functions[function_name], proxy_list[min_error_index]
-            )
+            if mode == "EcoFaaS":
+                trace_functions[function_name] = get_duration_errors(trace_functions[function_name], proxy_list[min_error_index])
+            else:
+                trace_functions[function_name]["proxy-correlation"] = get_error(
+                    trace_functions[function_name], proxy_list[min_error_index]
+                )
             log.debug(
                 f"Found proxy function for {function_name}: {trace_functions[function_name]['proxy-function']} with correlation: {trace_functions[function_name]['proxy-correlation']}"
             )
@@ -186,7 +231,7 @@ def get_closest_proxy_function(
 
 
 def get_proxy_function(
-    trace_functions: dict, proxy_functions: dict, unique_assignment: bool
+    trace_functions: dict, proxy_functions: dict, unique_assignment: bool, mode: str
 ) -> Tuple[dict, int]:
     """
     Obtains the closest proxy function for every trace function
@@ -213,7 +258,7 @@ def get_proxy_function(
             f"Getting One-To-One mapping between trace function and proxy function using Linear-Sum-Assignment"
         )
         trace_functions, err = get_proxy_function_using_linear_sum_assignment(
-            trace_functions=trace_functions, proxy_functions=proxy_functions
+            trace_functions=trace_functions, proxy_functions=proxy_functions, mode=mode
         )
         if err == -1:
             log.error(
@@ -223,7 +268,7 @@ def get_proxy_function(
                 f"Getting closest proxy function for every trace function. Note: Mapping may not be unique"
             )
             trace_functions, err = get_closest_proxy_function(
-                trace_functions=trace_functions, proxy_functions=proxy_functions
+                trace_functions=trace_functions, proxy_functions=proxy_functions, mode=mode
             )
 
     elif (unique_assignment) and (len(trace_functions) > len(proxy_functions)):
@@ -234,7 +279,7 @@ def get_proxy_function(
             f"Getting closest proxy function for every trace function. Note: Mapping may not be unique"
         )
         trace_functions, err = get_closest_proxy_function(
-            trace_functions=trace_functions, proxy_functions=proxy_functions
+            trace_functions=trace_functions, proxy_functions=proxy_functions, mode=mode
         )
 
     else:
@@ -242,7 +287,7 @@ def get_proxy_function(
             f"Getting closest proxy function for every trace function. Note: Mapping may not be unique"
         )
         trace_functions, err = get_closest_proxy_function(
-            trace_functions=trace_functions, proxy_functions=proxy_functions
+            trace_functions=trace_functions, proxy_functions=proxy_functions, mode=mode
         )
 
     if err == -1:

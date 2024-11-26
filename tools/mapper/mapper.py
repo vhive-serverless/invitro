@@ -81,11 +81,20 @@ def main():
         default=False,
         required=False,
     )
+    parser.add_argument(
+        "-m",
+        "--mode",
+        type=str,
+        help="Whether to use EcoFaaS functions or not",
+        default="vSwarm",
+        required=False,
+    )
     args = parser.parse_args()
     trace_directorypath = args.trace_directorypath
     profile_filepath = args.profile_filepath
     output_filepath = trace_directorypath + "/mapper_output.json"
     unique_assignment = args.unique_assignment
+    mode = args.mode
     trace_functions, err = load_trace(trace_directorypath)
     if err == -1:
         log.critical(f"Load Generation failed")
@@ -117,6 +126,7 @@ def main():
         trace_functions=trace_functions,
         proxy_functions=proxy_functions,
         unique_assignment=unique_assignment,
+        mode=mode,
     )
     if err == -1:
         log.critical(f"Load Generation failed")
