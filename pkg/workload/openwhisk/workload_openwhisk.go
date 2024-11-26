@@ -26,34 +26,10 @@ package main
 
 import (
 	"encoding/json"
+	util "github.com/vhive-serverless/loader/pkg/common"
 	"strconv"
 	"time"
 )
-
-// static double SQRTSD (double x) {
-//     double r;
-//     __asm__ ("sqrtsd %1, %0" : "=x" (r) : "x" (x));
-//     return r;
-// }
-import "C"
-
-const ExecUnit int = 1e2
-
-func takeSqrts() C.double {
-	var tmp C.double // Circumvent compiler optimizations
-	for i := 0; i < ExecUnit; i++ {
-		tmp = C.SQRTSD(C.double(10))
-	}
-	return tmp
-}
-
-func busySpin(multiplier, runtimeMilli uint32) {
-	totalIterations := int(multiplier * runtimeMilli)
-
-	for i := 0; i < totalIterations; i++ {
-		takeSqrts()
-	}
-}
 
 type FunctionResponse struct {
 	Status        string `json:"Status"`
@@ -76,13 +52,7 @@ func Main(obj map[string]interface{}) map[string]interface{} {
 	start := time.Now()
 	timeLeftMilliseconds := uint32(ts)
 
-	timeConsumedMilliseconds := uint32(time.Since(start).Milliseconds())
-	if timeConsumedMilliseconds < timeLeftMilliseconds {
-		timeLeftMilliseconds -= timeConsumedMilliseconds
-		if timeLeftMilliseconds > 0 {
-			busySpin(uint32(155), timeLeftMilliseconds)
-		}
-	}
+	util.TraceFunctionExecution(start, uint32(155), timeLeftMilliseconds)
 
 	responseBytes, _ := json.Marshal(FunctionResponse{
 		Status:        "OK",

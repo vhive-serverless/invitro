@@ -24,6 +24,7 @@
 
 package standard
 
+import "C"
 import (
 	"context"
 	"fmt"
@@ -42,21 +43,6 @@ import (
 	"google.golang.org/grpc/reflection"
 )
 
-// static double SQRTSD (double x) {
-//     double r;
-//     __asm__ ("sqrtsd %1, %0" : "=x" (r) : "x" (x));
-//     return r;
-// }
-import "C"
-
-const (
-	// ContainerImageSizeMB was chosen as a median of the container physical memory usage.
-	// Allocate this much less memory inside the actual function.
-	ContainerImageSizeMB = 15
-)
-
-const EXEC_UNIT int = 1e2
-
 var hostname string
 var IterationsMultiplier int
 var serverSideCode FunctionType
@@ -68,38 +54,8 @@ const (
 	EmptyFunction FunctionType = 1
 )
 
-func takeSqrts() C.double {
-	var tmp C.double // Circumvent compiler optimizations
-	for i := 0; i < EXEC_UNIT; i++ {
-		tmp = C.SQRTSD(C.double(10))
-	}
-	return tmp
-}
-
 type funcServer struct {
 	proto.UnimplementedExecutorServer
-}
-
-func busySpin(runtimeMilli uint32) {
-	totalIterations := IterationsMultiplier * int(runtimeMilli)
-
-	for i := 0; i < totalIterations; i++ {
-		takeSqrts()
-	}
-}
-
-func TraceFunctionExecution(start time.Time, timeLeftMilliseconds uint32) (msg string) {
-	timeConsumedMilliseconds := uint32(time.Since(start).Milliseconds())
-	if timeConsumedMilliseconds < timeLeftMilliseconds {
-		timeLeftMilliseconds -= timeConsumedMilliseconds
-		if timeLeftMilliseconds > 0 {
-			busySpin(timeLeftMilliseconds)
-		}
-
-		msg = fmt.Sprintf("OK - %s", hostname)
-	}
-
-	return msg
 }
 
 func (s *funcServer) Execute(_ context.Context, req *proto.FaasRequest) (*proto.FaasReply, error) {
@@ -120,7 +76,7 @@ func (s *funcServer) Execute(_ context.Context, req *proto.FaasRequest) (*proto.
 		//memory := make([]byte, toAllocate)
 		// NOTE: the following statement to make sure the compiler does not treat the allocation as dead code
 		//log.Debugf("Allocated memory size: %d\n", len(memory))
-		msg = TraceFunctionExecution(start, timeLeftMilliseconds)
+		msg = util.TraceFunctionExecution(start, uint32(IterationsMultiplier), timeLeftMilliseconds)
 	} else {
 		msg = fmt.Sprintf("OK - EMPTY - %s", hostname)
 	}
