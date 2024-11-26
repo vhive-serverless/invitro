@@ -118,12 +118,32 @@ func TestSerialGenerateIAT(t *testing.T) {
 			testDistribution: false,
 		},
 		{
-			testName:         "one_invocations_exponential_shift",
+			testName:         "one_invocations_exponential_shift_1",
 			invocations:      []int{1},
 			iatDistribution:  common.Exponential,
-			shiftIAT:         false,
+			shiftIAT:         true,
 			granularity:      common.MinuteGranularity,
-			expectedPoints:   []float64{0},
+			expectedPoints:   []float64{0}, // ignore absolute values since with shiftIAT=true, just count
+			testDistribution: false,
+		},
+		{
+			testName:         "one_invocations_exponential_shift_2",
+			invocations:      []int{3},
+			iatDistribution:  common.Exponential,
+			shiftIAT:         true,
+			granularity:      common.MinuteGranularity,
+			expectedPoints:   []float64{0, 0, 0, 0}, // ignore absolute values since with shiftIAT=true, just count
+			testDistribution: false,
+		},
+		{
+			testName:        "1min_1ipm_exponential",
+			invocations:     []int{1},
+			iatDistribution: common.Exponential,
+			shiftIAT:        false,
+			granularity:     common.MinuteGranularity,
+			expectedPoints: []float64{
+				0,
+			},
 			testDistribution: false,
 		},
 		{
@@ -339,7 +359,7 @@ func TestSerialGenerateIAT(t *testing.T) {
 						break
 					}
 
-					if math.Abs(IAT[i]-test.expectedPoints[i]) > epsilon {
+					if !test.shiftIAT && math.Abs(IAT[i]-test.expectedPoints[i]) > epsilon {
 						log.Debug(fmt.Sprintf("got: %f, expected: %f\n", IAT[i], test.expectedPoints[i]))
 
 						failed = true
