@@ -61,7 +61,11 @@ func TestConfigParser(t *testing.T) {
 		config.MetricScrapingPeriodSeconds != 15 ||
 		config.AutoscalingMetric != "concurrency" ||
 		config.GRPCConnectionTimeoutSeconds != 15 ||
-		config.GRPCFunctionTimeoutSeconds != 900 {
+		config.GRPCFunctionTimeoutSeconds != 900 ||
+		config.DAGMode != false ||
+		config.EnableDAGDataset != true ||
+		config.Width != 2 ||
+		config.Depth != 2 {
 
 		t.Error("Unexpected configuration read.")
 	}
