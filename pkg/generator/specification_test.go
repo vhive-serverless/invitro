@@ -82,19 +82,19 @@ func TestGenerateDistribution(t *testing.T) {
 			count:           1,
 			iatDistribution: common.Equidistant,
 			granularity:     common.MinuteGranularity,
-			expectedPoints:  []float64{0},
+			expectedPoints:  []float64{0, 60_000_000},
 		},
 		{
 			count:           2,
 			iatDistribution: common.Equidistant,
 			granularity:     common.MinuteGranularity,
-			expectedPoints:  []float64{0, 30_000_000},
+			expectedPoints:  []float64{0, 30_000_000, 30_000_000},
 		},
 		{
 			count:           4,
 			iatDistribution: common.Equidistant,
 			granularity:     common.MinuteGranularity,
-			expectedPoints:  []float64{0, 15_000_000, 15_000_000, 15_000_000},
+			expectedPoints:  []float64{0, 15_000_000, 15_000_000, 15_000_000, 15_000_000},
 		},
 	}
 
@@ -186,21 +186,27 @@ func TestSerialGenerateIAT(t *testing.T) {
 			testDistribution: false,
 		},
 		{
-			testName:         "one_invocations_exponential_shift_1",
-			invocations:      []int{1},
-			iatDistribution:  common.Exponential,
-			shiftIAT:         true,
-			granularity:      common.MinuteGranularity,
-			expectedPoints:   []float64{0}, // ignore absolute values since with shiftIAT=true, just count
+			testName:        "one_invocations_exponential_shift_1",
+			invocations:     []int{1},
+			iatDistribution: common.Exponential,
+			shiftIAT:        true,
+			granularity:     common.MinuteGranularity,
+			expectedPoints: []float64{
+				11_689_078.788397402,
+			},
 			testDistribution: false,
 		},
 		{
-			testName:         "one_invocations_exponential_shift_2",
-			invocations:      []int{3},
-			iatDistribution:  common.Exponential,
-			shiftIAT:         true,
-			granularity:      common.MinuteGranularity,
-			expectedPoints:   []float64{0, 0, 0, 0}, // ignore absolute values since with shiftIAT=true, just count
+			testName:        "one_invocations_exponential_shift_2",
+			invocations:     []int{3},
+			iatDistribution: common.Exponential,
+			shiftIAT:        true,
+			granularity:     common.MinuteGranularity,
+			expectedPoints: []float64{
+				13_794_305.088992357,
+				14_731_963.725122724,
+				11_882_919.652012857,
+			},
 			testDistribution: false,
 		},
 		{
@@ -355,7 +361,7 @@ func TestSerialGenerateIAT(t *testing.T) {
 			testDistribution: false,
 		},
 		{
-			testName:        "2sec_5ipm_with_zero_equidistant",
+			testName:        "2sec_5ipm_with_zero_equidistant_1",
 			invocations:     []int{0, 1, 0, 1},
 			iatDistribution: common.Equidistant,
 			shiftIAT:        false,
@@ -367,7 +373,7 @@ func TestSerialGenerateIAT(t *testing.T) {
 			testDistribution: false,
 		},
 		{
-			testName:        "2min_5ipm_with_zero_equidistant",
+			testName:        "2min_5ipm_with_zero_equidistant_2",
 			invocations:     []int{0, 1, 0, 0, 1},
 			iatDistribution: common.Equidistant,
 			shiftIAT:        false,
@@ -390,7 +396,7 @@ func TestSerialGenerateIAT(t *testing.T) {
 			testDistribution: false,
 		},
 		{
-			testName:        "long_trace_0",
+			testName:        "long_trace_0_equidistant",
 			invocations:     []int{0, 5, 4, 0, 0, 1, 0, 0, 0, 1},
 			iatDistribution: common.Equidistant,
 			shiftIAT:        false,
@@ -415,7 +421,32 @@ func TestSerialGenerateIAT(t *testing.T) {
 			testDistribution: false,
 		},
 		{
-			testName:        "long_trace_1",
+			testName:        "long_trace_0_exponential",
+			invocations:     []int{0, 5, 4, 0, 0, 1, 0, 0, 0, 1},
+			iatDistribution: common.Exponential,
+			shiftIAT:        false,
+			granularity:     common.MinuteGranularity,
+			expectedPoints: []float64{
+				// minute 1
+				60_000_000,           // 1min 0s
+				10_915_517.87088835,  // 1min 10.915s
+				30_667_196.933948774, // 1min 41.582s
+				13_532_618.079060797, // 1min 55.115s
+				4_629_211.062276573,  // 1min 59.744s
+				// minute 2
+				255_456.05382550636,  // 2min
+				22_585_831.064472314, // 2min 22.585s
+				11_847_735.687921358, // 2min 34.436s
+				8_436_481.064108288,  // 3min 42.870s
+				// minute 5
+				137_129_952.18349802, // 5min
+				// minute 9
+				240_000_000, // 9min
+			},
+			testDistribution: false,
+		},
+		{
+			testName:        "long_trace_1_equidistant",
 			invocations:     []int{0, 1, 0, 1, 0, 0, 1, 0, 0, 0, 1},
 			iatDistribution: common.Equidistant,
 			shiftIAT:        false,
@@ -433,7 +464,25 @@ func TestSerialGenerateIAT(t *testing.T) {
 			testDistribution: false,
 		},
 		{
-			testName:        "long_trace_2",
+			testName:        "long_trace_1_exponential",
+			invocations:     []int{0, 1, 0, 1, 0, 0, 1, 0, 0, 0, 1},
+			iatDistribution: common.Exponential,
+			shiftIAT:        false,
+			granularity:     common.MinuteGranularity,
+			expectedPoints: []float64{
+				// minute 1
+				60_000_000, // 1min 0s
+				// minute 3
+				120_000_000, // 3min 0s
+				// minute 5
+				180_000_000, // 7min 0s
+				// minute 9
+				240_000_000, // 11min 0s
+			},
+			testDistribution: false,
+		},
+		{
+			testName:        "long_trace_2_equidistant",
 			invocations:     []int{0, 2, 0, 2, 0, 0, 2, 0, 0, 0, 2},
 			iatDistribution: common.Equidistant,
 			shiftIAT:        false,
@@ -445,17 +494,39 @@ func TestSerialGenerateIAT(t *testing.T) {
 				// minute 3
 				90_000_000, // 3min 0s
 				30_000_000,
-				// minute 5
-				150_000_000, // 7min 0s
+				// minute 6
+				150_000_000, // 6min 0s
 				30_000_000,
-				// minute 9
-				210_000_000, // 11min 0s
+				// minute 10
+				210_000_000, // 10min 0s
 				30_000_000,
 			},
 			testDistribution: false,
 		},
 		{
-			testName:        "long_trace_3",
+			testName:        "long_trace_2_exponential",
+			invocations:     []int{0, 2, 0, 2, 0, 0, 2, 0, 0, 0, 2},
+			iatDistribution: common.Exponential,
+			shiftIAT:        false,
+			granularity:     common.MinuteGranularity,
+			expectedPoints: []float64{
+				// minute 1
+				60_000_000,           // 1min
+				15_750_079.698430749, // 1min 15.750s
+				// minute 3
+				104_249_920.30156925, // 3min
+				44_706_790.18202999,  // 3min 44.706s
+				// minute 6
+				135_293_209.81797, // 7min
+				458_336.491206043, // 7min 0.458s
+				// minute 10
+				239_541_663.50879395, // 10min
+				35_045_185.62217357,  // 10min 35.045s
+			},
+			testDistribution: false,
+		},
+		{
+			testName:        "long_trace_3_equidistant",
 			invocations:     []int{0, 0, 4, 0, 1, 5, 0, 0, 0, 1, 0},
 			iatDistribution: common.Equidistant,
 			shiftIAT:        false,
@@ -476,6 +547,31 @@ func TestSerialGenerateIAT(t *testing.T) {
 				12_000_000, // 5min 48s
 				// minute 9
 				192_000_000, // 9min 0s
+			},
+			testDistribution: false,
+		},
+		{
+			testName:        "long_trace_3_exponential",
+			invocations:     []int{0, 0, 4, 0, 1, 5, 0, 0, 0, 1, 0},
+			iatDistribution: common.Exponential,
+			shiftIAT:        false,
+			granularity:     common.MinuteGranularity,
+			expectedPoints: []float64{
+				// minute 2
+				120_000_000,          // 2min 0s
+				10_962_190.503008047, // 2min 10.962s
+				30_798_323.905437488, // 2min 41.760s
+				13_590_480.922829745, // 2min 55.350s
+				// minute 4
+				64_649_004.668724716, // 3min 0s
+				// minute 5
+				60_000_000,           // 5min 0s
+				18_462_616.56871746,  // 5min 18.463s
+				9_684_841.819156349,  // 5min 28.328s
+				6_896_337.559209308,  // 5min 35.224s
+				14_002_749.693008821, // 5min 49.226s
+				// minute 9
+				190_953_454.35990804, // 9min 0s
 			},
 			testDistribution: false,
 		},
@@ -507,7 +603,7 @@ func TestSerialGenerateIAT(t *testing.T) {
 						break
 					}
 
-					if !test.shiftIAT && math.Abs(IAT[i]-test.expectedPoints[i]) > epsilon {
+					if math.Abs(IAT[i]-test.expectedPoints[i]) > epsilon {
 						log.Debug(fmt.Sprintf("got: %f, expected: %f\n", IAT[i], test.expectedPoints[i]))
 
 						failed = true
