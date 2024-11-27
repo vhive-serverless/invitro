@@ -51,17 +51,13 @@ func NewSpecificationGenerator(seed int64) *SpecificationGenerator {
 func (s *SpecificationGenerator) generateIATPerGranularity(numberOfInvocations int, iatDistribution common.IatDistribution, shiftIAT bool, granularity common.TraceGranularity) ([]float64, float64) {
 	if numberOfInvocations == 0 {
 		// no invocations in the current minute
-		return []float64{}, 0.0
+		return []float64{getBlankTimeUnit(granularity)}, 0.0
 	}
 
 	var iatResult []float64
 	totalDuration := 0.0 // total non-scaled duration
 
-	// first invocation at the beginning of minute
-	iatResult = []float64{0.0}
-	endIndex := numberOfInvocations - 1
-
-	for i := 0; i < endIndex; i++ {
+	for i := 0; i < numberOfInvocations; i++ {
 		var iat float64
 
 		switch iatDistribution {
@@ -123,13 +119,13 @@ func (s *SpecificationGenerator) generateIATPerGranularity(numberOfInvocations i
 			}
 		}
 
-		if i < len(iatResult) && i+1 < len(iatResult) {
-			beginningIAT := sum - split
-			endIAT := iatResult[i] - beginningIAT
-			finalIAT := append([]float64{beginningIAT}, iatResult[i+1:]...)
-			finalIAT = append(finalIAT, iatResult[:i]...)
-			iatResult = append(finalIAT, endIAT)
-		}
+		beginningIAT := sum - split
+		endIAT := iatResult[i] - beginningIAT
+		finalIAT := append([]float64{beginningIAT}, iatResult[i+1:]...)
+		finalIAT = append(finalIAT, iatResult[:i]...)
+		iatResult = append(finalIAT, endIAT)
+	} else {
+		iatResult = append([]float64{0.0}, iatResult...)
 	}
 
 	return iatResult, totalDuration
@@ -147,54 +143,23 @@ func getBlankTimeUnit(granularity common.TraceGranularity) float64 {
 func (s *SpecificationGenerator) generateIAT(invocationsPerMinute []int, iatDistribution common.IatDistribution,
 	shiftIAT bool, granularity common.TraceGranularity) (common.IATArray, []int, common.ProbabilisticDuration) {
 
-	var IAT []float64
+	var IAT = []float64{0.0}
 	var perMinuteCount []int
 	var nonScaledDuration []float64
-
-	emptyTime := 0.0
-	firstInvocation := true
-	lastNonZeroIndex := -1
 
 	numberOfMinutes := len(invocationsPerMinute)
 	for i := 0; i < numberOfMinutes; i++ {
 		minuteIAT, duration := s.generateIATPerGranularity(invocationsPerMinute[i], iatDistribution, shiftIAT, granularity)
 
-		perMinuteCount = append(perMinuteCount, len(minuteIAT))
+		IAT[len(IAT)-1] += minuteIAT[0]
+		IAT = append(IAT, minuteIAT[1:]...)
+
+		perMinuteCount = append(perMinuteCount, len(minuteIAT)-1)
 		// for distribution tests in Go unit tests
 		nonScaledDuration = append(nonScaledDuration, duration)
-
-		if perMinuteCount[i] == 0 {
-			// accumulate empty time
-			emptyTime += getBlankTimeUnit(granularity)
-			continue
-		} else {
-			// if perMinuteCount for last non-empty minute == 1
-			// then X = getBlankTimeUnit(granularity)	=> case when minute was not split
-			// else X = IAT[len(IAT) - 1]				=> case when minute was split
-			// minuteIAT[0] = emptyTime + X
-
-			minuteIAT[0] += emptyTime
-			if !firstInvocation && perMinuteCount[lastNonZeroIndex] != 1 {
-				minuteIAT[0] += IAT[len(IAT)-1]
-			} else if !firstInvocation && perMinuteCount[lastNonZeroIndex] == 1 {
-				minuteIAT[0] += getBlankTimeUnit(granularity)
-			}
-
-			IAT = append(IAT, minuteIAT...)
-
-			// reset accumulator
-			emptyTime = 0.0
-			// first invocation in the trace is different
-			firstInvocation = false
-		}
-
-		// record this minute as last non-zero if true
-		if perMinuteCount[i] > 0 {
-			lastNonZeroIndex = i
-		}
 	}
 
-	return IAT, perMinuteCount, nonScaledDuration
+	return IAT[:len(IAT)-1], perMinuteCount, nonScaledDuration
 }
 
 func (s *SpecificationGenerator) GenerateInvocationData(function *common.Function, iatDistribution common.IatDistribution, shiftIAT bool, granularity common.TraceGranularity) *common.FunctionSpecification {
