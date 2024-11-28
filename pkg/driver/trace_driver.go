@@ -95,12 +95,10 @@ type InvocationMetadata struct {
 	Phase        common.ExperimentPhase
 
 	InvocationID string
-	MinuteIndex  int
 	IatIndex     int
 
-	SuccessCount        *int64
-	FailedCount         *int64
-	FailedCountByMinute []int64
+	SuccessCount *int64
+	FailedCount  *int64
 
 	RecordOutputChannel chan *mc.ExecutionRecord
 	AnnounceDoneWG      *sync.WaitGroup
@@ -146,7 +144,7 @@ func (d *Driver) invokeFunction(metadata *InvocationMetadata) {
 		}
 
 		if !success {
-			log.Debugf("Invocation failed at minute: %d for %s", metadata.MinuteIndex, function.Name)
+			log.Errorf("Invocation with for function %s with ID %s failed.", function.Name, metadata.InvocationID)
 			break
 		}
 
@@ -156,86 +154,73 @@ func (d *Driver) invokeFunction(metadata *InvocationMetadata) {
 		atomic.AddInt64(metadata.SuccessCount, 1)
 	} else {
 		atomic.AddInt64(metadata.FailedCount, 1)
-		atomic.AddInt64(&metadata.FailedCountByMinute[metadata.MinuteIndex], 1)
 	}
 }
 
-func (d *Driver) functionsDriver(list *list.List, announceFunctionDone *sync.WaitGroup,
-	addInvocationsToGroup *sync.WaitGroup, totalSuccessful *int64,
-	totalFailed *int64, totalIssued *int64, recordOutputChannel chan *mc.ExecutionRecord) {
+func getTotalInvocationCount(perMinuteCount []int, traceDuration int, granularity common.TraceGranularity) int {
+	if len(perMinuteCount) == 0 {
+		return 0
+	}
+
+	if granularity == common.SecondGranularity {
+		traceDuration *= 60
+	}
+
+	sum := 0
+	for i := 0; i < traceDuration; i++ {
+		sum += perMinuteCount[i]
+	}
+
+	return sum
+}
+
+func (d *Driver) functionsDriver(list *list.List, announceFunctionDone *sync.WaitGroup, addInvocationsToGroup *sync.WaitGroup, totalSuccessful *int64, totalFailed *int64, totalIssued *int64, recordOutputChannel chan *mc.ExecutionRecord) {
+	defer announceFunctionDone.Done()
 
 	function := list.Front().Value.(*common.Function)
-	numberOfInvocations := 0
-	for i := 0; i < len(function.Specification.PerMinuteCount); i++ {
-		numberOfInvocations += function.Specification.PerMinuteCount[i]
-	}
-	addInvocationsToGroup.Add(numberOfInvocations)
+	invocationCount := getTotalInvocationCount(function.Specification.PerMinuteCount, d.Configuration.TraceDuration, d.Configuration.TraceGranularity)
+	addInvocationsToGroup.Add(invocationCount)
 
-	totalTraceDuration := d.Configuration.TraceDuration
-	minuteIndex, invocationIndex := 0, 0
+	if invocationCount == 0 {
+		log.Debugf("No invocations found for function %s.\n", function.Name)
+		return
+	}
+
+	// result statistics
+	minuteIndexSearch := common.NewIntervalSearch(function.Specification.PerMinuteCount)
+	interval := minuteIndexSearch.SearchInterval(0)
+	minuteIndexEnd, minuteIndex, invocationSinceTheBeginningOfMinute := interval.End, interval.Value, 0
 
 	IAT := function.Specification.IAT
+	iatIndex, terminationIAT := 0, invocationCount
 
 	var successfulInvocations int64
 	var failedInvocations int64
-	var failedInvocationByMinute = make([]int64, totalTraceDuration)
 	var numberOfIssuedInvocations int64
 	var currentPhase = common.ExecutionPhase
 
 	waitForInvocations := sync.WaitGroup{}
-	currentMinute, invokedSinceExperimentStarted := 0, 0
 
 	if d.Configuration.WithWarmup() {
 		currentPhase = common.WarmupPhase
-		// skip the first minute because of profiling
-		minuteIndex = 1
-		currentMinute = 1
-
 		log.Infof("Warmup phase has started.")
 	}
 
-	startOfMinute := time.Now()
-	var previousIATSum int64
+	experimentStart := time.Now()
+	startOfIteration := time.Now()
 
 	for {
-		if minuteIndex != currentMinute {
-			// postpone summation of invocation count for the beginning of each minute
-			invokedSinceExperimentStarted += function.Specification.PerMinuteCount[currentMinute]
-			currentMinute = minuteIndex
-		}
-
-		iatIndex := invokedSinceExperimentStarted + invocationIndex
-
-		if minuteIndex >= totalTraceDuration || iatIndex >= len(IAT) {
-			// Check whether the end of trace has been reached
-			break
-		} else if function.Specification.PerMinuteCount[minuteIndex] == 0 {
-			// Sleep for a minute if there are no invocations
-			if d.proceedToNextMinute(function, &minuteIndex, &invocationIndex,
-				&startOfMinute, true, &currentPhase, failedInvocationByMinute, &previousIATSum) {
-				break
-			}
-
-			switch d.Configuration.TraceGranularity {
-			case common.MinuteGranularity:
-				time.Sleep(time.Minute)
-			case common.SecondGranularity:
-				time.Sleep(time.Second)
-			default:
-				log.Fatal("Unsupported trace granularity.")
-			}
-
-			continue
+		if iatIndex >= len(IAT) || iatIndex >= terminationIAT {
+			break // end of experiment for this individual function driver
 		}
 
 		iat := time.Duration(IAT[iatIndex]) * time.Microsecond
 
-		currentTime := time.Now()
-		schedulingDelay := currentTime.Sub(startOfMinute).Microseconds() - previousIATSum
-		sleepFor := iat.Microseconds() - schedulingDelay
-		time.Sleep(time.Duration(sleepFor) * time.Microsecond)
+		schedulingDelay := time.Since(startOfIteration)
+		sleepFor := iat - schedulingDelay
+		time.Sleep(sleepFor)
 
-		previousIATSum += iat.Microseconds()
+		startOfIteration = time.Now()
 
 		if !d.Configuration.TestMode {
 			waitForInvocations.Add(1)
@@ -243,39 +228,41 @@ func (d *Driver) functionsDriver(list *list.List, announceFunctionDone *sync.Wai
 			go d.invokeFunction(&InvocationMetadata{
 				RootFunction:        list,
 				Phase:               currentPhase,
-				InvocationID:        composeInvocationID(d.Configuration.TraceGranularity, minuteIndex, invocationIndex),
-				MinuteIndex:         minuteIndex,
+				InvocationID:        composeInvocationID(d.Configuration.TraceGranularity, minuteIndex, invocationSinceTheBeginningOfMinute),
 				IatIndex:            iatIndex,
 				SuccessCount:        &successfulInvocations,
 				FailedCount:         &failedInvocations,
-				FailedCountByMinute: failedInvocationByMinute,
 				RecordOutputChannel: recordOutputChannel,
 				AnnounceDoneWG:      &waitForInvocations,
 				AnnounceDoneExe:     addInvocationsToGroup,
 			})
 		} else {
 			// To be used from within the Golang testing framework
-			log.Debugf("Test mode invocation fired.\n")
+			invocationID := composeInvocationID(d.Configuration.TraceGranularity, minuteIndex, invocationSinceTheBeginningOfMinute)
+			log.Debugf("Test mode invocation fired - ID = %s.\n", invocationID)
 
 			recordOutputChannel <- &mc.ExecutionRecord{
 				ExecutionRecordBase: mc.ExecutionRecordBase{
 					Phase:        int(currentPhase),
-					InvocationID: composeInvocationID(d.Configuration.TraceGranularity, minuteIndex, invocationIndex),
+					InvocationID: invocationID,
 					StartTime:    time.Now().UnixNano(),
 				},
 			}
 
 			successfulInvocations++
 		}
+
 		numberOfIssuedInvocations++
-		invocationIndex++
+		iatIndex++
 
-		if function.InvocationStats.Invocations[minuteIndex] == invocationIndex || hasMinuteExpired(startOfMinute) {
-			readyToBreak := d.proceedToNextMinute(function, &minuteIndex, &invocationIndex, &startOfMinute,
-				false, &currentPhase, failedInvocationByMinute, &previousIATSum)
+		d.announceWarmupEnd(experimentStart, &currentPhase)
 
-			if readyToBreak {
-				break
+		// counter updates
+		invocationSinceTheBeginningOfMinute++
+		if iatIndex > minuteIndexEnd {
+			interval = minuteIndexSearch.SearchInterval(iatIndex)
+			if interval != nil { // otherwise, the experiment will terminate in the next for loop iteration
+				minuteIndexEnd, minuteIndex, invocationSinceTheBeginningOfMinute = interval.End, interval.Value, 0
 			}
 		}
 	}
@@ -283,60 +270,20 @@ func (d *Driver) functionsDriver(list *list.List, announceFunctionDone *sync.Wai
 	waitForInvocations.Wait()
 
 	log.Debugf("All the invocations for function %s have been completed.\n", function.Name)
-	announceFunctionDone.Done()
 
 	atomic.AddInt64(totalSuccessful, successfulInvocations)
 	atomic.AddInt64(totalFailed, failedInvocations)
 	atomic.AddInt64(totalIssued, numberOfIssuedInvocations)
 }
 
-func (d *Driver) proceedToNextMinute(function *common.Function, minuteIndex *int, invocationIndex *int, startOfMinute *time.Time,
-	skipMinute bool, currentPhase *common.ExperimentPhase, failedInvocationByMinute []int64, previousIATSum *int64) bool {
-	// TODO: fault check disabled for now; refactor the commented code below
-	/*if d.Configuration.TraceGranularity == common.MinuteGranularity && !strings.HasSuffix(d.Configuration.LoaderConfiguration.Platform, "-RPS") {
-		if !isRequestTargetAchieved(function.Specification.PerMinuteCount[*minuteIndex], *invocationIndex, common.RequestedVsIssued) {
-			// Not fatal because we want to keep the measurements to be written to the output file
-			log.Warnf("Relative difference between requested and issued number of invocations is greater than %.2f%%. Terminating function driver for %s!\n", common.RequestedVsIssuedTerminateThreshold*100, function.Name)
-
-			return true
-		}
-
-		for i := 0; i <= *minuteIndex; i++ {
-			notFailedCount := function.Specification.PerMinuteCount[i] - int(atomic.LoadInt64(&failedInvocationByMinute[i]))
-			if !isRequestTargetAchieved(function.Specification.PerMinuteCount[i], notFailedCount, common.IssuedVsFailed) {
-				// Not fatal because we want to keep the measurements to be written to the output file
-				log.Warnf("Percentage of failed request is greater than %.2f%%. Terminating function driver for %s!\n", common.FailedTerminateThreshold*100, function.Name)
-
-				return true
-			}
-		}
-	}*/
-
-	*minuteIndex++
-	*invocationIndex = 0
-	*previousIATSum = 0
-
-	if d.Configuration.WithWarmup() && *minuteIndex == (d.Configuration.LoaderConfiguration.WarmupDuration+1) {
+func (d *Driver) announceWarmupEnd(start time.Time, currentPhase *common.ExperimentPhase) {
+	if *currentPhase == common.WarmupPhase && hasMinuteExpired(start) {
 		*currentPhase = common.ExecutionPhase
 		log.Infof("Warmup phase has finished. Starting the execution phase.")
 	}
-
-	if !skipMinute {
-		*startOfMinute = time.Now()
-	} else {
-		switch d.Configuration.TraceGranularity {
-		case common.MinuteGranularity:
-			*startOfMinute = time.Now().Add(time.Minute)
-		case common.SecondGranularity:
-			*startOfMinute = time.Now().Add(time.Second)
-		default:
-			log.Fatal("Unsupported trace granularity.")
-		}
-	}
-
-	return false
 }
 
+// TODO: currently unused - add issued/requested monitoring feature
 func isRequestTargetAchieved(ideal int, real int, assertType common.RuntimeAssertType) bool {
 	if ideal == 0 {
 		return true
@@ -429,7 +376,7 @@ func (d *Driver) internalRun() {
 	var failedInvocations int64
 	var invocationsIssued int64
 	var functionsPerDAG int64
-	
+
 	allFunctionsInvoked := sync.WaitGroup{}
 	allIndividualDriversCompleted := sync.WaitGroup{}
 	allRecordsWritten := sync.WaitGroup{}
