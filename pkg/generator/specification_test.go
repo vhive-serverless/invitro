@@ -76,7 +76,7 @@ func TestGenerateDistribution(t *testing.T) {
 			count:           0,
 			iatDistribution: common.Equidistant,
 			granularity:     common.MinuteGranularity,
-			expectedPoints:  []float64{},
+			expectedPoints:  []float64{60_000_000},
 		},
 		{
 			count:           1,
@@ -106,16 +106,13 @@ func TestGenerateDistribution(t *testing.T) {
 			sg := NewSpecificationGenerator(123)
 			data, _ := sg.generateIATPerGranularity(test.count, test.iatDistribution, false, test.granularity)
 
+			if len(test.expectedPoints) != len(data) {
+				t.Errorf("wrong number of IATs in the minute, got: %d, expected: %d\n", len(data), len(test.expectedPoints))
+			}
+
 			failed := false
 			if test.expectedPoints != nil {
 				for i := 0; i < len(test.expectedPoints); i++ {
-					if len(test.expectedPoints) != len(data) {
-						log.Debug(fmt.Sprintf("wrong number of IATs in the minute, got: %d, expected: %d\n", len(data), len(test.expectedPoints)))
-
-						failed = true
-						break
-					}
-
 					if math.Abs(data[i]-test.expectedPoints[i]) > epsilon {
 						log.Debug(fmt.Sprintf("got: %f, expected: %f\n", data[i], test.expectedPoints[i]))
 
@@ -197,7 +194,7 @@ func TestSerialGenerateIAT(t *testing.T) {
 			testDistribution: false,
 		},
 		{
-			testName:        "one_invocations_exponential_shift_2",
+			testName:        "one_invocations_exponential_shift_3",
 			invocations:     []int{3},
 			iatDistribution: common.Exponential,
 			shiftIAT:        true,
