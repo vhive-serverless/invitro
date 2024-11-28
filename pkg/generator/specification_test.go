@@ -642,6 +642,19 @@ func TestSerialGenerateIAT(t *testing.T) {
 				}
 			}
 
+			if len(test.invocations) != len(perMinuteCount) {
+				t.Errorf("wrong length of per-minute count, got: %d, expected: %d\n", len(perMinuteCount), len(test.invocations))
+			}
+
+			for i := 0; i < len(test.invocations); i++ {
+				if perMinuteCount[i] != test.invocations[i] {
+					log.Debug(fmt.Sprintf("wrong per-minute count - got: %d, expected: %d\n", perMinuteCount[i], test.invocations[i]))
+
+					failed = true
+					// no break statement for debugging purpose
+				}
+			}
+
 			if failed {
 				t.Error("Test " + test.testName + " has failed due to incorrectly generated IAT.")
 			}
