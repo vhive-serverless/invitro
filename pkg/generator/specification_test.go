@@ -147,17 +147,8 @@ func TestSerialGenerateIAT(t *testing.T) {
 		testDistribution bool
 	}{
 		{
-			testName:         "no_invocations_equidistant",
-			invocations:      []int{5},
-			iatDistribution:  common.Equidistant,
-			shiftIAT:         false,
-			granularity:      common.MinuteGranularity,
-			expectedPoints:   []float64{},
-			testDistribution: false,
-		},
-		{
-			testName:         "no_invocations_exponential",
-			invocations:      []int{5},
+			testName:         "all_zeroes",
+			invocations:      []int{0, 0, 0, 0, 0},
 			iatDistribution:  common.Exponential,
 			shiftIAT:         false,
 			granularity:      common.MinuteGranularity,
@@ -165,16 +156,52 @@ func TestSerialGenerateIAT(t *testing.T) {
 			testDistribution: false,
 		},
 		{
-			testName:         "no_invocations_exponential_shift",
-			invocations:      []int{5},
-			iatDistribution:  common.Exponential,
-			shiftIAT:         true,
-			granularity:      common.MinuteGranularity,
-			expectedPoints:   []float64{},
+			testName:        "5inv_1min_equidistant",
+			invocations:     []int{5},
+			iatDistribution: common.Equidistant,
+			shiftIAT:        false,
+			granularity:     common.MinuteGranularity,
+			expectedPoints: []float64{
+				0,
+				12_000_000,
+				12_000_000,
+				12_000_000,
+				12_000_000,
+			},
 			testDistribution: false,
 		},
 		{
-			testName:         "one_invocations_exponential",
+			testName:        "5inv_1min_exponential",
+			invocations:     []int{5},
+			iatDistribution: common.Exponential,
+			shiftIAT:        false,
+			granularity:     common.MinuteGranularity,
+			expectedPoints: []float64{
+				0,
+				10_915_517.87088835,
+				30_667_196.933948774,
+				13_532_618.079060797,
+				4_629_211.062276573,
+			},
+			testDistribution: false,
+		},
+		{
+			testName:        "5inv_1min_exponential_shift",
+			invocations:     []int{5},
+			iatDistribution: common.Exponential,
+			shiftIAT:        true,
+			granularity:     common.MinuteGranularity,
+			expectedPoints: []float64{
+				98_328.72677667439,
+				255_456.05382550636,
+				10_915_517.87088835,
+				30_667_196.933948774,
+				13_532_618.079060797,
+			},
+			testDistribution: false,
+		},
+		{
+			testName:         "1inv_1min_exponential",
 			invocations:      []int{1},
 			iatDistribution:  common.Exponential,
 			shiftIAT:         false,
@@ -183,7 +210,7 @@ func TestSerialGenerateIAT(t *testing.T) {
 			testDistribution: false,
 		},
 		{
-			testName:        "one_invocations_exponential_shift_1",
+			testName:        "1inv_1min_exponential_shift",
 			invocations:     []int{1},
 			iatDistribution: common.Exponential,
 			shiftIAT:        true,
@@ -194,7 +221,7 @@ func TestSerialGenerateIAT(t *testing.T) {
 			testDistribution: false,
 		},
 		{
-			testName:        "one_invocations_exponential_shift_3",
+			testName:        "3inv_1min_exponential_shift",
 			invocations:     []int{3},
 			iatDistribution: common.Exponential,
 			shiftIAT:        true,
@@ -207,7 +234,7 @@ func TestSerialGenerateIAT(t *testing.T) {
 			testDistribution: false,
 		},
 		{
-			testName:        "1min_1ipm_exponential",
+			testName:        "1inv_1min_exponential",
 			invocations:     []int{1},
 			iatDistribution: common.Exponential,
 			shiftIAT:        false,
@@ -218,7 +245,7 @@ func TestSerialGenerateIAT(t *testing.T) {
 			testDistribution: false,
 		},
 		{
-			testName:        "1min_5ipm_equidistant",
+			testName:        "5inv_1min_equidistant",
 			invocations:     []int{5},
 			iatDistribution: common.Equidistant,
 			shiftIAT:        false,
@@ -233,7 +260,7 @@ func TestSerialGenerateIAT(t *testing.T) {
 			testDistribution: false,
 		},
 		{
-			testName:        "5min_5ipm_equidistant",
+			testName:        "30inv_5min_equidistant",
 			invocations:     []int{5, 5, 5, 5, 5},
 			iatDistribution: common.Equidistant,
 			shiftIAT:        false,
@@ -273,7 +300,7 @@ func TestSerialGenerateIAT(t *testing.T) {
 			testDistribution: false,
 		},
 		{
-			testName:         "1min_1000000ipm_uniform",
+			testName:         "1000000inv_1min_uniform",
 			invocations:      []int{1000000},
 			iatDistribution:  common.Uniform,
 			shiftIAT:         false,
@@ -282,7 +309,7 @@ func TestSerialGenerateIAT(t *testing.T) {
 			testDistribution: true,
 		},
 		{
-			testName:         "1min_1000000ipm_exponential",
+			testName:         "1000000inv_1min_exponential",
 			invocations:      []int{1000000},
 			iatDistribution:  common.Exponential,
 			shiftIAT:         false,
@@ -291,7 +318,7 @@ func TestSerialGenerateIAT(t *testing.T) {
 			testDistribution: true,
 		},
 		{
-			testName:        "2min_5ipm_with_zero_equidistant",
+			testName:        "11inv_3min_equidistant",
 			invocations:     []int{5, 4, 2},
 			iatDistribution: common.Equidistant,
 			shiftIAT:        false,
@@ -315,7 +342,7 @@ func TestSerialGenerateIAT(t *testing.T) {
 			testDistribution: false,
 		},
 		{
-			testName:        "2min_5ipm_with_zero__equidistant",
+			testName:        "5inv_2min_with_zero_equidistant",
 			invocations:     []int{0, 5},
 			iatDistribution: common.Equidistant,
 			shiftIAT:        false,
@@ -330,7 +357,7 @@ func TestSerialGenerateIAT(t *testing.T) {
 			testDistribution: false,
 		},
 		{
-			testName:        "6min_5ipm_with_zero_equidistant",
+			testName:        "15inv_6min_with_zero_equidistant",
 			invocations:     []int{0, 5, 0, 5, 0, 5},
 			iatDistribution: common.Equidistant,
 			shiftIAT:        false,
@@ -358,7 +385,7 @@ func TestSerialGenerateIAT(t *testing.T) {
 			testDistribution: false,
 		},
 		{
-			testName:        "2sec_5ipm_with_zero_equidistant_1",
+			testName:        "2inv_4min_with_zero_equidistant",
 			invocations:     []int{0, 1, 0, 1},
 			iatDistribution: common.Equidistant,
 			shiftIAT:        false,
@@ -370,7 +397,7 @@ func TestSerialGenerateIAT(t *testing.T) {
 			testDistribution: false,
 		},
 		{
-			testName:        "2min_5ipm_with_zero_equidistant_2",
+			testName:        "2inv_5min_with_zero_equidistant",
 			invocations:     []int{0, 1, 0, 0, 1},
 			iatDistribution: common.Equidistant,
 			shiftIAT:        false,
@@ -382,9 +409,20 @@ func TestSerialGenerateIAT(t *testing.T) {
 			testDistribution: false,
 		},
 		{
-			testName:        "five_empty_minutes",
+			testName:        "1inv_6min_with_zero_equidistant",
 			invocations:     []int{0, 0, 0, 0, 0, 1},
 			iatDistribution: common.Equidistant,
+			shiftIAT:        false,
+			granularity:     common.MinuteGranularity,
+			expectedPoints: []float64{
+				300_000_000,
+			},
+			testDistribution: false,
+		},
+		{
+			testName:        "1inv_6min_with_zero_exponential",
+			invocations:     []int{0, 0, 0, 0, 0, 1},
+			iatDistribution: common.Exponential,
 			shiftIAT:        false,
 			granularity:     common.MinuteGranularity,
 			expectedPoints: []float64{
@@ -591,26 +629,21 @@ func TestSerialGenerateIAT(t *testing.T) {
 				t.Error("Generated IAT does not fit in the within the minute time window.")
 			}*/
 
-			if test.expectedPoints != nil {
-				for i := 0; i < len(test.expectedPoints); i++ {
-					if len(test.expectedPoints) != len(IAT) {
-						log.Debug(fmt.Sprintf("wrong number of IATs in the minute, got: %d, expected: %d\n", len(IAT), len(test.expectedPoints)))
+			if !test.testDistribution && len(test.expectedPoints) != len(IAT) {
+				t.Errorf("wrong number of IATs in the minute, got: %d, expected: %d\n", len(IAT), len(test.expectedPoints))
+			}
 
-						failed = true
-						break
-					}
+			for i := 0; i < len(test.expectedPoints); i++ {
+				if math.Abs(IAT[i]-test.expectedPoints[i]) > epsilon {
+					log.Debug(fmt.Sprintf("got: %f, expected: %f\n", IAT[i], test.expectedPoints[i]))
 
-					if math.Abs(IAT[i]-test.expectedPoints[i]) > epsilon {
-						log.Debug(fmt.Sprintf("got: %f, expected: %f\n", IAT[i], test.expectedPoints[i]))
-
-						failed = true
-						// no break statement for debugging purpose
-					}
+					failed = true
+					// no break statement for debugging purpose
 				}
+			}
 
-				if failed {
-					t.Error("Test " + test.testName + " has failed due to incorrectly generated IAT.")
-				}
+			if failed {
+				t.Error("Test " + test.testName + " has failed due to incorrectly generated IAT.")
 			}
 
 			if test.testDistribution && test.iatDistribution != common.Equidistant &&

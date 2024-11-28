@@ -55,12 +55,7 @@ Lambda; https://aws.amazon.com/about-aws/whats-new/2018/10/aws-lambda-supports-f
 
 [^6]: Dirigent specific
 
-[^7] Because Knative's minimum autoscaling stable window is 6s, the minimum keep-alive for a function is 6s. This means
-that we need multiple functions to achieve RPS=1, each scaling up/and down with a 1-second delay from each other. In RPS
-mode, the number of functions for the cold start experiment is determined by the `RpsCooldownSeconds` parameter, which
-is the minimum keep-alive. Due to the implementation complexity, the cold start experiment sleeps for the first
-`RpsCooldownSeconds` seconds. In the results, the user should discard the first and the last `RpsCooldownSeconds` of the
-results, since the RPS at those points is lower than the requested one.
+[^7] It is recommended that the first 10% of cold starts are discarded from the experiment results for low cold start RPS.
 
 ---
 

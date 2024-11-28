@@ -94,17 +94,17 @@ type InvocationMetadata struct {
 	RootFunction *list.List
 	Phase        common.ExperimentPhase
 
-	MinuteIndex     int
-	InvocationIndex int
+	InvocationID string
+	MinuteIndex  int
+	IatIndex     int
 
 	SuccessCount        *int64
 	FailedCount         *int64
 	FailedCountByMinute []int64
 
-	RecordOutputChannel   chan *mc.ExecutionRecord
-	AnnounceDoneWG        *sync.WaitGroup
-	AnnounceDoneExe       *sync.WaitGroup
-	ReadOpenWhiskMetadata *sync.Mutex
+	RecordOutputChannel chan *mc.ExecutionRecord
+	AnnounceDoneWG      *sync.WaitGroup
+	AnnounceDoneExe     *sync.WaitGroup
 }
 
 func composeInvocationID(timeGranularity common.TraceGranularity, minuteIndex int, invocationIndex int) string {
@@ -122,7 +122,7 @@ func composeInvocationID(timeGranularity common.TraceGranularity, minuteIndex in
 	return fmt.Sprintf("%s%d.inv%d", timePrefix, minuteIndex, invocationIndex)
 }
 
-func (d *Driver) invokeFunction(metadata *InvocationMetadata, iatIndex int) {
+func (d *Driver) invokeFunction(metadata *InvocationMetadata) {
 	defer metadata.AnnounceDoneWG.Done()
 
 	var success bool
@@ -131,12 +131,12 @@ func (d *Driver) invokeFunction(metadata *InvocationMetadata, iatIndex int) {
 	var runtimeSpecifications *common.RuntimeSpecification
 	for node != nil {
 		function := node.Value.(*common.Function)
-		runtimeSpecifications = &function.Specification.RuntimeSpecification[iatIndex]
+		runtimeSpecifications = &function.Specification.RuntimeSpecification[metadata.IatIndex]
 
 		success, record = d.Invoker.Invoke(function, runtimeSpecifications)
 
 		record.Phase = int(metadata.Phase)
-		record.InvocationID = composeInvocationID(d.Configuration.TraceGranularity, metadata.MinuteIndex, metadata.InvocationIndex)
+		record.InvocationID = metadata.InvocationID
 
 		if !d.Configuration.LoaderConfiguration.AsyncMode || record.AsyncResponseID == "" {
 			metadata.RecordOutputChannel <- record
@@ -161,7 +161,7 @@ func (d *Driver) invokeFunction(metadata *InvocationMetadata, iatIndex int) {
 }
 
 func (d *Driver) functionsDriver(list *list.List, announceFunctionDone *sync.WaitGroup,
-	addInvocationsToGroup *sync.WaitGroup, readOpenWhiskMetadata *sync.Mutex, totalSuccessful *int64,
+	addInvocationsToGroup *sync.WaitGroup, totalSuccessful *int64,
 	totalFailed *int64, totalIssued *int64, recordOutputChannel chan *mc.ExecutionRecord) {
 
 	function := list.Front().Value.(*common.Function)
@@ -241,18 +241,18 @@ func (d *Driver) functionsDriver(list *list.List, announceFunctionDone *sync.Wai
 			waitForInvocations.Add(1)
 
 			go d.invokeFunction(&InvocationMetadata{
-				RootFunction:          list,
-				Phase:                 currentPhase,
-				MinuteIndex:           minuteIndex,
-				InvocationIndex:       invocationIndex,
-				SuccessCount:          &successfulInvocations,
-				FailedCount:           &failedInvocations,
-				FailedCountByMinute:   failedInvocationByMinute,
-				RecordOutputChannel:   recordOutputChannel,
-				AnnounceDoneWG:        &waitForInvocations,
-				AnnounceDoneExe:       addInvocationsToGroup,
-				ReadOpenWhiskMetadata: readOpenWhiskMetadata,
-			}, iatIndex)
+				RootFunction:        list,
+				Phase:               currentPhase,
+				InvocationID:        composeInvocationID(d.Configuration.TraceGranularity, minuteIndex, invocationIndex),
+				MinuteIndex:         minuteIndex,
+				IatIndex:            iatIndex,
+				SuccessCount:        &successfulInvocations,
+				FailedCount:         &failedInvocations,
+				FailedCountByMinute: failedInvocationByMinute,
+				RecordOutputChannel: recordOutputChannel,
+				AnnounceDoneWG:      &waitForInvocations,
+				AnnounceDoneExe:     addInvocationsToGroup,
+			})
 		} else {
 			// To be used from within the Golang testing framework
 			log.Debugf("Test mode invocation fired.\n")
@@ -429,7 +429,7 @@ func (d *Driver) internalRun() {
 	var failedInvocations int64
 	var invocationsIssued int64
 	var functionsPerDAG int64
-	readOpenWhiskMetadata := sync.Mutex{}
+	
 	allFunctionsInvoked := sync.WaitGroup{}
 	allIndividualDriversCompleted := sync.WaitGroup{}
 	allRecordsWritten := sync.WaitGroup{}
@@ -447,7 +447,6 @@ func (d *Driver) internalRun() {
 			functionLinkedList,
 			&allIndividualDriversCompleted,
 			&allFunctionsInvoked,
-			&readOpenWhiskMetadata,
 			&successfulInvocations,
 			&failedInvocations,
 			&invocationsIssued,
@@ -464,7 +463,6 @@ func (d *Driver) internalRun() {
 				linkedList,
 				&allIndividualDriversCompleted,
 				&allFunctionsInvoked,
-				&readOpenWhiskMetadata,
 				&successfulInvocations,
 				&failedInvocations,
 				&invocationsIssued,
@@ -530,7 +528,7 @@ func (d *Driver) outputIATsToFile() {
 	}
 }
 
-func (d *Driver) DumpSpecification(writeIATsToFile bool, readIATsFromFile bool) {
+func (d *Driver) ReadOrWriteFileSpecification(writeIATsToFile bool, readIATsFromFile bool) {
 	if writeIATsToFile && readIATsFromFile {
 		log.Fatal("Invalid loader configuration. No point to read and write IATs within the same run.")
 	}

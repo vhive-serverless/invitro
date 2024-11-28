@@ -2,6 +2,7 @@ package generator
 
 import (
 	"fmt"
+	"github.com/sirupsen/logrus"
 	"github.com/vhive-serverless/loader/pkg/common"
 	"github.com/vhive-serverless/loader/pkg/config"
 	"math"
@@ -31,6 +32,11 @@ func generateFunctionByRPS(experimentDuration int, rpsTarget float64) common.IAT
 func countNumberOfInvocationsPerMinute(experimentDuration int, iatResult []float64) []int {
 	result := make([]int, experimentDuration)
 
+	// set zero count for each minute
+	for i := 0; i < experimentDuration; i++ {
+		result[i] = 0
+	}
+
 	cnt := make(map[int]int)
 	timestamp := 0.0
 	for i := 0; i < len(iatResult); i++ {
@@ -40,8 +46,9 @@ func countNumberOfInvocationsPerMinute(experimentDuration int, iatResult []float
 		timestamp = t
 	}
 
-	for i := 0; i < len(result); i++ {
-		result[i] = cnt[i]
+	// update minutes based on counts
+	for key, value := range cnt {
+		result[key] = value
 	}
 
 	return result
@@ -57,7 +64,7 @@ func generateFunctionByRPSWithOffset(experimentDuration int, rpsTarget float64, 
 
 func GenerateWarmStartFunction(experimentDuration int, rpsTarget float64) (common.IATArray, []int) {
 	if rpsTarget == 0 {
-		return nil, nil
+		return nil, countNumberOfInvocationsPerMinute(experimentDuration, nil)
 	}
 
 	iat := generateFunctionByRPS(experimentDuration, rpsTarget)
@@ -65,13 +72,7 @@ func GenerateWarmStartFunction(experimentDuration int, rpsTarget float64) (commo
 	return iat, count
 }
 
-// GenerateColdStartFunctions Because Knative's minimum autoscaling stable window is 6s, the minimum keep-alive for a
-// function is 6s. This means that we need multiple functions to achieve RPS=1, each scaling up/and down with a 1-second
-// delay from each other. In RPS mode, the number of functions for the cold start experiment is determined by the
-// RpsCooldownSeconds parameter, which is the minimum keep-alive. This produces the IAT array as above. Due to the
-// implementation complexity, the cold start experiment sleeps for the first RpsCooldownSeconds seconds. In the results,
-// the user should discard the first and the last RpsCooldownSeconds of the results, since the RPS at those points is
-// lower than the requested one.
+// GenerateColdStartFunctions It is recommended that the first 10% of cold starts are discarded from the experiment results for low cold start RPS.
 func GenerateColdStartFunctions(experimentDuration int, rpsTarget float64, cooldownSeconds int) ([]common.IATArray, [][]int) {
 	iat := 1000000.0 / float64(rpsTarget) // ms
 	totalFunctions := int(math.Ceil(rpsTarget * float64(cooldownSeconds)))
@@ -100,6 +101,7 @@ func GenerateColdStartFunctions(experimentDuration int, rpsTarget float64, coold
 		countResult = append(countResult, count)
 	}
 
+	logrus.Warn("It is recommended that the first 10% of cold starts are discarded from the experiment results for low cold start RPS.")
 	return functions, countResult
 }
 

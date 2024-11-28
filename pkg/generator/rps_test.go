@@ -19,7 +19,7 @@ func TestWarmStartMatrix(t *testing.T) {
 			experimentDuration:     2,
 			rpsTarget:              0,
 			expectedIAT:            []float64{},
-			expectedPerMinuteCount: []int{},
+			expectedPerMinuteCount: []int{0, 0},
 		},
 		{
 			testName:           "2min_1rps",
@@ -137,7 +137,7 @@ func TestColdStartMatrix(t *testing.T) {
 			rpsTarget:          0,
 			cooldownSeconds:    10,
 			expectedIAT:        []common.IATArray{},
-			expectedCount:      [][]int{},
+			expectedCount:      [][]int{}, // empty since no functions
 		},
 		{
 			testName:           "2min_1rps",

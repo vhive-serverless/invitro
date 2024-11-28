@@ -159,7 +159,8 @@ func TestInvokeFunctionFromDriver(t *testing.T) {
 				RootFunction:        list,
 				Phase:               common.ExecutionPhase,
 				MinuteIndex:         0,
-				InvocationIndex:     0,
+				IatIndex:            0,
+				InvocationID:        composeInvocationID(common.MinuteGranularity, 0, 0),
 				SuccessCount:        &successCount,
 				FailedCount:         &failureCount,
 				FailedCountByMinute: failureCountByMinute,
@@ -168,7 +169,7 @@ func TestInvokeFunctionFromDriver(t *testing.T) {
 			}
 
 			announceDone.Add(1)
-			testDriver.invokeFunction(metadata, 0)
+			testDriver.invokeFunction(metadata)
 
 			switch test.forceFail {
 			case true:
@@ -185,13 +186,14 @@ func TestInvokeFunctionFromDriver(t *testing.T) {
 			announceDone.Wait()
 
 			if record.Phase != int(metadata.Phase) ||
-				record.InvocationID != composeInvocationID(common.MinuteGranularity, metadata.MinuteIndex, metadata.InvocationIndex) {
+				record.InvocationID != composeInvocationID(common.MinuteGranularity, metadata.MinuteIndex, 0) {
 
 				t.Error("Invalid invocation record received.")
 			}
 		})
 	}
 }
+
 func TestDAGInvocation(t *testing.T) {
 	var successCount int64 = 0
 	var failureCount int64 = 0
@@ -222,7 +224,8 @@ func TestDAGInvocation(t *testing.T) {
 		RootFunction:        list,
 		Phase:               common.ExecutionPhase,
 		MinuteIndex:         0,
-		InvocationIndex:     0,
+		IatIndex:            0,
+		InvocationID:        composeInvocationID(common.MinuteGranularity, 0, 0),
 		SuccessCount:        &successCount,
 		FailedCount:         &failureCount,
 		FailedCountByMinute: failureCountByMinute,
@@ -231,14 +234,14 @@ func TestDAGInvocation(t *testing.T) {
 	}
 
 	announceDone.Add(1)
-	testDriver.invokeFunction(metadata, 0)
+	testDriver.invokeFunction(metadata)
 	if !(successCount == 1 && failureCount == 0) { // not 4 invocations, since a workflow is considered as 1 invocation
 		t.Error("Number of successful and failed invocations not as expected.")
 	}
 	for i := 0; i < functionsToInvoke; i++ {
 		record := <-invocationRecordOutputChannel
 		if record.Phase != int(metadata.Phase) ||
-			record.InvocationID != composeInvocationID(common.MinuteGranularity, metadata.MinuteIndex, metadata.InvocationIndex) {
+			record.InvocationID != composeInvocationID(common.MinuteGranularity, metadata.MinuteIndex, 0) {
 
 			t.Error("Invalid invocation record received.")
 		}
