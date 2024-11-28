@@ -11,7 +11,8 @@ type Configuration struct {
 	IATDistribution  common.IatDistribution
 	ShiftIAT         bool // shift the invocations inside minute
 	TraceGranularity common.TraceGranularity
-	TraceDuration    int // in minutes
+	// TraceDuration In minutes.
+	TraceDuration int
 
 	YAMLPath string
 	TestMode bool
