@@ -56,14 +56,15 @@ func (*knativeDeployer) Deploy(cfg *config.Configuration) {
 		go func() {
 			queue <- struct{}{}
 
+			defer deployed.Done()
+			defer func() { <-queue }()
+
 			knativeDeploySingleFunction(
 				cfg.Functions[i],
 				knativeConfig.YamlPath,
 				knativeConfig.IsPartiallyPanic,
 				knativeConfig.EndpointPort,
 				knativeConfig.AutoscalingMetric,
-				&deployed,
-				queue,
 			)
 		}()
 	}
@@ -82,10 +83,7 @@ func (*knativeDeployer) Clean() {
 	}
 }
 
-func knativeDeploySingleFunction(function *common.Function, yamlPath string, isPartiallyPanic bool, endpointPort int, autoscalingMetric string, deployed *sync.WaitGroup, queue chan struct{}) bool {
-	defer deployed.Done()
-	defer func() { <-queue }()
-
+func knativeDeploySingleFunction(function *common.Function, yamlPath string, isPartiallyPanic bool, endpointPort int, autoscalingMetric string) bool {
 	panicWindow := "\"10.0\""
 	panicThreshold := "\"200.0\""
 	if isPartiallyPanic {
@@ -135,6 +133,7 @@ func knativeDeploySingleFunction(function *common.Function, yamlPath string, isP
 	// adding port to the endpoint
 	function.Endpoint = fmt.Sprintf("%s:%d", function.Endpoint, endpointPort)
 	log.Debugf("Deployed function on %s\n", function.Endpoint)
+
 	return true
 }
 

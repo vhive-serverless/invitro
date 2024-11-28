@@ -30,6 +30,7 @@ import (
 	"encoding/json"
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
+	"github.com/vhive-serverless/loader/pkg/common"
 	"github.com/vhive-serverless/loader/pkg/workload/standard"
 	"time"
 )
@@ -58,7 +59,7 @@ func Handler(_ context.Context, event events.LambdaFunctionURLRequest) (Response
 	}
 
 	standard.IterationsMultiplier = 102 // Cloudlab xl170 benchmark @ 1 second function execution time
-	_ = standard.TraceFunctionExecution(start, req.RuntimeInMilliSec)
+	_ = common.TraceFunctionExecution(start, 102, req.RuntimeInMilliSec)
 
 	body, err := json.Marshal(map[string]interface{}{
 		"DurationInMicroSec": uint32(time.Since(start).Microseconds()),
