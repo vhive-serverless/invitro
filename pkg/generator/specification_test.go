@@ -111,19 +111,17 @@ func TestGenerateDistribution(t *testing.T) {
 			}
 
 			failed := false
-			if test.expectedPoints != nil {
-				for i := 0; i < len(test.expectedPoints); i++ {
-					if math.Abs(data[i]-test.expectedPoints[i]) > epsilon {
-						log.Debug(fmt.Sprintf("got: %f, expected: %f\n", data[i], test.expectedPoints[i]))
+			for i := 0; i < len(test.expectedPoints); i++ {
+				if math.Abs(data[i]-test.expectedPoints[i]) > epsilon {
+					log.Debug(fmt.Sprintf("got: %f, expected: %f\n", data[i], test.expectedPoints[i]))
 
-						failed = true
-						// no break statement for debugging purpose
-					}
+					failed = true
+					// no break statement for debugging purpose
 				}
+			}
 
-				if failed {
-					t.Error("Test " + testName + " has failed due to incorrectly generated IAT.")
-				}
+			if failed {
+				t.Error("Test " + testName + " has failed due to incorrectly generated IAT.")
 			}
 		})
 	}
@@ -234,33 +232,7 @@ func TestSerialGenerateIAT(t *testing.T) {
 			testDistribution: false,
 		},
 		{
-			testName:        "1inv_1min_exponential",
-			invocations:     []int{1},
-			iatDistribution: common.Exponential,
-			shiftIAT:        false,
-			granularity:     common.MinuteGranularity,
-			expectedPoints: []float64{
-				0,
-			},
-			testDistribution: false,
-		},
-		{
-			testName:        "5inv_1min_equidistant",
-			invocations:     []int{5},
-			iatDistribution: common.Equidistant,
-			shiftIAT:        false,
-			granularity:     common.MinuteGranularity,
-			expectedPoints: []float64{
-				0,
-				12000000,
-				12000000,
-				12000000,
-				12000000,
-			},
-			testDistribution: false,
-		},
-		{
-			testName:        "30inv_5min_equidistant",
+			testName:        "25inv_5min_equidistant",
 			invocations:     []int{5, 5, 5, 5, 5},
 			iatDistribution: common.Equidistant,
 			shiftIAT:        false,

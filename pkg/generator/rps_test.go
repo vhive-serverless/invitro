@@ -385,7 +385,6 @@ func TestColdStartMatrix(t *testing.T) {
 			}
 
 			for fIndex := 0; fIndex < len(matrix); fIndex++ {
-				sum := 0.0
 				currentMinute := 0
 
 				if len(matrix[fIndex]) != len(test.expectedIAT[fIndex]) {
@@ -399,10 +398,6 @@ func TestColdStartMatrix(t *testing.T) {
 
 					if currentMinute > len(test.expectedCount[fIndex]) {
 						t.Errorf("Invalid expected count array size for function with index %d", fIndex)
-					}
-
-					if matrix[fIndex][i] >= 0 {
-						sum += matrix[fIndex][i]
 					}
 				}
 
