@@ -55,15 +55,6 @@ func createFakeLoaderConfiguration() *config.LoaderConfiguration {
 func createTestDriver(invocationStats []int) *Driver {
 	cfg := createFakeLoaderConfiguration()
 
-	if invocationStats == nil {
-		invocationStats = []int{
-			5, 5, 5, 5, 5,
-			5, 5, 5, 5, 5,
-			5, 5, 5, 5, 5,
-			5, 5, 5, 5, 5,
-		}
-	}
-
 	driver := NewDriver(&config.Configuration{
 		LoaderConfiguration: cfg,
 		IATDistribution:     common.Equidistant,
@@ -137,7 +128,7 @@ func TestInvokeFunctionFromDriver(t *testing.T) {
 			invocationRecordOutputChannel := make(chan *metric.ExecutionRecord, 1)
 			announceDone := &sync.WaitGroup{}
 
-			testDriver := createTestDriver(nil)
+			testDriver := createTestDriver([]int{1})
 
 			if !test.forceFail {
 				address, port := "localhost", test.port
@@ -200,7 +191,7 @@ func TestDAGInvocation(t *testing.T) {
 	invocationRecordOutputChannel := make(chan *metric.ExecutionRecord, functionsToInvoke)
 	announceDone := &sync.WaitGroup{}
 
-	testDriver := createTestDriver(nil)
+	testDriver := createTestDriver([]int{4})
 	list := list.New()
 	address, port := "localhost", 8085
 	function := testDriver.Configuration.Functions[0]
@@ -245,7 +236,7 @@ func TestDAGInvocation(t *testing.T) {
 }
 
 func TestGlobalMetricsCollector(t *testing.T) {
-	driver := createTestDriver(nil)
+	driver := createTestDriver([]int{5})
 
 	inputChannel := make(chan *metric.ExecutionRecord)
 	totalIssuedChannel := make(chan int64)
@@ -321,7 +312,7 @@ func TestDriverBackgroundProcesses(t *testing.T) {
 				t.Skip("Not yet implemented")
 			}
 
-			driver := createTestDriver(nil)
+			driver := createTestDriver([]int{5})
 			globalCollectorAnnounceDone := &sync.WaitGroup{}
 
 			completed, _, _, _ := driver.startBackgroundProcesses(globalCollectorAnnounceDone)
@@ -350,12 +341,14 @@ func TestDriverCompletely(t *testing.T) {
 		{
 			testName:              "without_warmup",
 			experimentDurationMin: 1,
+			invocationStats:       []int{5},
 			traceGranularity:      common.MinuteGranularity,
 			expectedInvocations:   5,
 		},
 		{
 			testName:              "with_warmup",
 			experimentDurationMin: 2, // 1 withWarmup + 1 execution
+			invocationStats:       []int{5, 5},
 			traceGranularity:      common.MinuteGranularity,
 			withWarmup:            true,
 			expectedInvocations:   10,

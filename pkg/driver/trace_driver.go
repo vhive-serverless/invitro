@@ -157,28 +157,11 @@ func (d *Driver) invokeFunction(metadata *InvocationMetadata) {
 	}
 }
 
-func getTotalInvocationCount(perMinuteCount []int, traceDuration int, granularity common.TraceGranularity) int {
-	if len(perMinuteCount) == 0 {
-		return 0
-	}
-
-	if granularity == common.SecondGranularity {
-		traceDuration *= 60
-	}
-
-	sum := 0
-	for i := 0; i < traceDuration; i++ {
-		sum += perMinuteCount[i]
-	}
-
-	return sum
-}
-
 func (d *Driver) functionsDriver(list *list.List, announceFunctionDone *sync.WaitGroup, addInvocationsToGroup *sync.WaitGroup, totalSuccessful *int64, totalFailed *int64, totalIssued *int64, recordOutputChannel chan *mc.ExecutionRecord) {
 	defer announceFunctionDone.Done()
 
 	function := list.Front().Value.(*common.Function)
-	invocationCount := getTotalInvocationCount(function.Specification.PerMinuteCount, d.Configuration.TraceDuration, d.Configuration.TraceGranularity)
+	invocationCount := len(function.Specification.IAT)
 	addInvocationsToGroup.Add(invocationCount)
 
 	if invocationCount == 0 {
@@ -196,7 +179,6 @@ func (d *Driver) functionsDriver(list *list.List, announceFunctionDone *sync.Wai
 
 	var successfulInvocations int64
 	var failedInvocations int64
-	var numberOfIssuedInvocations int64
 	var currentPhase = common.ExecutionPhase
 
 	waitForInvocations := sync.WaitGroup{}
@@ -206,8 +188,8 @@ func (d *Driver) functionsDriver(list *list.List, announceFunctionDone *sync.Wai
 		log.Infof("Warmup phase has started.")
 	}
 
-	experimentStart := time.Now()
-	startOfIteration := time.Now()
+	startOfExperiment := time.Now()
+	var previousIATSum int64
 
 	for {
 		if iatIndex >= len(IAT) || iatIndex >= terminationIAT {
@@ -216,11 +198,11 @@ func (d *Driver) functionsDriver(list *list.List, announceFunctionDone *sync.Wai
 
 		iat := time.Duration(IAT[iatIndex]) * time.Microsecond
 
-		schedulingDelay := time.Since(startOfIteration)
-		sleepFor := iat - schedulingDelay
-		time.Sleep(sleepFor)
+		schedulingDelay := time.Since(startOfExperiment).Microseconds() - previousIATSum
+		sleepFor := iat.Microseconds() - schedulingDelay
+		time.Sleep(time.Duration(sleepFor) * time.Microsecond)
 
-		startOfIteration = time.Now()
+		previousIATSum += iat.Microseconds()
 
 		if !d.Configuration.TestMode {
 			waitForInvocations.Add(1)
@@ -252,10 +234,9 @@ func (d *Driver) functionsDriver(list *list.List, announceFunctionDone *sync.Wai
 			successfulInvocations++
 		}
 
-		numberOfIssuedInvocations++
 		iatIndex++
 
-		d.announceWarmupEnd(experimentStart, &currentPhase)
+		d.announceWarmupEnd(startOfExperiment, &currentPhase)
 
 		// counter updates
 		invocationSinceTheBeginningOfMinute++
@@ -273,7 +254,7 @@ func (d *Driver) functionsDriver(list *list.List, announceFunctionDone *sync.Wai
 
 	atomic.AddInt64(totalSuccessful, successfulInvocations)
 	atomic.AddInt64(totalFailed, failedInvocations)
-	atomic.AddInt64(totalIssued, numberOfIssuedInvocations)
+	atomic.AddInt64(totalIssued, int64(iatIndex))
 }
 
 func (d *Driver) announceWarmupEnd(start time.Time, currentPhase *common.ExperimentPhase) {
