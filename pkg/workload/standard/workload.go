@@ -38,6 +38,7 @@ import (
 	util "github.com/vhive-serverless/loader/pkg/common"
 	"github.com/vhive-serverless/loader/pkg/workload/proto"
 	tracing "github.com/vhive-serverless/vSwarm/utils/tracing/go"
+	helloworld "github.com/vhive-serverless/vSwarm/utils/protobuf/helloworld"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 )
@@ -79,7 +80,9 @@ func takeSqrts() C.double {
 type funcServer struct {
 	proto.UnimplementedExecutorServer
 }
-
+type vSwarmServer struct {
+	helloworld.UnimplementedGreeterServer
+}
 func busySpin(runtimeMilli uint32) {
 	totalIterations := IterationsMultiplier * int(runtimeMilli)
 
@@ -101,7 +104,33 @@ func TraceFunctionExecution(start time.Time, timeLeftMilliseconds uint32) (msg s
 
 	return msg
 }
+func (s* vSwarmServer) SayHello(_ context.Context, req *helloworld.HelloRequest) (*helloworld.HelloReply, error) {
+	var msg string
+	start := time.Now()
 
+	if serverSideCode == TraceFunction {
+		// Minimum execution time is AWS billing granularity - 1ms,
+		// as defined in SpecificationGenerator::generateExecutionSpecs
+		timeLeftMilliseconds := uint32(1000)
+		/*toAllocate := util.Mib2b(req.MemoryInMebiBytes - ContainerImageSizeMB)
+		if toAllocate < 0 {
+			toAllocate = 0
+		}*/
+
+		// make is equivalent to `calloc` in C. The memory gets allocated
+		// and zero is written to every byte, i.e. each page should be touched at least once
+		//memory := make([]byte, toAllocate)
+		// NOTE: the following statement to make sure the compiler does not treat the allocation as dead code
+		//log.Debugf("Allocated memory size: %d\n", len(memory))
+		msg = TraceFunctionExecution(start, timeLeftMilliseconds)
+	} else {
+		msg = fmt.Sprintf("OK - EMPTY - %s", hostname)
+	}
+
+	return &helloworld.HelloReply{
+		Message: msg,
+	}, nil
+}
 func (s *funcServer) Execute(_ context.Context, req *proto.FaasRequest) (*proto.FaasReply, error) {
 	var msg string
 	start := time.Now()
@@ -149,7 +178,36 @@ func readEnvironmentalVariables() {
 		hostname = "Unknown host"
 	}
 }
+func StartVSwarmGRPCServer(serverAddress string, serverPort int, functionType FunctionType) {
+	readEnvironmentalVariables()
+	serverSideCode = functionType
 
+	lis, err := net.Listen("tcp", fmt.Sprintf("%s:%d", serverAddress, serverPort))
+	if err != nil {
+		log.Fatalf("failed to listen: %v", err)
+	}
+
+	var grpcServer *grpc.Server
+	if tracing.IsTracingEnabled() {
+		grpcServer = tracing.GetGRPCServerWithUnaryInterceptor()
+	} else {
+		grpcServer = grpc.NewServer()
+	}
+
+	sigc := make(chan os.Signal, 1)
+	signal.Notify(sigc, syscall.SIGTERM)
+
+	go func() {
+		<-sigc
+		log.Info("Received SIGTERM, shutting down gracefully...")
+		grpcServer.GracefulStop()
+	}()
+
+	reflection.Register(grpcServer) // gRPC Server Reflection is used by gRPC CLI
+	helloworld.RegisterGreeterServer(grpcServer, &vSwarmServer{})
+	err = grpcServer.Serve(lis)
+	util.Check(err)
+}
 func StartGRPCServer(serverAddress string, serverPort int, functionType FunctionType, zipkinUrl string) {
 	readEnvironmentalVariables()
 	serverSideCode = functionType
