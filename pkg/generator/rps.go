@@ -116,6 +116,7 @@ func CreateRPSFunctions(cfg *config.LoaderConfiguration, warmFunction common.IAT
 			Name: fmt.Sprintf("warm-function-%d", rand.Int()),
 
 			InvocationStats: &common.FunctionInvocationStats{Invocations: warmFunctionCount},
+			RuntimeStats:    &common.FunctionRuntimeStats{Average: float64(cfg.RpsRuntimeMs)},
 			MemoryStats:     &common.FunctionMemoryStats{Percentile100: float64(cfg.RpsMemoryMB)},
 			DirigentMetadata: &common.DirigentMetadata{
 				Image:               cfg.RpsImage,

@@ -116,7 +116,6 @@ func determineDurationToParse(runtimeDuration int, warmupDuration int) int {
 	result := 0
 
 	if warmupDuration > 0 {
-		result += 1              // profiling
 		result += warmupDuration // warmup
 	}
 
@@ -214,18 +213,20 @@ func runTraceMode(cfg *config.LoaderConfiguration, readIATFromFile bool, writeIA
 }
 
 func runRPSMode(cfg *config.LoaderConfiguration, readIATFromFile bool, writeIATsToFile bool) {
+	experimentDuration := determineDurationToParse(cfg.ExperimentDuration, cfg.WarmupDuration)
+
 	rpsTarget := cfg.RpsTarget
 	coldStartPercentage := cfg.RpsColdStartRatioPercentage
 
 	warmStartRPS := rpsTarget * (100 - coldStartPercentage) / 100
 	coldStartRPS := rpsTarget * coldStartPercentage / 100
 
-	warmFunction, warmStartCount := generator.GenerateWarmStartFunction(cfg.ExperimentDuration, warmStartRPS)
-	coldFunctions, coldStartCount := generator.GenerateColdStartFunctions(cfg.ExperimentDuration, coldStartRPS, cfg.RpsCooldownSeconds)
+	warmFunction, warmStartCount := generator.GenerateWarmStartFunction(experimentDuration, warmStartRPS)
+	coldFunctions, coldStartCount := generator.GenerateColdStartFunctions(experimentDuration, coldStartRPS, cfg.RpsCooldownSeconds)
 
 	experimentDriver := driver.NewDriver(&config.Configuration{
 		LoaderConfiguration: cfg,
-		TraceDuration:       determineDurationToParse(cfg.ExperimentDuration, cfg.WarmupDuration),
+		TraceDuration:       experimentDuration,
 
 		YAMLPath: parseYAMLSpecification(cfg),
 
