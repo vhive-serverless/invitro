@@ -385,8 +385,6 @@ func TestColdStartMatrix(t *testing.T) {
 			}
 
 			for fIndex := 0; fIndex < len(matrix); fIndex++ {
-				currentMinute := 0
-
 				if len(matrix[fIndex]) != len(test.expectedIAT[fIndex]) {
 					t.Errorf("Unexpected length of function %d IAT array - got: %d, expected: %d", fIndex, len(matrix[fIndex]), len(test.expectedIAT[fIndex]))
 				}
@@ -394,10 +392,6 @@ func TestColdStartMatrix(t *testing.T) {
 				for i := 0; i < len(matrix[fIndex]); i++ {
 					if math.Abs(matrix[fIndex][i]-test.expectedIAT[fIndex][i]) > epsilon {
 						t.Errorf("Unexpected value fx %d val %d - got: %f; expected: %f", fIndex, i, matrix[fIndex][i], test.expectedIAT[fIndex][i])
-					}
-
-					if currentMinute > len(test.expectedCount[fIndex]) {
-						t.Errorf("Invalid expected count array size for function with index %d", fIndex)
 					}
 				}
 
