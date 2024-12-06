@@ -130,6 +130,8 @@ func deployDirigent(function *common.Function, controlPlaneAddress string, busyL
 		log.Error("Function registration returned no data plane(s).")
 		return
 	}
+
+	log.Debugf("Got the following endpoints: %v", endpoints)
 	function.Endpoint = endpoints[rand.Intn(len(endpoints))]
 
 	checkForRegistration(controlPlaneAddress, function.Name, prepullMode)

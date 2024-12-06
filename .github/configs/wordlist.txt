@@ -779,3 +779,4 @@ AsyncMode
 AsyncResponseURL
 AsyncWaitToCollectMin
 Knative's
+RpsDataSizeMB
