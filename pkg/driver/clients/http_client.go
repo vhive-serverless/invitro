@@ -2,17 +2,18 @@ package clients
 
 import (
 	"bytes"
+	"crypto/rand"
 	"encoding/json"
-	"fmt"
-	log "github.com/sirupsen/logrus"
-	"github.com/vhive-serverless/loader/pkg/common"
-	"github.com/vhive-serverless/loader/pkg/config"
-	mc "github.com/vhive-serverless/loader/pkg/metric"
 	"io"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
+
+	log "github.com/sirupsen/logrus"
+	"github.com/vhive-serverless/loader/pkg/common"
+	"github.com/vhive-serverless/loader/pkg/config"
+	mc "github.com/vhive-serverless/loader/pkg/metric"
 )
 
 type FunctionResponse struct {
@@ -52,6 +53,14 @@ func (i *httpInvoker) functionInvocationRequest(function *common.Function, runti
 	if body := composeBusyLoopBody(function.Name, function.DirigentMetadata.Image, runtimeSpec.Runtime, function.DirigentMetadata.IterationMultiplier); i.isDandelion && body != nil {
 		requestBody = body
 	}
+	if i.cfg.RpsTarget != 0 {
+		ts := time.Now()
+		requestBody = CreateRequestPayload(i.cfg.RpsDataSizeMB)
+		log.Debugf("Took %v to generate request body.", time.Since(ts))
+	}
+
+	start := time.Now()
+	record.StartTime = start.UnixMicro()
 
 	req, err := http.NewRequest("POST", fmt.Sprintf("http://%s", function.Endpoint), requestBody)
 	if err != nil {
