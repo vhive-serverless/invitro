@@ -196,6 +196,8 @@ func (d *Driver) functionsDriver(list *list.List, announceFunctionDone *sync.Wai
 			break // end of experiment for this individual function driver
 		}
 
+		d.announceWarmupEnd(minuteIndex, &currentPhase)
+
 		iat := time.Duration(IAT[iatIndex]) * time.Microsecond
 
 		schedulingDelay := time.Since(startOfExperiment).Microseconds() - previousIATSum
@@ -236,8 +238,6 @@ func (d *Driver) functionsDriver(list *list.List, announceFunctionDone *sync.Wai
 
 		iatIndex++
 
-		d.announceWarmupEnd(startOfExperiment, &currentPhase)
-
 		// counter updates
 		invocationSinceTheBeginningOfMinute++
 		if iatIndex > minuteIndexEnd {
@@ -257,8 +257,8 @@ func (d *Driver) functionsDriver(list *list.List, announceFunctionDone *sync.Wai
 	atomic.AddInt64(totalIssued, int64(iatIndex))
 }
 
-func (d *Driver) announceWarmupEnd(start time.Time, currentPhase *common.ExperimentPhase) {
-	if *currentPhase == common.WarmupPhase && hasMinuteExpired(start) {
+func (d *Driver) announceWarmupEnd(minuteIndex int, currentPhase *common.ExperimentPhase) {
+	if *currentPhase == common.WarmupPhase && minuteIndex >= d.Configuration.LoaderConfiguration.WarmupDuration {
 		*currentPhase = common.ExecutionPhase
 		log.Infof("Warmup phase has finished. Starting the execution phase.")
 	}

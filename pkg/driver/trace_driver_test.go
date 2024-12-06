@@ -392,7 +392,11 @@ func TestDriverCompletely(t *testing.T) {
 			driver := createTestDriver(test.invocationStats)
 
 			if test.withWarmup {
-				driver.Configuration.LoaderConfiguration.WarmupDuration = 1
+				if test.traceGranularity == common.MinuteGranularity {
+					driver.Configuration.LoaderConfiguration.WarmupDuration = 1
+				} else {
+					driver.Configuration.LoaderConfiguration.WarmupDuration = 60
+				}
 			}
 			driver.Configuration.TraceDuration = test.experimentDurationMin
 			driver.Configuration.TraceGranularity = test.traceGranularity
