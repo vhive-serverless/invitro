@@ -19,6 +19,7 @@
 | RpsRuntimeMs                 | int       | >=0                                                                 | 0                   | Requested execution time                                                             |
 | RpsMemoryMB                  | int       | >=0                                                                 | 0                   | Requested memory                                                                     |
 | RpsIterationMultiplier       | int       | >=0                                                                 | 0                   | Iteration multiplier for RPS mode                                                    |
+| RpsDataSizeMB                | float64   | >= 0                                                                | 0                   | Amount of random data (same for all requests) to embed into each request             |
 | TracePath [^1]               | string    | string                                                              | data/traces/example | Folder with Azure trace dimensions (invocations.csv, durations.csv, memory.csv) or "RPS" |
 | Granularity                  | string    | minute, second                                                      | minute              | Granularity for trace interpretation[^2]                                             |
 | OutputPathPrefix             | string    | any                                                                 | data/out/experiment | Results file(s) output path prefix                                                   |
@@ -58,7 +59,8 @@ Lambda; https://aws.amazon.com/about-aws/whats-new/2018/10/aws-lambda-supports-f
 
 [^6]: Dirigent specific
 
-[^7] It is recommended that the first 10% of cold starts are discarded from the experiment results for low cold start RPS.
+[^7] It is recommended that the first 10% of cold starts are discarded from the experiment results for low cold start
+RPS.
 
 [^8]: The generated DAGs consist of unique functions. The shape of each DAG is determined either ```Width,Depth``` or calculated based on ```EnableDAGDAtaset```.
 
