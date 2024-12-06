@@ -1,0 +1,17 @@
+{
+    "Studies": [
+        {
+            "Name": "test-experiment",
+            "Config": {
+                "ExperimentDuration": 1
+            },
+            "IatGeneration": false,
+            "Generated": false,
+            "Verbosity": "info",
+            "TracesFormat": "data/traces/{}",
+            "TraceValues": ["example", "example2"],
+            "OutputDir": "data/out/multi-test"
+        }
+    ],
+    "BaseConfigPath": "./test_configs/test_base_loader_config.json"
+}
