@@ -2,6 +2,7 @@ package clients
 
 import (
 	"bytes"
+	"crypto/rand"
 	"encoding/json"
 	log "github.com/sirupsen/logrus"
 	"github.com/vhive-serverless/loader/pkg/common"
@@ -33,6 +34,23 @@ func newHTTPInvoker(cfg *config.LoaderConfiguration) *httpInvoker {
 	}
 }
 
+var payload []byte = nil
+
+func CreateRequestPayload(sizeInMB float64) *bytes.Buffer {
+	byteCount := int(sizeInMB * 1024.0 * 1024.0) // MB -> B
+
+	if payload == nil {
+		payload = make([]byte, byteCount)
+
+		n, err := rand.Read(payload)
+		if err != nil || n != byteCount {
+			log.Errorf("Failed to generate random %d bytes.", byteCount)
+		}
+	}
+
+	return bytes.NewBuffer(payload)
+}
+
 func (i *httpInvoker) Invoke(function *common.Function, runtimeSpec *common.RuntimeSpecification) (bool, *mc.ExecutionRecord) {
 	isDandelion := strings.Contains(strings.ToLower(i.cfg.Platform), "dandelion")
 	isKnative := strings.Contains(strings.ToLower(i.cfg.Platform), "knative")
@@ -48,8 +66,6 @@ func (i *httpInvoker) Invoke(function *common.Function, runtimeSpec *common.Runt
 	////////////////////////////////////
 	// INVOKE FUNCTION
 	////////////////////////////////////
-	start := time.Now()
-	record.StartTime = start.UnixMicro()
 
 	requestBody := &bytes.Buffer{}
 	/*if body := composeDandelionMatMulBody(function.Name); isDandelion && body != nil {
@@ -58,8 +74,16 @@ func (i *httpInvoker) Invoke(function *common.Function, runtimeSpec *common.Runt
 	if body := composeBusyLoopBody(function.Name, function.DirigentMetadata.Image, runtimeSpec.Runtime, function.DirigentMetadata.IterationMultiplier); isDandelion && body != nil {
 		requestBody = body
 	}
+	if i.cfg.RpsTarget != 0 {
+		ts := time.Now()
+		requestBody = CreateRequestPayload(i.cfg.RpsDataSizeMB)
+		log.Debugf("Took %v to generate request body.", time.Since(ts))
+	}
 
-	req, err := http.NewRequest("GET", "http://"+function.Endpoint, requestBody)
+	start := time.Now()
+	record.StartTime = start.UnixMicro()
+
+	req, err := http.NewRequest("POST", "http://"+function.Endpoint, requestBody)
 	if err != nil {
 		log.Errorf("Failed to create a HTTP request - %v\n", err)
 
