@@ -135,3 +135,15 @@ func SumNumberOfInvocations(withWarmup bool, totalDuration int, functions []*Fun
 
 	return result
 }
+
+func GetName(function *Function) int {
+	parts := strings.Split(function.Name, "-")
+	if parts[0] == "test" {
+		return 0
+	}
+	functionId, err := strconv.Atoi(parts[2])
+	if err != nil {
+		log.Fatal(err)
+	}
+	return functionId
+}
