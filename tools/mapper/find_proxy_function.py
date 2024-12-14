@@ -21,8 +21,8 @@ def get_duration_errors(trace_function, proxy_function) -> float:
     """
 
     try:
-        trace_duration = trace_function["duration"]["75-percentile"]
-        proxy_duration = proxy_function["duration"]["75-percentile"]
+        trace_duration = trace_function["duration"]["50-percentile"]
+        proxy_duration = proxy_function["compute_duration"]["50-percentile"]
     except KeyError as e:
         log.warning(f"Correlation cannot be found. Error: {e}")
         return math.inf
@@ -54,10 +54,10 @@ def get_error(trace_function, proxy_function) -> float:
     """
 
     try:
-        trace_memory = trace_function["memory"]["75-percentile"]
-        proxy_memory = proxy_function["memory"]["75-percentile"]
-        trace_duration = trace_function["duration"]["75-percentile"]
-        proxy_duration = proxy_function["duration"]["75-percentile"]
+        trace_memory = trace_function["memory"]["50-percentile"]
+        proxy_memory = proxy_function["memory"]["50-percentile"]
+        trace_duration = trace_function["duration"]["50-percentile"]
+        proxy_duration = proxy_function["duration"]["50-percentile"]
     except KeyError as e:
         log.warning(f"Correlation cannot be found. Error: {e}")
         return math.inf
@@ -206,12 +206,11 @@ def get_closest_proxy_function(
             if min_error == math.inf:
                 log.warning(f"Proxy function for function {function_name} not found")
                 continue
-
             trace_functions[function_name]["proxy-function"] = proxy_list[
                 min_error_index
             ]["name"]
             if mode == "EcoFaaS":
-                trace_functions[function_name] = get_duration_errors(trace_functions[function_name], proxy_list[min_error_index])
+                trace_functions[function_name]["proxy-correlation"] = get_duration_errors(trace_functions[function_name], proxy_list[min_error_index])
             else:
                 trace_functions[function_name]["proxy-correlation"] = get_error(
                     trace_functions[function_name], proxy_list[min_error_index]

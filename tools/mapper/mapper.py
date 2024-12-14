@@ -56,45 +56,8 @@ def load_trace(trace_directorypath):
 
     return trace_functions, 0
 
-def main():
-    # Parse the arguments
-    parser = argparse.ArgumentParser(description="Mapper")
-    parser.add_argument(
-        "-t",
-        "--trace-directorypath",
-        type=str,
-        help="Path to the directory containing the trace files",
-        required=True,
-    )
-    parser.add_argument(
-        "-p",
-        "--profile-filepath",
-        type=str,
-        help="Path to the profile file containing the proxy functions",
-        required=True,
-    )
-    parser.add_argument(
-        "-u",
-        "--unique-assignment",
-        type=bool,
-        help="Whether to assign unique proxy functions to each trace function",
-        default=False,
-        required=False,
-    )
-    parser.add_argument(
-        "-m",
-        "--mode",
-        type=str,
-        help="Whether to use EcoFaaS functions or not",
-        default="vSwarm",
-        required=False,
-    )
-    args = parser.parse_args()
-    trace_directorypath = args.trace_directorypath
-    profile_filepath = args.profile_filepath
-    output_filepath = trace_directorypath + "/mapper_output.json"
-    unique_assignment = args.unique_assignment
-    mode = args.mode
+
+def generate_trace(trace_directorypath, profile_filepath, output_filepath, unique_assignment, mode):
     trace_functions, err = load_trace(trace_directorypath)
     if err == -1:
         log.critical(f"Load Generation failed")
@@ -152,6 +115,64 @@ def main():
     
     log.info(f"Output file {output_filepath} written")
     log.info(f"Load Generation successful")
+
+def main():
+    # Parse the arguments
+    parser = argparse.ArgumentParser(description="Mapper")
+    parser.add_argument(
+        "-t",
+        "--trace-directorypath",
+        type=str,
+        help="Path to the directory containing the trace files",
+        required=True,
+    )
+    parser.add_argument(
+        "-p",
+        "--profile-filepath",
+        type=str,
+        help="Path to the profile file containing the proxy functions",
+        required=True,
+    )
+    parser.add_argument(
+        "-u",
+        "--unique-assignment",
+        type=bool,
+        help="Whether to assign unique proxy functions to each trace function",
+        default=False,
+        required=False,
+    )
+    parser.add_argument(
+        "-m",
+        "--mode",
+        type=str,
+        help="Whether to use EcoFaaS functions or not",
+        default="vSwarm",
+        required=False,
+    )
+    parser.add_argument(
+        "-q",
+        "--multi-mode",
+        type=bool,
+        help="Whether to parse multiple traces",
+        default=False,
+        required=False,
+    )
+    args = parser.parse_args()
+    trace_directorypath = args.trace_directorypath
+    profile_filepath = args.profile_filepath
+    output_filepath = trace_directorypath + "/mapper_output.json"
+    unique_assignment = args.unique_assignment
+    mode = args.mode
+    multi_mode = args.multi_mode
+    if multi_mode:
+        profile_dirs = os.listdir(trace_directorypath)
+        for profile in profile_dirs:
+            tracepath = os.path.join(trace_directorypath, profile)
+            outputpath = os.path.join(tracepath, "mapper_output.json")
+            generate_trace(tracepath, profile_filepath, outputpath, unique_assignment, mode)
+    
+    else:
+        generate_trace(trace_directorypath, profile_filepath, output_filepath, unique_assignment, mode)
 
 if __name__ == "__main__":
     main()

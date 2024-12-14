@@ -1,0 +1,252 @@
+{
+    "chameleon": {
+        "name": "chameleon",
+        "compute_duration": {
+            "0-percentile": 11.415,
+            "1-percentile": 11.479,
+            "5-percentile": 11.519,
+            "25-percentile": 11.625,
+            "50-percentile": 11.78,
+            "75-percentile": 12.018,
+            "95-percentile": 12.558,
+            "99-percentile": 12.911479999999996,
+            "100-percentile": 30.31
+        },
+        "io_duration": {
+            "0-percentile": 6.305,
+            "1-percentile": 6.81,
+            "5-percentile": 7.068,
+            "25-percentile": 7.556,
+            "50-percentile": 8.066,
+            "75-percentile": 8.91,
+            "95-percentile": 10.896,
+            "99-percentile": 14.030919999999984,
+            "100-percentile": 31.688
+        }
+    },
+    "cnn_serving": {
+        "name": "cnn_serving",
+        "compute_duration": {
+            "0-percentile": 97.576,
+            "1-percentile": 102.94516,
+            "5-percentile": 104.051,
+            "25-percentile": 105.957,
+            "50-percentile": 107.271,
+            "75-percentile": 108.71,
+            "95-percentile": 111.48379999999999,
+            "99-percentile": 175.93016,
+            "100-percentile": 286.282
+        },
+        "io_duration": {
+            "0-percentile": 9.306,
+            "1-percentile": 10.32172,
+            "5-percentile": 10.6352,
+            "25-percentile": 11.131,
+            "50-percentile": 11.532,
+            "75-percentile": 12.017,
+            "95-percentile": 13.204999999999997,
+            "99-percentile": 16.61688000000001,
+            "100-percentile": 28.347
+        }
+    },
+    "image_resize": {
+        "name": "image_resize",
+        "compute_duration": {
+            "0-percentile": 372.125,
+            "1-percentile": 373.39728,
+            "5-percentile": 375.1924,
+            "25-percentile": 381.256,
+            "50-percentile": 386.007,
+            "75-percentile": 389.216,
+            "95-percentile": 399.41519999999997,
+            "99-percentile": 407.69936,
+            "100-percentile": 430.422
+        },
+        "io_duration": {
+            "0-percentile": 23.553,
+            "1-percentile": 25.82376,
+            "5-percentile": 27.3314,
+            "25-percentile": 32.117,
+            "50-percentile": 34.924,
+            "75-percentile": 38.243,
+            "95-percentile": 45.15959999999998,
+            "99-percentile": 50.33176,
+            "100-percentile": 62.293
+        }
+    },
+    "lr_serving": {
+        "name": "lr_serving",
+        "compute_duration": {
+            "0-percentile": 3.36,
+            "1-percentile": 3.522,
+            "5-percentile": 3.556,
+            "25-percentile": 3.646,
+            "50-percentile": 3.734,
+            "75-percentile": 3.908,
+            "95-percentile": 4.268,
+            "99-percentile": 4.496,
+            "100-percentile": 17.979
+        },
+        "io_duration": {
+            "0-percentile": 9.518,
+            "1-percentile": 10.115,
+            "5-percentile": 10.383,
+            "25-percentile": 10.832,
+            "50-percentile": 11.204,
+            "75-percentile": 11.655,
+            "95-percentile": 13.6555,
+            "99-percentile": 16.012,
+            "100-percentile": 61.858
+        }
+    },
+    "mapper": {
+        "name": "mapper",
+        "compute_duration": {
+            "0-percentile": 148.168,
+            "1-percentile": 152.64712,
+            "5-percentile": 164.95759999999999,
+            "25-percentile": 179.1885,
+            "50-percentile": 193.079,
+            "75-percentile": 208.3195,
+            "95-percentile": 234.26359999999997,
+            "99-percentile": 253.23690000000005,
+            "100-percentile": 302.007
+        },
+        "io_duration": {
+            "0-percentile": 45.147,
+            "1-percentile": 50.35486,
+            "5-percentile": 55.286,
+            "25-percentile": 66.87049999999999,
+            "50-percentile": 77.752,
+            "75-percentile": 93.499,
+            "95-percentile": 125.83179999999997,
+            "99-percentile": 149.32892000000007,
+            "100-percentile": 202.085
+        }
+    },
+    "pyaes": {
+        "name": "pyaes",
+        "compute_duration": {
+            "0-percentile": 6.219,
+            "1-percentile": 6.261,
+            "5-percentile": 6.287,
+            "25-percentile": 6.338,
+            "50-percentile": 6.396,
+            "75-percentile": 6.515,
+            "95-percentile": 6.949,
+            "99-percentile": 7.2390899999999965,
+            "100-percentile": 21.429
+        },
+        "io_duration": {
+            "0-percentile": 4.835,
+            "1-percentile": 5.36391,
+            "5-percentile": 5.617,
+            "25-percentile": 6.032,
+            "50-percentile": 6.383,
+            "75-percentile": 6.831,
+            "95-percentile": 8.089,
+            "99-percentile": 11.34526999999999,
+            "100-percentile": 65.511
+        }
+    },
+    "reducer": {
+        "name": "reducer",
+        "compute_duration": {
+            "0-percentile": 1304.082,
+            "1-percentile": 1326.95524,
+            "5-percentile": 1344.9632,
+            "25-percentile": 1388.559,
+            "50-percentile": 1427.147,
+            "75-percentile": 1548.556,
+            "95-percentile": 1629.4224,
+            "99-percentile": 1669.11716,
+            "100-percentile": 1742.789
+        },
+        "io_duration": {
+            "0-percentile": 153.861,
+            "1-percentile": 169.50428,
+            "5-percentile": 177.7688,
+            "25-percentile": 192.656,
+            "50-percentile": 203.317,
+            "75-percentile": 213.698,
+            "95-percentile": 233.6738,
+            "99-percentile": 253.8101599999999,
+            "100-percentile": 272.688
+        }
+    },
+    "stack_training-reducer": {
+        "name": "stack-trianing-reducer",
+        "compute_duration": {
+            "0-percentile": 24.637,
+            "1-percentile": 27.7145,
+            "5-percentile": 28.91375,
+            "25-percentile": 31.5845,
+            "50-percentile": 34.7285,
+            "75-percentile": 39.23925,
+            "95-percentile": 48.65975,
+            "99-percentile": 56.551,
+            "100-percentile": 265.098
+        },
+        "io_duration": {
+            "0-percentile": 30.063,
+            "1-percentile": 31.585,
+            "5-percentile": 32.909749999999995,
+            "25-percentile": 35.74,
+            "50-percentile": 38.956500000000005,
+            "75-percentile": 43.627250000000004,
+            "95-percentile": 53.66425,
+            "99-percentile": 62.01325,
+            "100-percentile": 79.114
+        }
+    },
+    "stack_training-trainer": {
+        "name": "stack-trianing-trainer",
+        "compute_duration": {
+            "0-percentile": 21.931,
+            "1-percentile": 22.72662,
+            "5-percentile": 23.371,
+            "25-percentile": 24.746,
+            "50-percentile": 26.008,
+            "75-percentile": 27.848,
+            "95-percentile": 32.81385,
+            "99-percentile": 37.09095,
+            "100-percentile": 101.037
+        },
+        "io_duration": {
+            "0-percentile": 36.769,
+            "1-percentile": 39.941810000000004,
+            "5-percentile": 41.976,
+            "25-percentile": 46.57925,
+            "50-percentile": 51.3935,
+            "75-percentile": 57.847,
+            "95-percentile": 72.7677,
+            "99-percentile": 87.3114899999999,
+            "100-percentile": 282.477
+        }
+    },
+    "wordcount": {
+        "name": "wordcount",
+        "compute_duration": {
+            "0-percentile": 24.186,
+            "1-percentile": 24.834,
+            "5-percentile": 25.099,
+            "25-percentile": 25.695,
+            "50-percentile": 27.034,
+            "75-percentile": 29.198,
+            "95-percentile": 37.32745,
+            "99-percentile": 43.04246999999999,
+            "100-percentile": 52.078
+        },
+        "io_duration": {
+            "0-percentile": 11.452,
+            "1-percentile": 13.861,
+            "5-percentile": 15.25855,
+            "25-percentile": 18.717,
+            "50-percentile": 22.032,
+            "75-percentile": 25.954,
+            "95-percentile": 33.08645,
+            "99-percentile": 39.367979999999996,
+            "100-percentile": 235.635
+        }
+    }
+}
