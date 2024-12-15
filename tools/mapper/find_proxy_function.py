@@ -32,7 +32,7 @@ def get_duration_errors(trace_function, proxy_function) -> float:
     # Euclidean distance between normalized memory and duration is considered
     try:
         if trace_duration == 0: trace_duration += 0.01 
-        diff_duration = (math.log(trace_duration) - math.log(proxy_duration)) 
+        diff_duration = abs(math.log(trace_duration) - math.log(proxy_duration)) 
         error = diff_duration
         return error
     except ValueError as e:

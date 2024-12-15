@@ -175,7 +175,7 @@
         }
     },
     "stack_training-reducer": {
-        "name": "stack-trianing-reducer",
+        "name": "stack_training-reducer",
         "compute_duration": {
             "0-percentile": 24.637,
             "1-percentile": 27.7145,
@@ -200,7 +200,7 @@
         }
     },
     "stack_training-trainer": {
-        "name": "stack-trianing-trainer",
+        "name": "stack_training-trainer",
         "compute_duration": {
             "0-percentile": 21.931,
             "1-percentile": 22.72662,

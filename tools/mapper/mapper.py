@@ -4,6 +4,7 @@ import json
 import re
 import argparse
 import pandas as pd
+import matplotlib.pyplot as plt
 from find_proxy_function import *
 
 from log_config import *
@@ -116,6 +117,62 @@ def generate_trace(trace_directorypath, profile_filepath, output_filepath, uniqu
     log.info(f"Output file {output_filepath} written")
     log.info(f"Load Generation successful")
 
+def generate_plot(trace_directorypath, profile_filepath, output_filepath):
+    trace_functions, err = load_trace(trace_directorypath)
+    if err == -1:
+        log.critical(f"Load Generation failed")
+        return
+    elif err == 0:
+        log.info(f"Trace loaded")
+
+    ## Check whether the profile file for proxy functions exists or not
+    if os.path.exists(profile_filepath):
+        log.info(
+            f"Profile file for proxy functions {profile_filepath} exists. Accessing information"
+        )
+        try:
+            with open(profile_filepath, "r") as jf:
+                proxy_functions = json.load(jf)
+        except Exception as e:
+            log.critical(
+                f"Profile file for proxy functions {profile_filepath} cannot be read. Error: {e}"
+            )
+            log.critical(f"Load Generation failed")
+            return
+    else:
+        log.critical(f"Profile file for proxy functions {profile_filepath} not found")
+        log.critical(f"Load Generation failed")
+        return
+    
+    if os.path.exists(output_filepath):
+        log.info(
+            f"Mapper output file for trace functions {output_filepath} exists. Accessing information"
+        )
+        try:
+            with open(output_filepath, "r") as jf:
+                mapped_traces = json.load(jf)
+        except Exception as e:
+            log.critical(
+                f"Mapper output file for trace functions {output_filepath} cannot be read. Error: {e}"
+            )
+            log.critical(f"Load Generation failed")
+            return
+    else:
+        log.critical(f"Mapper output file for trace functions {output_filepath} not found")
+        log.critical(f"Load Generation failed")
+        return
+    
+    trace_durations = []
+    mapped_durations = []
+    for trace in trace_functions:
+        duration = trace_functions[trace]["duration"]["50-percentile"]
+        proxy_name = mapped_traces[trace]["proxy-function"]
+        profile_duration = proxy_functions[proxy_name]["compute_duration"]["50-percentile"]
+        trace_durations.append(duration)
+        mapped_durations.append(profile_duration)
+    return trace_durations, mapped_durations
+
+
 def main():
     # Parse the arguments
     parser = argparse.ArgumentParser(description="Mapper")
@@ -157,6 +214,14 @@ def main():
         default=False,
         required=False,
     )
+    parser.add_argument(
+        "-l",
+        "--plot",
+        type=bool,
+        help="Plot mapped traces",
+        default=False,
+        required=False,
+    )
     args = parser.parse_args()
     trace_directorypath = args.trace_directorypath
     profile_filepath = args.profile_filepath
@@ -164,12 +229,30 @@ def main():
     unique_assignment = args.unique_assignment
     mode = args.mode
     multi_mode = args.multi_mode
-    if multi_mode:
+    plot = args.plot
+    if multi_mode or plot:
+        trace_durations = []
+        mapped_durations = []
         profile_dirs = os.listdir(trace_directorypath)
         for profile in profile_dirs:
             tracepath = os.path.join(trace_directorypath, profile)
             outputpath = os.path.join(tracepath, "mapper_output.json")
-            generate_trace(tracepath, profile_filepath, outputpath, unique_assignment, mode)
+            if plot:
+                durs, mapped_durs = generate_plot(tracepath, profile_filepath, outputpath)
+                trace_durations += durs
+                mapped_durations += mapped_durs
+            else:
+                generate_trace(tracepath, profile_filepath, outputpath, unique_assignment, mode)
+        
+        if plot:
+            #plt.plot(trace_durations, mapped_durations)
+            fig = plt.figure()
+            ax = fig.add_subplot(2, 1, 1)
+            ax.scatter(trace_durations, mapped_durations)
+            ax.set_xscale('log')
+            plt.xlabel("Trace functions 50-th percentile duration")
+            plt.ylabel("Mapped profile function 50-th percentile duration")
+            plt.savefig('profiled_150.png')
     
     else:
         generate_trace(trace_directorypath, profile_filepath, output_filepath, unique_assignment, mode)
