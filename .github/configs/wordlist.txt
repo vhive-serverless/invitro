@@ -23,6 +23,7 @@ workerNodeNum
 durations
 dur
 ACM
+Acyclic
 addr
 adservice
 AdService
@@ -153,6 +154,7 @@ Daglis
 DAGMode
 datacenter
 Datacenter
+DAGs
 dataflows
 dataset
 david
@@ -710,6 +712,7 @@ cgroups
 noop
 YAMLs
 cgo
+EnableDAGDataset
 EnableMetricsScrapping
 EnableZipkinTracing
 EndpointPort
