@@ -59,7 +59,7 @@ func (i *httpInvoker) Invoke(function *common.Function, runtimeSpec *common.Runt
 		requestBody = body
 	}
 
-	req, err := http.NewRequest("GET", "http://"+function.Endpoint, requestBody)
+	req, err := http.NewRequest("POST", "http://"+function.Endpoint, requestBody)
 	if err != nil {
 		log.Errorf("Failed to create a HTTP request - %v\n", err)
 
