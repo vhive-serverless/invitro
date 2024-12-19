@@ -14,6 +14,8 @@ func CreateDeployer(cfg *config.Configuration) FunctionDeployer {
 	switch cfg.LoaderConfiguration.Platform {
 	case "AWSLambda", "AWSLambda-RPS":
 		return newAWSLambdaDeployer()
+	case "AzureFunctions":
+		return newAzureFunctionsDeployer()
 	case "Dirigent", "Dirigent-RPS", "Dirigent-Dandelion", "Dirigent-Dandelion-RPS":
 		return newDirigentDeployer()
 	case "Knative", "Knative-RPS":
