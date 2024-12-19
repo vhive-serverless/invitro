@@ -28,6 +28,7 @@ jobs:
           [
               config,
               driver,
+              driver/clients,
               generator,
               trace,
           ]

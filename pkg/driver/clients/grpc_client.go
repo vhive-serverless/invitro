@@ -26,17 +26,15 @@ package clients
 
 import (
 	"context"
-	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
-	"strings"
-	"time"
-
+	"github.com/sirupsen/logrus"
 	"github.com/vhive-serverless/loader/pkg/common"
 	"github.com/vhive-serverless/loader/pkg/config"
-	"github.com/vhive-serverless/loader/pkg/workload/proto"
-
-	"github.com/sirupsen/logrus"
+	protoExec "github.com/vhive-serverless/loader/pkg/workload/proto"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"strings"
+	"time"
 
 	mc "github.com/vhive-serverless/loader/pkg/metric"
 )
@@ -68,9 +66,11 @@ func (i *grpcInvoker) Invoke(function *common.Function, runtimeSpec *common.Runt
 
 	var dialOptions []grpc.DialOption
 	dialOptions = append(dialOptions, grpc.WithTransportCredentials(insecure.NewCredentials()))
+
 	if strings.Contains(strings.ToLower(i.cfg.Platform), "dirigent") {
 		dialOptions = append(dialOptions, grpc.WithAuthority(function.Name)) // Dirigent specific
 	}
+
 	if i.cfg.EnableZipkinTracing {
 		dialOptions = append(dialOptions, grpc.WithStatsHandler(otelgrpc.NewClientHandler()))
 	}
@@ -90,26 +90,23 @@ func (i *grpcInvoker) Invoke(function *common.Function, runtimeSpec *common.Runt
 
 	record.GRPCConnectionEstablishTime = time.Since(grpcStart).Microseconds()
 
-	grpcClient := proto.NewExecutorClient(conn)
 	executionCxt, cancelExecution := context.WithTimeout(context.Background(), time.Duration(i.cfg.GRPCFunctionTimeoutSeconds)*time.Second)
-	defer cancelExecution()
 
-	response, err := grpcClient.Execute(executionCxt, &proto.FaasRequest{
+	defer cancelExecution()
+	grpcClient := protoExec.NewExecutorClient(conn)
+	response, err := grpcClient.Execute(executionCxt, &protoExec.FaasRequest{
 		Message:           "nothing",
 		RuntimeInMilliSec: uint32(runtimeSpec.Runtime),
 		MemoryInMebiBytes: uint32(runtimeSpec.Memory),
 	})
-
 	if err != nil {
 		logrus.Debugf("gRPC timeout exceeded for function %s - %s", function.Name, err)
 
 		record.ResponseTime = time.Since(start).Microseconds()
-		record.ConnectionTimeout = true // WithBlock deprecated in new gRPC interface
 		record.FunctionTimeout = true
 
 		return false, record
 	}
-
 	record.Instance = extractInstanceName(response.GetMessage())
 	record.ResponseTime = time.Since(start).Microseconds()
 	record.ActualDuration = response.DurationInMicroSec
@@ -119,9 +116,9 @@ func (i *grpcInvoker) Invoke(function *common.Function, runtimeSpec *common.Runt
 	} else {
 		record.ActualMemoryUsage = common.Kib2Mib(response.MemoryUsageInKb)
 	}
-
 	logrus.Tracef("(Replied)\t %s: %s, %.2f[ms], %d[MiB]", function.Name, response.Message,
 		float64(response.DurationInMicroSec)/1e3, common.Kib2Mib(response.MemoryUsageInKb))
+
 	logrus.Tracef("(E2E Latency) %s: %.2f[ms]\n", function.Name, float64(record.ResponseTime)/1e3)
 
 	return true, record

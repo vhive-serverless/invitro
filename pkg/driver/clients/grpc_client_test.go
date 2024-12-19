@@ -46,6 +46,17 @@ func createFakeLoaderConfiguration() *config.LoaderConfiguration {
 		GRPCFunctionTimeoutSeconds:   15,
 	}
 }
+func createFakeVSwarmLoaderConfiguration() *config.LoaderConfiguration {
+	return &config.LoaderConfiguration{
+		Platform:                     "Knative",
+		InvokeProtocol:               "grpc",
+		OutputPathPrefix:             "test",
+		EnableZipkinTracing:          true,
+		GRPCConnectionTimeoutSeconds: 5,
+		GRPCFunctionTimeoutSeconds:   15,
+		VSwarm:                       true,
+	}
+}
 
 var testFunction = common.Function{
 	Name: "test-function",
@@ -68,9 +79,26 @@ func TestGRPCClientWithServerUnreachable(t *testing.T) {
 		record.StartTime == 0 ||
 		record.ResponseTime == 0 ||
 		success != false ||
-		record.ConnectionTimeout != true {
+		record.FunctionTimeout != true {
 
-		t.Error("Error while testing an unreachable server.")
+		t.Error("Error while testing an unreachable server for trace function.")
+	}
+
+}
+func TestVSwarmClientUnreachable(t *testing.T) {
+	cfgSwarm := createFakeVSwarmLoaderConfiguration()
+
+	vSwarmInvoker := CreateInvoker(cfgSwarm, nil, nil)
+	success, record := vSwarmInvoker.Invoke(&testFunction, &testRuntimeSpecs)
+
+	if record.Instance != "" ||
+		record.RequestedDuration != uint32(testRuntimeSpecs.Runtime*1000) ||
+		record.StartTime == 0 ||
+		record.ResponseTime == 0 ||
+		success != false ||
+		record.FunctionTimeout != true {
+
+		t.Error("Error while testing an unreachable server for vSwarm function.")
 	}
 }
 
@@ -98,7 +126,32 @@ func TestGRPCClientWithServerReachable(t *testing.T) {
 		record.ActualDuration == 0 ||
 		record.ActualMemoryUsage == 0 {
 
-		t.Error("Failed gRPC invocations.")
+		t.Error("Failed gRPC invocations for trace function.")
+	}
+
+}
+func TestVSwarmClientWithServerReachable(t *testing.T) {
+	address, port := "localhost", 18081
+	testFunction.Endpoint = fmt.Sprintf("%s:%d", address, port)
+
+	go standard.StartVSwarmGRPCServer(address, port)
+	time.Sleep(2 * time.Second)
+
+	cfgSwarm := createFakeVSwarmLoaderConfiguration()
+	vSwarmInvoker := CreateInvoker(cfgSwarm, nil, nil)
+
+	start := time.Now()
+	success, record := vSwarmInvoker.Invoke(&testFunction, &testRuntimeSpecs)
+	logrus.Info("Elapsed: ", time.Since(start).Milliseconds(), " ms")
+
+	if !success ||
+		record.MemoryAllocationTimeout != false ||
+		record.ConnectionTimeout != false ||
+		record.FunctionTimeout != false ||
+		record.ResponseTime == 0 ||
+		record.ActualDuration == 0 {
+
+		t.Error("Failed gRPC invocations for vSwarm function.")
 	}
 }
 
@@ -109,7 +162,7 @@ func TestGRPCClientWithServerBatchWorkload(t *testing.T) {
 		t.Error(err)
 	}
 
-	address, port := "localhost", 18081
+	address, port := "localhost", 18082
 	testFunction.Endpoint = fmt.Sprintf("%s:%d", address, port)
 
 	go standard.StartGRPCServer(address, port, standard.TraceFunction, "")
@@ -118,6 +171,7 @@ func TestGRPCClientWithServerBatchWorkload(t *testing.T) {
 	time.Sleep(2 * time.Second)
 
 	cfg := createFakeLoaderConfiguration()
+
 	invoker := CreateInvoker(cfg, nil, nil)
 
 	for i := 0; i < 50; i++ {
@@ -131,7 +185,7 @@ func TestGRPCClientWithServerBatchWorkload(t *testing.T) {
 			record.ActualDuration == 0 ||
 			record.ActualMemoryUsage == 0 {
 
-			t.Error("Failed gRPC invocations.")
+			t.Error("Failed gRPC invocations for trace function.")
 		}
 	}
 }

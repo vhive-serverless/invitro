@@ -80,6 +80,7 @@ type LoaderConfiguration struct {
 	GRPCConnectionTimeoutSeconds int  `json:"GRPCConnectionTimeoutSeconds"`
 	GRPCFunctionTimeoutSeconds   int  `json:"GRPCFunctionTimeoutSeconds"`
 	DAGMode                      bool `json:"DAGMode"`
+	VSwarm                       bool `json:"VSwarm"`
 }
 
 func ReadConfigurationFile(path string) LoaderConfiguration {
