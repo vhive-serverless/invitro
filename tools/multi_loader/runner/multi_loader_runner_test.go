@@ -64,7 +64,7 @@ func TestUnpackExperiment(t *testing.T) {
 	}
 
 	// create multiloader
-	multiLoader, err := NewMultiLoaderRunner(multiLoaderTestConfigPath, "info", false, false)
+	multiLoader, err := NewMultiLoaderRunner(multiLoaderTestConfigPath, "info", false, false, false)
 	if err != nil {
 		t.Fatalf("Failed to create multi-loader driver: %v", err)
 	}
@@ -118,7 +118,7 @@ func TestUnpackExperiment(t *testing.T) {
 
 func TestPrepareExperiment(t *testing.T) {
 	// Create a new multi-loader driver with the test config path
-	multiLoader, err := NewMultiLoaderRunner(multiLoaderTestConfigPath, "info", false, false)
+	multiLoader, err := NewMultiLoaderRunner(multiLoaderTestConfigPath, "info", false, false, false)
 	if err != nil {
 		t.Fatalf("Failed to create multi-loader driver: %v", err)
 	}
@@ -159,7 +159,7 @@ func TestPrepareExperiment(t *testing.T) {
 // Test mergeConfigurations method
 func TestMergeConfig(t *testing.T) {
 	// Create a new multi-loader driver with the test config path
-	multiLoader, err := NewMultiLoaderRunner(multiLoaderTestConfigPath, "info", false, false)
+	multiLoader, err := NewMultiLoaderRunner(multiLoaderTestConfigPath, "info", false, false, false)
 	if err != nil {
 		t.Fatalf("Failed to create multi-loader driver: %v", err)
 	}
@@ -186,7 +186,7 @@ func TestMergeConfig(t *testing.T) {
 
 func TestMultiConfigValidator(t *testing.T) {
 	// Create a new multi-loader driver with the test config path
-	multiLoader, err := NewMultiLoaderRunner(multiLoaderTestConfigPath, "info", false, false)
+	multiLoader, err := NewMultiLoaderRunner(multiLoaderTestConfigPath, "info", false, false, false)
 	if err != nil {
 		t.Fatalf("Failed to create multi-loader driver: %v", err)
 	}
