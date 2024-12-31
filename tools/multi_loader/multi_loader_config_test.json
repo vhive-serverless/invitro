@@ -1,1 +1,0 @@
-{"Studies":[{"Name":"test-experiment","Config":{"ExperimentDuration":1},"TracesDir":"","TracesFormat":"tools/multi_loader/test_data/example_{}_test","TraceValues":["1","2",3.1],"OutputDir":"data/out/multi-test","Verbosity":"info","IatGeneration":false,"Generated":false,"PreScript":"","PostScript":""}],"BaseConfigPath":"../base_loader_config.json","PreScript":"","PostScript":""}

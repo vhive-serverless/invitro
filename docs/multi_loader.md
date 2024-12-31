@@ -68,6 +68,10 @@ Available flags:
 - **`--generated`** *(default: `false`)*:  
   Indicates whether IATs have already been generated. If set to `true`, the multi-loader will use the existing IATs instead of generating new ones.
 
+- **`--failFast`** *(default: `false`)*:  
+  Determines whether the multi-loader should skip the study immediately after a failure. By default, the loader retries a failed experiment once with debug verbosity and skips the study only if the second attempt also fails. Setting this flag to `true` prevents the retry and skips the study after the first failure.
+
+
 
 ## Multi-loader Overall Flow
 
