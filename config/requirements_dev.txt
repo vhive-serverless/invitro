@@ -35,5 +35,5 @@ statsmodels==0.14.4
 ubuntu-advantage-tools==20.3
 ufw==0.36
 unattended-upgrades==0.1
-urllib3==2.2.0
+urllib3==2.3.0
 webencodings==0.5.1
