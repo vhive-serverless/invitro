@@ -97,22 +97,15 @@ def main():
         sample_size = len(sample_durations)
         sample_distance = stats.wasserstein_distance(trace_durations, sample_durations)
         mapped_distance = stats.wasserstein_distance(trace_durations, mapped_durations)
-        if sample_size in wd_distances_sample:
-            wd_distances_sample[sample_size].append(sample_distance)
-        else:
-            wd_distances_sample[sample_size] = [sample_distance]
-        if sample_size in wd_distances_mapped:
-            wd_distances_mapped[sample_size].append(mapped_distance)
-        else:
-            wd_distances_mapped[sample_size] = [mapped_distance]
+        wd_distances_sample[sample_size] = sample_distance
+        wd_distances_mapped[sample_size] = mapped_distance
         sample_sizes.append(sample_size)
     
     wd_samples, wd_mapped = [], []
+    sample_sizes = sorted(sample_sizes)
     for size in sample_sizes:
-        wd_samples.append(wd_distances_sample[size][0])
-        wd_distances_sample[size].pop(0)
-        wd_mapped.append(wd_distances_mapped[size][0])
-        wd_distances_mapped[size].pop(0)
+        wd_samples.append(wd_distances_sample[size])
+        wd_mapped.append(wd_distances_mapped[size])
 
     #fig, ax1 = plt.subplots()
     # Plot the first line on the left y-axis
