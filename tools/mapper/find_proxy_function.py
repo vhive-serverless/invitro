@@ -22,7 +22,7 @@ def get_duration_errors(trace_function, proxy_function) -> float:
 
     try:
         trace_duration = trace_function["duration"]["50-percentile"]
-        proxy_duration = proxy_function["compute_duration"]["50-percentile"]
+        proxy_duration = proxy_function["duration"]["50-percentile"]
     except KeyError as e:
         log.warning(f"Correlation cannot be found. Error: {e}")
         return math.inf

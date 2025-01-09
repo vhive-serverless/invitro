@@ -1,7 +1,7 @@
 {
     "chameleon": {
         "name": "chameleon",
-        "compute_duration": {
+        "duration": {
             "0-percentile": 11.415,
             "1-percentile": 11.479,
             "5-percentile": 11.519,
@@ -26,7 +26,7 @@
     },
     "cnn_serving": {
         "name": "cnn_serving",
-        "compute_duration": {
+        "duration": {
             "0-percentile": 97.576,
             "1-percentile": 102.94516,
             "5-percentile": 104.051,
@@ -51,7 +51,7 @@
     },
     "image_resize": {
         "name": "image_resize",
-        "compute_duration": {
+        "duration": {
             "0-percentile": 372.125,
             "1-percentile": 373.39728,
             "5-percentile": 375.1924,
@@ -76,7 +76,7 @@
     },
     "lr_serving": {
         "name": "lr_serving",
-        "compute_duration": {
+        "duration": {
             "0-percentile": 3.36,
             "1-percentile": 3.522,
             "5-percentile": 3.556,
@@ -101,7 +101,7 @@
     },
     "mapper": {
         "name": "mapper",
-        "compute_duration": {
+        "duration": {
             "0-percentile": 148.168,
             "1-percentile": 152.64712,
             "5-percentile": 164.95759999999999,
@@ -126,7 +126,7 @@
     },
     "pyaes": {
         "name": "pyaes",
-        "compute_duration": {
+        "duration": {
             "0-percentile": 6.219,
             "1-percentile": 6.261,
             "5-percentile": 6.287,
@@ -151,7 +151,7 @@
     },
     "reducer": {
         "name": "reducer",
-        "compute_duration": {
+        "duration": {
             "0-percentile": 1304.082,
             "1-percentile": 1326.95524,
             "5-percentile": 1344.9632,
@@ -176,7 +176,7 @@
     },
     "stack_training-reducer": {
         "name": "stack_training-reducer",
-        "compute_duration": {
+        "duration": {
             "0-percentile": 24.637,
             "1-percentile": 27.7145,
             "5-percentile": 28.91375,
@@ -201,7 +201,7 @@
     },
     "stack_training-trainer": {
         "name": "stack_training-trainer",
-        "compute_duration": {
+        "duration": {
             "0-percentile": 21.931,
             "1-percentile": 22.72662,
             "5-percentile": 23.371,
@@ -226,7 +226,7 @@
     },
     "wordcount": {
         "name": "wordcount",
-        "compute_duration": {
+        "duration": {
             "0-percentile": 24.186,
             "1-percentile": 24.834,
             "5-percentile": 25.099,

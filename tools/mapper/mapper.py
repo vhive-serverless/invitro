@@ -9,6 +9,8 @@ from find_proxy_function import *
 
 from log_config import *
 
+INVOCATION_COLUMN = 4
+
 def load_trace(trace_directorypath):
     duration_info = {}
     memory_info = {}
@@ -117,7 +119,7 @@ def generate_trace(trace_directorypath, profile_filepath, output_filepath, uniqu
     log.info(f"Output file {output_filepath} written")
     log.info(f"Load Generation successful")
 
-def generate_plot(trace_directorypath, profile_filepath, output_filepath):
+def generate_plot(trace_directorypath, profile_filepath, output_filepath, invoke=True):
     trace_functions, err = load_trace(trace_directorypath)
     if err == -1:
         log.critical(f"Load Generation failed")
@@ -162,15 +164,39 @@ def generate_plot(trace_directorypath, profile_filepath, output_filepath):
         log.critical(f"Load Generation failed")
         return
     
-    trace_durations = []
-    mapped_durations = []
-    for trace in trace_functions:
-        duration = trace_functions[trace]["duration"]["50-percentile"]
-        proxy_name = mapped_traces[trace]["proxy-function"]
-        profile_duration = proxy_functions[proxy_name]["compute_duration"]["50-percentile"]
-        trace_durations.append(duration)
-        mapped_durations.append(profile_duration)
-    return trace_durations, mapped_durations
+    if invoke:
+        invocations = pd.read_csv(trace_directorypath+"/invocations.csv")
+        inv_df = {}
+        for i in range(len(invocations)):
+            inv_df[invocations["HashFunction"][i]] = sum([invocations[col][i] if col not in invocations.columns[0:INVOCATION_COLUMN] else 0 for col in invocations.columns])
+        
+        trace_durations = []
+        mapped_durations = []
+        dropped_functions, dropped_invocations, total_invocations = 0, 0, 0
+        for trace in trace_functions:
+            duration = trace_functions[trace]["duration"]["50-percentile"]
+            if duration > 2000:
+                dropped_functions += 1
+                dropped_invocations += inv_df[trace]
+                continue
+            total_invocations += inv_df[trace]
+            proxy_name = mapped_traces[trace]["proxy-function"]
+            profile_duration = proxy_functions[proxy_name]["duration"]["50-percentile"]
+            trace_durations.append(duration)
+            mapped_durations.append(profile_duration)
+        return trace_durations, mapped_durations, dropped_functions, (dropped_invocations/total_invocations)*100
+    else:
+        trace_durations = []
+        mapped_durations = []
+        for trace in trace_functions:
+            duration = trace_functions[trace]["duration"]["50-percentile"]
+            if duration > 2000:
+                continue
+            proxy_name = mapped_traces[trace]["proxy-function"]
+            profile_duration = proxy_functions[proxy_name]["duration"]["50-percentile"]
+            trace_durations.append(duration)
+            mapped_durations.append(profile_duration)
+        return trace_durations, mapped_durations        
 
 
 def main():
@@ -238,7 +264,7 @@ def main():
             tracepath = os.path.join(trace_directorypath, profile)
             outputpath = os.path.join(tracepath, "mapper_output.json")
             if plot:
-                durs, mapped_durs = generate_plot(tracepath, profile_filepath, outputpath)
+                durs, mapped_durs = generate_plot(tracepath, profile_filepath, outputpath, False)
                 trace_durations += durs
                 mapped_durations += mapped_durs
             else:
