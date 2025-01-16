@@ -32,7 +32,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Kubernetes Kind Cluster
+      - name: Set up Kubernetes KinD Cluster and install Knative
         uses: ./.github/actions/ci_knative_setup
 
       - name: Build and run loader
