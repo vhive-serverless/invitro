@@ -23,17 +23,16 @@ jobs:
     runs-on: ubuntu-20.04
     strategy:
       fail-fast: false
-      matrix:
-        service:
-          [
-            trace_func_go,
-          ]
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Kubernetes Kind Cluster
+      - name: Set up Kubernetes KinD Cluster and install Knative
         uses: ./.github/actions/ci_knative_setup
+      
+      - name: Setup traces for multi trace test
+        shell: bash
+        run: bash ./scripts/setup/setup_multi_test_trace.sh
 
       - name: Build and run multi-loader
         run: go run tools/multi_loader/multi_loader.go --multiLoaderConfigPath tools/multi_loader/multi_loader_config.json

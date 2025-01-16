@@ -3,6 +3,8 @@ package runner
 import (
 	"fmt"
 	"os"
+	"os/exec"
+	"path"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -16,62 +18,20 @@ import (
 var (
 	multiLoaderTestConfigPath string
 	configPath                string
+	rootPath                  string
 )
 
 func init() {
 	wd, _ := os.Getwd()
-	multiLoaderTestConfigPath = filepath.Join(wd, "../multi_loader_config.json")
-	configPath = filepath.Join(wd, "../base_loader_config.json")
-	log.Info("Test config path: ", multiLoaderTestConfigPath)
-	log.Info("Test config path: ", configPath)
-
-	// Override the BaseConfigPath field in multi_loader_config.json
-	mlConfig := ml_common.ReadMultiLoaderConfigurationFile(multiLoaderTestConfigPath)
-	mlConfig.BaseConfigPath = "../base_loader_config.json"
-	multiLoaderTestConfigPath = "../multi_loader_config_test.json"
-	ml_common.WriteMultiLoaderConfigurationFile(mlConfig, multiLoaderTestConfigPath)
+	rootPath = path.Join(wd, "..", "..", "..")
 }
 
 func TestUnpackExperiment(t *testing.T) {
-	// helper func to validate unpacked experiments
-	validateUnpackedExperiment := func(t *testing.T, experimentConfig []types.LoaderExperiment, studyConfig types.LoaderStudy, expectedNames []string, expectedOutputPrefixes []string) {
-		if len(experimentConfig) != len(expectedNames) {
-			t.Errorf("Expected %d sub-experiments, got %d", len(expectedNames), len(experimentConfig))
-			return
-		}
-
-		for i, subExp := range experimentConfig {
-			// check name
-			if subExp.Name != expectedNames[i] {
-				t.Errorf("Expected subexperiment name '%s', got '%s'", expectedNames[i], subExp.Name)
-			}
-
-			// validate selected configs
-			if subExp.Config["ExperimentDuration"] != studyConfig.Config["ExperimentDuration"] {
-				t.Errorf("Expected ExperimentDuration %v, got %v", studyConfig.Config["ExperimentDuration"], subExp.Config["ExperimentDuration"])
-			}
-			if subExp.OutputDir != studyConfig.OutputDir {
-				t.Errorf("Expected OutputDir '%s', got '%s'", studyConfig.OutputDir, subExp.OutputDir)
-			}
-
-			// check OutputPathPrefix if needed
-			if len(expectedOutputPrefixes) > 0 {
-				if outputPathPrefix, ok := subExp.Config["OutputPathPrefix"].(string); !(ok && strings.HasSuffix(outputPathPrefix, expectedOutputPrefixes[i])) {
-					t.Errorf("Expected OutputPathPrefix '%s', got '%s'", expectedOutputPrefixes[i], subExp.Config["OutputPathPrefix"])
-				}
-			}
-		}
-	}
-
-	// create multiloader
-	multiLoader, err := NewMultiLoaderRunner(multiLoaderTestConfigPath, "info", false, false, false)
-	if err != nil {
-		t.Fatalf("Failed to create multi-loader driver: %v", err)
-	}
-
+	cleanup, multiLoader := setup()
+	defer cleanup()
 	t.Run("Unpack using TracesDir (Success)", func(t *testing.T) {
 		// Set TracesDir to test directory
-		multiLoader.MultiLoaderConfig.Studies[0].TracesDir = "../test_data"
+		multiLoader.MultiLoaderConfig.Studies[0].TracesDir = path.Join(rootPath, "data", "multi_traces")
 
 		for _, experiment := range multiLoader.MultiLoaderConfig.Studies {
 			subExperiments := multiLoader.unpackStudy(experiment)
@@ -117,17 +77,13 @@ func TestUnpackExperiment(t *testing.T) {
 }
 
 func TestPrepareExperiment(t *testing.T) {
-	// Create a new multi-loader driver with the test config path
-	multiLoader, err := NewMultiLoaderRunner(multiLoaderTestConfigPath, "info", false, false, false)
-	if err != nil {
-		t.Fatalf("Failed to create multi-loader driver: %v", err)
-	}
-
+	cleanup, multiLoader := setup()
+	defer cleanup()
 	subExperiment := types.LoaderExperiment{
 		Name: "example_1",
 		Config: map[string]interface{}{
 			"ExperimentDuration": 10,
-			"TracePath":          "../test_data/example_1_test",
+			"TracePath":          path.Join(rootPath, "data", "multi_traces", "example_1_test"),
 			"OutputPathPrefix":   "./test_output/example_1_test",
 		},
 	}
@@ -158,23 +114,22 @@ func TestPrepareExperiment(t *testing.T) {
 
 // Test mergeConfigurations method
 func TestMergeConfig(t *testing.T) {
-	// Create a new multi-loader driver with the test config path
-	multiLoader, err := NewMultiLoaderRunner(multiLoaderTestConfigPath, "info", false, false, false)
-	if err != nil {
-		t.Fatalf("Failed to create multi-loader driver: %v", err)
-	}
+	cleanup, multiLoader := setup()
+	defer cleanup()
+
+	newTracePath := path.Join(rootPath, "data", "multi_traces", "example_1_test")
 	experiment := types.LoaderExperiment{
 		Name: "example_1",
 		Config: map[string]interface{}{
 			"ExperimentDuration": 10,
-			"TracePath":          "../test_data/example_1_test",
+			"TracePath":          newTracePath,
 			"OutputPathPrefix":   "./test_output/example_1_test",
 		},
 	}
 	outputConfig := multiLoader.mergeConfigurations(configPath, experiment)
 	// Check if the configurations are merged
-	if outputConfig.TracePath != "../test_data/example_1_test" {
-		t.Errorf("Expected TracePath to be '../test_data/example_1_test', got %v", experiment.Config["TracePath"])
+	if outputConfig.TracePath != newTracePath {
+		t.Errorf("Expected TracePath to be '%v', got %v", newTracePath, experiment.Config["TracePath"])
 	}
 	if outputConfig.OutputPathPrefix != "./test_output/example_1_test" {
 		t.Errorf("Expected OutputPathPrefix to be './test_output/example_1_test', got %v", experiment.Config["OutputPathPrefix"])
@@ -185,11 +140,8 @@ func TestMergeConfig(t *testing.T) {
 }
 
 func TestMultiConfigValidator(t *testing.T) {
-	// Create a new multi-loader driver with the test config path
-	multiLoader, err := NewMultiLoaderRunner(multiLoaderTestConfigPath, "info", false, false, false)
-	if err != nil {
-		t.Fatalf("Failed to create multi-loader driver: %v", err)
-	}
+	cleanup, multiLoader := setup()
+	defer cleanup()
 	t.Run("CheckMultiLoaderConfig (Success)", func(t *testing.T) {
 		// Check if all paths are valid
 		ml_common.CheckMultiLoaderConfig(multiLoader.MultiLoaderConfig)
@@ -237,15 +189,81 @@ func TestMultiConfigValidator(t *testing.T) {
 	})
 }
 
+func setup() (func(), MultiLoaderRunner) {
+	wd, _ := os.Getwd()
+	multiLoaderTestConfigPath = filepath.Join(wd, "../multi_loader_config.json")
+	configPath = filepath.Join(rootPath, "pkg/config/test_config.json")
+	log.Info("Test config path: ", multiLoaderTestConfigPath)
+	log.Info("Test config path: ", configPath)
+
+	// Override the BaseConfigPath field in multi_loader_config.json
+	mlConfig := ml_common.ReadMultiLoaderConfigurationFile(multiLoaderTestConfigPath)
+	mlConfig.BaseConfigPath = filepath.Join(rootPath, "pkg/config/test_config.json")
+	multiLoaderTestConfigPath = "../multi_loader_config_test.json"
+	ml_common.WriteMultiLoaderConfigurationFile(mlConfig, multiLoaderTestConfigPath)
+
+	// Create test_data
+	filePath := filepath.Join(rootPath, "scripts", "setup", "setup_multi_test_trace.sh")
+	cmd := exec.Command("bash", filePath)
+	cmd.Dir = rootPath
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		log.Fatal("Failed to create test traces:", string(out), err)
+	}
+
+	cleanup := func() {
+		os.Remove(multiLoaderTestConfigPath)
+		os.RemoveAll(path.Join(rootPath, "data", "multi_traces"))
+	}
+
+	// Create a new multi-loader driver with the test config path
+	multiLoader, err := NewMultiLoaderRunner(multiLoaderTestConfigPath, "info", false, false, false)
+	if err != nil {
+		log.Fatalf("Failed to create multi-loader driver: %v", err)
+	}
+
+	return cleanup, *multiLoader
+}
+
+// helper func to validate unpacked experiments
+func validateUnpackedExperiment(t *testing.T, experimentConfig []types.LoaderExperiment, studyConfig types.LoaderStudy, expectedNames []string, expectedOutputPrefixes []string) {
+	if len(experimentConfig) != len(expectedNames) {
+		t.Errorf("Expected %d sub-experiments, got %d", len(expectedNames), len(experimentConfig))
+		return
+	}
+
+	for i, subExp := range experimentConfig {
+		// check name
+		if subExp.Name != expectedNames[i] {
+			t.Errorf("Expected subexperiment name '%s', got '%s'", expectedNames[i], subExp.Name)
+		}
+
+		// validate selected configs
+		if subExp.Config["ExperimentDuration"] != studyConfig.Config["ExperimentDuration"] {
+			t.Errorf("Expected ExperimentDuration %v, got %v", studyConfig.Config["ExperimentDuration"], subExp.Config["ExperimentDuration"])
+		}
+		if subExp.OutputDir != studyConfig.OutputDir {
+			t.Errorf("Expected OutputDir '%s', got '%s'", studyConfig.OutputDir, subExp.OutputDir)
+		}
+
+		// check OutputPathPrefix if needed
+		if len(expectedOutputPrefixes) > 0 {
+			if outputPathPrefix, ok := subExp.Config["OutputPathPrefix"].(string); !(ok && strings.HasSuffix(outputPathPrefix, expectedOutputPrefixes[i])) {
+				t.Errorf("Expected OutputPathPrefix '%s', got '%s'", expectedOutputPrefixes[i], subExp.Config["OutputPathPrefix"])
+			}
+		}
+	}
+}
+
 func expectFatal(t *testing.T, funcToTest func()) {
 	fatal := false
 	originalExitFunc := log.StandardLogger().ExitFunc
-
-	// replace logrus exit function
+	log.Info("Expecting a fatal message during the test, overriding the exit function")
+	// Replace logrus exit function
 	log.StandardLogger().ExitFunc = func(int) { fatal = true }
 
 	funcToTest()
-	// restore original state
+	// Restore original exit function
 	log.StandardLogger().ExitFunc = originalExitFunc
 	assert.True(t, fatal, "Expected log.Fatal to be called")
 }

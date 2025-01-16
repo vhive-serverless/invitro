@@ -9,7 +9,7 @@
             "Generated": false,
             "Verbosity": "info",
             "TracesDir": "",
-            "TracesFormat": "tools/multi_loader/test_data/example_{}_test",
+            "TracesFormat": "data/multi_traces/example_{}_test",
             "TraceValues": [
                 "1",
                 "2",
@@ -22,5 +22,5 @@
     ],
     "PreScript": "",
     "PostScript": "",
-    "BaseConfigPath": "tools/multi_loader/base_loader_config.json"
+    "BaseConfigPath": "pkg/config/test_config.json"
 }
