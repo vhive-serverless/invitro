@@ -3,7 +3,7 @@
 | Parameter name               | Data type | Possible values                                                     | Default value       | Description                                                                          |
 |------------------------------|-----------|---------------------------------------------------------------------|---------------------|--------------------------------------------------------------------------------------|
 | Seed                         | int64     | any                                                                 | 42                  | Seed for specification generator (for reproducibility)                               |
-| Platform [^1]                | string    | Knative, OpenWhisk, AWSLambda, Dirigent, Dirigent-Dandelion         | Knative             | The serverless platform the functions will be executed on                            |
+| Platform                     | string    | Knative, OpenWhisk, AWSLambda, Dirigent, Dirigent-Dandelion         | Knative             | The serverless platform the functions will be executed on                            |
 | InvokeProtocol               | string    | grpc, http1, http2                                                  | N/A                 | Protocol to use to communicate with the sandbox                                      |
 | YAMLSelector                 | string    | wimpy, container, firecracker                                       | container           | Service YAML depending on sandbox type                                               |
 | EndpointPort                 | int       | > 0                                                                 | 80                  | Port to be appended to the service URL                                               |
@@ -19,7 +19,7 @@
 | RpsRuntimeMs                 | int       | >=0                                                                 | 0                   | Requested execution time                                                             |
 | RpsMemoryMB                  | int       | >=0                                                                 | 0                   | Requested memory                                                                     |
 | RpsIterationMultiplier       | int       | >=0                                                                 | 0                   | Iteration multiplier for RPS mode                                                    |
-| TracePath                    | string    | string                                                              | data/traces         | Folder with Azure trace dimensions (invocations.csv, durations.csv, memory.csv)      |
+| TracePath [^1]               | string    | string                                                              | data/traces/example | Folder with Azure trace dimensions (invocations.csv, durations.csv, memory.csv) or "RPS" |
 | Granularity                  | string    | minute, second                                                      | minute              | Granularity for trace interpretation[^2]                                             |
 | OutputPathPrefix             | string    | any                                                                 | data/out/experiment | Results file(s) output path prefix                                                   |
 | IATDistribution              | string    | exponential, exponential_shift, uniform, uniform_shift, equidistant | exponential         | IAT distribution[^3]                                                                 |
@@ -38,7 +38,7 @@
 | Width                        | int       | > 0                                                                 | 2                   | Default width of DAG                                                                 |
 | Depth                        | int       | > 0                                                                 | 2                   | Default depth of DAG                                                                 |
 
-[^1]: To run RPS experiments add suffix `-RPS`.
+[^1]: To run RPS experiments replace the path with `RPS`.
 
 [^2]: The second granularity feature interprets each column of the trace as a second, rather than as a minute, and
 generates IAT for each second. This feature is useful for fine-grained and precise invocation scheduling in experiments
