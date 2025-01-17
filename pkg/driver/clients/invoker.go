@@ -1,11 +1,12 @@
 package clients
 
 import (
+	"sync"
+
 	"github.com/sirupsen/logrus"
 	"github.com/vhive-serverless/loader/pkg/common"
 	"github.com/vhive-serverless/loader/pkg/config"
 	"github.com/vhive-serverless/loader/pkg/metric"
-	"sync"
 )
 
 type Invoker interface {
@@ -14,23 +15,23 @@ type Invoker interface {
 
 func CreateInvoker(cfg *config.LoaderConfiguration, announceDoneExe *sync.WaitGroup, readOpenWhiskMetadata *sync.Mutex) Invoker {
 	switch cfg.Platform {
-	case "AWSLambda", "AWSLambda-RPS":
+	case "AWSLambda":
 		return newAWSLambdaInvoker(announceDoneExe)
-	case "Dirigent", "Dirigent-RPS":
+	case "Dirigent":
 		if cfg.InvokeProtocol == "grpc" {
 			return newGRPCInvoker(cfg)
 		} else {
 			return newHTTPInvoker(cfg)
 		}
-	case "Dirigent-Dandelion", "Dirigent-Dandelion-RPS":
+	case "Dirigent-Dandelion":
 		return newHTTPInvoker(cfg)
-	case "Knative", "Knative-RPS":
+	case "Knative":
 		if cfg.InvokeProtocol == "grpc" {
 			return newGRPCInvoker(cfg)
 		} else {
 			return newHTTPInvoker(cfg)
 		}
-	case "OpenWhisk", "OpenWhisk-RPS":
+	case "OpenWhisk":
 		return newOpenWhiskInvoker(announceDoneExe, readOpenWhiskMetadata)
 	default:
 		logrus.Fatal("Unsupported platform.")

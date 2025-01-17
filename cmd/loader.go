@@ -28,7 +28,6 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/vhive-serverless/loader/pkg/generator"
@@ -93,14 +92,9 @@ func main() {
 
 	supportedPlatforms := []string{
 		"Knative",
-		"Knative-RPS",
 		"OpenWhisk",
-		"OpenWhisk-RPS",
 		"AWSLambda",
-		"AWSLambda-RPS",
 		"Dirigent",
-		"Dirigent-RPS",
-		"Dirigent-Dandelion-RPS",
 		"Dirigent-Dandelion",
 	}
 
@@ -108,14 +102,14 @@ func main() {
 		log.Fatal("Unsupported platform!")
 	}
 
-	if cfg.Platform == "Knative" || cfg.Platform == "Knative-RPS" {
+	if cfg.Platform == "Knative" {
 		common.CheckCPULimit(cfg.CPULimit)
 	}
 
-	if !strings.HasSuffix(cfg.Platform, "-RPS") {
-		runTraceMode(&cfg, *iatFromFile, *iatGeneration)
-	} else {
+	if cfg.TracePath == "RPS" {
 		runRPSMode(&cfg, *iatFromFile, *iatGeneration)
+	} else {
+		runTraceMode(&cfg, *iatFromFile, *iatGeneration)
 	}
 }
 
@@ -157,7 +151,7 @@ func parseYAMLSpecification(cfg *config.LoaderConfiguration) string {
 	case "firecracker":
 		return "workloads/firecracker/trace_func_go.yaml"
 	default:
-		if cfg.Platform != "Dirigent" && cfg.Platform != "Dirigent-RPS" && cfg.Platform != "Dirigent-Dandelion-RPS" && cfg.Platform != "Dirigent-Dandelion" {
+		if cfg.Platform != "Dirigent" && cfg.Platform != "Dirigent-Dandelion" {
 			log.Fatal("Invalid 'YAMLSelector' parameter.")
 		}
 	}

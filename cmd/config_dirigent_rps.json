@@ -1,7 +1,7 @@
 {
   "Seed": 42,
 
-  "Platform": "Dirigent-RPS",
+  "Platform": "Dirigent",
   "InvokeProtocol" : "http2",
   "EndpointPort": 80,
 
@@ -20,7 +20,7 @@
   "RpsMemoryMB": 2048,
   "RpsIterationMultiplier": 80,
 
-  "TracePath": "data/traces/example",
+  "TracePath": "RPS",
   "Granularity": "minute",
   "OutputPathPrefix": "data/out/experiment",
   "IATDistribution": "equidistant",
