@@ -31,8 +31,6 @@ type MultiLoaderRunner struct {
 	MultiLoaderConfig types.MultiLoaderConfiguration
 	DryRunSuccess     bool
 	Verbosity         string
-	IatGeneration     bool
-	Generated         bool
 	DryRun            bool
 	Platform          string
 	FailFast          bool
@@ -41,7 +39,7 @@ type MultiLoaderRunner struct {
 /**
 * Initialise a new MultiLoaderRunner
 **/
-func NewMultiLoaderRunner(configPath string, verbosity string, iatGeneration bool, generated bool, failFast bool) (*MultiLoaderRunner, error) {
+func NewMultiLoaderRunner(configPath string, verbosity string, failFast bool) (*MultiLoaderRunner, error) {
 	multiLoaderConfig := ml_common.ReadMultiLoaderConfigurationFile(configPath)
 
 	// Validate configuration
@@ -54,8 +52,6 @@ func NewMultiLoaderRunner(configPath string, verbosity string, iatGeneration boo
 		MultiLoaderConfig: multiLoaderConfig,
 		DryRunSuccess:     true,
 		Verbosity:         verbosity,
-		IatGeneration:     iatGeneration,
-		Generated:         generated,
 		DryRun:            false,
 		Platform:          platform,
 		FailFast:          failFast,
@@ -247,10 +243,10 @@ func (d *MultiLoaderRunner) addCommandFlagsToExperiment(experiment types.LoaderE
 		experiment.Verbosity = d.Verbosity
 	}
 	if !experiment.IatGeneration {
-		experiment.IatGeneration = d.IatGeneration
+		experiment.IatGeneration = d.MultiLoaderConfig.IatGeneration
 	}
 	if !experiment.Generated {
-		experiment.Generated = d.Generated
+		experiment.Generated = d.MultiLoaderConfig.Generated
 	}
 }
 
@@ -334,17 +330,19 @@ func (d *MultiLoaderRunner) runExperiment(experiment types.LoaderExperiment) err
 	}
 
 	for i := 0; i < numTries; i++ {
+		// Log retry attmempt if necessary
+		if i != 0 {
+			log.Info("Retrying experiment ", experiment.Name)
+			logFile.WriteString("==================================RETRYING==================================\n")
+		}
 		// Run loader.go with experiment configs
 		if err := d.executeLoaderCommand(experiment, logFile); err != nil {
 			log.Error(err)
 			log.Error("Experiment failed: ", experiment.Name)
 			logFile.WriteString("Experiment failed: " + experiment.Name + ". Error: " + err.Error() + "\n")
-			// Log retry attmempt if necessary
-			if i == 0 {
-				log.Info("Retrying experiment ", experiment.Name)
-				logFile.WriteString("==================================RETRYING==================================\n")
-				experiment.Verbosity = "debug"
-			}
+
+			// Update experiment verbosity to debug
+			experiment.Verbosity = "debug"
 		} else {
 			// Experiment succeeded
 			log.Debug("Completed ", experiment.Name)
@@ -440,10 +438,6 @@ func (d *MultiLoaderRunner) logLoaderStdError(stdPipe io.ReadCloser, logFile *os
 **/
 func (d *MultiLoaderRunner) performCleanup() {
 	log.Debug("Runnning Cleanup")
-	// Run make clean
-	if err := exec.Command("make", "clean").Run(); err != nil {
-		log.Error("Error occured while running cleanup", err)
-	}
 	// Remove temp file
 	os.Remove(EXPERIMENT_TEMP_CONFIG_PATH)
 
