@@ -12,8 +12,6 @@ import (
 var (
 	multiLoaderConfigPath = flag.String("multiLoaderConfigPath", "tools/multi_loader/multi_loader_config.json", "Path to multi loader configuration file")
 	verbosity             = flag.String("verbosity", "info", "Logging verbosity - choose from [info, debug, trace]")
-	iatGeneration         = flag.Bool("iatGeneration", false, "Generate iats only and skip invocations")
-	generated             = flag.Bool("generated", false, "If iats were already generated")
 	failFast              = flag.Bool("failFast", false, "Determines whether a study should immediately skip to the next study upon failure")
 )
 
@@ -42,7 +40,7 @@ func initLogger() {
 func main() {
 	log.Info("Starting multiloader")
 	// Create multi loader runner
-	multiLoaderRunner, err := runner.NewMultiLoaderRunner(*multiLoaderConfigPath, *verbosity, *iatGeneration, *generated, *failFast)
+	multiLoaderRunner, err := runner.NewMultiLoaderRunner(*multiLoaderConfigPath, *verbosity, *failFast)
 	if err != nil {
 		log.Fatalf("Failed to create multi loader driver: %v", err)
 	}

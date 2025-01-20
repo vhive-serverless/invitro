@@ -217,7 +217,7 @@ func setup() (func(), MultiLoaderRunner) {
 	}
 
 	// Create a new multi-loader driver with the test config path
-	multiLoader, err := NewMultiLoaderRunner(multiLoaderTestConfigPath, "info", false, false, false)
+	multiLoader, err := NewMultiLoaderRunner(multiLoaderTestConfigPath, "info", false)
 	if err != nil {
 		log.Fatalf("Failed to create multi-loader driver: %v", err)
 	}

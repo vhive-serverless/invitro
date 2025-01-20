@@ -24,7 +24,7 @@ func CheckNode(node string) {
 }
 
 func CheckPath(path string) {
-	if (path) == "" {
+	if path == "" {
 		return
 	}
 	_, err := os.Stat(path)

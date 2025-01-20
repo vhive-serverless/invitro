@@ -20,6 +20,8 @@
             "PostScript": ""
         }
     ],
+    "IatGeneration": false,
+    "Generated": false,
     "PreScript": "",
     "PostScript": "",
     "BaseConfigPath": "pkg/config/test_config.json"

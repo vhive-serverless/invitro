@@ -11,6 +11,8 @@ As a wrapper around loader, multi-loader requires the initial cluster setup to b
 |---------------------|--------------------|-----------------|---------------|------------------------------------------------------------|
 | Studies         | []LoaderStudy | N/A             | N/A           | A list of loader studies with their respective configurations. See [LoaderStudy](#loaderstudy) |
 | BaseConfigPath      | string             | "tools/multi_loader/base_loader_config.json" | N/A           | Path to the base configuration file                         |
+| IatGeneration         | bool                   | true, false                   | false         | (Optional) Whether to Generate iats only and skip invocations |
+| Generated             | bool                   | true, false                   | false         | (Optional) if iats were already generated         |
 | PreScript           | string             | any bash command | ""           | (Optional) A global script that runs once before all experiments |
 | PostScript          | string             | any bash command | ""           | (Optional) A global script that runs once after all experiments  |
 
@@ -24,8 +26,6 @@ As a wrapper around loader, multi-loader requires the initial cluster setup to b
 | TraceValues           | []interface{}          | ["any", 0, 1.1]               | N/A           | Values of the trace files Replaces the "{}" in TraceFormat             |
 | OutputDir             | string                 | any                           | data/out/{Name} | (Optional) Output directory for experiment results                 |
 | Verbosity             | string                 | "info", "debug", "trace"      | "info"        | (Optional) Verbosity level for logging the experiment             |
-| IatGeneration         | bool                   | true, false                   | false         | (Optional) Whether to Generate iats only and skip invocations |
-| Generated             | bool                   | true, false                   | false         | (Optional) if iats were already generated         |
 | PreScript             | string                 | any bash Command              | ""           | (Optional) Local script that runs this specific experiment |
 | PostScript            | string                 | any bash Command              | ""           | (Optional) Local script that runs this specific experiment |
 
@@ -38,16 +38,17 @@ As a wrapper around loader, multi-loader requires the initial cluster setup to b
 > 1. `TracesDir`,  
 > 2. `TracesFormat` and `TraceValues`,  
 > 3. `TracePath`
+> The `Platform` field must not be overridden and should only defined in the base config.
+> The `IatGeneration` and `Generated` fields might not work as expected for multiple experiments due to limitations of loader.
 
 > **_Note_**: 
 > The `Config` field follows the same structure as the [LoaderConfiguration](https://github.com/vhive-serverless/invitro/blob/main/docs/configuration.md#loader-configuration-file-format). 
 > Any field defined in `Config` will override the corresponding value from the configuration in `BaseConfigPath`, but only for that specific experiment. 
 > For example, if `BaseConfigPath` has `ExperimentDuration` set to 5 minutes, and you define `ExperimentDuration` as 10 minutes in `Config`, that particular experiment will run for 10 minutes instead.
-> The `Platform` field must not be overridden and should only defined in the base config.
 
 ## Command Flags
 
-The multi-loader accepts the almost the same command-line flags as loader. 
+The multi-loader accepts the following command-line flags. 
 
 > **_Note_**: These flags will subsequently be used during the execution of loader.go for **<u>every experiment</u>**. If you would like to define these flag for specific experiments only, define it in [LoaderStudy](#loaderstudy)
 
@@ -61,12 +62,6 @@ Available flags:
     - `info`: Standard information messages.
     - `debug`: Detailed debugging messages.
     - `trace`: Extremely verbose logging, including detailed execution traces.
-
-- **`--iatGeneration`** *(default: `false`)*:  
-  If set to `true`, the multi-loader will generate inter-arrival times (IATs) only and skip the invocation of actual workloads. This is useful for scenarios where you want to analyze or generate IATs without executing the associated load.
-
-- **`--generated`** *(default: `false`)*:  
-  Indicates whether IATs have already been generated. If set to `true`, the multi-loader will use the existing IATs instead of generating new ones.
 
 - **`--failFast`** *(default: `false`)*:  
   Determines whether the multi-loader should skip the study immediately after a failure. By default, the loader retries a failed experiment once with debug verbosity and skips the study only if the second attempt also fails. Setting this flag to `true` prevents the retry and skips the study after the first failure.

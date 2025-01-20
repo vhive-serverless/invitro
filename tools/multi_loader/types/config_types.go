@@ -4,8 +4,10 @@ type MultiLoaderConfiguration struct {
 	Studies        []LoaderStudy `json:"Studies"`
 	BaseConfigPath string        `json:"BaseConfigPath"`
 	// Optional
-	PreScript  string `json:"PreScript"`
-	PostScript string `json:"PostScript"`
+	IatGeneration bool   `json:"IatGeneration"`
+	Generated     bool   `json:"Generated"`
+	PreScript     string `json:"PreScript"`
+	PostScript    string `json:"PostScript"`
 }
 
 type LoaderStudy struct {
