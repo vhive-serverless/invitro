@@ -31,7 +31,3 @@ log.setLevel(logging.INFO)
 ch = logging.StreamHandler()
 ch.setFormatter(CustomFormatter())
 log.addHandler(ch)
-
-def setLogLevel(level: str) -> None:
-    if (level == "INFO"): log.setLevel(logging.INFO)
-    elif (level == "DEBUG"): log.setLevel(logging.DEBUG)
