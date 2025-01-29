@@ -120,7 +120,7 @@ func TestParseMemoryTrace(t *testing.T) {
 }
 
 func TestParserWrapper(t *testing.T) {
-	parser := NewAzureParser("test_data", 10)
+	parser := NewAzureParser("test_data", 10, "workloads/container/trace_func_go.yaml")
 	functions := parser.Parse()
 
 	if len(functions) != 1 {

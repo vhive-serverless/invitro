@@ -42,15 +42,15 @@ import (
 
 type AzureTraceParser struct {
 	DirectoryPath string
-
+	yamlPath      string
 	duration              int
 	functionNameGenerator *rand.Rand
 }
 
-func NewAzureParser(directoryPath string, totalDuration int) *AzureTraceParser {
+func NewAzureParser(directoryPath string, totalDuration int, yamlPath string) *AzureTraceParser {
 	return &AzureTraceParser{
 		DirectoryPath: directoryPath,
-
+		yamlPath: yamlPath,
 		duration:              totalDuration,
 		functionNameGenerator: rand.New(rand.NewSource(time.Now().UnixNano())),
 	}
@@ -103,7 +103,7 @@ func (p *AzureTraceParser) extractFunctions(invocations *[]common.FunctionInvoca
 			InvocationStats: &invocationStats,
 			RuntimeStats:    runtimeByHashFunction[invocationStats.HashFunction],
 			MemoryStats:     memoryByHashFunction[invocationStats.HashFunction],
-
+			YAMLPath: p.yamlPath,
 			ColdStartBusyLoopMs: generator.ComputeBusyLoopPeriod(generator.GenerateMemorySpec(gen, gen.Float64(), memoryByHashFunction[invocationStats.HashFunction])),
 		}
 
