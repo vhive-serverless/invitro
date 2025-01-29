@@ -110,7 +110,8 @@ type Function struct {
 	CPURequestsMilli  int
 	MemoryRequestsMiB int
 	CPULimitsMilli    int
-
+	YAMLPath          string
+	PreDeploymentCommands []interface{}
 	Specification *FunctionSpecification
 
 	// used only for dirigent workflows
