@@ -26,7 +26,6 @@ var (
 type knativeDeployer struct{}
 
 type knativeDeploymentConfiguration struct {
-	YamlPath          string
 	IsPartiallyPanic  bool
 	EndpointPort      int
 	AutoscalingMetric string
@@ -38,7 +37,6 @@ func newKnativeDeployer() *knativeDeployer {
 
 func newKnativeDeployerConfiguration(cfg *config.Configuration) knativeDeploymentConfiguration {
 	return knativeDeploymentConfiguration{
-		YamlPath:          cfg.YAMLPath,
 		IsPartiallyPanic:  cfg.LoaderConfiguration.IsPartiallyPanic,
 		EndpointPort:      cfg.LoaderConfiguration.EndpointPort,
 		AutoscalingMetric: cfg.LoaderConfiguration.AutoscalingMetric,
@@ -61,7 +59,7 @@ func (*knativeDeployer) Deploy(cfg *config.Configuration) {
 
 			knativeDeploySingleFunction(
 				cfg.Functions[i],
-				knativeConfig.YamlPath,
+				cfg.Functions[i].YAMLPath,
 				knativeConfig.IsPartiallyPanic,
 				knativeConfig.EndpointPort,
 				knativeConfig.AutoscalingMetric,
