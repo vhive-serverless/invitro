@@ -1,0 +1,14 @@
+{
+    "c13acdc7567b225971cef2416a3a2b03c8a4d8d154df48afe75834e2f5c59ddf": {
+        "proxy-function": "video-processing-python-10"
+    },
+    "a2faad786b3c813b12ce57d349d5e62f6d0f22ceecfa86cd72a962853383b600": {
+        "proxy-function": "image-rotate-go-11"
+    },
+    "7dc5aeabc131669912e8c793c8925cc9928321f45f13a4af031592b4611630d7": {
+        "proxy-function": "video-processing-python-100"
+    },
+    "ae8a1640fa932024f59b38a0b001808b5c64612bd60c6f3eb80ba9461ba2d091": {
+        "proxy-function": "video-processing-python-10"
+    }
+}
