@@ -35,3 +35,48 @@ jobs:
     - name: Run tests
       working-directory: ${{ matrix.module }}
       run: go test -cover -race
+
+  mapper_e2e:
+    name: Mapper E2E Test
+    runs-on: ubuntu-20.04
+    strategy:
+      fail-fast: false
+      matrix:
+        module: [ tools/mapper, ]
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v3
+        with:
+          lfs: 'true'
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.9'
+
+      - uses: actions/cache@v4
+        with:
+          path: ${{ env.pythonLocation }}
+          key: ${{ env.pythonLocation }}-${{ hashFiles('setup.py') }}-${{ hashFiles('requirements.txt') }}
+
+      - name: Install requirements
+        run: pip install -r ./requirements.txt
+
+      - name: Profile load check
+        run: |
+          gzip -d tools/mapper/profile.json.gz -c > tools/mapper/profile.json
+          python3 -c "import json; json.load(open('tools/mapper/profile.json'))"
+  
+      - name: Test traces load check
+        run: |
+          python3 tools/mapper/trace_load_test.py -t tools/mapper/test_files/extremes/
+
+      - name: Extreme mapping tests
+        run: |
+          python3 tools/mapper/mapper.py -t tools/mapper/test_files/extremes -p tools/mapper/profile.json
+          diff tools/mapper/test_files/extremes/mapper_output.json tools/mapper/test_files/extremes/correct_mapper_output.json
+
+      - name: Run mapper tool on example trace
+        run: |
+          python3 tools/mapper/mapper.py -t data/traces/example -p tools/mapper/profile.json
+          diff data/traces/example/mapper_output.json data/traces/example/correct_mapper_output.json
