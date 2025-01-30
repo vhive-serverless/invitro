@@ -25,19 +25,16 @@
 package clients
 
 import (
-	"context"
 	"fmt"
+	"os"
+	"testing"
+	"time"
+
 	"github.com/sirupsen/logrus"
 	"github.com/vhive-serverless/loader/pkg/common"
 	"github.com/vhive-serverless/loader/pkg/config"
 	"github.com/vhive-serverless/loader/pkg/workload/standard"
-	helloworld "github.com/vhive-serverless/vSwarm/utils/protobuf/helloworld"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/reflection"
-	"net"
-	"os"
-	"testing"
-	"time"
+	"github.com/vhive-serverless/loader/pkg/workload/vswarm"
 )
 
 func createFakeLoaderConfiguration() *config.LoaderConfiguration {
@@ -69,29 +66,6 @@ var testFunction = common.Function{
 var testRuntimeSpecs = common.RuntimeSpecification{
 	Runtime: 10, // ms
 	Memory:  128,
-}
-
-type vSwarmServer struct {
-	helloworld.UnimplementedGreeterServer
-}
-
-func (s *vSwarmServer) SayHello(_ context.Context, req *helloworld.HelloRequest) (*helloworld.HelloReply, error) {
-	return &helloworld.HelloReply{
-		Message: "Reply message",
-	}, nil
-}
-
-func startVSwarmGRPCServer(serverAddress string, serverPort int) {
-	lis, err := net.Listen("tcp", fmt.Sprintf("%s:%d", serverAddress, serverPort))
-	if err != nil {
-		logrus.Fatalf("failed to listen: %v", err)
-	}
-
-	grpcServer := grpc.NewServer()
-
-	reflection.Register(grpcServer) // gRPC Server Reflection is used by gRPC CLI
-	helloworld.RegisterGreeterServer(grpcServer, &vSwarmServer{})
-	_ = grpcServer.Serve(lis)
 }
 
 func TestGRPCClientWithServerUnreachable(t *testing.T) {
@@ -161,7 +135,7 @@ func TestVSwarmClientWithServerReachable(t *testing.T) {
 	address, port := "localhost", 18081
 	testFunction.Endpoint = fmt.Sprintf("%s:%d", address, port)
 
-	go startVSwarmGRPCServer(address, port)
+	go vswarm.StartVSwarmGRPCServer(address, port)
 	time.Sleep(2 * time.Second)
 
 	cfgSwarm := createFakeVSwarmLoaderConfiguration()
