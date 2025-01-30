@@ -53,7 +53,7 @@ func TestConfigParser(t *testing.T) {
 		!strings.HasPrefix(config.OutputPathPrefix, "data/out/experiment") ||
 		config.IATDistribution != "equidistant" ||
 		config.CPULimit != "1vCPU" ||
-		config.ExperimentDuration != 5 ||
+		config.ExperimentDuration != 2 ||
 		config.WarmupDuration != 0 ||
 		config.IsPartiallyPanic != false ||
 		config.EnableZipkinTracing != false ||

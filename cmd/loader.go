@@ -194,7 +194,7 @@ func runTraceMode(cfg *config.LoaderConfiguration, readIATFromFile bool, writeIA
 	}
 
 	iatType, shiftIAT := parseIATDistribution(cfg)
-	
+
 	experimentDriver := driver.NewDriver(&config.Configuration{
 		LoaderConfiguration:  cfg,
 		FailureConfiguration: config.ReadFailureConfiguration(*failurePath),
