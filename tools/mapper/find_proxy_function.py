@@ -1,9 +1,5 @@
-import numpy as np
-import scipy.optimize as sp
 import math
-
 from log_config import *
-from typing import Tuple
 
 def get_error(trace_function, proxy_function) -> float:
     """
@@ -44,7 +40,7 @@ def get_error(trace_function, proxy_function) -> float:
 
 def get_closest_proxy_function(
     trace_functions: dict, proxy_functions: dict
-) -> Tuple[dict, int]:
+) -> dict:
     """
     Obtains the closest proxy function for every trace function
     
@@ -57,73 +53,37 @@ def get_closest_proxy_function(
     - `int`: 0 if no error. -1 if error
     """
 
-    try:
-        proxy_list = []
-        for function_name in proxy_functions:
-            proxy_list.append(proxy_functions[function_name])
-            proxy_functions[function_name]["index"] = len(proxy_list) - 1
+    proxy_list = []
+    for function_name in proxy_functions:
+        proxy_list.append(proxy_functions[function_name])
+        proxy_functions[function_name]["index"] = len(proxy_list) - 1
 
-        for function_name in trace_functions:
-            min_error = math.inf
-            min_error_index = -1
-            for i in range(0, len(proxy_list)):
-                error = get_error(trace_functions[function_name], proxy_list[i])
-                if error < min_error:
-                    min_error = error
-                    min_error_index = i
+    for id in trace_functions:
+        min_error = math.inf
+        min_error_index = -1
+        for i in range(0, len(proxy_list)):
+            error = get_error(trace_functions[id], proxy_list[i])
+            if error < min_error:
+                min_error = error
+                min_error_index = i
 
-            if min_error == math.inf:
-                log.warning(f"Proxy function for function {function_name} not found")
-                continue
+        if min_error == math.inf:
+            log.warning(f"Proxy function for unique id (HashFunction + HashOwner + HashApp) {id} not found. Using InVitro trace function.")
+            trace_functions[id]["proxy-function"] = "trace-func-go"
+            continue
 
-            trace_functions[function_name]["proxy-function"] = proxy_list[
-                min_error_index
-            ]["name"]
-            trace_functions[function_name]["proxy-correlation"] = get_error(
-                trace_functions[function_name], proxy_list[min_error_index]
-            )
-            log.debug(
-                f"Found proxy function for {function_name}: {trace_functions[function_name]['proxy-function']} with correlation: {trace_functions[function_name]['proxy-correlation']}"
-            )
+        trace_functions[id]["proxy-function"] = proxy_list[
+            min_error_index
+        ]["name"]
 
-        for function_name in proxy_functions:
-            del proxy_functions[function_name]["index"]
+        if abs(trace_functions[id]["duration"]["50-percentile"] - proxy_functions[trace_functions[id]["proxy-function"]]["duration"]["50-percentile"]) > 0.4*trace_functions[id]["duration"]["50-percentile"]:
+            log.warning(f"Duration error for id {id} above 40%. Using InVitro trace function.")
+            trace_functions[id]["proxy-function"] = "trace-func-go"
+            continue
 
-        return trace_functions, 0
-
-    except Exception as e:
-        log.error(f"Finding closest proxy function failed. Error: {e}")
-        return trace_functions, -1
-
-
-def get_proxy_function(
-    trace_functions: dict, proxy_functions: dict
-) -> Tuple[dict, int]:
-    """
-    Obtains the closest proxy function for every trace function
+    for function_name in proxy_functions:
+        del proxy_functions[function_name]["index"]
     
-    Parameters:
-    - `trace_functions` (dict): Dictionary containing information regarding trace functions
-    - `proxy_functions` (dict): Dictionary containing information regarding proxy functions
-    
-    Returns:
-    - `dict`: Dictionary containing information regarding trace functions with the associated proxy functions
-    - `int`: 0 if no error. -1 if error
-    """
+    log.info("Proxy functions found for all trace functions.")
 
-    log.info(
-        f"Lower the correlation value, the proxy function is a better proxy of the trace function"
-    )
-
-    log.info(
-        f"Getting closest proxy function for every trace function."
-    )
-    trace_functions, err = get_closest_proxy_function(
-        trace_functions=trace_functions, proxy_functions=proxy_functions
-    )
-
-    if err == -1:
-        log.critical(f"Mapping between trace function and proxy function not obtained")
-        return trace_functions, -1
-
-    return trace_functions, 0
+    return trace_functions
