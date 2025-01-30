@@ -40,9 +40,10 @@ import (
 	"github.com/vhive-serverless/loader/pkg/common"
 	"github.com/vhive-serverless/loader/pkg/metric"
 	"github.com/vhive-serverless/loader/pkg/workload/standard"
+	"github.com/vhive-serverless/loader/pkg/workload/vswarm"
 )
 
-func createFakeLoaderConfiguration() *config.LoaderConfiguration {
+func createFakeLoaderConfiguration(vSwarm bool) *config.LoaderConfiguration {
 	return &config.LoaderConfiguration{
 		Platform:                     "Knative",
 		InvokeProtocol:               "grpc",
@@ -50,11 +51,12 @@ func createFakeLoaderConfiguration() *config.LoaderConfiguration {
 		EnableZipkinTracing:          true,
 		GRPCConnectionTimeoutSeconds: 5,
 		GRPCFunctionTimeoutSeconds:   15,
+		VSwarm:                       vSwarm,
 	}
 }
 
-func createTestDriver(invocationStats []int) *Driver {
-	cfg := createFakeLoaderConfiguration()
+func createTestDriver(invocationStats []int, vSwarm bool) *Driver {
+	cfg := createFakeLoaderConfiguration(vSwarm)
 
 	driver := NewDriver(&config.Configuration{
 		LoaderConfiguration: cfg,
@@ -129,7 +131,7 @@ func TestInvokeFunctionFromDriver(t *testing.T) {
 			invocationRecordOutputChannel := make(chan *metric.ExecutionRecord, 1)
 			announceDone := &sync.WaitGroup{}
 
-			testDriver := createTestDriver([]int{1})
+			testDriver := createTestDriver([]int{1}, false)
 			var functionsInvoked int64
 			if !test.forceFail {
 				address, port := "localhost", test.port
@@ -186,6 +188,88 @@ func TestInvokeFunctionFromDriver(t *testing.T) {
 	}
 }
 
+func TestVSwarmInvokeFunctionFromDriver(t *testing.T) {
+	tests := []struct {
+		testName  string
+		port      int
+		forceFail bool
+	}{
+		{
+			testName:  "invoke_failure",
+			port:      8084,
+			forceFail: true,
+		},
+		{
+			testName:  "invoke_success",
+			port:      8085,
+			forceFail: false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.testName, func(t *testing.T) {
+			var successCount int64 = 0
+			var failureCount int64 = 0
+
+			invocationRecordOutputChannel := make(chan *metric.ExecutionRecord, 1)
+			announceDone := &sync.WaitGroup{}
+
+			testDriver := createTestDriver([]int{1}, true)
+			var functionsInvoked int64
+			if !test.forceFail {
+				address, port := "localhost", test.port
+				testDriver.Configuration.Functions[0].Endpoint = fmt.Sprintf("%s:%d", address, port)
+
+				go vswarm.StartVSwarmGRPCServer(address, port)
+
+				// make sure that the gRPC server is running
+				time.Sleep(2 * time.Second)
+			}
+			function := testDriver.Configuration.Functions[0]
+			node := &common.Node{Function: testDriver.Configuration.Functions[0]}
+			list := list.New()
+			list.PushBack(node)
+			function.Specification.RuntimeSpecification = []common.RuntimeSpecification{{
+				Runtime: 1000,
+				Memory:  128,
+			}}
+			metadata := &InvocationMetadata{
+				RootFunction:        list,
+				Phase:               common.ExecutionPhase,
+				IatIndex:            0,
+				InvocationID:        composeInvocationID(common.MinuteGranularity, 0, 0),
+				SuccessCount:        &successCount,
+				FailedCount:         &failureCount,
+				FunctionsInvoked:    &functionsInvoked,
+				RecordOutputChannel: invocationRecordOutputChannel,
+				AnnounceDoneWG:      announceDone,
+			}
+
+			announceDone.Add(1)
+			testDriver.invokeFunction(metadata)
+
+			switch test.forceFail {
+			case true:
+				if !(successCount == 0 && failureCount == 1 && functionsInvoked == 1) {
+					t.Error("The function somehow managed to execute.")
+				}
+			case false:
+				if !(successCount == 1 && failureCount == 0 && functionsInvoked == 1) {
+					t.Error("The function should not have failed.")
+				}
+			}
+
+			record := <-invocationRecordOutputChannel
+			announceDone.Wait()
+
+			if record.Phase != int(metadata.Phase) ||
+				record.InvocationID != composeInvocationID(common.MinuteGranularity, 0, 0) {
+
+				t.Error("Invalid invocation record received.")
+			}
+		})
+	}
+}
 func TestDAGInvocation(t *testing.T) {
 	var successCount int64 = 0
 	var failureCount int64 = 0
@@ -194,8 +278,8 @@ func TestDAGInvocation(t *testing.T) {
 	invocationRecordOutputChannel := make(chan *metric.ExecutionRecord, functionsToInvoke)
 	announceDone := &sync.WaitGroup{}
 
-	testDriver := createTestDriver([]int{4})
-	address, port := "localhost", 8085
+	testDriver := createTestDriver([]int{4}, false)
+	address, port := "localhost", 8086
 	function := testDriver.Configuration.Functions[0]
 	function.Endpoint = fmt.Sprintf("%s:%d", address, port)
 
@@ -257,8 +341,79 @@ func TestDAGInvocation(t *testing.T) {
 	}
 }
 
+func TestVSwarmDAGInvocation(t *testing.T) {
+	var successCount int64 = 0
+	var failureCount int64 = 0
+	var functionsToInvoke int = 3
+	var functionsInvoked int64
+	invocationRecordOutputChannel := make(chan *metric.ExecutionRecord, functionsToInvoke)
+	announceDone := &sync.WaitGroup{}
+
+	testDriver := createTestDriver([]int{4}, true)
+	address, port := "localhost", 8087
+	function := testDriver.Configuration.Functions[0]
+	function.Endpoint = fmt.Sprintf("%s:%d", address, port)
+
+	go vswarm.StartVSwarmGRPCServer(address, port)
+	function.Specification.RuntimeSpecification = []common.RuntimeSpecification{{
+		Runtime: 1000,
+		Memory:  128,
+	}}
+	functionList := make([]*common.Function, 3)
+	for i := 0; i < len(functionList); i++ {
+		functionList[i] = function
+	}
+	originalBranch := []*list.List{
+		func() *list.List {
+			l := list.New()
+			l.PushBack(&common.Node{Function: functionList[0], Depth: 0})
+			l.PushBack(&common.Node{Function: functionList[1], Depth: 1})
+			return l
+		}(),
+	}
+
+	newBranch := []*list.List{
+		func() *list.List {
+			l := list.New()
+			l.PushBack(&common.Node{Function: functionList[2], Depth: 1})
+			return l
+		}(),
+	}
+
+	rootFunction := originalBranch[0]
+	rootFunction.Front().Value.(*common.Node).Branches = newBranch
+	time.Sleep(2 * time.Second)
+
+	metadata := &InvocationMetadata{
+		RootFunction:        rootFunction,
+		Phase:               common.ExecutionPhase,
+		IatIndex:            0,
+		InvocationID:        composeInvocationID(common.MinuteGranularity, 0, 0),
+		SuccessCount:        &successCount,
+		FailedCount:         &failureCount,
+		FunctionsInvoked:    &functionsInvoked,
+		RecordOutputChannel: invocationRecordOutputChannel,
+		AnnounceDoneWG:      announceDone,
+	}
+
+	announceDone.Add(1)
+	testDriver.invokeFunction(metadata)
+	announceDone.Wait()
+	if !(successCount == 3 && failureCount == 0) {
+		t.Error("Number of successful and failed invocations not as expected.")
+	}
+	for i := 0; i < functionsToInvoke; i++ {
+		record := <-invocationRecordOutputChannel
+		if record.Phase != int(metadata.Phase) ||
+			record.InvocationID != composeInvocationID(common.MinuteGranularity, 0, 0) {
+
+			t.Error("Invalid invocation record received.")
+		}
+	}
+}
+
 func TestGlobalMetricsCollector(t *testing.T) {
-	driver := createTestDriver([]int{5})
+	driver := createTestDriver([]int{5}, false)
 
 	inputChannel := make(chan *metric.ExecutionRecord)
 	totalIssuedChannel := make(chan int64)
@@ -334,7 +489,7 @@ func TestDriverBackgroundProcesses(t *testing.T) {
 				t.Skip("Not yet implemented")
 			}
 
-			driver := createTestDriver([]int{5})
+			driver := createTestDriver([]int{5}, false)
 			globalCollectorAnnounceDone := &sync.WaitGroup{}
 
 			completed, _, _, _ := driver.startBackgroundProcesses(globalCollectorAnnounceDone)
@@ -411,7 +566,7 @@ func TestDriverCompletely(t *testing.T) {
 			logrus.SetLevel(logrus.DebugLevel)
 			logrus.SetFormatter(&logrus.TextFormatter{TimestampFormat: time.StampMilli, FullTimestamp: true})
 
-			driver := createTestDriver(test.invocationStats)
+			driver := createTestDriver(test.invocationStats, false)
 
 			if test.withWarmup {
 				if test.traceGranularity == common.MinuteGranularity {
@@ -484,6 +639,101 @@ func TestDriverCompletely(t *testing.T) {
 	}
 }
 
+func TestVSwarmDriverCompletely(t *testing.T) {
+	tests := []struct {
+		testName              string
+		experimentDurationMin int
+		withWarmup            bool
+		traceGranularity      common.TraceGranularity
+		invocationStats       []int
+		expectedInvocations   int
+	}{
+		{
+			testName:              "without_warmup",
+			experimentDurationMin: 1,
+			invocationStats:       []int{5},
+			traceGranularity:      common.MinuteGranularity,
+			expectedInvocations:   5,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.testName, func(t *testing.T) {
+			logrus.SetLevel(logrus.DebugLevel)
+			logrus.SetFormatter(&logrus.TextFormatter{TimestampFormat: time.StampMilli, FullTimestamp: true})
+
+			driver := createTestDriver(test.invocationStats, true)
+
+			if test.withWarmup {
+				if test.traceGranularity == common.MinuteGranularity {
+					driver.Configuration.LoaderConfiguration.WarmupDuration = 1
+				} else {
+					driver.Configuration.LoaderConfiguration.WarmupDuration = 60
+				}
+			}
+			driver.Configuration.TraceDuration = test.experimentDurationMin
+			driver.Configuration.TraceGranularity = test.traceGranularity
+
+			driver.GenerateSpecification()
+			driver.RunExperiment()
+
+			f, err := os.Open(driver.outputFilename("duration"))
+			if err != nil {
+				t.Error(err)
+			}
+
+			if test.expectedInvocations == 0 {
+				return
+			}
+
+			var records []metric.ExecutionRecordBase
+			err = gocsv.UnmarshalFile(f, &records)
+			if err != nil {
+				log.Fatal(err.Error())
+			}
+
+			successfulInvocation, failedInvocations := 0, 0
+			//clockTolerance := int64(20_000) // ms
+
+			for i := 0; i < len(records); i++ {
+				record := records[i]
+
+				if test.withWarmup {
+					threshold := 60
+					if test.testName == "with_warmup" {
+						threshold = 5
+					}
+
+					// 60 no checked since it is started in the warmup phase and completed in the execution phase -- new value taken
+					if i < threshold && record.Phase != int(common.WarmupPhase) {
+						t.Error("Invalid record phase in warmup.")
+					} else if i > threshold && record.Phase != int(common.ExecutionPhase) {
+						t.Errorf("Invalid record phase in execution phase - ID = %d.", i)
+					}
+				}
+
+				if !record.ConnectionTimeout && !record.FunctionTimeout {
+					successfulInvocation++
+				} else {
+					failedInvocations++
+				}
+
+				/*if i < len(records)-1 {
+					diff := (records[i+1].StartTime - records[i].StartTime) / 1_000_000 // ms
+
+					if diff > clockTolerance {
+						t.Errorf("Too big clock drift for the test to pass - %d.", diff)
+					}
+				}*/
+			}
+
+			expectedInvocations := test.expectedInvocations
+			if !(successfulInvocation == expectedInvocations && failedInvocations == 0) {
+				t.Error("Number of successful and failed invocations do not match.")
+			}
+		})
+	}
+}
 func TestHasMinuteExpired(t *testing.T) {
 	if !hasMinuteExpired(time.Now().Add(-2 * time.Minute)) {
 		t.Error("Time should have expired.")
