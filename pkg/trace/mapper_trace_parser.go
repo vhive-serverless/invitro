@@ -1,17 +1,18 @@
 package trace
 
 import (
-	"fmt"
-	"os"
 	"encoding/json"
+	"fmt"
 	"math/rand"
-	"github.com/vhive-serverless/loader/pkg/common"
+	"os"
 	"time"
+
 	log "github.com/sirupsen/logrus"
+	"github.com/vhive-serverless/loader/pkg/common"
 )
 
 type MapperTraceParser struct {
-	DirectoryPath string
+	DirectoryPath         string
 	duration              int
 	functionNameGenerator *rand.Rand
 }
@@ -25,11 +26,11 @@ func NewMapperParser(directoryPath string, totalDuration int) *MapperTraceParser
 	}
 }
 
-func (p* MapperTraceParser) extractFunctions(mapperOutput map[string]map[string]string, deploymentInfo map[string]map[string]interface{}, dirPath string) []*common.Function {
+func (p *MapperTraceParser) extractFunctions(mapperOutput map[string]map[string]string, deploymentInfo map[string]map[string]interface{}, dirPath string) []*common.Function {
 	var result []*common.Function
 	invocations := parseInvocationTrace(dirPath+"/invocations.csv", p.duration)
-	runtime := parseRuntimeTrace(dirPath+"/durations.csv")
-	memory := parseMemoryTrace(dirPath+"/memory.csv")
+	runtime := parseRuntimeTrace(dirPath + "/durations.csv")
+	memory := parseMemoryTrace(dirPath + "/memory.csv")
 
 	runtimeByHashFunction := createRuntimeMap(runtime)
 	memoryByHashFunction := createMemoryMap(memory)
@@ -43,10 +44,10 @@ func (p* MapperTraceParser) extractFunctions(mapperOutput map[string]map[string]
 		function := &common.Function{
 			Name: fmt.Sprintf("%s-%d-%d", proxyFunction, i, p.functionNameGenerator.Uint64()),
 
-			InvocationStats: &invocationStats,
-			RuntimeStats: runtimeByHashFunction[hashFunction],
-			MemoryStats: memoryByHashFunction[hashFunction],
-			YAMLPath: yamlPath,
+			InvocationStats:       &invocationStats,
+			RuntimeStats:          runtimeByHashFunction[hashFunction],
+			MemoryStats:           memoryByHashFunction[hashFunction],
+			YAMLPath:              yamlPath,
 			PreDeploymentCommands: preDeploymentCommands,
 		}
 		result = append(result, function)
@@ -58,12 +59,15 @@ func (p *MapperTraceParser) Parse() []*common.Function {
 	var mapperOutput map[string]map[string]string // HashFunction mapped to vSwarm function yaml.
 	var deploymentInfo map[string]map[string]interface{}
 	// Read the deployment info file for yaml locations and predeployment commands if any
-	homeDir := os.Getenv("HOME")
-	deploymentInfoFile, err := os.ReadFile(homeDir+"/invitro/pkg/trace/deploy_info.json")
+	deploymentInfoFile, err := os.ReadFile("deploy_info.json")
 	if err != nil {
-		log.Warn("No deployment info file")
+		wd, _ := os.Getwd()
+		deploymentInfoFile, err = os.ReadFile(wd + "/pkg/trace/deploy_info.json")
+		if err != nil {
+			log.Warn("No deployment info file")
+		}
 	}
-	
+
 	err = json.Unmarshal(deploymentInfoFile, &deploymentInfo)
 	if err != nil {
 		log.Warn("Failed to unmarshal deployment info file")
@@ -78,11 +82,15 @@ func (p *MapperTraceParser) Parse() []*common.Function {
 		for _, trace := range traces {
 			traceName := trace.Name()
 			mapperFile, err = os.ReadFile(p.DirectoryPath + "/" + traceName + "/mapper_output.json")
+			if err != nil {
+				log.Warn("Directory has no mapper_output")
+				continue
+			}
 			err = json.Unmarshal(mapperFile, &mapperOutput)
 			if err != nil {
 				log.Warn("Failed to unmarshal mapper output file")
 			}
-			result := p.extractFunctions(mapperOutput, deploymentInfo, p.DirectoryPath + "/" + traceName)
+			result := p.extractFunctions(mapperOutput, deploymentInfo, p.DirectoryPath+"/"+traceName)
 			functions = append(functions, result...)
 		}
 		return functions
