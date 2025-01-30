@@ -13,7 +13,7 @@
   "OutputPathPrefix": "data/out/experiment",
   "IATDistribution": "exponential",
   "CPULimit": "1vCPU",
-  "ExperimentDuration": 10,
+  "ExperimentDuration": 2,
   "WarmupDuration": 0,
 
   "IsPartiallyPanic": false,
