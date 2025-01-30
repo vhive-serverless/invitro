@@ -1,7 +1,8 @@
 package trace
+
 import (
-	"testing"
 	"strings"
+	"testing"
 )
 
 func TestMapperParserWrapper(t *testing.T) {
