@@ -2,11 +2,12 @@ package generator
 
 import (
 	"fmt"
+	"math"
+	"math/rand"
+
 	"github.com/sirupsen/logrus"
 	"github.com/vhive-serverless/loader/pkg/common"
 	"github.com/vhive-serverless/loader/pkg/config"
-	"math"
-	"math/rand"
 )
 
 func generateFunctionByRPS(experimentDuration int, rpsTarget float64) common.IATArray {
@@ -74,28 +75,16 @@ func GenerateWarmStartFunction(experimentDuration int, rpsTarget float64) (commo
 
 // GenerateColdStartFunctions It is recommended that the first 10% of cold starts are discarded from the experiment results for low cold start RPS.
 func GenerateColdStartFunctions(experimentDuration int, rpsTarget float64, cooldownSeconds int) ([]common.IATArray, [][]int) {
-	iat := 1000000.0 / float64(rpsTarget) // ms
 	totalFunctions := int(math.Ceil(rpsTarget * float64(cooldownSeconds)))
 
 	var functions []common.IATArray
 	var countResult [][]int
 
 	for i := 0; i < totalFunctions; i++ {
-		offsetWithinBatch := 0
-		if rpsTarget >= 1 {
-			offsetWithinBatch = int(float64(i%int(rpsTarget)) * iat)
-		}
 
-		offsetBetweenFunctions := int(float64(i)/rpsTarget) * 1_000_000
-		offset := offsetWithinBatch + offsetBetweenFunctions
+		offset := float64(i) / rpsTarget * 1_000_000.0
 
-		var fx common.IATArray
-		var count []int
-		if rpsTarget >= 1 {
-			fx, count = generateFunctionByRPSWithOffset(experimentDuration, 1/float64(cooldownSeconds), float64(offset))
-		} else {
-			fx, count = generateFunctionByRPSWithOffset(experimentDuration, 1/(float64(totalFunctions)/rpsTarget), float64(offset))
-		}
+		fx, count := generateFunctionByRPSWithOffset(experimentDuration, 1/(float64(totalFunctions)/rpsTarget), offset)
 
 		functions = append(functions, fx)
 		countResult = append(countResult, count)
