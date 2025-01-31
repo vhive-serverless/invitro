@@ -1,0 +1,28 @@
+{
+    "Studies": [
+        {
+            "Name": "test-experiment",
+            "Config": {
+                "ExperimentDuration": 1
+            },
+            "IatGeneration": false,
+            "Generated": false,
+            "Verbosity": "info",
+            "TracesDir": "",
+            "TracesFormat": "data/multi_traces/example_{}_test",
+            "TraceValues": [
+                "1",
+                "2",
+                3.1
+            ],
+            "OutputDir": "data/out/multi-test",
+            "PreScript": "",
+            "PostScript": ""
+        }
+    ],
+    "IatGeneration": false,
+    "Generated": false,
+    "PreScript": "",
+    "PostScript": "",
+    "BaseConfigPath": "pkg/config/test_config.json"
+}

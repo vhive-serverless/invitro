@@ -1,0 +1,68 @@
+name: End-to-End Multi-Loader Tests
+
+on:
+  schedule:
+    - cron: "0 9 * * 1"
+  workflow_dispatch:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  GOOS: linux
+  GO111MODULE: on
+
+jobs:
+  test-multi-loader:
+    name: Test Multi-Loader with Knative Deployment
+    env:
+      KIND_VERSION: v0.22.0
+      K8S_VERSION: v1.29
+      YAML_DIR: workloads/container
+    runs-on: ubuntu-20.04
+    strategy:
+      fail-fast: false
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Kubernetes KinD Cluster and install Knative
+        uses: ./.github/actions/ci_knative_setup
+      
+      - name: Setup traces for multi trace test
+        shell: bash
+        run: bash ./scripts/setup/setup_multi_test_trace.sh
+
+      - name: Build and run multi-loader
+        run: go run tools/multi_loader/multi_loader.go --multiLoaderConfigPath tools/multi_loader/multi_loader_config.json
+
+      - name: Check multi_loader output
+        run: |
+          # check if there are 4 output folders: *_example_1_test, *_example_2_test, *_example_3_test & dry_run
+          folder_count=$(find data/out/multi-test/test-experiment -mindepth 1 -maxdepth 1 -type d | wc -l)
+          if [ "$folder_count" -ne 4 ]; then
+            echo "Output folder count is $folder_count, expected 4"
+            exit 1
+          else
+            echo "Output correct number of folders"
+          fi
+
+          # Check for errors in each output CSV file
+          for file in $(find . -name "*_example_1_test/example_1_test_duration_1.csv" -o -name "*_example_2_test/example_2_test_duration_1.csv" -o -name "*_example_3_test/example_3_test_duration_1.csv"); do
+            if [ ! -f "$file" ]; then
+              echo "File $file not found!"
+              exit 1
+            fi
+
+            if [ $(grep true "$file" | wc -l) -ne 0 ]; then
+              echo "Error found in $file"
+              exit 1
+            fi
+          done
+          echo "No errors found in output files"
+
+      - name: Down
+        if: ${{ always() }}
+        run: |
+          kn service delete --all
