@@ -23,7 +23,7 @@ pyOpenSSL==25.0.0
 pyparsing==3.2.0
 python-apt==2.0.0+ubuntu0.20.4.3
 python-dateutil==2.9.0.post0
-pytz==2024.1
+pytz==2025.1
 PyYAML==6.0
 requests==2.32.2
 requests-unixsocket==0.3.0
