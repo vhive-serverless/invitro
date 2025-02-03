@@ -2,6 +2,7 @@ package common
 
 import (
 	"path"
+	"slices"
 	"strings"
 
 	log "github.com/sirupsen/logrus"
@@ -51,6 +52,21 @@ func CheckMultiLoaderConfig(multiLoaderConfig types.MultiLoaderConfiguration) {
 				log.Warn("Setting default output directory to ", study.OutputDir)
 			}
 		}
+
+		// Check sweep options
+		for _, sweep := range study.Sweep {
+			if err := sweep.Validate(); err != nil {
+				log.Fatal(err)
+			}
+		}
+		// check sweep type
+		CheckSweepType(study.SweepType)
 	}
 	log.Debug("All experiments configs are valid")
+}
+
+func CheckSweepType(sweepType string) {
+	if sweepType != "" && !slices.Contains(SweepTypes, sweepType) {
+		log.Fatal("Invalid Sweep Type ", sweepType)
+	}
 }

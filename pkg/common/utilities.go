@@ -162,14 +162,14 @@ func DeepCopy[T any](a T) (T, error) {
 	return b, err
 }
 
-func RunScript(command string) {
+func RunCommand(command string) {
 	if command == "" {
 		return
 	}
 	logger.Debug("Running command ", command)
-	cmd, err := exec.Command("/bin/sh", command).Output()
+	cmd, err := exec.Command("sh", "-c", command).Output()
 	if err != nil {
-		log.Fatal(err)
+		logger.Fatal(err)
 	}
 	logger.Debug(string(cmd))
 }
