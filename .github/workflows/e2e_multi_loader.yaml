@@ -66,3 +66,97 @@ jobs:
         if: ${{ always() }}
         run: |
           kn service delete --all
+  adv-log-collection:
+    name: Test Multi-Loader Advanced Log Collection
+    env:
+      KIND_VERSION: v0.22.0
+      K8S_VERSION: v1.29
+      YAML_DIR: workloads/container
+    runs-on: ubuntu-20.04
+    strategy:
+      fail-fast: false
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Kubernetes KinD Cluster and install Knative
+        uses: ./.github/actions/ci_knative_setup
+
+      - name: Setup ssh on KinD Cluster node
+        shell: bash
+        run: bash ./scripts/setup/setup_kind_ssh.sh
+      
+      - name: Setup metrics on KinD Cluster
+        shell: bash
+        run: bash ./scripts/setup/setup_kind_metrics.sh
+      
+      - name: Setup traces for multi trace test
+        shell: bash
+        run: bash ./scripts/setup/setup_multi_test_trace.sh
+
+      - name: Setup jq
+        uses: dcarbone/install-jq-action@v3
+
+      - name: Modify multi_loader_config.json for advanced log collection
+        run: |
+          metrics='["top", "autoscaler", "activator", "prometheus"]'
+
+          # Use jq to modify the JSON file directly
+          jq --arg m "$metrics" '
+            .Metrics = ($m | fromjson) |
+            .Studies[0].TraceValues = ["1"]
+          ' tools/multi_loader/multi_loader_config.json > tmp.json && mv tmp.json tools/multi_loader/multi_loader_config.json
+
+          echo "multi_loader_config.json modified successfully"
+
+      - name: Build and run multi-loader
+        run: go run tools/multi_loader/multi_loader.go --multiLoaderConfigPath tools/multi_loader/multi_loader_config.json
+  
+      - name: Check multi_loader output
+        run: |
+          # check if there are 2 output folders: *_example_1_test & dry_run
+          folder_count=$(find data/out/multi-test/test-experiment -mindepth 1 -maxdepth 1 -type d | wc -l)
+          if [ "$folder_count" -ne 2 ]; then
+            echo "Output folder count is $folder_count, expected 2"
+            exit 1
+          else
+            echo "Output correct number of folders"
+          fi
+
+          # Check for errors in output CSV file
+          file=$(find . -wholename "*_example_1_test/example_1_test_duration_1.csv")
+
+          if [ ! -f "$file" ]; then
+            echo "File $file not found!"
+            exit 1
+          fi
+
+          if [ $(grep true "$file" | wc -l) -ne 0 ]; then
+            echo "Error found in $file"
+            exit 1
+          fi
+
+          # Check if advanced logs output are present
+          # in data/out/multi-test/test-experiment/*_example_1_test/, there should be folders called ["top", "autoscaler", "activator", "prometheus_snapshot"] and each folder should have at least one file
+          for metric in top autoscaler activator prometheus_snapshot; do
+            folder="data/out/multi-test/test-experiment/*_example_1_test/$metric"
+            if [ ! -d $folder ]; then
+              echo "Folder $metric not found! Expected to find $metric folder"
+              exit 1
+            fi
+
+            if [ $(find data/out/multi-test/test-experiment/*_example_1_test/$metric -type f | wc -l) -eq 0 ]; then
+              echo "No files found in $metric folder, expected at least one"
+              exit 1
+            fi
+          done
+          echo "Advanced logs output present, found files for activators, autoscaler, top and prometheus"
+
+          echo "No errors found in output files"
+
+      - name: Down
+        if: ${{ always() }}
+        run: |
+          kn service delete --all
+
+  

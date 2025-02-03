@@ -35,7 +35,7 @@ docker exec knative-control-plane systemctl restart sshd
 
 # Add user 
 echo "Adding user"
-docker exec knative-control-plane adduser --disabled-password --allow-bad-names --gecos "" $(whoami) sudo
+docker exec knative-control-plane adduser --disabled-password --allow-bad-names --gecos "" $(whoami)
 
 # Add keys to user's authorized_keys
 echo "Adding keys to authorized_keys"
