@@ -2,7 +2,10 @@ package common
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
+	"path/filepath"
+	"strconv"
 
 	log "github.com/sirupsen/logrus"
 
@@ -49,4 +52,68 @@ func DeterminePlatformFromConfig(multiLoaderConfig types.MultiLoaderConfiguratio
 		log.Fatal(err)
 	}
 	return loaderConfig.Platform
+}
+
+/**
+ * NextCProduct generates the next Cartesian product of the given limits
+ **/
+func NextCProduct(limits []int) func() []int {
+	permutations := make([]int, len(limits))
+	indices := make([]int, len(limits))
+	done := false
+
+	return func() []int {
+		// Check if there are more permutations
+		if done {
+			return nil
+		}
+
+		// Generate the current permutation
+		copy(permutations, indices)
+
+		// Generate the next permutation
+		for i := len(indices) - 1; i >= 0; i-- {
+			indices[i]++
+			if indices[i] <= limits[i] {
+				break
+			}
+			indices[i] = 0
+			if i == 0 {
+				// All permutations have been generated
+				done = true
+			}
+		}
+
+		return permutations
+	}
+}
+
+func IntArrToString(arr []int) string {
+	str := ""
+	for _, val := range arr {
+		str += strconv.Itoa(val)
+	}
+	return str
+}
+
+func SplitPath(path string) []string {
+	dir, last := filepath.Split(path)
+	if dir == "" {
+		return []string{last}
+	}
+	return append(SplitPath(filepath.Clean(dir)), last)
+}
+
+func SweepOptionsToPostfix(sweepOptions []types.SweepOptions, selectedSweepValues []int) string {
+	var postfix string
+	for i, sweepOption := range sweepOptions {
+		if sweepOption.Field == "PreScript" {
+			postfix += fmt.Sprintf("_%s_%v", sweepOption.Field, selectedSweepValues[i])
+		} else if sweepOption.Field == "PostScript" {
+			postfix += fmt.Sprintf("_%s_%v", sweepOption.Field, selectedSweepValues[i])
+		} else {
+			postfix += fmt.Sprintf("_%s_%v", sweepOption.Field, sweepOption.Values[selectedSweepValues[i]])
+		}
+	}
+	return postfix
 }
