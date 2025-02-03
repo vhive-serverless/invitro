@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"gopkg.in/yaml.v2"
 	"math"
+	"math/rand"
 	"os"
 	"os/exec"
 	"regexp"
@@ -31,6 +33,18 @@ type knativeDeploymentConfiguration struct {
 	IsPartiallyPanic  bool
 	EndpointPort      int
 	AutoscalingMetric string
+}
+
+type YAMLConfiguration struct {
+	APIVersion	string `yaml:"apiVersion"`
+	Kind		string `yaml:"kind"`
+	Metadata 	metadata `yaml:"metadata"`
+	Spec 		map[string]interface{} `yaml:"spec"`
+}
+
+type metadata struct {
+	Name string `yaml:"name"`
+	Namespace string `yaml:"namespace"`
 }
 
 func newKnativeDeployer() *knativeDeployer {
@@ -73,6 +87,15 @@ func (*knativeDeployer) Clean() {
 	}
 }
 
+func genRandomString() string {
+	const charset = "abcdefghijklmnopqrstuvwxyz0123456789"
+	b := make([]byte, 8)
+	for i := range b {
+		b[i] = charset[rand.Intn(len(charset))]
+	}
+	return string(b)
+}
+
 func knativeDeploySingleFunction(function *common.Function, yamlPath string, isPartiallyPanic bool, endpointPort int,
 	autoscalingMetric string, vSwarm bool, mapperPath string) bool {
 	panicWindow := "\"10.0\""
@@ -106,6 +129,24 @@ func knativeDeploySingleFunction(function *common.Function, yamlPath string, isP
 		// Find the proxy name for the function
 		proxyName = mapperOutput[function.HashFunction]["proxy-function"]
 		log.Info("Proxy name: ", proxyName)
+		log.Info("Function name: ", function.HashFunction)
+
+		// Read the invoke_study file for the given trace
+
+		invokeStudyFile, err := os.ReadFile(mapperPath + "/invoke_study.csv")
+		if err != nil {
+			log.Warn("No invoke study file: ", err)
+		}
+		// Read the second line
+		lines := bytes.Split(invokeStudyFile, []byte("\n"))
+		secondLine := lines[1]
+		// Split the line by commas
+		funcs := bytes.Split(secondLine, []byte(","))
+		// get first word
+		foi := string(funcs[0])
+		if foi == function.HashFunction {
+			log.Warn("Function of interest found")
+		}
 		// Read the deployment info file for yaml locations and predeployment commands if any
 
 		deploymentInfoFile, err := os.ReadFile(yamlPath + "deploy_info.json")
@@ -125,8 +166,30 @@ func knativeDeploySingleFunction(function *common.Function, yamlPath string, isP
 			// Get the yaml location and predeployment commands for the function
 			log.Info("YAML location: ", deploymentInfo[proxyName]["yaml-location"])
 			yamlLocation := deploymentInfo[proxyName]["yaml-location"].(string)
-			// Modify the yaml location to drop the leading "./" and add the yaml path
-			yamlPath = yamlLocation
+
+			yamlData, err := os.ReadFile(yamlLocation)
+			if err != nil {
+				log.Warn("Failed to read yaml file: ", err)
+			}
+			// Unmarshal the yaml 
+
+			var yamlConfig YAMLConfiguration
+
+			err = yaml.Unmarshal(yamlData, &yamlConfig)
+			if err != nil {
+				log.Warn("Failed to unmarshal yaml file: ", err)
+			}
+			randString := genRandomString()
+			yamlConfig.Metadata.Name = proxyName + "-" + randString
+			modifiedYamlData, err := yaml.Marshal(&yamlConfig)
+			if err != nil {
+				log.Warn("Failed to marshal yaml file: ", err)
+			}
+
+			err = os.WriteFile(yamlPath+proxyName+"-"+randString+".yaml", modifiedYamlData, 0644)
+			if err != nil {
+				log.Warn("Failed to write yaml file: ", err)
+			}
 			// Get the list of predeployment commands
 			predeploymentCommands := deploymentInfo[proxyName]["predeployment-commands"].([]interface{})
 
@@ -140,6 +203,8 @@ func knativeDeploySingleFunction(function *common.Function, yamlPath string, isP
 					return false
 				}
 			}
+			yamlPath = yamlPath + proxyName + "-" + randString + ".yaml"
+			proxyName = proxyName + "-" + randString
 		} else {
 			// If the function is the trace function, use the default yaml path
 			proxyName = function.Name
@@ -182,6 +247,14 @@ func knativeDeploySingleFunction(function *common.Function, yamlPath string, isP
 
 	if err != nil {
 		log.Warnf("Failed to wait for function %s to deploy: %v\n", function.Name, err)
+	}
+	// Remove the yaml file
+
+	if proxyName != function.Name {
+		err = os.Remove(yamlPath)
+		if err != nil {
+			log.Warnf("Failed to remove yaml file %s: %v\n", yamlPath, err)
+		}
 	}
 
 	if endpoint := urlRegex.FindStringSubmatch(string(stdoutStderr))[1]; endpoint != function.Endpoint {

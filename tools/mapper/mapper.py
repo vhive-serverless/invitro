@@ -160,12 +160,12 @@ def main():
         trace_dur = trace_functions[function]["duration"]["75-percentile"]
         proxy_dur = proxy_functions[mapper_output[function]["proxy-function"]]["duration"]["75-percentile"]
         proxy_mem = proxy_functions[mapper_output[function]["proxy-function"]]["memory"]["75-percentile"]
-        if abs(trace_mem - proxy_mem) > 0.2*trace_mem:
+        if abs(trace_mem - proxy_mem) > 0.4*trace_mem:
             mapper_output[function]["proxy-function"] = "trace-func-go"
             log.warning(f"Memory error for function {function} is {abs(trace_mem - proxy_mem)} MB per invocation")
             mem_count += 1
 
-        if abs(trace_dur - proxy_dur) > 0.2*trace_dur:
+        if abs(trace_dur - proxy_dur) > 0.4*trace_dur:
             mapper_output[function]["proxy-function"] = "trace-func-go"
             log.warning(f"Duration error for function {function} is {abs(trace_dur - proxy_dur)}ms per invocation")
             dur_count += 1

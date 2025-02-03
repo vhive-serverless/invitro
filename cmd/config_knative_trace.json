@@ -8,7 +8,7 @@
 
   "BusyLoopOnSandboxStartup": false,
 
-  "TracePath": "data/traces/example",
+  "TracePath": "data/traces/reference/sampled_150/150",
   "Granularity": "minute",
   "OutputPathPrefix": "data/out/experiment",
   "IATDistribution": "exponential",
@@ -25,5 +25,5 @@
   "GRPCConnectionTimeoutSeconds": 15,
   "GRPCFunctionTimeoutSeconds": 900,
   "DAGMode": false,
-  "vSwarm": false
+  "vSwarm": true
 }
