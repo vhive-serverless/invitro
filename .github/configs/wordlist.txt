@@ -830,3 +830,10 @@ RpsFile
 RpsRequestedGpu
 gpus
 SoCC
+ActivatorNode
+AutoScalerNode
+LoaderNode
+MasterNode
+WorkerNodes
+prometheus
+TSDB
