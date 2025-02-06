@@ -111,8 +111,8 @@ type Function struct {
 	MemoryRequestsMiB int
 	CPULimitsMilli    int
 	YAMLPath          string
-	PreDeploymentCommands []interface{}
-	Specification *FunctionSpecification
+	PredeploymentPath []string
+	Specification     *FunctionSpecification
 
 	// used only for dirigent workflows
 	WorkflowMetadata *WorkflowMetadata
