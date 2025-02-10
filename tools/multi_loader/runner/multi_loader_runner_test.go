@@ -11,6 +11,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
+	"github.com/vhive-serverless/loader/pkg/common"
 	ml_common "github.com/vhive-serverless/loader/tools/multi_loader/common"
 	"github.com/vhive-serverless/loader/tools/multi_loader/types"
 )
@@ -151,8 +152,10 @@ func TestMultiConfigValidator(t *testing.T) {
 		expectFatal(t, func() {
 			temp := multiLoader.MultiLoaderConfig.Studies
 			multiLoader.MultiLoaderConfig.Studies = nil
+			defer func() {
+				multiLoader.MultiLoaderConfig.Studies = temp
+			}()
 			ml_common.CheckMultiLoaderConfig(multiLoader.MultiLoaderConfig)
-			multiLoader.MultiLoaderConfig.Studies = temp
 		})
 	})
 
@@ -187,6 +190,95 @@ func TestMultiConfigValidator(t *testing.T) {
 			ml_common.CheckMultiLoaderConfig(multiLoader.MultiLoaderConfig)
 		})
 	})
+}
+
+func TestSweepOptions(t *testing.T) {
+	cleanup, multiLoader := setup()
+	defer cleanup()
+
+	testStudy := multiLoader.MultiLoaderConfig.Studies[0]
+	sweepOptions := []types.SweepOptions{
+		{
+			Field:  "ExperimentDuration",
+			Values: []interface{}{10, 20},
+		},
+		{
+			Field: "PostScript",
+			Values: []interface{}{
+				1,
+				"2",
+			},
+			Format: "touch data/out/scripts/test_postscript_{}",
+		},
+	}
+
+	loaderExperiment := types.LoaderExperiment{
+		Name: "test1",
+		Config: map[string]interface{}{
+			"WarmupDuration":   10,
+			"OutputPathPrefix": "data/out/test_output",
+		},
+	}
+	t.Run("SweepOptions (Grid Sweep)", func(t *testing.T) {
+		testStudy.SweepType = "grid"
+		var err error
+		testStudy.Sweep, err = common.DeepCopy(sweepOptions)
+		if err != nil {
+			t.Fatalf("Failed to deep copy sweep options: %v", err)
+		}
+
+		experiments := multiLoader.unpackSweepOptions(testStudy, loaderExperiment)
+		validateGridSweepOutput(t, experiments)
+	})
+	t.Run("SweepOptions (Linear Sweep)", func(t *testing.T) {
+		testStudy.SweepType = "linear"
+		var err error
+		testStudy.Sweep, err = common.DeepCopy(sweepOptions)
+		if err != nil {
+			t.Fatalf("Failed to deep copy sweep options: %v", err)
+		}
+
+		experiments := multiLoader.unpackSweepOptions(testStudy, loaderExperiment)
+		validateLinearSweepOutput(t, experiments)
+	})
+	t.Run("SweepOptions (Default Sweep)", func(t *testing.T) {
+		testStudy.SweepType = ""
+		var err error
+		testStudy.Sweep, err = common.DeepCopy(sweepOptions)
+		if err != nil {
+			t.Fatalf("Failed to deep copy sweep options: %v", err)
+		}
+
+		experiments := multiLoader.unpackSweepOptions(testStudy, loaderExperiment)
+		validateGridSweepOutput(t, experiments)
+	})
+	t.Run("SweepOptions (Failure: Invalid SweepOptions)", func(t *testing.T) {
+		expectFatal(t, func() {
+			testStudy.Sweep = []types.SweepOptions{
+				{
+					Field: "ExperimentDuration",
+				},
+			}
+			_ = multiLoader.unpackSweepOptions(testStudy, loaderExperiment)
+		})
+	})
+	t.Run("SweepOptions (Failure: Different number of Sweep values for Linear Sweep)", func(t *testing.T) {
+		expectFatal(t, func() {
+			testStudy.SweepType = "linear"
+			testStudy.Sweep = []types.SweepOptions{
+				{
+					Field:  "ExperimentDuration",
+					Values: []interface{}{10, 20},
+				},
+				{
+					Field:  "PreScript",
+					Values: []interface{}{"touch data/out/scripts/test_prescript_1"},
+				},
+			}
+			_ = multiLoader.unpackSweepOptions(testStudy, loaderExperiment)
+		})
+	})
+
 }
 
 func setup() (func(), MultiLoaderRunner) {
@@ -260,10 +352,93 @@ func expectFatal(t *testing.T, funcToTest func()) {
 	originalExitFunc := log.StandardLogger().ExitFunc
 	log.Info("Expecting a fatal message during the test, overriding the exit function")
 	// Replace logrus exit function
-	log.StandardLogger().ExitFunc = func(int) { fatal = true }
-
+	log.StandardLogger().ExitFunc = func(int) {
+		fatal = true
+		t.SkipNow()
+	}
+	defer func() {
+		log.StandardLogger().ExitFunc = originalExitFunc
+		assert.True(t, fatal, "Expected log.Fatal to be called")
+	}()
 	funcToTest()
-	// Restore original exit function
-	log.StandardLogger().ExitFunc = originalExitFunc
-	assert.True(t, fatal, "Expected log.Fatal to be called")
+}
+
+func validateGridSweepOutput(t *testing.T, output []types.LoaderExperiment) {
+	expectedOutput := []types.LoaderExperiment{
+		{
+			Name: "test1_ExperimentDuration_10_PostScript_0",
+			Config: map[string]interface{}{
+				"WarmupDuration":     10.0,
+				"OutputPathPrefix":   "data/out_ExperimentDuration_10_PostScript_0/test_output_ExperimentDuration_10_PostScript_0",
+				"ExperimentDuration": 10.0,
+			},
+			PostScript: "touch data/out/scripts/test_postscript_1",
+		},
+		{
+			Name: "test1_ExperimentDuration_10_PostScript_1",
+			Config: map[string]interface{}{
+				"WarmupDuration":     10.0,
+				"OutputPathPrefix":   "data/out_ExperimentDuration_10_PostScript_1/test_output_ExperimentDuration_10_PostScript_1",
+				"ExperimentDuration": 10.0,
+			},
+			PostScript: "touch data/out/scripts/test_postscript_2",
+		},
+		{
+			Name: "test1_ExperimentDuration_20_PostScript_0",
+			Config: map[string]interface{}{
+				"WarmupDuration":     10.0,
+				"OutputPathPrefix":   "data/out_ExperimentDuration_20_PostScript_0/test_output_ExperimentDuration_20_PostScript_0",
+				"ExperimentDuration": 20.0,
+			},
+			PostScript: "touch data/out/scripts/test_postscript_1",
+		},
+		{
+			Name: "test1_ExperimentDuration_20_PostScript_1",
+			Config: map[string]interface{}{
+				"WarmupDuration":     10.0,
+				"OutputPathPrefix":   "data/out_ExperimentDuration_20_PostScript_1/test_output_ExperimentDuration_20_PostScript_1",
+				"ExperimentDuration": 20.0,
+			},
+			PostScript: "touch data/out/scripts/test_postscript_2",
+		},
+	}
+	for i, config := range expectedOutput {
+		assert.Equal(t, config.Name, output[i].Name)
+		for key, value := range config.Config {
+			assert.Equal(t, value, output[i].Config[key])
+		}
+		assert.Equal(t, config.PreScript, output[i].PreScript)
+		assert.Equal(t, config.PostScript, output[i].PostScript)
+	}
+}
+
+func validateLinearSweepOutput(t *testing.T, output []types.LoaderExperiment) {
+	expectedOutput := []types.LoaderExperiment{
+		{
+			Name: "test1_ExperimentDuration_10_PostScript_0",
+			Config: map[string]interface{}{
+				"WarmupDuration":     10.0,
+				"OutputPathPrefix":   "data/out_ExperimentDuration_10_PostScript_0/test_output_ExperimentDuration_10_PostScript_0",
+				"ExperimentDuration": 10.0,
+			},
+			PostScript: "touch data/out/scripts/test_postscript_1",
+		},
+		{
+			Name: "test1_ExperimentDuration_20_PostScript_1",
+			Config: map[string]interface{}{
+				"WarmupDuration":     10.0,
+				"OutputPathPrefix":   "data/out_ExperimentDuration_20_PostScript_1/test_output_ExperimentDuration_20_PostScript_1",
+				"ExperimentDuration": 20.0,
+			},
+			PostScript: "touch data/out/scripts/test_postscript_2",
+		},
+	}
+	for i, config := range expectedOutput {
+		assert.Equal(t, config.Name, output[i].Name)
+		for key, value := range config.Config {
+			assert.Equal(t, value, output[i].Config[key])
+		}
+		assert.Equal(t, config.PreScript, output[i].PreScript)
+		assert.Equal(t, config.PostScript, output[i].PostScript)
+	}
 }
