@@ -28,6 +28,8 @@ As a wrapper around loader, multi-loader requires the initial cluster setup to b
 | Verbosity             | string                 | "info", "debug", "trace"      | "info"        | (Optional) Verbosity level for logging the experiment             |
 | PreScript             | string                 | any bash Command              | ""           | (Optional) Local script that runs this specific experiment |
 | PostScript            | string                 | any bash Command              | ""           | (Optional) Local script that runs this specific experiment |
+| Sweep                 | [][SweepOptions](#sweepoptions)        | N/A                           | N/A           | (Optional) List of sweep options for the experiment |
+| SweepType             | string                 | "linear", "grid"              | "grid"        | (Optional) Determines how the sweep options are applied: "grid" means all permutations, "linear" applies them linearly |
 
 > **_Important_**: 
 >
@@ -50,6 +52,37 @@ As a wrapper around loader, multi-loader requires the initial cluster setup to b
 > The `Config` field follows the same structure as the [LoaderConfiguration](https://github.com/vhive-serverless/invitro/blob/main/docs/configuration.md#loader-configuration-file-format). 
 > Any field defined in `Config` will override the corresponding value from the configuration in `BaseConfigPath`, but only for that specific experiment. 
 > For example, if `BaseConfigPath` has `ExperimentDuration` set to 5 minutes, and you define `ExperimentDuration` as 10 minutes in `Config`, that particular experiment will run for 10 minutes instead.
+
+### SweepOptions
+
+| Parameter name | Data type     | Possible values               | Default value | Description                                                                |
+|----------------|---------------|-------------------------------|---------------|----------------------------------------------------------------------------|
+| Field          | string        | Any valid field name          | N/A           | Any field in [LoaderConfiguration](https://github.com/vhive-serverless/invitro/blob/main/docs/configuration.md#loader-configuration-file-format), `PreScript` and `PostScript`. Cannot be `TracePath`, `OutputDir` or `Platform` as they are reserved fields |
+| Values         | []interface{} | Any valid value type          | N/A           | List of values for the sweep options. These will be used as the sweep values for the experiment |
+| Format         | string        | Any string containing `{}`    | N/A           | Optional format string to customize the sweep. The `{}` placeholder should be included to replace with sweep values |
+
+#### Example:
+  - `Field` should not be empty.
+  - Reserved fields like `TracePath` and `OutputDir` cannot be used.
+  - `Values` must contain at least one item.
+  - If `Format` is provided, it must include the placeholder `{}`.
+  
+  ```json
+  {
+    "Field": "ExperimentDuration",
+    "Values": [10, 20],
+  },
+  {
+    "Field": "Prescript",
+    "Values": ["example1", "example2", "example3"],
+    "Format": "command_{}_to_run"
+  }
+  ```
+
+> **_Note_**: 
+> You can use PreScript and PostScript as sweep options; however, these scripts will only execute at the local level. This means that the global PreScript and PostScript will not be overridden by the sweep-specific scripts.
+
+
 
 ## Command Flags
 
