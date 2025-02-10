@@ -28,11 +28,6 @@ func NewMapperParser(directoryPath string, totalDuration int) *MapperTraceParser
 func (p* MapperTraceParser) extractFunctions(mapperOutput map[string]map[string]string, deploymentInfo map[string]map[string]interface{}, dirPath string) []*common.Function {
 	var result []*common.Function
 	invocations := parseInvocationTrace(dirPath+"/invocations.csv", p.duration)
-	runtime := parseRuntimeTrace(dirPath+"/durations.csv")
-	memory := parseMemoryTrace(dirPath+"/memory.csv")
-
-	runtimeByHashFunction := createRuntimeMap(runtime)
-	memoryByHashFunction := createMemoryMap(memory)
 	for i := 0; i < len(*invocations); i++ {
 		invocationStats := (*invocations)[i]
 		hashFunction := invocationStats.HashFunction
@@ -44,8 +39,6 @@ func (p* MapperTraceParser) extractFunctions(mapperOutput map[string]map[string]
 			Name: fmt.Sprintf("%s-%d-%d", proxyFunction, i, p.functionNameGenerator.Uint64()),
 
 			InvocationStats: &invocationStats,
-			RuntimeStats: runtimeByHashFunction[hashFunction],
-			MemoryStats: memoryByHashFunction[hashFunction],
 			YAMLPath: yamlPath,
 			PreDeploymentCommands: preDeploymentCommands,
 		}
@@ -58,8 +51,8 @@ func (p *MapperTraceParser) Parse() []*common.Function {
 	var mapperOutput map[string]map[string]string // HashFunction mapped to vSwarm function yaml.
 	var deploymentInfo map[string]map[string]interface{}
 	// Read the deployment info file for yaml locations and predeployment commands if any
-	homeDir := os.Getenv("HOME")
-	deploymentInfoFile, err := os.ReadFile(homeDir+"/invitro/pkg/trace/deploy_info.json")
+
+	deploymentInfoFile, err := os.ReadFile("deploy_info.json")
 	if err != nil {
 		log.Warn("No deployment info file")
 	}
