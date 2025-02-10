@@ -1,8 +1,0 @@
-{
-    "cartservice": {
-        "YamlLocation": "workloads/container/yamls/online-shop/kn-cartservice.yaml",
-        "PredeploymentCommands": [
-            "kubectl apply -f workloads/container/yamls/online-shop/database.yaml"
-        ]
-    }
-}

@@ -17,13 +17,6 @@ type MapperTraceParser struct {
 	functionNameGenerator *rand.Rand
 }
 
-type DeploymentInfo struct {
-	YamlLocation          string
-	PredeploymentCommands []string
-}
-
-type JSONParser map[string]DeploymentInfo
-
 func NewMapperParser(directoryPath string, totalDuration int) *MapperTraceParser {
 	return &MapperTraceParser{
 		DirectoryPath: directoryPath,
@@ -33,7 +26,7 @@ func NewMapperParser(directoryPath string, totalDuration int) *MapperTraceParser
 	}
 }
 
-func (p *MapperTraceParser) extractFunctions(mapperOutput map[string]map[string]string, deploymentInfo JSONParser, dirPath string) []*common.Function {
+func (p *MapperTraceParser) extractFunctions(mapperOutput map[string]map[string]string, deploymentInfo map[string]map[string]interface{}, dirPath string) []*common.Function {
 	var result []*common.Function
 	invocations := parseInvocationTrace(dirPath+"/invocations.csv", p.duration)
 	runtime := parseRuntimeTrace(dirPath + "/durations.csv")
@@ -45,8 +38,8 @@ func (p *MapperTraceParser) extractFunctions(mapperOutput map[string]map[string]
 		invocationStats := (*invocations)[i]
 		hashFunction := invocationStats.HashFunction
 		proxyFunction := mapperOutput[hashFunction]["proxy-function"]
-		yamlPath := deploymentInfo[proxyFunction].YamlLocation
-		preDeploymentCommands := deploymentInfo[proxyFunction].PredeploymentCommands
+		yamlPath := deploymentInfo[proxyFunction]["yaml-location"].(string)
+		preDeploymentCommands := deploymentInfo[proxyFunction]["predeployment-commands"].([]interface{})
 
 		function := &common.Function{
 			Name: fmt.Sprintf("%s-%d-%d", proxyFunction, i, p.functionNameGenerator.Uint64()),
@@ -64,12 +57,12 @@ func (p *MapperTraceParser) extractFunctions(mapperOutput map[string]map[string]
 func (p *MapperTraceParser) Parse() []*common.Function {
 	var functions []*common.Function
 	var mapperOutput map[string]map[string]string // HashFunction mapped to vSwarm function yaml.
-	var deploymentInfo JSONParser
+	var deploymentInfo map[string]map[string]interface{}
 	// Read the deployment info file for yaml locations and predeployment commands if any
-	deploymentInfoFile, err := os.ReadFile("test_data/test_deploy_info.json")
+	deploymentInfoFile, err := os.ReadFile("deploy_info.json")
 	if err != nil {
 		wd, _ := os.Getwd()
-		deploymentInfoFile, err = os.ReadFile(wd + "/workloads/container/yamls/deploy_info.json")
+		deploymentInfoFile, err = os.ReadFile(wd + "/pkg/trace/deploy_info.json")
 		if err != nil {
 			log.Warn("No deployment info file")
 		}
