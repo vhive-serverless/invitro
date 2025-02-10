@@ -39,7 +39,7 @@ jobs:
         run: go run cmd/loader.go --config pkg/config/test_config.json
 
       - name: Check the output
-        run: test -f "data/out/experiment_duration_5.csv" && test $(cat data/out/experiment_duration_5.csv | wc -l) -gt 1 && test $(grep true data/out/experiment_duration_5.csv | wc -l) -eq 0 # test the output file for errors (true means failure to invoke)
+        run: test -f "data/out/experiment_duration_2.csv" && test $(cat data/out/experiment_duration_2.csv | wc -l) -gt 1 && test $(grep true data/out/experiment_duration_2.csv | wc -l) -eq 0 # test the output file for errors (true means failure to invoke)
 
       - name: Print logs
         if: ${{ always() }}
@@ -55,3 +55,30 @@ jobs:
         if: ${{ always() }}
         run: |
           kn service delete --all
+      
+      - name: Untar vSwarm YAMLs
+        if: ${{ always() }}
+        run: |
+          tar -xzvf workloads/container/yamls.tar.gz -C workloads/container/ 
+      - name: Run vSwarm loader
+        run: go run cmd/loader.go --config pkg/config/test_vswarm_config.json
+
+      - name: Check vSwarm output
+        run: test -f "data/out/experiment_duration_2.csv" && test $(cat data/out/experiment_duration_2.csv | wc -l) -gt 1 && test $(grep true data/out/experiment_duration_2.csv | wc -l) -le 1 # test the output file for errors (true means failure to invoke)
+      
+      - name: Print logs
+        if: ${{ always() }}
+        run: |
+          set -x
+          container_list=$(kubectl get pods -n default -o jsonpath="{.items[*].spec.containers[*].name}")
+          for container_name in $container_list
+          do
+            kubectl logs -n default -c $container_name -l serving.knative.dev/service=${{ matrix.service }}
+          done
+      - name: Down
+        if: ${{ always() }}
+        run: |
+          kn service delete --all
+      
+
+      
