@@ -81,6 +81,8 @@ type DirigentMetadata struct {
 	ScalingLowerBound   int    `csv:"ScalingLowerBound"`
 	IterationMultiplier int    `csv:"IterationMultiplier"`
 	IOPercentage        int    `csv:"IOPercentage"`
+	NumArgs             int    `csv:"NumArgs"`
+	NumRets             int    `csv:"NumRets"`
 }
 
 type WorkflowMetadata struct {

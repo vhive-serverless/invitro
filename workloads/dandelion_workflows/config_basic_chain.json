@@ -3,7 +3,9 @@
   "Functions": [
     {
       "FunctionName": "Basic",
-      "FunctionPath": "configs/dandelion/test_elf_mmu_x86_64_basic"
+      "FunctionPath": "configs/dandelion/test_elf_mmu_x86_64_basic",
+      "NumArgs": 1,
+      "NumRets": 1
     }
   ],
   "Compositions": [

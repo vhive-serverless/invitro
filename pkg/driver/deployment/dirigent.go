@@ -54,15 +54,19 @@ func (d *dirigentDeployer) Deploy(cfg *config.Configuration) {
 		if dMetadata == nil {
 			log.Fatalf("No Dirigent metadata for workflow %s", cfg.Functions[0].Name)
 		}
+		tmpNumArgs := dMetadata.NumArgs
+		tmpNumRets := dMetadata.NumRets
 
 		// deploy workflow functions
 		for _, wfFunc := range wfConfig.Functions {
+			dMetadata.NumArgs = wfFunc.NumArgs
+			dMetadata.NumRets = wfFunc.NumRets
 			tmpFunction := &common.Function{
 				Name:                wfFunc.FunctionName,
 				CPURequestsMilli:    cfg.Functions[0].CPURequestsMilli,  // NOTE: using first function for now as
 				MemoryRequestsMiB:   cfg.Functions[0].MemoryRequestsMiB, // those values are the same for all functions
 				ColdStartBusyLoopMs: cfg.Functions[0].ColdStartBusyLoopMs,
-				DirigentMetadata:    cfg.Functions[0].DirigentMetadata,
+				DirigentMetadata:    dMetadata,
 			}
 			deployDirigentFunction(
 				tmpFunction,
@@ -73,6 +77,8 @@ func (d *dirigentDeployer) Deploy(cfg *config.Configuration) {
 			)
 			endpoint = tmpFunction.Endpoint
 		}
+		dMetadata.NumArgs = tmpNumArgs
+		dMetadata.NumRets = tmpNumRets
 
 		// deploy workflow (stored as configuration functions)
 		compositionNames := deployDirigentWorkflow(
@@ -141,6 +147,8 @@ func deployDirigentFunction(function *common.Function, imagePath string, control
 		"requested_cpu":       {strconv.Itoa(function.CPURequestsMilli)},
 		"requested_memory":    {strconv.Itoa(function.MemoryRequestsMiB)},
 		"cold_start_sweep":    {strconv.FormatBool(coldStartSweep)},
+		"num_args":            {strconv.Itoa(metadata.NumArgs)},
+		"num_rets":            {strconv.Itoa(metadata.NumRets)},
 	}
 
 	if busyLoopOnColdStart {

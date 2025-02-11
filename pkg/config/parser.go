@@ -96,6 +96,8 @@ func ReadConfigurationFile(path string) LoaderConfiguration {
 type WorkflowFunction struct {
 	FunctionName string `json:"FunctionName"`
 	FunctionPath string `json:"FunctionPath"`
+	NumArgs      int    `json:"NumArgs"`
+	NumRets      int    `json:"NumRets"`
 }
 type CompositionConfig struct {
 	Name        string     `json:"Name"`
