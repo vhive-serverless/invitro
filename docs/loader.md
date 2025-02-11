@@ -109,6 +109,23 @@ value previously collected.
 To account for difference in CPU performance set `ITERATIONS_MULTIPLIER=102` if using
 Cloudlab `xl170` or `d430` machines. (Date of measurement: 18-Oct-2022)
 
+## Executing vSwarm functions
+If the input trace directory has a `mapper_output.json` file, which you would like to use as profiles for benchmark execution in the loader, run the following from the root of this directory:
+
+```console
+# install pre-requisites
+sudo apt update
+sudo apt -y install git-lfs pip xz-utils
+git lfs install
+git lfs fetch
+git lfs checkout
+```
+This retrieves the `yamls.tar.gz` from Git LFS. Then, untar this tarball by running the following command from the root of this directory:
+
+```bash
+$ tar -xzvf workloads/container/yamls.tar.gz -C workloads/container/
+```
+
 ## Single execution
 
 To run load generator use the following command:
@@ -116,7 +133,11 @@ To run load generator use the following command:
 ```bash
 $ go run cmd/loader.go --config cmd/config_knative_trace.json
 ```
+To run load generator to use vSwarm functions based on `mapper_output.json` run the following:
 
+```bash
+$ go run cmd/loader.go --config cmd/config_vswarm_trace.json
+```
 Additionally, one can specify log verbosity argument as `--verbosity [info, debug, trace]`. The default value is `info`.
 
 To execute in a dry run mode without generating any load, set the `--dry-run` flag to `true`. This is useful for testing and validating configurations without executing actual requests.

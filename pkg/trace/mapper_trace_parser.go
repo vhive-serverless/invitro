@@ -46,16 +46,14 @@ func (p *MapperTraceParser) extractFunctions(mapperOutput map[string]map[string]
 		hashFunction := invocationStats.HashFunction
 		proxyFunction := mapperOutput[hashFunction]["proxy-function"]
 		yamlPath := deploymentInfo[proxyFunction].YamlLocation
-		preDeploymentCommands := deploymentInfo[proxyFunction].PredeploymentCommands
 
 		function := &common.Function{
 			Name: fmt.Sprintf("%s-%d-%d", proxyFunction, i, p.functionNameGenerator.Uint64()),
 
-			InvocationStats:       &invocationStats,
-			RuntimeStats:          runtimeByHashFunction[hashFunction],
-			MemoryStats:           memoryByHashFunction[hashFunction],
-			YAMLPath:              yamlPath,
-			PreDeploymentCommands: preDeploymentCommands,
+			InvocationStats: &invocationStats,
+			RuntimeStats:    runtimeByHashFunction[hashFunction],
+			MemoryStats:     memoryByHashFunction[hashFunction],
+			YAMLPath:        yamlPath,
 		}
 		result = append(result, function)
 	}

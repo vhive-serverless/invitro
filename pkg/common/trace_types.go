@@ -99,12 +99,11 @@ type Function struct {
 
 	ColdStartBusyLoopMs int
 
-	CPURequestsMilli      int
-	MemoryRequestsMiB     int
-	CPULimitsMilli        int
-	YAMLPath              string
-	PreDeploymentCommands []string
-	Specification         *FunctionSpecification
+	CPURequestsMilli  int
+	MemoryRequestsMiB int
+	CPULimitsMilli    int
+	YAMLPath          string
+	Specification     *FunctionSpecification
 }
 
 type Node struct {
