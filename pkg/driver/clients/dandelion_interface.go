@@ -138,7 +138,7 @@ func CreateDandelionRequest(serviceName string, dataPaths [][]string) *Dandelion
 	}
 }
 
-func WorkflowInvocationBody(wfName string, inData *DandelionRequest) *bytes.Buffer {
+func WorkflowInvocationBody(wfName string, inData *DandelionRequest) string {
 	var wfInput []byte
 	var err error
 	if inData == nil {
@@ -147,7 +147,7 @@ func WorkflowInvocationBody(wfName string, inData *DandelionRequest) *bytes.Buff
 		wfInput, err = bson.Marshal(inData)
 		if err != nil {
 			logrus.Errorf("Error encoding input data - %v\n", err)
-			return nil
+			return ""
 		}
 	}
 
@@ -155,7 +155,7 @@ func WorkflowInvocationBody(wfName string, inData *DandelionRequest) *bytes.Buff
 		"name":  {wfName},
 		"input": {string(wfInput)},
 	}
-	return bytes.NewBufferString(body.Encode())
+	return body.Encode()
 }
 
 func DeserializeDandelionResponse(function *common.Function, body []byte, record *metric.ExecutionRecord, allowEmptyResponse bool) error {

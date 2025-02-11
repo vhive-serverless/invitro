@@ -24,8 +24,6 @@
 
 package common
 
-import "bytes"
-
 type FunctionInvocationStats struct {
 	HashOwner    string
 	HashApp      string
@@ -86,7 +84,7 @@ type DirigentMetadata struct {
 }
 
 type WorkflowMetadata struct {
-	InvocationRequest *bytes.Buffer
+	InvocationRequest string
 }
 
 type Function struct {
