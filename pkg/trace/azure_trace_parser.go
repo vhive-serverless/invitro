@@ -27,9 +27,6 @@ package trace
 import (
 	"encoding/csv"
 	"fmt"
-	"github.com/gocarina/gocsv"
-	"github.com/vhive-serverless/loader/pkg/common"
-	"github.com/vhive-serverless/loader/pkg/generator"
 	"io"
 	"math/rand"
 	"os"
@@ -37,9 +34,16 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gocarina/gocsv"
+	"github.com/vhive-serverless/loader/pkg/common"
+	"github.com/vhive-serverless/loader/pkg/generator"
+
 	log "github.com/sirupsen/logrus"
 )
 
+type Parser interface {
+	Parse() []*common.Function
+}
 type AzureTraceParser struct {
 	DirectoryPath         string
 	yamlPath              string

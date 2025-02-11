@@ -174,14 +174,16 @@ func runTraceMode(cfg *config.LoaderConfiguration, readIATFromFile bool, writeIA
 	durationToParse := determineDurationToParse(cfg.ExperimentDuration, cfg.WarmupDuration)
 	yamlPath := parseYAMLSpecification(cfg)
 	var functions []*common.Function
+	var traceParser trace.Parser
+
 	// Azure trace parsing
 	if !cfg.VSwarm {
-		traceParser := trace.NewAzureParser(cfg.TracePath, durationToParse, yamlPath)
-		functions = traceParser.Parse()
+		traceParser = trace.NewAzureParser(cfg.TracePath, durationToParse, yamlPath)
 	} else {
-		traceParser := trace.NewMapperParser(cfg.TracePath, durationToParse)
-		functions = traceParser.Parse()
+		traceParser = trace.NewMapperParser(cfg.TracePath, durationToParse)
 	}
+
+	functions = traceParser.Parse()
 	// Dirigent metadata parsing
 	dirigentMetadataParser := trace.NewDirigentMetadataParser(cfg.TracePath, functions, yamlPath, cfg.Platform)
 	dirigentMetadataParser.Parse()
@@ -205,7 +207,7 @@ func runTraceMode(cfg *config.LoaderConfiguration, readIATFromFile bool, writeIA
 		TraceGranularity: parseTraceGranularity(cfg),
 		TraceDuration:    durationToParse,
 
-		YAMLPath: yamlPath, //make a slice of YAMLPaths instead
+		YAMLPath: yamlPath,
 		TestMode: false,
 
 		Functions: functions,

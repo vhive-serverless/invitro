@@ -59,7 +59,7 @@ jobs:
       - name: Untar vSwarm YAMLs
         if: ${{ always() }}
         run: |
-          tar -xzvf workloads/container/yamls.tar.gz -C workloads/container/ 
+          tar -xzvf workloads/container/vSwarm_deploy_metadata.tar.gz -C workloads/container/ 
       - name: Run vSwarm loader
         run: go run cmd/loader.go --config pkg/config/test_vswarm_config.json
 
