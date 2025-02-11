@@ -15,6 +15,7 @@ pkg/workload/openwhisk/*.zip
 tools/*/__pycache__
 tools/trace_synthesizer/*.csv
 tools/trace_synthesizer/*/*.csv
+workloads/container/yamls/
 
 ### CMake ###
 CMakeLists.txt.user
