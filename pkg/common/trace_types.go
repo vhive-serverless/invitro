@@ -24,6 +24,8 @@
 
 package common
 
+import "bytes"
+
 type FunctionInvocationStats struct {
 	HashOwner    string
 	HashApp      string
@@ -81,6 +83,10 @@ type DirigentMetadata struct {
 	IOPercentage        int    `csv:"IOPercentage"`
 }
 
+type WorkflowMetadata struct {
+	InvocationRequest *bytes.Buffer
+}
+
 type Function struct {
 	Name     string
 	Endpoint string
@@ -100,4 +106,7 @@ type Function struct {
 	CPULimitsMilli    int
 
 	Specification *FunctionSpecification
+
+	// used only for dirigent workflows
+	WorkflowMetadata *WorkflowMetadata
 }

@@ -75,8 +75,7 @@ type LoaderConfiguration struct {
 	GRPCFunctionTimeoutSeconds   int `json:"GRPCFunctionTimeoutSeconds"`
 
 	// only used in dandelion workflows
-	WorkflowFunctionNames []string `json:"WorkflowFunctionNames"`
-	WorkflowFunctionPaths []string `json:"WorkflowFunctionPaths"`
+	WorkflowConfigPath string `json:"WorkflowConfigPath"`
 }
 
 func ReadConfigurationFile(path string) LoaderConfiguration {
@@ -86,6 +85,35 @@ func ReadConfigurationFile(path string) LoaderConfiguration {
 	}
 
 	var config LoaderConfiguration
+	err = json.Unmarshal(byteValue, &config)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	return config
+}
+
+type WorkflowFunction struct {
+	FunctionName string `json:"FunctionName"`
+	FunctionPath string `json:"FunctionPath"`
+}
+type CompositionConfig struct {
+	Name        string     `json:"Name"`
+	InDataPaths [][]string `json:"InDataPaths"`
+}
+type WorkflowConfig struct {
+	Name         string              `json:"Name"`
+	Functions    []WorkflowFunction  `json:"Functions"`
+	Compositions []CompositionConfig `json:"Compositions"`
+}
+
+func ReadWorkflowConfig(path string) WorkflowConfig {
+	byteValue, err := os.ReadFile(path)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	var config WorkflowConfig
 	err = json.Unmarshal(byteValue, &config)
 	if err != nil {
 		log.Fatal(err)

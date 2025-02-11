@@ -9,6 +9,8 @@ import (
 	"github.com/vhive-serverless/loader/pkg/metric"
 	"go.mongodb.org/mongo-driver/bson"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -89,6 +91,51 @@ func composeBusyLoopBody(functionName, image string, runtime, iterations int) *b
 	}
 
 	return bytes.NewBuffer(body)
+}
+
+func filenameFromPath(path string) string {
+	ident := filepath.Base(path)
+	if pos := strings.LastIndexByte(ident, '.'); pos != -1 {
+		ident = ident[:pos]
+	}
+	return ident
+}
+
+func CreateDandelionRequest(serviceName string, dataPaths [][]string) *DandelionRequest {
+	logrus.Debugf("Creating dandelion request for '%s' with following data:", serviceName)
+	sets := make([]InputSet, len(dataPaths))
+	for setIdx, setPaths := range dataPaths {
+		items := make([]InputItem, len(setPaths))
+		for itmIdx, itmPath := range setPaths {
+			var data []byte
+			var ident string
+			if itmPath == "" {
+				data = []byte{}
+				ident = "empty"
+			} else {
+				var err error
+				data, err = os.ReadFile(itmPath)
+				if err != nil {
+					logrus.Fatalf("Failed to read file '%s': %v", itmPath, err)
+				}
+				ident = filenameFromPath(itmPath)
+			}
+			items[itmIdx] = InputItem{
+				Identifier: ident,
+				Key:        int64(itmIdx),
+				Data:       data,
+			}
+			logrus.Debugf(" set %d, item %d -> %s (size=%d)\n", setIdx, itmIdx, ident, len(data))
+		}
+		sets[setIdx] = InputSet{
+			Identifier: filenameFromPath(items[0].Identifier),
+			Items:      items,
+		}
+	}
+	return &DandelionRequest{
+		Name: serviceName,
+		Sets: sets,
+	}
 }
 
 func WorkflowInvocationBody(wfName string, inData *DandelionRequest) *bytes.Buffer {

@@ -5,6 +5,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/vhive-serverless/loader/pkg/common"
 	"github.com/vhive-serverless/loader/pkg/config"
+	"github.com/vhive-serverless/loader/pkg/driver/clients"
 	"io"
 	"math/rand"
 	"net"
@@ -43,14 +44,21 @@ func (d *dirigentDeployer) Deploy(cfg *config.Configuration) {
 	endpoint := ""
 
 	if d.deployWorkflow {
-		if cfg.Functions[0].DirigentMetadata == nil {
+		wfConfigPath := cfg.LoaderConfiguration.WorkflowConfigPath
+		if wfConfigPath == "" {
+			log.Fatalf("Failed to deploy workflow: no workflow config path specified in config file.")
+		}
+		wfConfig := config.ReadWorkflowConfig(wfConfigPath)
+
+		dMetadata := cfg.Functions[0].DirigentMetadata
+		if dMetadata == nil {
 			log.Fatalf("No Dirigent metadata for workflow %s", cfg.Functions[0].Name)
 		}
 
 		// deploy workflow functions
-		for i := 0; i < len(cfg.LoaderConfiguration.WorkflowFunctionNames); i++ {
+		for _, wfFunc := range wfConfig.Functions {
 			tmpFunction := &common.Function{
-				Name:                cfg.LoaderConfiguration.WorkflowFunctionNames[i],
+				Name:                wfFunc.FunctionName,
 				CPURequestsMilli:    cfg.Functions[0].CPURequestsMilli,  // NOTE: using first function for now as
 				MemoryRequestsMiB:   cfg.Functions[0].MemoryRequestsMiB, // those values are the same for all functions
 				ColdStartBusyLoopMs: cfg.Functions[0].ColdStartBusyLoopMs,
@@ -58,7 +66,7 @@ func (d *dirigentDeployer) Deploy(cfg *config.Configuration) {
 			}
 			deployDirigentFunction(
 				tmpFunction,
-				cfg.LoaderConfiguration.WorkflowFunctionPaths[i],
+				wfFunc.FunctionPath,
 				dirigentConfig.RegistrationServer,
 				cfg.LoaderConfiguration.BusyLoopOnSandboxStartup,
 				dirigentConfig.ColdStartSweep,
@@ -66,14 +74,27 @@ func (d *dirigentDeployer) Deploy(cfg *config.Configuration) {
 			endpoint = tmpFunction.Endpoint
 		}
 
-		// deploy workflows (stored as configuration functions)
-		for i := 0; i < len(cfg.Functions); i++ {
-			deployDirigentWorkflow(
-				cfg.Functions[i],
-				dirigentConfig.RegistrationServer,
-			)
-			cfg.Functions[i].Endpoint = endpoint
+		// deploy workflow (stored as configuration functions)
+		compositionNames := deployDirigentWorkflow(
+			cfg.Functions[0],
+			dirigentConfig.RegistrationServer,
+		)
+
+		// create a function for each registered composition
+		newFunctions := make([]*common.Function, len(compositionNames))
+		for i, compositionName := range compositionNames {
+			newFunctions[i] = cfg.Functions[0]
+			newFunctions[i].Endpoint = endpoint
+			newFunctions[i].Name = compositionName
+			newFunctions[i].WorkflowMetadata = &common.WorkflowMetadata{
+				InvocationRequest: clients.WorkflowInvocationBody(
+					compositionName,
+					clients.CreateDandelionRequest(compositionName, wfConfig.Compositions[i].InDataPaths),
+				),
+			}
 		}
+		cfg.Functions = newFunctions
+
 	} else {
 		for i := 0; i < len(cfg.Functions); i++ {
 			if cfg.Functions[i].DirigentMetadata == nil {
@@ -150,7 +171,7 @@ func deployDirigentFunction(function *common.Function, imagePath string, control
 	function.Endpoint = endpoints[rand.Intn(len(endpoints))]
 }
 
-func deployDirigentWorkflow(wf *common.Function, controlPlaneAddress string) {
+func deployDirigentWorkflow(wf *common.Function, controlPlaneAddress string) []string {
 	metadata := wf.DirigentMetadata
 	if metadata == nil {
 		log.Fatalf("No Dirigent metadata for workflow %s", wf.Name)
@@ -176,10 +197,10 @@ func deployDirigentWorkflow(wf *common.Function, controlPlaneAddress string) {
 		log.Fatalf("Failed to read response body.")
 	}
 
-	registeredWorkflows := strings.Split(string(body), ";")
-	if len(registeredWorkflows) != 1 {
-		log.Fatalf("Workflow registration returned zero or more than one registered workflows.")
+	registeredCompositions := strings.Split(string(body), ";")
+	if len(registeredCompositions) == 0 {
+		log.Fatalf("Workflow registration returned zero registered workflows.")
 	}
 
-	wf.Name = registeredWorkflows[0]
+	return registeredCompositions
 }

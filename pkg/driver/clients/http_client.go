@@ -58,23 +58,12 @@ func functionInvocationRequest(function *common.Function, runtimeSpec *common.Ru
 }
 
 func workflowInvocationRequest(wf *common.Function) *http.Request {
-	// input -> one set with one item containing nothing for now
-	inData := DandelionRequest{
-		Name: wf.Name,
-		Sets: []InputSet{
-			{
-				Identifier: "0",
-				Items: []InputItem{{
-					Identifier: "0",
-					Key:        0,
-					Data:       []byte(""),
-				}},
-			},
-		},
+	if wf.WorkflowMetadata == nil {
+		log.Fatal("Failed to create workflow invocation request: workflow metadata is nil")
 	}
 
 	// create request
-	req, err := http.NewRequest("POST", "http://"+wf.Endpoint+"/workflow", WorkflowInvocationBody(wf.Name, &inData))
+	req, err := http.NewRequest("POST", "http://"+wf.Endpoint+"/workflow", wf.WorkflowMetadata.InvocationRequest)
 	if err != nil {
 		log.Errorf("Failed to create a HTTP request - %v\n", err)
 		return nil
