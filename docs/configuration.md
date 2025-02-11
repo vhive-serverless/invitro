@@ -38,6 +38,7 @@
 | EnableDAGDataset             | bool      | true/false                                                          | true                |  Generate width and depth from dag_structure.csv in TracePath[^9]                                                                                                      |
 | Width                        | int       | > 0                                                                 | 2                   | Default width of DAG                                                                 |
 | Depth                        | int       | > 0                                                                 | 2                   | Default depth of DAG                                                                 |
+| VSwarm                       | bool      | true/false                                                          | false               | Execute vSwarm functions from mapper_output.json
 
 [^1]: To run RPS experiments replace the path with `RPS`.
 

@@ -18,11 +18,17 @@ type MapperTraceParser struct {
 }
 
 type DeploymentInfo struct {
-	YamlLocation          string
-	PredeploymentCommands []string
+	YamlLocation      string
+	PredeploymentPath []string
 }
 
-type JSONParser map[string]DeploymentInfo
+type MapperOutput struct {
+	ProxyFunction string `json:"proxy-function"`
+}
+
+type functionToDeploymentInfo map[string]DeploymentInfo
+
+type functionToProxy map[string]MapperOutput
 
 func NewMapperParser(directoryPath string, totalDuration int) *MapperTraceParser {
 	return &MapperTraceParser{
@@ -33,59 +39,66 @@ func NewMapperParser(directoryPath string, totalDuration int) *MapperTraceParser
 	}
 }
 
-func (p *MapperTraceParser) extractFunctions(mapperOutput map[string]map[string]string, deploymentInfo JSONParser, dirPath string) []*common.Function {
+func (p *MapperTraceParser) extractFunctions(mapperOutput functionToProxy, deploymentInfo functionToDeploymentInfo, dirPath string) []*common.Function {
 	var result []*common.Function
+
 	invocations := parseInvocationTrace(dirPath+"/invocations.csv", p.duration)
 	runtime := parseRuntimeTrace(dirPath + "/durations.csv")
 	memory := parseMemoryTrace(dirPath + "/memory.csv")
 
 	runtimeByHashFunction := createRuntimeMap(runtime)
 	memoryByHashFunction := createMemoryMap(memory)
+
 	for i := 0; i < len(*invocations); i++ {
 		invocationStats := (*invocations)[i]
 		hashFunction := invocationStats.HashFunction
-		proxyFunction := mapperOutput[hashFunction]["proxy-function"]
+		hashApp := invocationStats.HashApp
+		hashOwner := invocationStats.HashOwner
+		proxyFunction := mapperOutput[hashFunction+hashOwner+hashApp].ProxyFunction
 		yamlPath := deploymentInfo[proxyFunction].YamlLocation
-		preDeploymentCommands := deploymentInfo[proxyFunction].PredeploymentCommands
-
+		predeploymentPath := deploymentInfo[proxyFunction].PredeploymentPath
 		function := &common.Function{
 			Name: fmt.Sprintf("%s-%d-%d", proxyFunction, i, p.functionNameGenerator.Uint64()),
 
-			InvocationStats:       &invocationStats,
-			RuntimeStats:          runtimeByHashFunction[hashFunction],
-			MemoryStats:           memoryByHashFunction[hashFunction],
-			YAMLPath:              yamlPath,
-			PreDeploymentCommands: preDeploymentCommands,
+			InvocationStats:   &invocationStats,
+			RuntimeStats:      runtimeByHashFunction[hashFunction],
+			MemoryStats:       memoryByHashFunction[hashFunction],
+			YAMLPath:          yamlPath,
+			PredeploymentPath: predeploymentPath,
 		}
+
 		result = append(result, function)
 	}
+
 	return result
 }
+
 func (p *MapperTraceParser) Parse() []*common.Function {
 	var functions []*common.Function
-	var mapperOutput map[string]map[string]string // HashFunction mapped to vSwarm function yaml.
-	var deploymentInfo JSONParser
+	var mapperOutput functionToProxy
+	var deploymentInfo functionToDeploymentInfo
 	// Read the deployment info file for yaml locations and predeployment commands if any
 	deploymentInfoFile, err := os.ReadFile("test_data/test_deploy_info.json")
 	if err != nil {
 		wd, _ := os.Getwd()
 		deploymentInfoFile, err = os.ReadFile(wd + "/workloads/container/yamls/deploy_info.json")
 		if err != nil {
-			log.Warn("No deployment info file")
+			log.Fatal("No deployment info file")
 		}
 	}
 
 	err = json.Unmarshal(deploymentInfoFile, &deploymentInfo)
 	if err != nil {
-		log.Warn("Failed to unmarshal deployment info file")
+		log.Fatal("Failed to unmarshal deployment info file")
 	}
 
 	mapperFile, err := os.ReadFile(p.DirectoryPath + "/mapper_output.json")
 	if err != nil {
 		traces, err := os.ReadDir(p.DirectoryPath)
 		if err != nil {
-			log.Warn("No mapper output file")
+			log.Fatal("No mapper output file")
 		}
+
 		for _, trace := range traces {
 			traceName := trace.Name()
 			mapperFile, err = os.ReadFile(p.DirectoryPath + "/" + traceName + "/mapper_output.json")
@@ -95,17 +108,21 @@ func (p *MapperTraceParser) Parse() []*common.Function {
 			}
 			err = json.Unmarshal(mapperFile, &mapperOutput)
 			if err != nil {
-				log.Warn("Failed to unmarshal mapper output file")
+				log.Fatal("Failed to unmarshal mapper output file")
 			}
 			result := p.extractFunctions(mapperOutput, deploymentInfo, p.DirectoryPath+"/"+traceName)
 			functions = append(functions, result...)
 		}
+
 		return functions
 	}
+
 	err = json.Unmarshal(mapperFile, &mapperOutput)
 	if err != nil {
-		log.Warn("Failed to unmarshal mapper output file")
+		log.Fatal("Failed to unmarshal mapper output file")
 	}
+
 	functions = p.extractFunctions(mapperOutput, deploymentInfo, p.DirectoryPath)
+
 	return functions
 }
