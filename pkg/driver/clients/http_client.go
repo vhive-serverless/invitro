@@ -33,23 +33,8 @@ func newHTTPInvoker(cfg *config.LoaderConfiguration) *httpInvoker {
 	}
 }
 
-func (i *httpInvoker) Invoke(function *common.Function, runtimeSpec *common.RuntimeSpecification) (bool, *mc.ExecutionRecord) {
-	isDandelion := strings.Contains(strings.ToLower(i.cfg.Platform), "dandelion")
-	isKnative := strings.Contains(strings.ToLower(i.cfg.Platform), "knative")
-
-	log.Tracef("(Invoke)\t %s: %d[ms], %d[MiB]", function.Name, runtimeSpec.Runtime, runtimeSpec.Memory)
-
-	record := &mc.ExecutionRecord{
-		ExecutionRecordBase: mc.ExecutionRecordBase{
-			RequestedDuration: uint32(runtimeSpec.Runtime * 1e3),
-		},
-	}
-
-	////////////////////////////////////
-	// INVOKE FUNCTION
-	////////////////////////////////////
-	start := time.Now()
-	record.StartTime = start.UnixMicro()
+func functionInvocationRequest(function *common.Function, runtimeSpec *common.RuntimeSpecification,
+	isKnative bool, isDandelion bool) *http.Request {
 
 	requestBody := &bytes.Buffer{}
 	/*if body := composeDandelionMatMulBody(function.Name); isDandelion && body != nil {
@@ -62,11 +47,7 @@ func (i *httpInvoker) Invoke(function *common.Function, runtimeSpec *common.Runt
 	req, err := http.NewRequest("POST", "http://"+function.Endpoint, requestBody)
 	if err != nil {
 		log.Errorf("Failed to create a HTTP request - %v\n", err)
-
-		record.ResponseTime = time.Since(start).Microseconds()
-		record.ConnectionTimeout = true
-
-		return false, record
+		return nil
 	}
 
 	// add system specific stuff
@@ -85,6 +66,60 @@ func (i *httpInvoker) Invoke(function *common.Function, runtimeSpec *common.Runt
 		req.URL.Path = "/hot/matmul"
 	}
 
+	return req
+}
+
+func workflowInvocationRequest(wf *common.Function) *http.Request {
+	if wf.WorkflowMetadata == nil {
+		log.Fatal("Failed to create workflow invocation request: workflow metadata is nil")
+	}
+
+	// create request
+	reqBody := bytes.NewBufferString(wf.WorkflowMetadata.InvocationRequest)
+	req, err := http.NewRequest("POST", "http://"+wf.Endpoint+"/workflow", reqBody)
+	if err != nil {
+		log.Errorf("Failed to create a HTTP request - %v\n", err)
+		return nil
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Host = wf.Name // dirigent takes request name from this
+
+	return req
+}
+
+func (i *httpInvoker) Invoke(function *common.Function, runtimeSpec *common.RuntimeSpecification) (bool, *mc.ExecutionRecord) {
+	isDandelion := strings.Contains(strings.ToLower(i.cfg.Platform), "dandelion")
+	isKnative := strings.Contains(strings.ToLower(i.cfg.Platform), "knative")
+	isWorkflow := strings.Contains(strings.ToLower(i.cfg.Platform), "workflow")
+
+	log.Tracef("(Invoke)\t %s: %d[ms], %d[MiB]", function.Name, runtimeSpec.Runtime, runtimeSpec.Memory)
+
+	record := &mc.ExecutionRecord{
+		ExecutionRecordBase: mc.ExecutionRecordBase{
+			RequestedDuration: uint32(runtimeSpec.Runtime * 1e3),
+		},
+	}
+	start := time.Now()
+	record.StartTime = start.UnixMicro()
+	record.Instance = function.Name // may get overwritten
+
+	// create request
+	var req *http.Request
+	if !isWorkflow {
+		req = functionInvocationRequest(function, runtimeSpec, isKnative, isDandelion)
+	} else {
+		if !isDandelion {
+			log.Fatalf("Dirigent workflows are only supported for Dandelion so far!")
+		}
+		req = workflowInvocationRequest(function)
+	}
+	if req == nil {
+		record.ResponseTime = time.Since(start).Microseconds()
+		record.ConnectionTimeout = true
+		return false, record
+	}
+
+	// send request
 	resp, err := i.client.Do(req)
 	if err != nil {
 		log.Errorf("%s - Failed to send an HTTP request to the server - %v\n", function.Name, err)
@@ -116,7 +151,7 @@ func (i *httpInvoker) Invoke(function *common.Function, runtimeSpec *common.Runt
 	}
 
 	if isDandelion {
-		err = DeserializeDandelionResponse(function, body, record)
+		err = DeserializeDandelionResponse(function, body, record, isWorkflow)
 		if err != nil {
 			log.Warnf("Failed to deserialize Dandelion response - %v - %v", string(body), err)
 		}

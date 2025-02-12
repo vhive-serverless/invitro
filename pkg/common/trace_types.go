@@ -83,6 +83,14 @@ type DirigentMetadata struct {
 	IOPercentage        int      `json:"IOPercentage"`
 	EnvVars             []string `json:"EnvVars"`
 	ProgramArgs         []string `json:"ProgramArgs"`
+
+	// dandelion only
+	NumArgs int `json:"NumArgs"`
+	NumRets int `json:"NumRets"`
+}
+
+type WorkflowMetadata struct {
+	InvocationRequest string
 }
 
 type Function struct {
@@ -104,6 +112,9 @@ type Function struct {
 	CPULimitsMilli    int
 
 	Specification *FunctionSpecification
+
+	// used only for dirigent workflows
+	WorkflowMetadata *WorkflowMetadata
 }
 
 type Node struct {
