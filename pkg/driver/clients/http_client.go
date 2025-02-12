@@ -5,7 +5,9 @@ import (
 	"crypto/rand"
 	"encoding/json"
 	"io"
+	"mime/multipart"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -36,17 +38,46 @@ func newHTTPInvoker(cfg *config.LoaderConfiguration) *httpInvoker {
 }
 
 var payload []byte = nil
+var contentType string = "application/octet-stream"
 
-func CreateRequestPayload(sizeInMB float64) *bytes.Buffer {
-	byteCount := int(sizeInMB * 1024.0 * 1024.0) // MB -> B
-
+func CreateRandomPayload(sizeInMB float64) *bytes.Buffer {
 	if payload == nil {
+		byteCount := int(sizeInMB * 1024.0 * 1024.0) // MB -> B
 		payload = make([]byte, byteCount)
 
 		n, err := rand.Read(payload)
 		if err != nil || n != byteCount {
 			log.Errorf("Failed to generate random %d bytes.", byteCount)
 		}
+	}
+
+	return bytes.NewBuffer(payload)
+}
+
+func CreateFilePayload(filePath string) *bytes.Buffer {
+	if payload == nil {
+		file, err := os.Open(filePath)
+		if err != nil {
+			log.Fatalf("Failed to open file %s: %v", filePath, err)
+		}
+
+		buffer := &bytes.Buffer{}
+		writer := multipart.NewWriter(buffer)
+		part, err := writer.CreateFormFile("images", "invitro.payload")
+		if err != nil {
+			log.Fatalf("Failed to create form file: %v", err)
+		}
+
+		if _, err = io.Copy(part, file); err != nil {
+			log.Fatalf("Failed to enter file into the form: %v", err)
+		}
+		if err = writer.Close(); err != nil {
+			log.Fatalf("Failed to close writer: %v", err)
+		}
+
+		payload = buffer.Bytes()
+		contentType = writer.FormDataContentType()
+		return buffer
 	}
 
 	return bytes.NewBuffer(payload)
@@ -77,14 +108,20 @@ func (i *httpInvoker) Invoke(function *common.Function, runtimeSpec *common.Runt
 	}
 	if i.cfg.RpsTarget != 0 {
 		ts := time.Now()
-		requestBody = CreateRequestPayload(i.cfg.RpsDataSizeMB)
-		log.Debugf("Took %v to generate request body.", time.Since(ts))
+		if i.cfg.RpsFile != "" {
+			requestBody = CreateFilePayload(i.cfg.RpsFile)
+			log.Debugf("Took %v to create file body.", time.Since(ts))
+		} else {
+			requestBody = CreateRandomPayload(i.cfg.RpsDataSizeMB)
+			log.Debugf("Took %v to generate request body.", time.Since(ts))
+		}
 	}
 
 	start := time.Now()
 	record.StartTime = start.UnixMicro()
 
 	req, err := http.NewRequest("POST", "http://"+function.Endpoint, requestBody)
+	req.Header.Add("Content-Type", contentType)
 	if err != nil {
 		log.Errorf("Failed to create a HTTP request - %v\n", err)
 
