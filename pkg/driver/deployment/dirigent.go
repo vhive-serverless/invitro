@@ -16,6 +16,10 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	log "github.com/sirupsen/logrus"
+	"github.com/vhive-serverless/loader/pkg/common"
+	"github.com/vhive-serverless/loader/pkg/config"
 )
 
 type dirigentDeployer struct {
@@ -166,6 +170,7 @@ func deployDirigentFunction(function *common.Function, imagePath string, control
 		"scaling_lower_bound": {strconv.Itoa(metadata.ScalingLowerBound)},
 		"requested_cpu":       {strconv.Itoa(function.CPURequestsMilli)},
 		"requested_memory":    {strconv.Itoa(function.MemoryRequestsMiB)},
+		"requested_gpu":       {strconv.Itoa(requestedGpu)},
 		"env_vars":            metadata.EnvVars,     // FORMAT: arg1=value1 arg2=value2 ...
 		"program_args":        metadata.ProgramArgs, // FORMAT: arg1 arg2 ...
 		"prepull_mode":        {prepullMode},
