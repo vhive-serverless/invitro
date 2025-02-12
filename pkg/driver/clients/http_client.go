@@ -5,7 +5,9 @@ import (
 	"crypto/rand"
 	"encoding/json"
 	"io"
+	"mime/multipart"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -55,8 +57,13 @@ func (i *httpInvoker) functionInvocationRequest(function *common.Function, runti
 	}
 	if i.cfg.RpsTarget != 0 {
 		ts := time.Now()
-		requestBody = CreateRequestPayload(i.cfg.RpsDataSizeMB)
-		log.Debugf("Took %v to generate request body.", time.Since(ts))
+		if i.cfg.RpsFile != "" {
+			requestBody = CreateFilePayload(i.cfg.RpsFile)
+			log.Debugf("Took %v to create file body.", time.Since(ts))
+		} else {
+			requestBody = CreateRandomPayload(i.cfg.RpsDataSizeMB)
+			log.Debugf("Took %v to generate request body.", time.Since(ts))
+		}
 	}
 
 	start := time.Now()
