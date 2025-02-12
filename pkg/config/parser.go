@@ -87,6 +87,25 @@ type LoaderConfiguration struct {
 	Width                        int  `json:"Width"`
 	Depth                        int  `json:"Depth"`
 	VSwarm                       bool `json:"VSwarm"`
+
+	// used only for dirigent-dandelion workflows
+	WorkflowConfigPath string `json:"WorkflowConfigPath"`
+}
+
+type WorkflowFunction struct {
+	FunctionName string `json:"FunctionName"`
+	FunctionPath string `json:"FunctionPath"`
+	NumArgs      int    `json:"NumArgs"`
+	NumRets      int    `json:"NumRets"`
+}
+type CompositionConfig struct {
+	Name        string     `json:"Name"`
+	InDataPaths [][]string `json:"InDataPaths"`
+}
+type WorkflowConfig struct {
+	Name         string              `json:"Name"`
+	Functions    []WorkflowFunction  `json:"Functions"`
+	Compositions []CompositionConfig `json:"Compositions"`
 }
 
 func ReadConfigurationFile(path string) LoaderConfiguration {
@@ -120,4 +139,19 @@ func ReadFailureConfiguration(path string) *FailureConfiguration {
 	}
 
 	return &config
+}
+
+func ReadWorkflowConfig(path string) WorkflowConfig {
+	byteValue, err := os.ReadFile(path)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	var config WorkflowConfig
+	err = json.Unmarshal(byteValue, &config)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	return config
 }

@@ -2,20 +2,16 @@ package clients
 
 import (
 	"bytes"
-	"crypto/rand"
 	"encoding/json"
-	"io"
-	"mime/multipart"
-	"net/http"
-	"os"
-	"strconv"
-	"strings"
-	"time"
-
 	log "github.com/sirupsen/logrus"
 	"github.com/vhive-serverless/loader/pkg/common"
 	"github.com/vhive-serverless/loader/pkg/config"
 	mc "github.com/vhive-serverless/loader/pkg/metric"
+	"io"
+	"net/http"
+	"strconv"
+	"strings"
+	"time"
 )
 
 type FunctionResponse struct {
@@ -37,67 +33,8 @@ func newHTTPInvoker(cfg *config.LoaderConfiguration) *httpInvoker {
 	}
 }
 
-var payload []byte = nil
-var contentType string = "application/octet-stream"
-
-func CreateRandomPayload(sizeInMB float64) *bytes.Buffer {
-	if payload == nil {
-		byteCount := int(sizeInMB * 1024.0 * 1024.0) // MB -> B
-		payload = make([]byte, byteCount)
-
-		n, err := rand.Read(payload)
-		if err != nil || n != byteCount {
-			log.Errorf("Failed to generate random %d bytes.", byteCount)
-		}
-	}
-
-	return bytes.NewBuffer(payload)
-}
-
-func CreateFilePayload(filePath string) *bytes.Buffer {
-	if payload == nil {
-		file, err := os.Open(filePath)
-		if err != nil {
-			log.Fatalf("Failed to open file %s: %v", filePath, err)
-		}
-
-		buffer := &bytes.Buffer{}
-		writer := multipart.NewWriter(buffer)
-		part, err := writer.CreateFormFile("images", "invitro.payload")
-		if err != nil {
-			log.Fatalf("Failed to create form file: %v", err)
-		}
-
-		if _, err = io.Copy(part, file); err != nil {
-			log.Fatalf("Failed to enter file into the form: %v", err)
-		}
-		if err = writer.Close(); err != nil {
-			log.Fatalf("Failed to close writer: %v", err)
-		}
-
-		payload = buffer.Bytes()
-		contentType = writer.FormDataContentType()
-		return buffer
-	}
-
-	return bytes.NewBuffer(payload)
-}
-
-func (i *httpInvoker) Invoke(function *common.Function, runtimeSpec *common.RuntimeSpecification) (bool, *mc.ExecutionRecord) {
-	isDandelion := strings.Contains(strings.ToLower(i.cfg.Platform), "dandelion")
-	isKnative := strings.Contains(strings.ToLower(i.cfg.Platform), "knative")
-
-	log.Tracef("(Invoke)\t %s: %d[ms], %d[MiB]", function.Name, runtimeSpec.Runtime, runtimeSpec.Memory)
-
-	record := &mc.ExecutionRecord{
-		ExecutionRecordBase: mc.ExecutionRecordBase{
-			RequestedDuration: uint32(runtimeSpec.Runtime * 1e3),
-		},
-	}
-
-	////////////////////////////////////
-	// INVOKE FUNCTION
-	////////////////////////////////////
+func functionInvocationRequest(function *common.Function, runtimeSpec *common.RuntimeSpecification,
+	isKnative bool, isDandelion bool) *http.Request {
 
 	requestBody := &bytes.Buffer{}
 	/*if body := composeDandelionMatMulBody(function.Name); isDandelion && body != nil {
@@ -106,29 +43,11 @@ func (i *httpInvoker) Invoke(function *common.Function, runtimeSpec *common.Runt
 	if body := composeBusyLoopBody(function.Name, function.DirigentMetadata.Image, runtimeSpec.Runtime, function.DirigentMetadata.IterationMultiplier); isDandelion && body != nil {
 		requestBody = body
 	}
-	if i.cfg.RpsTarget != 0 {
-		ts := time.Now()
-		if i.cfg.RpsFile != "" {
-			requestBody = CreateFilePayload(i.cfg.RpsFile)
-			log.Debugf("Took %v to create file body.", time.Since(ts))
-		} else {
-			requestBody = CreateRandomPayload(i.cfg.RpsDataSizeMB)
-			log.Debugf("Took %v to generate request body.", time.Since(ts))
-		}
-	}
-
-	start := time.Now()
-	record.StartTime = start.UnixMicro()
 
 	req, err := http.NewRequest("POST", "http://"+function.Endpoint, requestBody)
-	req.Header.Add("Content-Type", contentType)
 	if err != nil {
 		log.Errorf("Failed to create a HTTP request - %v\n", err)
-
-		record.ResponseTime = time.Since(start).Microseconds()
-		record.ConnectionTimeout = true
-
-		return false, record
+		return nil
 	}
 
 	// add system specific stuff
@@ -147,6 +66,60 @@ func (i *httpInvoker) Invoke(function *common.Function, runtimeSpec *common.Runt
 		req.URL.Path = "/hot/matmul"
 	}
 
+	return req
+}
+
+func workflowInvocationRequest(wf *common.Function) *http.Request {
+	if wf.WorkflowMetadata == nil {
+		log.Fatal("Failed to create workflow invocation request: workflow metadata is nil")
+	}
+
+	// create request
+	reqBody := bytes.NewBufferString(wf.WorkflowMetadata.InvocationRequest)
+	req, err := http.NewRequest("POST", "http://"+wf.Endpoint+"/workflow", reqBody)
+	if err != nil {
+		log.Errorf("Failed to create a HTTP request - %v\n", err)
+		return nil
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Host = wf.Name // dirigent takes request name from this
+
+	return req
+}
+
+func (i *httpInvoker) Invoke(function *common.Function, runtimeSpec *common.RuntimeSpecification) (bool, *mc.ExecutionRecord) {
+	isDandelion := strings.Contains(strings.ToLower(i.cfg.Platform), "dandelion")
+	isKnative := strings.Contains(strings.ToLower(i.cfg.Platform), "knative")
+	isWorkflow := strings.Contains(strings.ToLower(i.cfg.Platform), "workflow")
+
+	log.Tracef("(Invoke)\t %s: %d[ms], %d[MiB]", function.Name, runtimeSpec.Runtime, runtimeSpec.Memory)
+
+	record := &mc.ExecutionRecord{
+		ExecutionRecordBase: mc.ExecutionRecordBase{
+			RequestedDuration: uint32(runtimeSpec.Runtime * 1e3),
+		},
+	}
+	start := time.Now()
+	record.StartTime = start.UnixMicro()
+	record.Instance = function.Name // may get overwritten
+
+	// create request
+	var req *http.Request
+	if !isWorkflow {
+		req = functionInvocationRequest(function, runtimeSpec, isKnative, isDandelion)
+	} else {
+		if !isDandelion {
+			log.Fatalf("Dirigent workflows are only supported for Dandelion so far!")
+		}
+		req = workflowInvocationRequest(function)
+	}
+	if req == nil {
+		record.ResponseTime = time.Since(start).Microseconds()
+		record.ConnectionTimeout = true
+		return false, record
+	}
+
+	// send request
 	resp, err := i.client.Do(req)
 	if err != nil {
 		log.Errorf("%s - Failed to send an HTTP request to the server - %v\n", function.Name, err)
@@ -178,7 +151,7 @@ func (i *httpInvoker) Invoke(function *common.Function, runtimeSpec *common.Runt
 	}
 
 	if isDandelion {
-		err = DeserializeDandelionResponse(function, body, record)
+		err = DeserializeDandelionResponse(function, body, record, isWorkflow)
 		if err != nil {
 			log.Warnf("Failed to deserialize Dandelion response - %v - %v", string(body), err)
 		}

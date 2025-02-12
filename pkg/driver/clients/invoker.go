@@ -23,7 +23,7 @@ func CreateInvoker(cfg *config.LoaderConfiguration, announceDoneExe *sync.WaitGr
 		} else {
 			return newHTTPInvoker(cfg)
 		}
-	case "Dirigent-Dandelion":
+	case "Dirigent-Dandelion", "Dirigent-Dandelion-Workflow":
 		return newHTTPInvoker(cfg)
 	case "Knative":
 		if cfg.InvokeProtocol == "grpc" {

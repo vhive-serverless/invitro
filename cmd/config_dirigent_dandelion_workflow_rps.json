@@ -1,0 +1,42 @@
+{
+  "Seed": 42,
+
+  "Platform": "Dirigent-Dandelion-Workflow",
+  "InvokeProtocol" : "http1",
+  "EndpointPort": 80,
+
+  "DirigentControlPlaneIP": "10.0.1.253:9091",
+  "BusyLoopOnSandboxStartup": false,
+
+  "AsyncMode": false,
+  "AsyncResponseURL": "10.0.1.253:8082",
+  "AsyncWaitToCollectMin": 1,
+
+  "RpsTarget": 1,
+  "RpsColdStartRatioPercentage": 0,
+  "RpsCooldownSeconds": 10,
+  "RpsImage": "workloads/dandelion_workflows/basic_chain.txt",
+  "RpsRuntimeMs": 10,
+  "RpsMemoryMB": 2048,
+  "RpsIterationMultiplier": 80,
+
+  "TracePath": "RPS",
+  "Granularity": "minute",
+  "OutputPathPrefix": "data/out/experiment",
+  "IATDistribution": "equidistant",
+  "CPULimit": "1vCPU",
+  "ExperimentDuration": 1,
+  "WarmupDuration": 0,
+  "PrepullMode": "",
+
+  "IsPartiallyPanic": false,
+  "EnableZipkinTracing": false,
+  "EnableMetricsScrapping": false,
+  "MetricScrapingPeriodSeconds": 15,
+  "AutoscalingMetric": "concurrency",
+
+  "GRPCConnectionTimeoutSeconds": 5,
+  "GRPCFunctionTimeoutSeconds": 900,
+
+  "WorkflowConfigPath": "workloads/dandelion_workflows/config_basic_chain.json"
+}

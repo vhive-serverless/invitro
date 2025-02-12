@@ -1,0 +1,17 @@
+{
+  "Name": "basic_chain",
+  "Functions": [
+    {
+      "FunctionName": "Basic",
+      "FunctionPath": "configs/dandelion/test_elf_mmu_x86_64_basic",
+      "NumArgs": 1,
+      "NumRets": 0
+    }
+  ],
+  "Compositions": [
+    {
+      "Name": "BasicChain",
+      "InDataPaths": [[""]]
+    }
+  ]
+}
