@@ -245,7 +245,7 @@ func deployDirigentWorkflow(wf *common.Function, controlPlaneAddress string) []s
 		"workflow": {string(wfDescription)},
 	}
 
-	resp, err := registrationClient.PostForm("http://"+controlPlaneAddress+"/workflow", payload)
+	resp, err := registrationClient.PostForm(fmt.Sprintf("http://%s/workflow", controlPlaneAddress), payload)
 	if err != nil {
 		log.Fatalf("Failed to register a workflow with the control plane - %v", err)
 	}
