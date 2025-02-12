@@ -35,12 +35,14 @@ func NewMapperParser(directoryPath string, totalDuration int) *MapperTraceParser
 
 func (p *MapperTraceParser) extractFunctions(mapperOutput map[string]map[string]string, deploymentInfo JSONParser, dirPath string) []*common.Function {
 	var result []*common.Function
+
 	invocations := parseInvocationTrace(dirPath+"/invocations.csv", p.duration)
 	runtime := parseRuntimeTrace(dirPath + "/durations.csv")
 	memory := parseMemoryTrace(dirPath + "/memory.csv")
 
 	runtimeByHashFunction := createRuntimeMap(runtime)
 	memoryByHashFunction := createMemoryMap(memory)
+
 	for i := 0; i < len(*invocations); i++ {
 		invocationStats := (*invocations)[i]
 		hashFunction := invocationStats.HashFunction
@@ -55,10 +57,13 @@ func (p *MapperTraceParser) extractFunctions(mapperOutput map[string]map[string]
 			MemoryStats:     memoryByHashFunction[hashFunction],
 			YAMLPath:        yamlPath,
 		}
+
 		result = append(result, function)
 	}
+
 	return result
 }
+
 func (p *MapperTraceParser) Parse() []*common.Function {
 	var functions []*common.Function
 	var mapperOutput map[string]map[string]string // HashFunction mapped to vSwarm function yaml.
@@ -84,6 +89,7 @@ func (p *MapperTraceParser) Parse() []*common.Function {
 		if err != nil {
 			log.Warn("No mapper output file")
 		}
+
 		for _, trace := range traces {
 			traceName := trace.Name()
 			mapperFile, err = os.ReadFile(p.DirectoryPath + "/" + traceName + "/mapper_output.json")
@@ -98,12 +104,16 @@ func (p *MapperTraceParser) Parse() []*common.Function {
 			result := p.extractFunctions(mapperOutput, deploymentInfo, p.DirectoryPath+"/"+traceName)
 			functions = append(functions, result...)
 		}
+
 		return functions
 	}
+
 	err = json.Unmarshal(mapperFile, &mapperOutput)
 	if err != nil {
 		log.Warn("Failed to unmarshal mapper output file")
 	}
+
 	functions = p.extractFunctions(mapperOutput, deploymentInfo, p.DirectoryPath)
+
 	return functions
 }
