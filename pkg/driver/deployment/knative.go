@@ -3,15 +3,16 @@ package deployment
 import (
 	"bytes"
 	"fmt"
-	log "github.com/sirupsen/logrus"
-	"github.com/vhive-serverless/loader/pkg/common"
-	"github.com/vhive-serverless/loader/pkg/config"
 	"math"
 	"os/exec"
 	"regexp"
 	"runtime"
 	"strconv"
 	"sync"
+
+	log "github.com/sirupsen/logrus"
+	"github.com/vhive-serverless/loader/pkg/common"
+	"github.com/vhive-serverless/loader/pkg/config"
 )
 
 const (
@@ -94,7 +95,11 @@ func knativeDeploySingleFunction(function *common.Function, yamlPath string, isP
 		// for rps mode use the average runtime in milliseconds to determine how many requests a pod can process per
 		// second, then round to an integer as that is what the knative config expects
 	}
-
+	for _, command := range function.PredeploymentCommands {
+		_ = exec.Command(
+			command,
+		)
+	}
 	cmd := exec.Command(
 		"bash",
 		"./pkg/driver/deployment/knative.sh",
