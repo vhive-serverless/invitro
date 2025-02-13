@@ -80,6 +80,16 @@ func (*knativeDeployer) Clean() {
 	if err := cmd.Run(); err != nil {
 		log.Errorf("Unable to delete Knative services - %s", err)
 	}
+	preDepCmd := exec.Command("kubectl", "delete", "pods", "--all")
+	preDepCmd.Stdout = &out
+	if err := preDepCmd.Run(); err != nil {
+		log.Error("Unable to clean up predeployment files")
+	}
+	preDepCmd = exec.Command("kubectl", "delete", "services", "--all")
+	preDepCmd.Stdout = &out
+	if err := preDepCmd.Run(); err != nil {
+		log.Error("Unable to clean up predeployment files")
+	}
 }
 
 func knativeDeploySingleFunction(function *common.Function, yamlPath string, isPartiallyPanic bool, endpointPort int, autoscalingMetric string) bool {
@@ -95,10 +105,14 @@ func knativeDeploySingleFunction(function *common.Function, yamlPath string, isP
 		// for rps mode use the average runtime in milliseconds to determine how many requests a pod can process per
 		// second, then round to an integer as that is what the knative config expects
 	}
-	for _, command := range function.PredeploymentCommands {
-		_ = exec.Command(
-			command,
+	for _, path := range function.PredeploymentPath {
+		out := exec.Command(
+			"bash",
+			"./pkg/driver/deployment/predeploy_vswarm.sh",
+			path,
 		)
+		response, _ := out.CombinedOutput()
+		log.Debug("Predeployment command response is", string(response))
 	}
 	cmd := exec.Command(
 		"bash",

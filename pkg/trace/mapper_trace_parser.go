@@ -18,8 +18,8 @@ type MapperTraceParser struct {
 }
 
 type DeploymentInfo struct {
-	YamlLocation          string
-	PredeploymentCommands []string
+	YamlLocation      string
+	PredeploymentPath []string
 }
 
 type JSONParser map[string]DeploymentInfo
@@ -48,15 +48,15 @@ func (p *MapperTraceParser) extractFunctions(mapperOutput map[string]map[string]
 		hashFunction := invocationStats.HashFunction
 		proxyFunction := mapperOutput[hashFunction]["proxy-function"]
 		yamlPath := deploymentInfo[proxyFunction].YamlLocation
-		predeploymentCommands := deploymentInfo[proxyFunction].PredeploymentCommands
+		predeploymentPaths := deploymentInfo[proxyFunction].PredeploymentPath
 		function := &common.Function{
 			Name: fmt.Sprintf("%s-%d-%d", proxyFunction, i, p.functionNameGenerator.Uint64()),
 
-			InvocationStats:       &invocationStats,
-			RuntimeStats:          runtimeByHashFunction[hashFunction],
-			MemoryStats:           memoryByHashFunction[hashFunction],
-			YAMLPath:              yamlPath,
-			PredeploymentCommands: predeploymentCommands,
+			InvocationStats:   &invocationStats,
+			RuntimeStats:      runtimeByHashFunction[hashFunction],
+			MemoryStats:       memoryByHashFunction[hashFunction],
+			YAMLPath:          yamlPath,
+			PredeploymentPath: predeploymentPaths,
 		}
 
 		result = append(result, function)
