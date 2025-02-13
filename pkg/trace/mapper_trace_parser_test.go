@@ -16,7 +16,7 @@ func TestMapperParserWrapper(t *testing.T) {
 		functions[0].InvocationStats == nil ||
 		functions[0].YAMLPath != "workloads/container/yamls/online-shop/kn-cartservice.yaml" ||
 		len(functions[0].PredeploymentPath) != 1 ||
-		functions[0].PredeploymentPath[0] != "kubectl apply -f workloads/container/yamls/online-shop/database.yaml" {
+		functions[0].PredeploymentPath[0] != "workloads/container/yamls/online-shop/database.yaml" {
 		t.Error("Unexpected results.")
 	}
 }
