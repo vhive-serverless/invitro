@@ -170,3 +170,4 @@ prometheus:
         memory: 10Gi
       requests:
         memory: 150Mi
+    enableAdminAPI: true
