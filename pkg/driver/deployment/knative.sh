@@ -14,4 +14,4 @@ export AUTOSCALING_TARGET=${10}
 
 export COLD_START_BUSY_LOOP_MS=${11}
 
-cat $CONFIG_FILE | envsubst | kn service apply $FUNC_NAME --scale-init $INIT_SCALE --concurrency-target 1 --wait-timeout 2000000 -f /dev/stdin
+cat $CONFIG_FILE | envsubst | kn service apply $FUNC_NAME --scale-init $INIT_SCALE --wait-timeout 2000000 -f /dev/stdin
