@@ -46,7 +46,9 @@ func (p *MapperTraceParser) extractFunctions(mapperOutput map[string]map[string]
 	for i := 0; i < len(*invocations); i++ {
 		invocationStats := (*invocations)[i]
 		hashFunction := invocationStats.HashFunction
-		proxyFunction := mapperOutput[hashFunction]["proxy-function"]
+		hashApp := invocationStats.HashApp
+		hashOwner := invocationStats.HashOwner
+		proxyFunction := mapperOutput[hashFunction+hashOwner+hashApp]["proxy-function"]
 		yamlPath := deploymentInfo[proxyFunction].YamlLocation
 		predeploymentPaths := deploymentInfo[proxyFunction].PredeploymentPath
 		function := &common.Function{

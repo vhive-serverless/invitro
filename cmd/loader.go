@@ -206,7 +206,7 @@ func runTraceMode(cfg *config.LoaderConfiguration, readIATFromFile bool, writeIA
 		TraceGranularity: parseTraceGranularity(cfg),
 		TraceDuration:    durationToParse,
 
-		YAMLPath: yamlPath, //make a slice of YAMLPaths instead
+		YAMLPath: yamlPath,
 		TestMode: false,
 
 		Functions: functions,
