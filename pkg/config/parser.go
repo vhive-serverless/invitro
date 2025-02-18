@@ -53,10 +53,7 @@ type LoaderConfiguration struct {
 	RpsImage                    string  `json:"RpsImage"`
 	RpsRuntimeMs                int     `json:"RpsRuntimeMs"`
 	RpsMemoryMB                 int     `json:"RpsMemoryMB"`
-	RpsRequestedGpu             int     `json:"RpsRequestedGpu"`
 	RpsIterationMultiplier      int     `json:"RpsIterationMultiplier"`
-	RpsDataSizeMB               float64 `json:"RpsDataSizeMB"`
-	RpsFile                     string  `json:"RpsFile"`
 
 	TracePath          string `json:"TracePath"`
 	Granularity        string `json:"Granularity"`
@@ -92,8 +89,8 @@ type WorkflowFunction struct {
 	NumRets      int    `json:"NumRets"`
 }
 type CompositionConfig struct {
-	Name        string     `json:"Name"`
-	InDataPaths [][]string `json:"InDataPaths"`
+	Name   string     `json:"Name"`
+	InData [][]string `json:"InData"`
 }
 type WorkflowConfig struct {
 	Name         string              `json:"Name"`
@@ -109,6 +106,10 @@ type DirigentConfig struct {
 	AsyncMode             bool   `json:"AsyncMode"`
 	AsyncResponseURL      string `json:"AsyncResponseURL"`
 	AsyncWaitToCollectMin int    `json:"AsyncWaitToCollectMin"`
+
+	RpsRequestedGpu int     `json:"RpsRequestedGpu"`
+	RpsDataSizeMB   float64 `json:"RpsDataSizeMB"`
+	RpsFile         string  `json:"RpsFile"`
 
 	Workflow           bool   `json:"Workflow"`
 	WorkflowConfigPath string `json:"WorkflowPath"`
@@ -178,6 +179,11 @@ func ReadDirigentConfig(cfg *LoaderConfiguration) *DirigentConfig {
 	err = json.Unmarshal(byteValue, &config)
 	if err != nil {
 		log.Fatalf("Failed to unmarshal dirigent config json: %v", err)
+	}
+
+	// defaults
+	if config.Backend == "" {
+		config.Backend = "containerd"
 	}
 
 	return &config
