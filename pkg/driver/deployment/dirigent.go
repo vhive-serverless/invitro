@@ -34,7 +34,7 @@ func newDirigentDeployer(deployWorkflow bool) *dirigentDeployer {
 
 func newDirigentDeployerConfiguration(cfg *config.Configuration) dirigentDeploymentConfiguration {
 	return dirigentDeploymentConfiguration{
-		RegistrationServer: cfg.LoaderConfiguration.DirigentControlPlaneIP,
+		RegistrationServer: cfg.DirigentConfiguration.DirigentControlPlaneIP,
 	}
 }
 
@@ -44,7 +44,7 @@ func (d *dirigentDeployer) Deploy(cfg *config.Configuration) {
 	endpoint := ""
 
 	if d.deployWorkflow {
-		wfConfigPath := cfg.LoaderConfiguration.WorkflowConfigPath
+		wfConfigPath := cfg.DirigentConfiguration.WorkflowConfigPath
 		if wfConfigPath == "" {
 			log.Fatalf("Failed to deploy workflow: no workflow config path specified in config file.")
 		}
@@ -72,7 +72,7 @@ func (d *dirigentDeployer) Deploy(cfg *config.Configuration) {
 				tmpFunction,
 				wfFunc.FunctionPath,
 				dirigentConfig.RegistrationServer,
-				cfg.LoaderConfiguration.BusyLoopOnSandboxStartup,
+				cfg.DirigentConfiguration.BusyLoopOnSandboxStartup,
 				cfg.LoaderConfiguration.PrepullMode,
 			)
 			endpoint = tmpFunction.Endpoint
@@ -115,7 +115,7 @@ func (d *dirigentDeployer) Deploy(cfg *config.Configuration) {
 					cfg.Functions[idx],
 					cfg.Functions[idx].DirigentMetadata.Image,
 					dirigentConfig.RegistrationServer,
-					cfg.LoaderConfiguration.BusyLoopOnSandboxStartup,
+					cfg.DirigentConfiguration.BusyLoopOnSandboxStartup,
 					cfg.LoaderConfiguration.PrepullMode,
 				)
 			}(i)

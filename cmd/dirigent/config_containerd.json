@@ -1,0 +1,11 @@
+{
+  "Backend": "containerd",
+  "DirigentControlPlaneIP": "10.0.1.253:9091",
+  "BusyLoopOnSandboxStartup": false,
+
+  "AsyncMode": false,
+  "AsyncResponseURL": "10.0.1.253:8082",
+  "AsyncWaitToCollectMin": 1,
+
+  "Workflow": false
+}

@@ -47,13 +47,6 @@ type LoaderConfiguration struct {
 	YAMLSelector   string `json:"YAMLSelector"`
 	EndpointPort   int    `json:"EndpointPort"`
 
-	DirigentControlPlaneIP   string `json:"DirigentControlPlaneIP"`
-	BusyLoopOnSandboxStartup bool   `json:"BusyLoopOnSandboxStartup"`
-
-	AsyncMode             bool   `json:"AsyncMode"`
-	AsyncResponseURL      string `json:"AsyncResponseURL"`
-	AsyncWaitToCollectMin int    `json:"AsyncWaitToCollectMin"`
-
 	RpsTarget                   float64 `json:"RpsTarget"`
 	RpsColdStartRatioPercentage float64 `json:"RpsColdStartRatioPercentage"`
 	RpsCooldownSeconds          int     `json:"RpsCooldownSeconds"`
@@ -88,8 +81,8 @@ type LoaderConfiguration struct {
 	Depth                        int  `json:"Depth"`
 	VSwarm                       bool `json:"VSwarm"`
 
-	// used only for dirigent-dandelion workflows
-	WorkflowConfigPath string `json:"WorkflowConfigPath"`
+	// used only if platform is dirigent
+	DirigentConfigPath string `json:"DirigentConfigPath"`
 }
 
 type WorkflowFunction struct {
@@ -106,6 +99,19 @@ type WorkflowConfig struct {
 	Name         string              `json:"Name"`
 	Functions    []WorkflowFunction  `json:"Functions"`
 	Compositions []CompositionConfig `json:"Compositions"`
+}
+
+type DirigentConfig struct {
+	Backend                  string `json:"Backend"`
+	DirigentControlPlaneIP   string `json:"DirigentControlPlaneIP"`
+	BusyLoopOnSandboxStartup bool   `json:"BusyLoopOnSandboxStartup"`
+
+	AsyncMode             bool   `json:"AsyncMode"`
+	AsyncResponseURL      string `json:"AsyncResponseURL"`
+	AsyncWaitToCollectMin int    `json:"AsyncWaitToCollectMin"`
+
+	Workflow           bool   `json:"Workflow"`
+	WorkflowConfigPath string `json:"WorkflowPath"`
 }
 
 func ReadConfigurationFile(path string) LoaderConfiguration {
@@ -154,4 +160,25 @@ func ReadWorkflowConfig(path string) WorkflowConfig {
 	}
 
 	return config
+}
+
+func ReadDirigentConfig(cfg *LoaderConfiguration) *DirigentConfig {
+	if cfg.Platform != "Dirigent" {
+		return nil
+	}
+
+	if cfg.DirigentConfigPath == "" {
+		log.Fatal("Missing DirigentConfigPath in loader configuration!")
+	}
+	byteValue, err := os.ReadFile(cfg.DirigentConfigPath)
+	if err != nil {
+		log.Fatalf("Failed to read dirigent config: %v", err)
+	}
+	var config DirigentConfig
+	err = json.Unmarshal(byteValue, &config)
+	if err != nil {
+		log.Fatalf("Failed to unmarshal dirigent config json: %v", err)
+	}
+
+	return &config
 }

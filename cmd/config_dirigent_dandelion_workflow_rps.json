@@ -1,16 +1,10 @@
 {
   "Seed": 42,
 
-  "Platform": "Dirigent-Dandelion-Workflow",
+  "Platform": "Dirigent",
+  "DirigentConfigPath": "cmd/dirigent/config_dandelion_workflow.json",
   "InvokeProtocol" : "http1",
   "EndpointPort": 80,
-
-  "DirigentControlPlaneIP": "10.0.1.253:9091",
-  "BusyLoopOnSandboxStartup": false,
-
-  "AsyncMode": false,
-  "AsyncResponseURL": "10.0.1.253:8082",
-  "AsyncWaitToCollectMin": 1,
 
   "RpsTarget": 1,
   "RpsColdStartRatioPercentage": 0,
@@ -36,7 +30,5 @@
   "AutoscalingMetric": "concurrency",
 
   "GRPCConnectionTimeoutSeconds": 5,
-  "GRPCFunctionTimeoutSeconds": 900,
-
-  "WorkflowConfigPath": "workloads/dandelion_workflows/config_basic_chain.json"
+  "GRPCFunctionTimeoutSeconds": 900
 }
