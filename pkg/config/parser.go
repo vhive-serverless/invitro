@@ -112,7 +112,7 @@ type DirigentConfig struct {
 	RpsFile         string  `json:"RpsFile"`
 
 	Workflow           bool   `json:"Workflow"`
-	WorkflowConfigPath string `json:"WorkflowPath"`
+	WorkflowConfigPath string `json:"WorkflowConfigPath"`
 }
 
 func ReadConfigurationFile(path string) LoaderConfiguration {
