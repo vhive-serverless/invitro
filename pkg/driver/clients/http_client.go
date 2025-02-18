@@ -2,6 +2,7 @@ package clients
 
 import (
 	"bytes"
+	"crypto/rand"
 	"encoding/json"
 	"fmt"
 	log "github.com/sirupsen/logrus"
@@ -9,7 +10,9 @@ import (
 	"github.com/vhive-serverless/loader/pkg/config"
 	mc "github.com/vhive-serverless/loader/pkg/metric"
 	"io"
+	"mime/multipart"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -47,10 +50,68 @@ func newHTTPInvoker(cfg *config.Configuration) *httpInvoker {
 	}
 }
 
+var payload []byte = nil
+var contentType string = "application/octet-stream"
+
+func CreateRandomPayload(sizeInMB float64) *bytes.Buffer {
+	if payload == nil {
+		byteCount := int(sizeInMB * 1024.0 * 1024.0) // MB -> B
+		payload = make([]byte, byteCount)
+
+		n, err := rand.Read(payload)
+		if err != nil || n != byteCount {
+			log.Errorf("Failed to generate random %d bytes.", byteCount)
+		}
+	}
+
+	return bytes.NewBuffer(payload)
+}
+
+func CreateFilePayload(filePath string) *bytes.Buffer {
+	if payload == nil {
+		file, err := os.Open(filePath)
+		if err != nil {
+			log.Fatalf("Failed to open file %s: %v", filePath, err)
+		}
+
+		buffer := &bytes.Buffer{}
+		writer := multipart.NewWriter(buffer)
+		part, err := writer.CreateFormFile("images", "invitro.payload")
+		if err != nil {
+			log.Fatalf("Failed to create form file: %v", err)
+		}
+
+		if _, err = io.Copy(part, file); err != nil {
+			log.Fatalf("Failed to enter file into the form: %v", err)
+		}
+		if err = writer.Close(); err != nil {
+			log.Fatalf("Failed to close writer: %v", err)
+		}
+
+		payload = buffer.Bytes()
+		contentType = writer.FormDataContentType()
+		return buffer
+	}
+
+	return bytes.NewBuffer(payload)
+}
+
 func (i *httpInvoker) functionInvocationRequest(function *common.Function, runtimeSpec *common.RuntimeSpecification) *http.Request {
 	requestBody := &bytes.Buffer{}
 	if body := composeBusyLoopBody(function.Name, function.DirigentMetadata.Image, runtimeSpec.Runtime, function.DirigentMetadata.IterationMultiplier); i.isDandelion && body != nil {
 		requestBody = body
+	}
+
+	// gpu rps requests
+	if i.dirigentCfg.RpsRequestedGpu > 0 {
+		ts := time.Now()
+		if i.dirigentCfg.RpsFile != "" {
+			requestBody = CreateFilePayload(i.dirigentCfg.RpsFile)
+			log.Debugf("Took %v to create file body.", time.Since(ts))
+		} else {
+			requestBody = CreateRandomPayload(i.dirigentCfg.RpsDataSizeMB)
+			log.Debugf("Took %v to generate request body.", time.Since(ts))
+		}
 	}
 
 	req, err := http.NewRequest("POST", fmt.Sprintf("http://%s", function.Endpoint), requestBody)
@@ -70,6 +131,9 @@ func (i *httpInvoker) functionInvocationRequest(function *common.Function, runti
 	req.Header.Set("requested_memory", strconv.Itoa(runtimeSpec.Memory))
 	req.Header.Set("multiplier", strconv.Itoa(function.DirigentMetadata.IterationMultiplier))
 	req.Header.Set("io_percentage", strconv.Itoa(function.DirigentMetadata.IOPercentage))
+	if i.dirigentCfg.RpsRequestedGpu > 0 {
+		req.Header.Add("Content-Type", contentType)
+	}
 
 	if i.isDandelion {
 		req.URL.Path = "/hot/matmul"
