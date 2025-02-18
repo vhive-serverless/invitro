@@ -28,6 +28,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/vhive-serverless/loader/pkg/generator"
@@ -95,7 +96,6 @@ func main() {
 		"OpenWhisk",
 		"AWSLambda",
 		"Dirigent",
-		"Dirigent-Dandelion",
 	}
 
 	if !slices.Contains(supportedPlatforms, cfg.Platform) {
@@ -151,7 +151,9 @@ func parseYAMLSpecification(cfg *config.LoaderConfiguration) string {
 	case "firecracker":
 		return "workloads/firecracker/trace_func_go.yaml"
 	default:
-		if cfg.Platform != "Dirigent" && cfg.Platform != "Dirigent-Dandelion" {
+		platform := strings.ToLower(cfg.Platform)
+		validPlatforms := []string{"dirigent", "dirigent-dandelion", "dirigent-dandelion-workflow"}
+		if !slices.Contains(validPlatforms, platform) {
 			log.Fatal("Invalid 'YAMLSelector' parameter.")
 		}
 	}
@@ -195,6 +197,9 @@ func runTraceMode(cfg *config.LoaderConfiguration, readIATFromFile bool, writeIA
 		LoaderConfiguration:  cfg,
 		FailureConfiguration: config.ReadFailureConfiguration(*failurePath),
 
+		// loads dirigent config only if the platform is 'dirigent'
+		DirigentConfiguration: config.ReadDirigentConfig(cfg),
+
 		IATDistribution:  iatType,
 		ShiftIAT:         shiftIAT,
 		TraceGranularity: parseTraceGranularity(cfg),
@@ -233,6 +238,9 @@ func runRPSMode(cfg *config.LoaderConfiguration, readIATFromFile bool, writeIATs
 	experimentDriver := driver.NewDriver(&config.Configuration{
 		LoaderConfiguration: cfg,
 		TraceDuration:       experimentDuration,
+
+		// loads dirigent config only if the platform is 'dirigent'
+		DirigentConfiguration: config.ReadDirigentConfig(cfg),
 
 		YAMLPath: parseYAMLSpecification(cfg),
 
