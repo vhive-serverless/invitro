@@ -816,3 +816,13 @@ py
 DDR
 SweepOptions
 SweepType
+DirigentConfigPath
+WorkflowConfigPath
+CompositionConfig
+WorkflowFunction
+FunctionName
+FunctionPath
+NumArgs
+NumRets
+CompositionConfig
+InData
