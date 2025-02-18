@@ -149,7 +149,7 @@ func (i *httpInvoker) workflowInvocationRequest(wf *common.Function) *http.Reque
 
 	// create request
 	reqBody := bytes.NewBufferString(wf.WorkflowMetadata.InvocationRequest)
-	req, err := http.NewRequest("POST", "http://"+wf.Endpoint+"/workflow", reqBody)
+	req, err := http.NewRequest("POST", fmt.Sprintf("http://%s/workflow", wf.Endpoint), reqBody)
 	if err != nil {
 		log.Errorf("Failed to create a HTTP request - %v\n", err)
 		return nil
