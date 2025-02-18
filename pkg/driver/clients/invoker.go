@@ -13,24 +13,25 @@ type Invoker interface {
 	Invoke(*common.Function, *common.RuntimeSpecification) (bool, *metric.ExecutionRecord)
 }
 
-func CreateInvoker(cfg *config.LoaderConfiguration, announceDoneExe *sync.WaitGroup, readOpenWhiskMetadata *sync.Mutex) Invoker {
-	switch cfg.Platform {
+func CreateInvoker(cfg *config.Configuration, announceDoneExe *sync.WaitGroup, readOpenWhiskMetadata *sync.Mutex) Invoker {
+	switch cfg.LoaderConfiguration.Platform {
 	case "AWSLambda":
 		return newAWSLambdaInvoker(announceDoneExe)
 	case "Dirigent":
-		if cfg.InvokeProtocol == "grpc" {
-			return newGRPCInvoker(cfg, ExecutorRPC{})
-		} else {
-			return newHTTPInvoker(cfg)
+		if cfg.DirigentConfiguration == nil {
+			logrus.Fatal("Failed to create invoker: dirigent configuration is required for platform 'dirigent'")
 		}
-	case "Dirigent-Dandelion", "Dirigent-Dandelion-Workflow":
-		return newHTTPInvoker(cfg)
+		if cfg.DirigentConfiguration.Backend == "Dandelion" || cfg.LoaderConfiguration.InvokeProtocol != "grpc" {
+			return newHTTPInvoker(cfg)
+		} else {
+			return newGRPCInvoker(cfg.LoaderConfiguration, ExecutorRPC{})
+		}
 	case "Knative":
-		if cfg.InvokeProtocol == "grpc" {
-			if !cfg.VSwarm {
-				return newGRPCInvoker(cfg, ExecutorRPC{})
+		if cfg.LoaderConfiguration.InvokeProtocol == "grpc" {
+			if !cfg.LoaderConfiguration.VSwarm {
+				return newGRPCInvoker(cfg.LoaderConfiguration, ExecutorRPC{})
 			} else {
-				return newGRPCInvoker(cfg, SayHelloRPC{})
+				return newGRPCInvoker(cfg.LoaderConfiguration, SayHelloRPC{})
 			}
 		} else {
 			return newHTTPInvoker(cfg)
