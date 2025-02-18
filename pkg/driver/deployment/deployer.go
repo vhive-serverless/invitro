@@ -14,10 +14,8 @@ func CreateDeployer(cfg *config.Configuration) FunctionDeployer {
 	switch cfg.LoaderConfiguration.Platform {
 	case "AWSLambda":
 		return newAWSLambdaDeployer()
-	case "Dirigent-Dandelion-Workflow":
-		return newDirigentDeployer(true)
-	case "Dirigent", "Dirigent-Dandelion":
-		return newDirigentDeployer(false)
+	case "Dirigent":
+		return newDirigentDeployer(cfg.DirigentConfiguration.Workflow)
 	case "Knative":
 		return newKnativeDeployer()
 	case "OpenWhisk":

@@ -1,16 +1,10 @@
 {
   "Seed": 42,
 
-  "Platform": "Dirigent-Dandelion",
+  "Platform": "Dirigent",
+  "DirigentConfigPath": "cmd/dirigent/config_dandelion.json",
   "InvokeProtocol" : "http1",
   "EndpointPort": 80,
-
-  "DirigentControlPlaneIP": "10.0.1.253:9091",
-  "BusyLoopOnSandboxStartup": false,
-
-  "AsyncMode": false,
-  "AsyncResponseURL": "10.0.1.253:8082",
-  "AsyncWaitToCollectMin": 1,
 
   "TracePath": "data/traces/example",
   "Granularity": "minute",
