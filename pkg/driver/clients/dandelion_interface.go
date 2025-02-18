@@ -98,25 +98,31 @@ func filenameFromPath(path string) string {
 	return ident
 }
 
-func CreateDandelionRequest(serviceName string, dataPaths [][]string) *DandelionRequest {
+func CreateDandelionRequest(serviceName string, dataItems [][]string) *DandelionRequest {
 	logrus.Debugf("Creating dandelion request for '%s' with following data:", serviceName)
-	sets := make([]InputSet, len(dataPaths))
-	for setIdx, setPaths := range dataPaths {
-		items := make([]InputItem, len(setPaths))
-		for itmIdx, itmPath := range setPaths {
-			var data []byte
-			var ident string
-			if itmPath == "" {
+	sets := make([]InputSet, len(dataItems))
+	for setIdx, set := range dataItems {
+		items := make([]InputItem, len(set))
+		for itmIdx, itm := range set {
+			data := []byte(itm)
+			ident := itm
+
+			// special cases
+			if itm == "" {
 				data = []byte{}
 				ident = "empty"
 			} else {
 				var err error
-				data, err = os.ReadFile(itmPath)
-				if err != nil {
-					logrus.Fatalf("Failed to read file '%s': %v", itmPath, err)
+				if strings.HasPrefix(itm, "%path=") {
+					logrus.Tracef("Detected local path for item %d in set %d (%s)", itmIdx, setIdx, itm)
+					data, err = os.ReadFile(itm[6:])
+					if err != nil {
+						logrus.Fatalf("Failed to read file '%s': %v", itm[6:], err)
+					}
+					ident = filenameFromPath(itm[6:])
 				}
-				ident = filenameFromPath(itmPath)
 			}
+
 			items[itmIdx] = InputItem{
 				Identifier: ident,
 				Key:        int64(itmIdx),

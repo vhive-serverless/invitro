@@ -15,7 +15,6 @@
   "RpsRuntimeMs": 10,
   "RpsMemoryMB": 2048,
   "RpsIterationMultiplier": 80,
-  "RpsDataSizeMB": 0.00,
 
   "TracePath": "RPS",
   "Granularity": "minute",

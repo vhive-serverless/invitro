@@ -7,6 +7,8 @@
   "AsyncResponseURL": "10.0.1.253:8082",
   "AsyncWaitToCollectMin": 1,
 
+  "RpsDataSizeMB": 0.00,
+
   "Workflow": true,
   "WorkflowConfigPath": "workloads/dandelion_workflows/config_basic_chain.json"
 }

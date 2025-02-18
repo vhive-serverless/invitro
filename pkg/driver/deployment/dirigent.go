@@ -39,7 +39,7 @@ func newDirigentDeployerConfiguration(cfg *config.Configuration) dirigentDeploym
 }
 
 func (d *dirigentDeployer) Deploy(cfg *config.Configuration) {
-	dirigentConfig := newDirigentDeployerConfiguration(cfg)
+	dirigentDeployerConfig := newDirigentDeployerConfiguration(cfg)
 
 	endpoint := ""
 
@@ -71,9 +71,10 @@ func (d *dirigentDeployer) Deploy(cfg *config.Configuration) {
 			deployDirigentFunction(
 				tmpFunction,
 				wfFunc.FunctionPath,
-				dirigentConfig.RegistrationServer,
+				dirigentDeployerConfig.RegistrationServer,
 				cfg.DirigentConfiguration.BusyLoopOnSandboxStartup,
 				cfg.LoaderConfiguration.PrepullMode,
+				cfg.DirigentConfiguration.RpsRequestedGpu,
 			)
 			endpoint = tmpFunction.Endpoint
 		}
@@ -83,7 +84,7 @@ func (d *dirigentDeployer) Deploy(cfg *config.Configuration) {
 		// deploy workflow (stored as configuration functions)
 		compositionNames := deployDirigentWorkflow(
 			cfg.Functions[0],
-			dirigentConfig.RegistrationServer,
+			dirigentDeployerConfig.RegistrationServer,
 		)
 		// create a function for each registered composition
 		newFunctions := make([]*common.Function, len(compositionNames))
@@ -94,7 +95,7 @@ func (d *dirigentDeployer) Deploy(cfg *config.Configuration) {
 			newFunctions[i].WorkflowMetadata = &common.WorkflowMetadata{
 				InvocationRequest: clients.WorkflowInvocationBody(
 					compositionName,
-					clients.CreateDandelionRequest(compositionName, wfConfig.Compositions[i].InDataPaths),
+					clients.CreateDandelionRequest(compositionName, wfConfig.Compositions[i].InData),
 				),
 			}
 		}
@@ -114,9 +115,10 @@ func (d *dirigentDeployer) Deploy(cfg *config.Configuration) {
 				deployDirigentFunction(
 					cfg.Functions[idx],
 					cfg.Functions[idx].DirigentMetadata.Image,
-					dirigentConfig.RegistrationServer,
+					dirigentDeployerConfig.RegistrationServer,
 					cfg.DirigentConfiguration.BusyLoopOnSandboxStartup,
 					cfg.LoaderConfiguration.PrepullMode,
+					cfg.DirigentConfiguration.RpsRequestedGpu,
 				)
 			}(i)
 		}
@@ -151,7 +153,7 @@ var checkClient = &http.Client{
 	},
 }
 
-func deployDirigentFunction(function *common.Function, imagePath string, controlPlaneAddress string, busyLoopOnColdStart bool, prepullMode string) {
+func deployDirigentFunction(function *common.Function, imagePath string, controlPlaneAddress string, busyLoopOnColdStart bool, prepullMode string, requestedGpu int) {
 	metadata := function.DirigentMetadata
 
 	if metadata == nil {
@@ -171,6 +173,7 @@ func deployDirigentFunction(function *common.Function, imagePath string, control
 		"prepull_mode":        {prepullMode},
 		"num_args":            {strconv.Itoa(metadata.NumArgs)},
 		"num_rets":            {strconv.Itoa(metadata.NumRets)},
+		"requested_gpu":       {strconv.Itoa(requestedGpu)},
 	}
 
 	if busyLoopOnColdStart {
