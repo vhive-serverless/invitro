@@ -3,6 +3,7 @@ package clients
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	log "github.com/sirupsen/logrus"
 	"github.com/vhive-serverless/loader/pkg/common"
 	"github.com/vhive-serverless/loader/pkg/config"
@@ -22,36 +23,44 @@ type FunctionResponse struct {
 }
 
 type httpInvoker struct {
-	client *http.Client
-	cfg    *config.LoaderConfiguration
+	client      *http.Client
+	loaderCfg   *config.LoaderConfiguration
+	dirigentCfg *config.DirigentConfig
+
+	isKnative   bool
+	isDandelion bool
+	isWorkflow  bool
 }
 
-func newHTTPInvoker(cfg *config.LoaderConfiguration) *httpInvoker {
+func newHTTPInvoker(cfg *config.Configuration) *httpInvoker {
+	lcfg := cfg.LoaderConfiguration
+	dcfg := cfg.DirigentConfiguration
+
 	return &httpInvoker{
-		client: CreateHTTPClient(cfg.GRPCFunctionTimeoutSeconds, cfg.InvokeProtocol),
-		cfg:    cfg,
+		client:      CreateHTTPClient(lcfg.GRPCFunctionTimeoutSeconds, lcfg.InvokeProtocol),
+		loaderCfg:   lcfg,
+		dirigentCfg: dcfg,
+
+		isKnative:   strings.Contains(strings.ToLower(lcfg.Platform), "knative"),
+		isDandelion: strings.Contains(strings.ToLower(dcfg.Backend), "dandelion"),
+		isWorkflow:  dcfg.Workflow,
 	}
 }
 
-func functionInvocationRequest(function *common.Function, runtimeSpec *common.RuntimeSpecification,
-	isKnative bool, isDandelion bool) *http.Request {
-
+func (i *httpInvoker) functionInvocationRequest(function *common.Function, runtimeSpec *common.RuntimeSpecification) *http.Request {
 	requestBody := &bytes.Buffer{}
-	/*if body := composeDandelionMatMulBody(function.Name); isDandelion && body != nil {
-		requestBody = body
-	}*/
-	if body := composeBusyLoopBody(function.Name, function.DirigentMetadata.Image, runtimeSpec.Runtime, function.DirigentMetadata.IterationMultiplier); isDandelion && body != nil {
+	if body := composeBusyLoopBody(function.Name, function.DirigentMetadata.Image, runtimeSpec.Runtime, function.DirigentMetadata.IterationMultiplier); i.isDandelion && body != nil {
 		requestBody = body
 	}
 
-	req, err := http.NewRequest("POST", "http://"+function.Endpoint, requestBody)
+	req, err := http.NewRequest("POST", fmt.Sprintf("http://%s", function.Endpoint), requestBody)
 	if err != nil {
 		log.Errorf("Failed to create a HTTP request - %v\n", err)
 		return nil
 	}
 
 	// add system specific stuff
-	if !isKnative {
+	if !i.isKnative {
 		req.Host = function.Name
 	}
 
@@ -62,14 +71,14 @@ func functionInvocationRequest(function *common.Function, runtimeSpec *common.Ru
 	req.Header.Set("multiplier", strconv.Itoa(function.DirigentMetadata.IterationMultiplier))
 	req.Header.Set("io_percentage", strconv.Itoa(function.DirigentMetadata.IOPercentage))
 
-	if isDandelion {
+	if i.isDandelion {
 		req.URL.Path = "/hot/matmul"
 	}
 
 	return req
 }
 
-func workflowInvocationRequest(wf *common.Function) *http.Request {
+func (i *httpInvoker) workflowInvocationRequest(wf *common.Function) *http.Request {
 	if wf.WorkflowMetadata == nil {
 		log.Fatal("Failed to create workflow invocation request: workflow metadata is nil")
 	}
@@ -88,10 +97,6 @@ func workflowInvocationRequest(wf *common.Function) *http.Request {
 }
 
 func (i *httpInvoker) Invoke(function *common.Function, runtimeSpec *common.RuntimeSpecification) (bool, *mc.ExecutionRecord) {
-	isDandelion := strings.Contains(strings.ToLower(i.cfg.Platform), "dandelion")
-	isKnative := strings.Contains(strings.ToLower(i.cfg.Platform), "knative")
-	isWorkflow := strings.Contains(strings.ToLower(i.cfg.Platform), "workflow")
-
 	log.Tracef("(Invoke)\t %s: %d[ms], %d[MiB]", function.Name, runtimeSpec.Runtime, runtimeSpec.Memory)
 
 	record := &mc.ExecutionRecord{
@@ -105,13 +110,13 @@ func (i *httpInvoker) Invoke(function *common.Function, runtimeSpec *common.Runt
 
 	// create request
 	var req *http.Request
-	if !isWorkflow {
-		req = functionInvocationRequest(function, runtimeSpec, isKnative, isDandelion)
+	if !i.isWorkflow {
+		req = i.functionInvocationRequest(function, runtimeSpec)
 	} else {
-		if !isDandelion {
+		if !i.isDandelion {
 			log.Fatalf("Dirigent workflows are only supported for Dandelion so far!")
 		}
-		req = workflowInvocationRequest(function)
+		req = i.workflowInvocationRequest(function)
 	}
 	if req == nil {
 		record.ResponseTime = time.Since(start).Microseconds()
@@ -150,12 +155,12 @@ func (i *httpInvoker) Invoke(function *common.Function, runtimeSpec *common.Runt
 		return false, record
 	}
 
-	if isDandelion {
-		err = DeserializeDandelionResponse(function, body, record, isWorkflow)
+	if i.isDandelion {
+		err = DeserializeDandelionResponse(function, body, record, i.isWorkflow)
 		if err != nil {
 			log.Warnf("Failed to deserialize Dandelion response - %v - %v", string(body), err)
 		}
-	} else if i.cfg.AsyncMode {
+	} else if i.dirigentCfg.AsyncMode {
 		record.AsyncResponseID = string(body)
 	} else {
 		err = DeserializeDirigentResponse(body, record)

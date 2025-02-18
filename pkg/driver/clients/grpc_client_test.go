@@ -98,7 +98,7 @@ func TestGRPCClientWithServerUnreachable(t *testing.T) {
 	cfg := createFakeLoaderConfiguration()
 	cfg.EnableZipkinTracing = true
 
-	invoker := CreateInvoker(cfg, nil, nil)
+	invoker := CreateInvoker(&config.Configuration{LoaderConfiguration: cfg}, nil, nil)
 	success, record := invoker.Invoke(&testFunction, &testRuntimeSpecs)
 
 	if record.Instance != "" ||
@@ -115,7 +115,7 @@ func TestGRPCClientWithServerUnreachable(t *testing.T) {
 func TestVSwarmClientUnreachable(t *testing.T) {
 	cfgSwarm := createFakeVSwarmLoaderConfiguration()
 
-	vSwarmInvoker := CreateInvoker(cfgSwarm, nil, nil)
+	vSwarmInvoker := CreateInvoker(&config.Configuration{LoaderConfiguration: cfgSwarm}, nil, nil)
 	success, record := vSwarmInvoker.Invoke(&testFunction, &testRuntimeSpecs)
 
 	if record.Instance != "" ||
@@ -139,7 +139,7 @@ func TestGRPCClientWithServerReachable(t *testing.T) {
 	time.Sleep(2 * time.Second)
 
 	cfg := createFakeLoaderConfiguration()
-	invoker := CreateInvoker(cfg, nil, nil)
+	invoker := CreateInvoker(&config.Configuration{LoaderConfiguration: cfg}, nil, nil)
 
 	start := time.Now()
 	success, record := invoker.Invoke(&testFunction, &testRuntimeSpecs)
@@ -165,7 +165,7 @@ func TestVSwarmClientWithServerReachable(t *testing.T) {
 	time.Sleep(2 * time.Second)
 
 	cfgSwarm := createFakeVSwarmLoaderConfiguration()
-	vSwarmInvoker := CreateInvoker(cfgSwarm, nil, nil)
+	vSwarmInvoker := CreateInvoker(&config.Configuration{LoaderConfiguration: cfgSwarm}, nil, nil)
 
 	start := time.Now()
 	success, record := vSwarmInvoker.Invoke(&testFunction, &testRuntimeSpecs)
@@ -197,7 +197,7 @@ func TestGRPCClientWithServerBatchWorkload(t *testing.T) {
 
 	cfg := createFakeLoaderConfiguration()
 
-	invoker := CreateInvoker(cfg, nil, nil)
+	invoker := CreateInvoker(&config.Configuration{LoaderConfiguration: cfg}, nil, nil)
 
 	for i := 0; i < 50; i++ {
 		success, record := invoker.Invoke(&testFunction, &testRuntimeSpecs)

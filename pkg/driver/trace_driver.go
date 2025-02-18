@@ -66,7 +66,7 @@ func NewDriver(driverConfig *config.Configuration) *Driver {
 		allFunctionsInvoked:   sync.WaitGroup{},
 	}
 
-	d.Invoker = clients.CreateInvoker(driverConfig.LoaderConfiguration, &d.allFunctionsInvoked, &d.readOpenWhiskMetadata)
+	d.Invoker = clients.CreateInvoker(driverConfig, &d.allFunctionsInvoked, &d.readOpenWhiskMetadata)
 
 	return d
 }
@@ -136,11 +136,12 @@ func (d *Driver) invokeFunction(metadata *InvocationMetadata) {
 		record.Instance = fmt.Sprintf("%s%s", node.Value.(*common.Node).DAG, record.Instance)
 		record.InvocationID = metadata.InvocationID
 
-		if !d.Configuration.LoaderConfiguration.AsyncMode || record.AsyncResponseID == "" {
-			metadata.RecordOutputChannel <- record
-		} else {
+		if d.Configuration.DirigentConfiguration != nil &&
+			d.Configuration.DirigentConfiguration.AsyncMode && record.AsyncResponseID != "" {
 			record.TimeToSubmitMs = record.ResponseTime
 			d.AsyncRecords.Enqueue(record)
+		} else {
+			metadata.RecordOutputChannel <- record
 		}
 		atomic.AddInt64(metadata.FunctionsInvoked, 1)
 		if !success {
@@ -408,8 +409,8 @@ func (d *Driver) internalRun() {
 	if atomic.LoadInt64(&successfulInvocations)+atomic.LoadInt64(&failedInvocations) != 0 {
 		log.Debugf("Waiting for all the invocations record to be written.\n")
 
-		if d.Configuration.LoaderConfiguration.AsyncMode {
-			sleepFor := time.Duration(d.Configuration.LoaderConfiguration.AsyncWaitToCollectMin) * time.Minute
+		if d.Configuration.DirigentConfiguration != nil && d.Configuration.DirigentConfiguration.AsyncMode {
+			sleepFor := time.Duration(d.Configuration.DirigentConfiguration.AsyncWaitToCollectMin) * time.Minute
 
 			log.Infof("Sleeping for %v...", sleepFor)
 			time.Sleep(sleepFor)

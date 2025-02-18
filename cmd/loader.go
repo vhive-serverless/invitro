@@ -96,8 +96,6 @@ func main() {
 		"OpenWhisk",
 		"AWSLambda",
 		"Dirigent",
-		"Dirigent-Dandelion",
-		"Dirigent-Dandelion-Workflow",
 	}
 
 	if !slices.Contains(supportedPlatforms, cfg.Platform) {
@@ -199,6 +197,9 @@ func runTraceMode(cfg *config.LoaderConfiguration, readIATFromFile bool, writeIA
 		LoaderConfiguration:  cfg,
 		FailureConfiguration: config.ReadFailureConfiguration(*failurePath),
 
+		// loads dirigent config only if the platform is 'dirigent'
+		DirigentConfiguration: config.ReadDirigentConfig(cfg),
+
 		IATDistribution:  iatType,
 		ShiftIAT:         shiftIAT,
 		TraceGranularity: parseTraceGranularity(cfg),
@@ -237,6 +238,9 @@ func runRPSMode(cfg *config.LoaderConfiguration, readIATFromFile bool, writeIATs
 	experimentDriver := driver.NewDriver(&config.Configuration{
 		LoaderConfiguration: cfg,
 		TraceDuration:       experimentDuration,
+
+		// loads dirigent config only if the platform is 'dirigent'
+		DirigentConfiguration: config.ReadDirigentConfig(cfg),
 
 		YAMLPath: parseYAMLSpecification(cfg),
 
