@@ -4,10 +4,16 @@ type MultiLoaderConfiguration struct {
 	Studies        []LoaderStudy `json:"Studies"`
 	BaseConfigPath string        `json:"BaseConfigPath"`
 	// Optional
-	IatGeneration bool   `json:"IatGeneration"`
-	Generated     bool   `json:"Generated"`
-	PreScript     string `json:"PreScript"`
-	PostScript    string `json:"PostScript"`
+	IatGeneration  bool     `json:"IatGeneration"`
+	Generated      bool     `json:"Generated"`
+	PreScript      string   `json:"PreScript"`
+	PostScript     string   `json:"PostScript"`
+	MasterNode     string   `json:"MasterNode"`
+	AutoScalerNode string   `json:"AutoScalerNode"`
+	ActivatorNode  string   `json:"ActivatorNode"`
+	LoaderNode     string   `json:"LoaderNode"`
+	WorkerNodes    []string `json:"WorkerNodes"`
+	Metrics        []string `json:"Metrics"`
 }
 
 type LoaderStudy struct {
@@ -37,4 +43,11 @@ type LoaderExperiment struct {
 	Generated     bool                   `json:"Generated"`
 	PreScript     string                 `json:"PreScript"`
 	PostScript    string                 `json:"PostScript"`
+}
+
+type PrometheusSnapshot struct {
+	Status    string      `json:"status"`
+	ErrorType string      `json:"errorType"`
+	Error     string      `json:"error"`
+	Data      interface{} `json:"data"`
 }

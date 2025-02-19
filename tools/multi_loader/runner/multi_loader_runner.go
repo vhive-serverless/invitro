@@ -15,6 +15,7 @@ import (
 	"github.com/vhive-serverless/loader/pkg/common"
 	"github.com/vhive-serverless/loader/pkg/config"
 	ml_common "github.com/vhive-serverless/loader/tools/multi_loader/common"
+	"github.com/vhive-serverless/loader/tools/multi_loader/metric"
 	"github.com/vhive-serverless/loader/tools/multi_loader/types"
 
 	log "github.com/sirupsen/logrus"
@@ -34,6 +35,7 @@ type MultiLoaderRunner struct {
 	DryRun            bool
 	Platform          string
 	FailFast          bool
+	MetricManager     *metric.MetricManager
 }
 
 /**
@@ -48,6 +50,15 @@ func NewMultiLoaderRunner(configPath string, verbosity string, failFast bool) (*
 	// Determine platform
 	platform := ml_common.DeterminePlatformFromConfig(multiLoaderConfig)
 
+	// Determine Node Group for Knative platform
+	if strings.HasPrefix(platform, "Knative") && len(multiLoaderConfig.Metrics) > 0 {
+		ml_common.DetermineNodesIPs(&multiLoaderConfig)
+		ml_common.CheckKnativeSpecificMultiLoaderConfig(multiLoaderConfig)
+	}
+
+	// Create metric manager
+	metricManager := metric.NewMetricManager(platform, multiLoaderConfig)
+
 	runner := MultiLoaderRunner{
 		MultiLoaderConfig: multiLoaderConfig,
 		DryRunSuccess:     true,
@@ -55,6 +66,7 @@ func NewMultiLoaderRunner(configPath string, verbosity string, failFast bool) (*
 		DryRun:            false,
 		Platform:          platform,
 		FailFast:          failFast,
+		MetricManager:     metricManager,
 	}
 
 	return &runner, nil
@@ -101,10 +113,16 @@ func (d *MultiLoaderRunner) run() {
 				log.Info(fmt.Sprintf("[Study %d/%d][Experiment %d/%d] Running %s", si+1, len(d.MultiLoaderConfig.Studies), ei+1, len(experimentsPartialConfig), experiment.Name))
 			}
 
+			// Set metric manager output directory
+			d.MetricManager.SetOutputDir(path.Dir(experiment.Config["OutputPathPrefix"].(string)))
+
 			// Prepare experiment: merge with base config, create output dir and write merged config to temp file
 			d.prepareExperiment(experiment)
 
 			err := d.runExperiment(experiment)
+
+			// Collect metrics
+			d.MetricManager.CollectMetrics()
 
 			// Perform cleanup
 			d.performCleanup()
@@ -266,6 +284,9 @@ func (d *MultiLoaderRunner) prepareExperiment(experiment types.LoaderExperiment)
 	}
 	// Write experiment configs to temp file
 	d.writeExperimentConfigToTempFile(experimentConfig, EXPERIMENT_TEMP_CONFIG_PATH)
+
+	// Reset TOP for each node
+	d.MetricManager.ResetTOP()
 }
 
 /**
@@ -440,6 +461,10 @@ func (d *MultiLoaderRunner) performCleanup() {
 	log.Debug("Runnning Cleanup")
 	// Remove temp file
 	os.Remove(EXPERIMENT_TEMP_CONFIG_PATH)
+	// Remove collected logs for dry run
+	if d.DryRun {
+		d.MetricManager.ClearCollectedMetrics()
+	}
 
 	log.Debug("Cleanup completed")
 }

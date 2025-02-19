@@ -1,7 +1,11 @@
 package common
 
 import (
+	"bytes"
+	"net"
+	"os/exec"
 	"path"
+	"slices"
 	"strings"
 
 	log "github.com/sirupsen/logrus"
@@ -53,4 +57,46 @@ func CheckMultiLoaderConfig(multiLoaderConfig types.MultiLoaderConfiguration) {
 		}
 	}
 	log.Debug("All experiments configs are valid")
+}
+
+func CheckKnativeSpecificMultiLoaderConfig(multiLoaderConfig types.MultiLoaderConfiguration) {
+	log.Debug("Checking platform specific multi-loader configuration")
+	// Check knative specific configurations
+	// Check if metrics are valid
+	for _, metric := range multiLoaderConfig.Metrics {
+		CheckCollectableMetrics(metric)
+	}
+	// Check nodes
+	CheckNode(multiLoaderConfig.MasterNode)
+	CheckNode(multiLoaderConfig.AutoScalerNode)
+	CheckNode(multiLoaderConfig.ActivatorNode)
+	CheckNode(multiLoaderConfig.LoaderNode)
+	for _, node := range multiLoaderConfig.WorkerNodes {
+		CheckNode(node)
+	}
+	log.Debug("Nodes are reachable")
+}
+
+func CheckCollectableMetrics(metrics string) {
+	if !slices.Contains(ValidCollectableMetrics, metrics) {
+		log.Fatal("Invalid metrics ", metrics)
+	}
+}
+
+func CheckNode(node string) {
+	if !IsValidIP(node) {
+		log.Fatal("Invalid IP address for node ", node)
+	}
+	cmd := exec.Command("ssh", "-oStrictHostKeyChecking=no", "-p", "22", node, "exit")
+	// -oStrictHostKeyChecking=no -p 22
+	out, err := cmd.CombinedOutput()
+	if bytes.Contains(out, []byte("Permission denied")) || err != nil {
+		log.Error(string(out))
+		log.Fatal("Failed to connect to node ", node)
+	}
+}
+
+func IsValidIP(ip string) bool {
+	parsedIP := net.ParseIP(ip)
+	return parsedIP != nil
 }
