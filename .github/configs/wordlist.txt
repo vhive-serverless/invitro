@@ -814,3 +814,5 @@ Volgenant
 injective
 py
 DDR
+SweepOptions
+SweepType
