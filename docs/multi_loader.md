@@ -29,7 +29,7 @@ As a wrapper around loader, multi-loader requires the initial cluster setup to b
 | PreScript             | string                 | any bash Command              | ""           | (Optional) Local script that runs this specific experiment |
 | PostScript            | string                 | any bash Command              | ""           | (Optional) Local script that runs this specific experiment |
 | Sweep                 | [][SweepOptions](#sweepoptions)        | N/A                           | N/A           | (Optional) List of sweep options for the experiment |
-| SweepType             | string                 | "linear", "grid"              | "grid"        | (Optional) Determines how the sweep options are applied: "grid" means all permutations, "linear" applies them linearly |
+| SweepType             | string                 | "linear", "grid"              | "grid"        | (Optional) Determines how the sweep options are applied: `grid` means all permutations, while `linear` pairs corresponding elements from sweep options, similar to Python's zip() function |
 
 > **_Important_**: 
 >
