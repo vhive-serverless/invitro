@@ -43,13 +43,13 @@ func TestSweepOptionsToPostfix(t *testing.T) {
 	t.Run("Test Post Fix Naming Util", func(t *testing.T) {
 		result := SweepOptionsToPostfix(
 			[]types.SweepOptions{
-				{Field: "PreScript", Values: []interface{}{"PreScript_1", "PreScript_2"}},
+				{Field: "PreScript", Values: []interface{}{"PreValue_1", "PreValue_2"}},
 				{Field: "CPULimit", Values: []interface{}{"1vCPU", "2vCPU", "4vCPU"}},
 				{Field: "ExperimentDuration", Values: []interface{}{"10", "20", "30"}},
-				{Field: "PostScript", Values: []interface{}{"PostScript_1", "PostScript_2", "PostScript_3"}},
+				{Field: "PostScript", Values: []interface{}{"PostValue_1", "PostValue_2", "PostValue_3"}},
 			},
-			[]int{1, 2, 0, 3},
+			[]int{1, 2, 0, 2},
 		)
-		assert.Equal(t, "_PreScript_1_CPULimit_4vCPU_ExperimentDuration_10_PostScript_3", result, "Unexpected postfix result")
+		assert.Equal(t, "_PreScript_PreValue_2_CPULimit_4vCPU_ExperimentDuration_10_PostScript_PostValue_3", result, "Unexpected postfix result")
 	})
 }

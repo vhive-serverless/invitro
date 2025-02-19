@@ -2,7 +2,10 @@ package types
 
 import (
 	"errors"
+	"fmt"
 	"strings"
+
+	log "github.com/sirupsen/logrus"
 )
 
 const (
@@ -72,4 +75,16 @@ func (so *SweepOptions) Validate() error {
 		return errors.New("Invalid format, expected " + FORMAT_PLACEHOLDER + " in " + so.Format)
 	}
 	return nil
+}
+
+func (so *SweepOptions) GetValue(index int) interface{} {
+	if index >= len(so.Values) {
+		log.Fatal("Index out of range when getting value from sweep options")
+	}
+	// Check if format is specified
+	if so.Format == "" {
+		return so.Values[index]
+	}
+	// Use format
+	return strings.ReplaceAll(so.Format, FORMAT_PLACEHOLDER, fmt.Sprintf("%v", so.Values[index]))
 }
