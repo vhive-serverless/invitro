@@ -254,6 +254,9 @@ func (d *MultiLoaderRunner) addCommandFlagsToExperiment(experiment types.LoaderE
 	}
 }
 
+/**
+* Validates sweep options and run the appropriate unpacking method
+**/
 func (d *MultiLoaderRunner) unpackSweepOptions(study types.LoaderStudy, experiment types.LoaderExperiment) []types.LoaderExperiment {
 	if len(study.Sweep) == 0 {
 		log.Debug("No sweep options provided")
@@ -277,6 +280,9 @@ func (d *MultiLoaderRunner) unpackSweepOptions(study types.LoaderStudy, experime
 	}
 }
 
+/**
+* Unpacks sweep options by permutating all sweep options
+**/
 func (d *MultiLoaderRunner) unpackGridSweep(study types.LoaderStudy, experiment types.LoaderExperiment) []types.LoaderExperiment {
 	var experiments []types.LoaderExperiment
 	numOfSweepOptions := len(study.Sweep)
@@ -294,29 +300,15 @@ func (d *MultiLoaderRunner) unpackGridSweep(study types.LoaderStudy, experiment 
 		if err != nil {
 			log.Fatal("Error when deep copying experiment", err)
 		}
-		experimentPostFix := ml_common.SweepOptionsToPostfix(study.Sweep, indices)
-		newExperiment.Name = experiment.Name + experimentPostFix
-		paths := ml_common.SplitPath(experiment.Config["OutputPathPrefix"].(string))
-		// update the last two paths with the sweep indices
-		paths[len(paths)-2] = paths[len(paths)-2] + experimentPostFix
-		paths[len(paths)-1] = paths[len(paths)-1] + experimentPostFix
-
-		newExperiment.Config["OutputPathPrefix"] = path.Join(paths...)
-
-		for sweepOptionI, sweepValueI := range indices {
-			if study.Sweep[sweepOptionI].Field == "PreScript" {
-				newExperiment.PreScript = study.Sweep[sweepOptionI].GetValue(sweepValueI).(string)
-			} else if study.Sweep[sweepOptionI].Field == "PostScript" {
-				newExperiment.PostScript = study.Sweep[sweepOptionI].GetValue(sweepValueI).(string)
-			} else {
-				newExperiment.Config[study.Sweep[sweepOptionI].Field] = study.Sweep[sweepOptionI].GetValue(sweepValueI)
-			}
-		}
+		ml_common.UpdateExperimentWithSweepIndices(&newExperiment, study.Sweep, indices)
 		experiments = append(experiments, newExperiment)
 	}
 	return experiments
 }
 
+/**
+* Unpacks sweep options using corresponding elements from sweep options, similar to Python's zip() function
+**/
 func (d *MultiLoaderRunner) unpackLinearSweep(study types.LoaderStudy, experiment types.LoaderExperiment) []types.LoaderExperiment {
 	var experiments []types.LoaderExperiment
 	numOfSweepOptions := len(study.Sweep)
@@ -341,25 +333,7 @@ func (d *MultiLoaderRunner) unpackLinearSweep(study types.LoaderStudy, experimen
 			indices[j] = i
 		}
 
-		experimentPostFix := ml_common.SweepOptionsToPostfix(study.Sweep, indices)
-		newExperiment.Name = experiment.Name + experimentPostFix
-		// Update output path prefix
-		paths := ml_common.SplitPath(experiment.Config["OutputPathPrefix"].(string))
-		// update the last two paths with the sweep indices
-		paths[len(paths)-2] = paths[len(paths)-2] + experimentPostFix
-		paths[len(paths)-1] = paths[len(paths)-1] + experimentPostFix
-
-		newExperiment.Config["OutputPathPrefix"] = path.Join(paths...)
-
-		for j := 0; j < numOfSweepOptions; j++ {
-			if study.Sweep[j].Field == "PreScript" {
-				newExperiment.PreScript = study.Sweep[j].GetValue(i).(string)
-			} else if study.Sweep[j].Field == "PostScript" {
-				newExperiment.PostScript = study.Sweep[j].GetValue(i).(string)
-			} else {
-				newExperiment.Config[study.Sweep[j].Field] = study.Sweep[j].GetValue(i)
-			}
-		}
+		ml_common.UpdateExperimentWithSweepIndices(&newExperiment, study.Sweep, indices)
 		experiments = append(experiments, newExperiment)
 	}
 

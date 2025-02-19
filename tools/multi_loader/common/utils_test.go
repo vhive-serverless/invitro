@@ -1,6 +1,7 @@
 package common
 
 import (
+	"path"
 	"path/filepath"
 	"testing"
 
@@ -52,4 +53,36 @@ func TestSweepOptionsToPostfix(t *testing.T) {
 		)
 		assert.Equal(t, "_PreScript_PreValue_2_CPULimit_4vCPU_ExperimentDuration_10_PostScript_PostValue_3", result, "Unexpected postfix result")
 	})
+}
+
+func TestUpdateExperimentWithSweepIndices(t *testing.T) {
+	experiment := &types.LoaderExperiment{
+		Name:   "test_experiment",
+		Config: map[string]interface{}{"OutputPathPrefix": "first/second/third"},
+	}
+
+	// Test sweep options
+	sweepOptions := []types.SweepOptions{
+		{Field: "PreScript", Values: []interface{}{"pre1", "pre2"}, Format: "test_{}"},
+		{Field: "PostScript", Values: []interface{}{"post1", "post2"}, Format: ""},
+		{Field: "ExperimentDuration", Values: []interface{}{"1", "2"}, Format: ""},
+	}
+
+	selectedSweepValues := []int{1, 0, 1}
+
+	UpdateExperimentWithSweepIndices(experiment, sweepOptions, selectedSweepValues)
+
+	expectedPostfix := "_PreScript_pre2_PostScript_post1_ExperimentDuration_2"
+
+	// Check experiment name
+	assert.Equal(t, "test_experiment"+expectedPostfix, experiment.Name)
+
+	// Check OutputPathPrefix
+	expectedOutputPathPrefix := path.Join("first", "second"+expectedPostfix, "third"+expectedPostfix)
+	assert.Equal(t, expectedOutputPathPrefix, experiment.Config["OutputPathPrefix"])
+
+	// Verify that the sweep options have been updated
+	assert.Equal(t, "test_pre2", experiment.PreScript)
+	assert.Equal(t, "post1", experiment.PostScript)
+	assert.Equal(t, "2", experiment.Config["ExperimentDuration"])
 }
