@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 
 	log "github.com/sirupsen/logrus"
@@ -101,4 +102,27 @@ func SweepOptionsToPostfix(sweepOptions []types.SweepOptions, selectedSweepValue
 		postfix += fmt.Sprintf("_%s_%v", sweepOption.Field, sweepOption.Values[selectedSweepValues[i]])
 	}
 	return postfix
+}
+
+func UpdateExperimentWithSweepIndices(experiment *types.LoaderExperiment, sweepOptions []types.SweepOptions, selectedSweepValues []int) {
+	experimentPostFix := SweepOptionsToPostfix(sweepOptions, selectedSweepValues)
+
+	experiment.Name = experiment.Name + experimentPostFix
+	paths := SplitPath(experiment.Config["OutputPathPrefix"].(string))
+	// update the last two paths with the sweep indices
+	paths[len(paths)-2] = paths[len(paths)-2] + experimentPostFix
+	paths[len(paths)-1] = paths[len(paths)-1] + experimentPostFix
+
+	experiment.Config["OutputPathPrefix"] = path.Join(paths...)
+
+	for sweepOptionI, sweepValueI := range selectedSweepValues {
+		sweepValue := sweepOptions[sweepOptionI].GetValue(sweepValueI)
+		if sweepOptions[sweepOptionI].Field == "PreScript" {
+			experiment.PreScript = sweepValue.(string)
+		} else if sweepOptions[sweepOptionI].Field == "PostScript" {
+			experiment.PostScript = sweepValue.(string)
+		} else {
+			experiment.Config[sweepOptions[sweepOptionI].Field] = sweepValue
+		}
+	}
 }
