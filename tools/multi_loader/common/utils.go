@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strconv"
 
 	log "github.com/sirupsen/logrus"
 
@@ -86,14 +85,6 @@ func NextCProduct(limits []int) func() []int {
 
 		return permutations
 	}
-}
-
-func IntArrToString(arr []int) string {
-	str := ""
-	for _, val := range arr {
-		str += strconv.Itoa(val)
-	}
-	return str
 }
 
 func SplitPath(path string) []string {
