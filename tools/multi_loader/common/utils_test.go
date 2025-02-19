@@ -34,11 +34,6 @@ func TestNextProduct(t *testing.T) {
 	}
 }
 
-func TestIntArrToString(t *testing.T) {
-	assert.Equal(t, "123", IntArrToString([]int{1, 2, 3}), "Expected '123' for [1,2,3]")
-	assert.Equal(t, "-12-3", IntArrToString([]int{-1, 2, -3}), "Expected '-12-3' for [-1,2,-3]")
-}
-
 func TestSplitPath(t *testing.T) {
 	assert.Equal(t, []string{"file.txt"}, SplitPath("file.txt"), "Expected ['file.txt'] for single file")
 	assert.Equal(t, []string{"home", "user", "docs", "file.txt"}, SplitPath(filepath.Join("home", "user", "docs", "file.txt")), "Expected full path split")
