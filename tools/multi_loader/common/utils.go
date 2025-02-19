@@ -98,13 +98,7 @@ func SplitPath(path string) []string {
 func SweepOptionsToPostfix(sweepOptions []types.SweepOptions, selectedSweepValues []int) string {
 	var postfix string
 	for i, sweepOption := range sweepOptions {
-		if sweepOption.Field == "PreScript" {
-			postfix += fmt.Sprintf("_%s_%v", sweepOption.Field, selectedSweepValues[i])
-		} else if sweepOption.Field == "PostScript" {
-			postfix += fmt.Sprintf("_%s_%v", sweepOption.Field, selectedSweepValues[i])
-		} else {
-			postfix += fmt.Sprintf("_%s_%v", sweepOption.Field, sweepOption.Values[selectedSweepValues[i]])
-		}
+		postfix += fmt.Sprintf("_%s_%v", sweepOption.Field, sweepOption.Values[selectedSweepValues[i]])
 	}
 	return postfix
 }

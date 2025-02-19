@@ -265,15 +265,6 @@ func (d *MultiLoaderRunner) unpackSweepOptions(study types.LoaderStudy, experime
 			log.Fatal(err)
 		}
 	}
-	// Unpack sweep values if using sweep format
-	log.Debug("Unpacking sweep options")
-	for _, sweepOption := range study.Sweep {
-		if sweepOption.Format != "" {
-			for index, value := range sweepOption.Values {
-				sweepOption.Values[index] = strings.Replace(sweepOption.Format, types.FORMAT_PLACEHOLDER, fmt.Sprintf("%v", value), -1)
-			}
-		}
-	}
 
 	switch study.SweepType {
 	case ml_common.GridSweepType:
@@ -312,13 +303,13 @@ func (d *MultiLoaderRunner) unpackGridSweep(study types.LoaderStudy, experiment 
 
 		newExperiment.Config["OutputPathPrefix"] = path.Join(paths...)
 
-		for i, index := range indices {
-			if study.Sweep[i].Field == "PreScript" {
-				newExperiment.PreScript = study.Sweep[i].Values[index].(string)
-			} else if study.Sweep[i].Field == "PostScript" {
-				newExperiment.PostScript = study.Sweep[i].Values[index].(string)
+		for sweepOptionI, sweepValueI := range indices {
+			if study.Sweep[sweepOptionI].Field == "PreScript" {
+				newExperiment.PreScript = study.Sweep[sweepOptionI].GetValue(sweepValueI).(string)
+			} else if study.Sweep[sweepOptionI].Field == "PostScript" {
+				newExperiment.PostScript = study.Sweep[sweepOptionI].GetValue(sweepValueI).(string)
 			} else {
-				newExperiment.Config[study.Sweep[i].Field] = study.Sweep[i].Values[index]
+				newExperiment.Config[study.Sweep[sweepOptionI].Field] = study.Sweep[sweepOptionI].GetValue(sweepValueI)
 			}
 		}
 		experiments = append(experiments, newExperiment)
@@ -362,11 +353,11 @@ func (d *MultiLoaderRunner) unpackLinearSweep(study types.LoaderStudy, experimen
 
 		for j := 0; j < numOfSweepOptions; j++ {
 			if study.Sweep[j].Field == "PreScript" {
-				newExperiment.PreScript = study.Sweep[j].Values[i].(string)
+				newExperiment.PreScript = study.Sweep[j].GetValue(i).(string)
 			} else if study.Sweep[j].Field == "PostScript" {
-				newExperiment.PostScript = study.Sweep[j].Values[i].(string)
+				newExperiment.PostScript = study.Sweep[j].GetValue(i).(string)
 			} else {
-				newExperiment.Config[study.Sweep[j].Field] = study.Sweep[j].Values[i]
+				newExperiment.Config[study.Sweep[j].Field] = study.Sweep[j].GetValue(i)
 			}
 		}
 		experiments = append(experiments, newExperiment)
