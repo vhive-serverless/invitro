@@ -64,7 +64,7 @@ func (so *SweepOptions) Validate() error {
 		return errors.New("field should not be empty")
 	}
 
-	if so.Field == "TracePath" || so.Field == "OutputDir" {
+	if so.Field == "TracePath" || so.Field == "OutputDir" || so.Field == "Platform" {
 		return errors.New(so.Field + " is a reserved field")
 	}
 
