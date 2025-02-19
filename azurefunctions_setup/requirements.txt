@@ -1,0 +1,3 @@
+azure-functions
+numpy>=1.21,<1.26
+psutil>=5.9,<6.0

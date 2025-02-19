@@ -1,0 +1,6 @@
+# azurefunctionsconfig.yaml
+azurefunctionsconfig:
+  resource_group: ExperimentResourceGroup  # Name of the resource group
+  storage_account_name: testinvitrostorage  # Name of the storage account
+  function_app_name: testinvitrofunctionapp  # Name of the function app
+  location: EastUS  # Region where resource created
