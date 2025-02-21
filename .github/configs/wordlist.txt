@@ -824,3 +824,6 @@ NumArgs
 NumRets
 CompositionConfig
 InData
+RpsFile
+RpsRequestedGpu
+gpus
