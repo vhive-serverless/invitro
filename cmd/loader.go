@@ -151,9 +151,7 @@ func parseYAMLSpecification(cfg *config.LoaderConfiguration) string {
 	case "firecracker":
 		return "workloads/firecracker/trace_func_go.yaml"
 	default:
-		platform := strings.ToLower(cfg.Platform)
-		validPlatforms := []string{"dirigent", "dirigent-dandelion", "dirigent-dandelion-workflow"}
-		if !slices.Contains(validPlatforms, platform) {
+		if strings.ToLower(cfg.Platform) != "dirigent" {
 			log.Fatal("Invalid 'YAMLSelector' parameter.")
 		}
 	}

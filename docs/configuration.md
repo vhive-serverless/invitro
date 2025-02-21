@@ -3,7 +3,7 @@
 | Parameter name               | Data type | Possible values                                                     | Default value       | Description                                                                                                                                                                                                                              |
 |------------------------------|-----------|---------------------------------------------------------------------|---------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | Seed                         | int64     | any                                                                 | 42                  | Seed for specification generator (for reproducibility)                                                                                                                                                                                   |
-| Platform                     | string    | Knative, OpenWhisk, AWSLambda, Dirigent, Dirigent-Dandelion         | Knative             | The serverless platform the functions will be executed on                                                                                                                                                                                |
+| Platform                     | string    | Knative, OpenWhisk, AWSLambda, Dirigent                             | Knative             | The serverless platform the functions will be executed on                                                                                                                                                                                |
 | DirigentConfigPath [^9]      | string    | N/A                                                                 | ""                  | Path to the Dirigent configuration file                                                                                                                                                                                                  |
 | InvokeProtocol               | string    | grpc, http1, http2                                                  | N/A                 | Protocol to use to communicate with the sandbox                                                                                                                                                                                          |
 | YAMLSelector                 | string    | wimpy, container, firecracker                                       | container           | Service YAML depending on sandbox type                                                                                                                                                                                                   |
@@ -76,21 +76,25 @@ that the node on which you run InVitro has SSH access to the target node.
 ---
 
 # Dirigent configuration
-| Parameter name           | Data type | Possible values                          | Default value | Description                                                              |
-|--------------------------|-----------|------------------------------------------|---------------|--------------------------------------------------------------------------|
-| Backend                  | string    | `containerd`, `firecracker`, `dandelion` | `containerd`  | The backend used in Dirigent                                             |
-| DirigentControlPlaneIP   | string    | N/A                                      | N/A           | IP address of the Dirigent control plane (for function deployment)       |
-| BusyLoopOnSandboxStartup | bool      | true/false                               | false         | Enable artificial delay on sandbox startup                               |
-| AsyncMode                | bool      | true/false                               | false         | Enable asynchronous invocations in Dirigent                              |
-| AsyncResponseURL         | string    | N/A                                      | N/A           | URL from which to collect invocation responses                           |
-| AsyncWaitToCollectMin    | int       | >= 0                                     | 0             | Time after experiment ends after which to collect invocation results     |
-| RpsDataSizeMB            | float64   | >= 0                                     | 0             | Amount of random data (same for all requests) to embed into each request |
-| Workflow [^1]            | bool      | true/false                               | false         | Send workflow requests to Dirigent                                       | 
-| WorkflowConfigPath [^2]  | string    | N/A                                      | N/A           | Path to the configuration file for the workflow requests (see below)     | 
+| Parameter name           | Data type | Possible values                          | Default value | Description                                                                             |
+|--------------------------|-----------|------------------------------------------|---------------|-----------------------------------------------------------------------------------------|
+| Backend                  | string    | `containerd`, `firecracker`, `dandelion` | `containerd`  | The backend used in Dirigent                                                            |
+| DirigentControlPlaneIP   | string    | N/A                                      | N/A           | IP address of the Dirigent control plane (for function deployment)                      |
+| BusyLoopOnSandboxStartup | bool      | true/false                               | false         | Enable artificial delay on sandbox startup                                              |
+| AsyncMode                | bool      | true/false                               | false         | Enable asynchronous invocations in Dirigent                                             |
+| AsyncResponseURL         | string    | N/A                                      | N/A           | URL from which to collect invocation responses                                          |
+| AsyncWaitToCollectMin    | int       | >= 0                                     | 0             | Time after experiment ends after which to collect invocation results                    |
+| RpsRequestedGpu          | int       | >= 0                                     | 0             | Number of gpus requested from Dirigent                                                  |
+| RpsFile [^1]             | string    | N/A                                      | N/A           | If given the payload is read from this file                                             |
+| RpsDataSizeMB [^1]       | float64   | >= 0                                     | 0             | If no rps file is given this amount of random data is generated (same for all requests) |
+| Workflow [^2]            | bool      | true/false                               | false         | Send workflow requests to Dirigent                                                      | 
+| WorkflowConfigPath [^3]  | string    | N/A                                      | N/A           | Path to the configuration file for the workflow requests (see below)                    | 
 
-[^1] Only supported for backend `dandelion`.
+[^1] Currently used only when requesting gpus (RpsRequestedGpu > 0) and ignored otherwise. 
 
-[^2] Required only when Workflow is set to true.
+[^2] Only supported for backend `dandelion`.
+
+[^3] Required only when Workflow is set to true.
 
 ---
 

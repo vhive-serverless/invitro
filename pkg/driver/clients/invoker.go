@@ -1,6 +1,7 @@
 package clients
 
 import (
+	"strings"
 	"sync"
 
 	"github.com/sirupsen/logrus"
@@ -21,7 +22,7 @@ func CreateInvoker(cfg *config.Configuration, announceDoneExe *sync.WaitGroup, r
 		if cfg.DirigentConfiguration == nil {
 			logrus.Fatal("Failed to create invoker: dirigent configuration is required for platform 'dirigent'")
 		}
-		if cfg.DirigentConfiguration.Backend == "Dandelion" || cfg.LoaderConfiguration.InvokeProtocol != "grpc" {
+		if strings.ToLower(cfg.DirigentConfiguration.Backend) == "dandelion" || cfg.LoaderConfiguration.InvokeProtocol != "grpc" {
 			return newHTTPInvoker(cfg)
 		} else {
 			return newGRPCInvoker(cfg.LoaderConfiguration, ExecutorRPC{})
