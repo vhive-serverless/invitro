@@ -27,9 +27,6 @@ package trace
 import (
 	"encoding/csv"
 	"fmt"
-	"github.com/gocarina/gocsv"
-	"github.com/vhive-serverless/loader/pkg/common"
-	"github.com/vhive-serverless/loader/pkg/generator"
 	"io"
 	"math/rand"
 	"os"
@@ -37,20 +34,27 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gocarina/gocsv"
+	"github.com/vhive-serverless/loader/pkg/common"
+	"github.com/vhive-serverless/loader/pkg/generator"
+
 	log "github.com/sirupsen/logrus"
 )
 
+type Parser interface {
+	Parse() []*common.Function
+}
 type AzureTraceParser struct {
-	DirectoryPath string
-
+	DirectoryPath         string
+	yamlPath              string
 	duration              int
 	functionNameGenerator *rand.Rand
 }
 
-func NewAzureParser(directoryPath string, totalDuration int) *AzureTraceParser {
+func NewAzureParser(directoryPath string, totalDuration int, yamlPath string) *AzureTraceParser {
 	return &AzureTraceParser{
-		DirectoryPath: directoryPath,
-
+		DirectoryPath:         directoryPath,
+		yamlPath:              yamlPath,
 		duration:              totalDuration,
 		functionNameGenerator: rand.New(rand.NewSource(time.Now().UnixNano())),
 	}
@@ -100,10 +104,10 @@ func (p *AzureTraceParser) extractFunctions(invocations *[]common.FunctionInvoca
 		function := &common.Function{
 			Name: fmt.Sprintf("%s-%d-%d", common.FunctionNamePrefix, i, p.functionNameGenerator.Uint64()),
 
-			InvocationStats: &invocationStats,
-			RuntimeStats:    runtimeByHashFunction[invocationStats.HashFunction],
-			MemoryStats:     memoryByHashFunction[invocationStats.HashFunction],
-
+			InvocationStats:     &invocationStats,
+			RuntimeStats:        runtimeByHashFunction[invocationStats.HashFunction],
+			MemoryStats:         memoryByHashFunction[invocationStats.HashFunction],
+			YAMLPath:            p.yamlPath,
 			ColdStartBusyLoopMs: generator.ComputeBusyLoopPeriod(generator.GenerateMemorySpec(gen, gen.Float64(), memoryByHashFunction[invocationStats.HashFunction])),
 		}
 

@@ -102,8 +102,9 @@ type Function struct {
 	CPURequestsMilli  int
 	MemoryRequestsMiB int
 	CPULimitsMilli    int
-
-	Specification *FunctionSpecification
+	YAMLPath          string
+	PredeploymentPath []string
+	Specification     *FunctionSpecification
 }
 
 type Node struct {

@@ -1,0 +1,8 @@
+{
+    "cartservice": {
+        "YamlLocation": "workloads/container/yamls/online-shop/kn-cartservice.yaml",
+        "PredeploymentPath": [
+            "workloads/container/yamls/online-shop/database.yaml"
+        ]
+    }
+}
