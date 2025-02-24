@@ -26,7 +26,9 @@ package config
 
 import (
 	"encoding/json"
+	"github.com/vhive-serverless/loader/pkg/common"
 	"os"
+	"strings"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -127,6 +129,9 @@ func ReadConfigurationFile(path string) LoaderConfiguration {
 		log.Fatal(err)
 	}
 
+	// set to lower in order to always match constants
+	config.Platform = strings.ToLower(config.Platform)
+
 	return config
 }
 
@@ -164,7 +169,7 @@ func ReadWorkflowConfig(path string) WorkflowConfig {
 }
 
 func ReadDirigentConfig(cfg *LoaderConfiguration) *DirigentConfig {
-	if cfg.Platform != "Dirigent" {
+	if cfg.Platform != common.PlatformDirigent {
 		return nil
 	}
 

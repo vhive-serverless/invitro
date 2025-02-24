@@ -28,7 +28,6 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/vhive-serverless/loader/pkg/generator"
@@ -92,17 +91,16 @@ func main() {
 	}
 
 	supportedPlatforms := []string{
-		"Knative",
-		"OpenWhisk",
-		"AWSLambda",
-		"Dirigent",
+		common.PlatformKnative,
+		common.PlatformOpenWhisk,
+		common.PlatformAWSLambda,
+		common.PlatformDirigent,
 	}
-
 	if !slices.Contains(supportedPlatforms, cfg.Platform) {
 		log.Fatal("Unsupported platform!")
 	}
 
-	if cfg.Platform == "Knative" {
+	if cfg.Platform == common.PlatformKnative {
 		common.CheckCPULimit(cfg.CPULimit)
 	}
 
@@ -151,7 +149,7 @@ func parseYAMLSpecification(cfg *config.LoaderConfiguration) string {
 	case "firecracker":
 		return "workloads/firecracker/trace_func_go.yaml"
 	default:
-		if strings.ToLower(cfg.Platform) != "dirigent" {
+		if cfg.Platform == common.PlatformDirigent {
 			log.Fatal("Invalid 'YAMLSelector' parameter.")
 		}
 	}

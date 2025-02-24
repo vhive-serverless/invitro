@@ -1,6 +1,7 @@
 package failure
 
 import (
+	"github.com/vhive-serverless/loader/pkg/common"
 	"os/exec"
 	"strings"
 	"sync"
@@ -23,9 +24,9 @@ func ScheduleFailure(platform string, config *config.FailureConfiguration) {
 		time.Sleep(time.Duration(config.FailAt) * time.Second)
 
 		switch platform {
-		case "Knative":
+		case common.PlatformKnative:
 			triggerKnativeFailure(config.FailNode, config.FailComponent)
-		case "Dirigent":
+		case common.PlatformDirigent:
 			triggerDirigentFailure(config.FailNode, config.FailComponent)
 		default:
 			logrus.Errorf("No specified failure handler for given type of system.")

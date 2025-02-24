@@ -2,6 +2,7 @@ package deployment
 
 import (
 	"github.com/sirupsen/logrus"
+	"github.com/vhive-serverless/loader/pkg/common"
 	"github.com/vhive-serverless/loader/pkg/config"
 )
 
@@ -12,13 +13,13 @@ type FunctionDeployer interface {
 
 func CreateDeployer(cfg *config.Configuration) FunctionDeployer {
 	switch cfg.LoaderConfiguration.Platform {
-	case "AWSLambda":
+	case common.PlatformAWSLambda:
 		return newAWSLambdaDeployer()
-	case "Dirigent":
-		return newDirigentDeployer(cfg.DirigentConfiguration.Workflow)
-	case "Knative":
+	case common.PlatformDirigent:
+		return newDirigentDeployer()
+	case common.PlatformKnative:
 		return newKnativeDeployer()
-	case "OpenWhisk":
+	case common.PlatformOpenWhisk:
 		return newOpenWhiskDeployer()
 	default:
 		logrus.Fatal("Unsupported platform.")

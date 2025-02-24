@@ -26,6 +26,7 @@ package config
 
 import (
 	"fmt"
+	"github.com/vhive-serverless/loader/pkg/common"
 	"os"
 	"strings"
 	"testing"
@@ -45,7 +46,7 @@ func TestConfigParser(t *testing.T) {
 	config := ReadConfigurationFile(pathToConfigFile)
 
 	if config.Seed != 42 ||
-		config.Platform != "Knative" ||
+		config.Platform != common.PlatformKnative ||
 		config.YAMLSelector != "container" ||
 		config.EndpointPort != 80 ||
 		!strings.HasPrefix(config.TracePath, "data/traces/example") ||
