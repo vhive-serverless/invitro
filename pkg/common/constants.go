@@ -105,3 +105,16 @@ const (
 )
 
 var ValidCPULimits = []string{CPULimit1vCPU, CPULimitGCP}
+
+// platform
+const (
+	PlatformKnative   string = "knative"
+	PlatformDirigent  string = "dirigent"
+	PlatformOpenWhisk string = "openwhisk"
+	PlatformAWSLambda string = "awslambda"
+)
+
+// dirigent backend
+const (
+	BackendDandelion string = "dandelion"
+)

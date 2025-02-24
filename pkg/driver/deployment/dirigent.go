@@ -18,23 +18,21 @@ import (
 	"time"
 )
 
-type dirigentDeployer struct {
-	deployWorkflow bool
-}
+type dirigentDeployer struct{}
 
 type dirigentDeploymentConfiguration struct {
 	RegistrationServer string
+	deployWorkflow     bool
 }
 
-func newDirigentDeployer(deployWorkflow bool) *dirigentDeployer {
-	return &dirigentDeployer{
-		deployWorkflow: deployWorkflow,
-	}
+func newDirigentDeployer() *dirigentDeployer {
+	return &dirigentDeployer{}
 }
 
 func newDirigentDeployerConfiguration(cfg *config.Configuration) dirigentDeploymentConfiguration {
 	return dirigentDeploymentConfiguration{
 		RegistrationServer: cfg.DirigentConfiguration.DirigentControlPlaneIP,
+		deployWorkflow:     cfg.DirigentConfiguration.Workflow,
 	}
 }
 
@@ -43,7 +41,7 @@ func (d *dirigentDeployer) Deploy(cfg *config.Configuration) {
 
 	endpoint := ""
 
-	if d.deployWorkflow {
+	if dirigentDeployerConfig.deployWorkflow {
 		wfConfigPath := cfg.DirigentConfiguration.WorkflowConfigPath
 		if wfConfigPath == "" {
 			log.Fatalf("Failed to deploy workflow: no workflow config path specified in config file.")

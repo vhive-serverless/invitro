@@ -33,7 +33,7 @@ import (
 )
 
 var fakeConfig *config.LoaderConfiguration = &config.LoaderConfiguration{
-	Platform:                     "Knative",
+	Platform:                     common.PlatformKnative,
 	InvokeProtocol:               "grpc",
 	TracePath:                    "data/traces/example",
 	OutputPathPrefix:             "test",
