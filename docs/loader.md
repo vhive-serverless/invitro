@@ -123,7 +123,7 @@ git lfs checkout
 This retrieves the `yamls.tar.gz` from Git LFS. Then, untar this tarball by running the following command from the root of this directory:
 
 ```bash
-$ tar -xzvf workloads/container/yamls.tar.gz -C workloads/container/
+$ tar -xzvf workloads/container/vSwarm_deploy_metadata.tar.gz -C workloads/container/
 ```
 
 ## Single execution
