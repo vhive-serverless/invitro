@@ -44,8 +44,8 @@ func newHTTPInvoker(cfg *config.Configuration) *httpInvoker {
 		loaderCfg:   lcfg,
 		dirigentCfg: dcfg,
 
-		isKnative:   strings.Contains(strings.ToLower(lcfg.Platform), "knative"),
-		isDandelion: strings.Contains(strings.ToLower(dcfg.Backend), "dandelion"),
+		isKnative:   strings.Contains(strings.ToLower(lcfg.Platform), common.PlatformKnative),
+		isDandelion: strings.Contains(strings.ToLower(dcfg.Backend), common.BackendDandelion),
 		isWorkflow:  dcfg.Workflow,
 	}
 }
