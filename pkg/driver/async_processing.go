@@ -53,7 +53,7 @@ func (d *Driver) writeAsyncRecordsToLog(logCh chan *metric.ExecutionRecord) {
 				record := d.AsyncRecords.Dequeue()
 				response, e2e := d.getAsyncResponseData(
 					client,
-					d.Configuration.LoaderConfiguration.AsyncResponseURL,
+					d.Configuration.DirigentConfiguration.AsyncResponseURL,
 					record.AsyncResponseID,
 				)
 

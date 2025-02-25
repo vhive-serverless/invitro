@@ -4,6 +4,11 @@ import (
 	"bytes"
 	"crypto/rand"
 	"encoding/json"
+	"fmt"
+	log "github.com/sirupsen/logrus"
+	"github.com/vhive-serverless/loader/pkg/common"
+	"github.com/vhive-serverless/loader/pkg/config"
+	mc "github.com/vhive-serverless/loader/pkg/metric"
 	"io"
 	"mime/multipart"
 	"net/http"
@@ -11,11 +16,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
-	log "github.com/sirupsen/logrus"
-	"github.com/vhive-serverless/loader/pkg/common"
-	"github.com/vhive-serverless/loader/pkg/config"
-	mc "github.com/vhive-serverless/loader/pkg/metric"
 )
 
 type FunctionResponse struct {
@@ -26,14 +26,27 @@ type FunctionResponse struct {
 }
 
 type httpInvoker struct {
-	client *http.Client
-	cfg    *config.LoaderConfiguration
+	client      *http.Client
+	loaderCfg   *config.LoaderConfiguration
+	dirigentCfg *config.DirigentConfig
+
+	isKnative   bool
+	isDandelion bool
+	isWorkflow  bool
 }
 
-func newHTTPInvoker(cfg *config.LoaderConfiguration) *httpInvoker {
+func newHTTPInvoker(cfg *config.Configuration) *httpInvoker {
+	lcfg := cfg.LoaderConfiguration
+	dcfg := cfg.DirigentConfiguration
+
 	return &httpInvoker{
-		client: CreateHTTPClient(cfg.GRPCFunctionTimeoutSeconds, cfg.InvokeProtocol),
-		cfg:    cfg,
+		client:      CreateHTTPClient(lcfg.GRPCFunctionTimeoutSeconds, lcfg.InvokeProtocol),
+		loaderCfg:   lcfg,
+		dirigentCfg: dcfg,
+
+		isKnative:   strings.Contains(strings.ToLower(lcfg.Platform), common.PlatformKnative),
+		isDandelion: strings.Contains(strings.ToLower(dcfg.Backend), common.BackendDandelion),
+		isWorkflow:  dcfg.Workflow,
 	}
 }
 
@@ -83,56 +96,32 @@ func CreateFilePayload(filePath string) *bytes.Buffer {
 	return bytes.NewBuffer(payload)
 }
 
-func (i *httpInvoker) Invoke(function *common.Function, runtimeSpec *common.RuntimeSpecification) (bool, *mc.ExecutionRecord) {
-	isDandelion := strings.Contains(strings.ToLower(i.cfg.Platform), "dandelion")
-	isKnative := strings.Contains(strings.ToLower(i.cfg.Platform), "knative")
-
-	log.Tracef("(Invoke)\t %s: %d[ms], %d[MiB]", function.Name, runtimeSpec.Runtime, runtimeSpec.Memory)
-
-	record := &mc.ExecutionRecord{
-		ExecutionRecordBase: mc.ExecutionRecordBase{
-			RequestedDuration: uint32(runtimeSpec.Runtime * 1e3),
-		},
-	}
-
-	////////////////////////////////////
-	// INVOKE FUNCTION
-	////////////////////////////////////
-
+func (i *httpInvoker) functionInvocationRequest(function *common.Function, runtimeSpec *common.RuntimeSpecification) *http.Request {
 	requestBody := &bytes.Buffer{}
-	/*if body := composeDandelionMatMulBody(function.Name); isDandelion && body != nil {
-		requestBody = body
-	}*/
-	if body := composeBusyLoopBody(function.Name, function.DirigentMetadata.Image, runtimeSpec.Runtime, function.DirigentMetadata.IterationMultiplier); isDandelion && body != nil {
+	if body := composeBusyLoopBody(function.Name, function.DirigentMetadata.Image, runtimeSpec.Runtime, function.DirigentMetadata.IterationMultiplier); i.isDandelion && body != nil {
 		requestBody = body
 	}
-	if i.cfg.RpsTarget != 0 {
+
+	// gpu rps requests
+	if i.dirigentCfg.RpsRequestedGpu > 0 {
 		ts := time.Now()
-		if i.cfg.RpsFile != "" {
-			requestBody = CreateFilePayload(i.cfg.RpsFile)
+		if i.dirigentCfg.RpsFile != "" {
+			requestBody = CreateFilePayload(i.dirigentCfg.RpsFile)
 			log.Debugf("Took %v to create file body.", time.Since(ts))
 		} else {
-			requestBody = CreateRandomPayload(i.cfg.RpsDataSizeMB)
+			requestBody = CreateRandomPayload(i.dirigentCfg.RpsDataSizeMB)
 			log.Debugf("Took %v to generate request body.", time.Since(ts))
 		}
 	}
 
-	start := time.Now()
-	record.StartTime = start.UnixMicro()
-
-	req, err := http.NewRequest("POST", "http://"+function.Endpoint, requestBody)
-	req.Header.Add("Content-Type", contentType)
+	req, err := http.NewRequest("POST", fmt.Sprintf("http://%s", function.Endpoint), requestBody)
 	if err != nil {
 		log.Errorf("Failed to create a HTTP request - %v\n", err)
-
-		record.ResponseTime = time.Since(start).Microseconds()
-		record.ConnectionTimeout = true
-
-		return false, record
+		return nil
 	}
 
 	// add system specific stuff
-	if !isKnative {
+	if !i.isKnative {
 		req.Host = function.Name
 	}
 
@@ -142,11 +131,64 @@ func (i *httpInvoker) Invoke(function *common.Function, runtimeSpec *common.Runt
 	req.Header.Set("requested_memory", strconv.Itoa(runtimeSpec.Memory))
 	req.Header.Set("multiplier", strconv.Itoa(function.DirigentMetadata.IterationMultiplier))
 	req.Header.Set("io_percentage", strconv.Itoa(function.DirigentMetadata.IOPercentage))
+	if i.dirigentCfg.RpsRequestedGpu > 0 {
+		req.Header.Add("Content-Type", contentType)
+	}
 
-	if isDandelion {
+	if i.isDandelion {
 		req.URL.Path = "/hot/matmul"
 	}
 
+	return req
+}
+
+func (i *httpInvoker) workflowInvocationRequest(wf *common.Function) *http.Request {
+	if wf.WorkflowMetadata == nil {
+		log.Fatal("Failed to create workflow invocation request: workflow metadata is nil")
+	}
+
+	// create request
+	reqBody := bytes.NewBufferString(wf.WorkflowMetadata.InvocationRequest)
+	req, err := http.NewRequest("POST", fmt.Sprintf("http://%s/workflow", wf.Endpoint), reqBody)
+	if err != nil {
+		log.Errorf("Failed to create a HTTP request - %v\n", err)
+		return nil
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Host = wf.Name // dirigent takes request name from this
+
+	return req
+}
+
+func (i *httpInvoker) Invoke(function *common.Function, runtimeSpec *common.RuntimeSpecification) (bool, *mc.ExecutionRecord) {
+	log.Tracef("(Invoke)\t %s: %d[ms], %d[MiB]", function.Name, runtimeSpec.Runtime, runtimeSpec.Memory)
+
+	record := &mc.ExecutionRecord{
+		ExecutionRecordBase: mc.ExecutionRecordBase{
+			RequestedDuration: uint32(runtimeSpec.Runtime * 1e3),
+		},
+	}
+	start := time.Now()
+	record.StartTime = start.UnixMicro()
+	record.Instance = function.Name // may get overwritten
+
+	// create request
+	var req *http.Request
+	if !i.isWorkflow {
+		req = i.functionInvocationRequest(function, runtimeSpec)
+	} else {
+		if !i.isDandelion {
+			log.Fatalf("Dirigent workflows are only supported for Dandelion so far!")
+		}
+		req = i.workflowInvocationRequest(function)
+	}
+	if req == nil {
+		record.ResponseTime = time.Since(start).Microseconds()
+		record.ConnectionTimeout = true
+		return false, record
+	}
+
+	// send request
 	resp, err := i.client.Do(req)
 	if err != nil {
 		log.Errorf("%s - Failed to send an HTTP request to the server - %v\n", function.Name, err)
@@ -177,12 +219,12 @@ func (i *httpInvoker) Invoke(function *common.Function, runtimeSpec *common.Runt
 		return false, record
 	}
 
-	if isDandelion {
-		err = DeserializeDandelionResponse(function, body, record)
+	if i.isDandelion {
+		err = DeserializeDandelionResponse(function, body, record, i.isWorkflow)
 		if err != nil {
 			log.Warnf("Failed to deserialize Dandelion response - %v - %v", string(body), err)
 		}
-	} else if i.cfg.AsyncMode {
+	} else if i.dirigentCfg.AsyncMode {
 		record.AsyncResponseID = string(body)
 	} else {
 		err = DeserializeDirigentResponse(body, record)

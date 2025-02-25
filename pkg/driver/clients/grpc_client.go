@@ -137,7 +137,7 @@ func (i *grpcInvoker) Invoke(function *common.Function, runtimeSpec *common.Runt
 
 	var dialOptions []grpc.DialOption
 	dialOptions = append(dialOptions, grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if strings.Contains(strings.ToLower(i.cfg.Platform), "dirigent") {
+	if strings.Contains(i.cfg.Platform, common.PlatformDirigent) {
 		dialOptions = append(dialOptions, grpc.WithAuthority(function.Name)) // Dirigent specific
 	}
 	if i.cfg.EnableZipkinTracing {

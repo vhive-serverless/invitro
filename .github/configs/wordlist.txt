@@ -814,3 +814,16 @@ Volgenant
 injective
 py
 DDR
+DirigentConfigPath
+WorkflowConfigPath
+CompositionConfig
+WorkflowFunction
+FunctionName
+FunctionPath
+NumArgs
+NumRets
+CompositionConfig
+InData
+RpsFile
+RpsRequestedGpu
+gpus

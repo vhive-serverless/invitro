@@ -21,7 +21,7 @@ func TestDirigentParserFromJSON(t *testing.T) {
 		},
 	}
 
-	parser := NewDirigentMetadataParser("test_data", functions, "", "Dirigent")
+	parser := NewDirigentMetadataParser("test_data", functions, "", common.PlatformDirigent)
 	parser.Parse()
 
 	d0 := functions[0].DirigentMetadata
@@ -71,7 +71,7 @@ func TestDirigentMetadataFromKnativeYAML(t *testing.T) {
 		},
 	}
 
-	parser := NewDirigentMetadataParser("test_data", functions, "test_data/service.yaml", "Knative")
+	parser := NewDirigentMetadataParser("test_data", functions, "test_data/service.yaml", common.PlatformKnative)
 	parser.Parse()
 
 	d := functions[0].DirigentMetadata
