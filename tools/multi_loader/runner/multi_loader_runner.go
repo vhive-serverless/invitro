@@ -291,11 +291,7 @@ func (d *MultiLoaderRunner) unpackGridSweep(study types.LoaderStudy, experiment 
 		optionsLength[i] = len(sweepOption.Values) - 1
 	}
 	np := ml_common.NextCProduct(optionsLength)
-	for {
-		indices := np()
-		if len(indices) == 0 {
-			break
-		}
+	for indices := np(); len(indices) > 0; indices = np() {
 		newExperiment, err := common.DeepCopy(experiment)
 		if err != nil {
 			log.Fatal("Error when deep copying experiment", err)
