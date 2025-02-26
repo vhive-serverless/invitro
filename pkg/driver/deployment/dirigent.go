@@ -71,7 +71,7 @@ func (d *dirigentDeployer) Deploy(cfg *config.Configuration) {
 				wfFunc.FunctionPath,
 				dirigentDeployerConfig.RegistrationServer,
 				cfg.DirigentConfiguration.BusyLoopOnSandboxStartup,
-				cfg.LoaderConfiguration.PrepullMode,
+				cfg.DirigentConfiguration.PrepullMode,
 				cfg.DirigentConfiguration.RpsRequestedGpu,
 			)
 			endpoint = tmpFunction.Endpoint
@@ -115,7 +115,7 @@ func (d *dirigentDeployer) Deploy(cfg *config.Configuration) {
 					cfg.Functions[idx].DirigentMetadata.Image,
 					dirigentDeployerConfig.RegistrationServer,
 					cfg.DirigentConfiguration.BusyLoopOnSandboxStartup,
-					cfg.LoaderConfiguration.PrepullMode,
+					cfg.DirigentConfiguration.PrepullMode,
 					cfg.DirigentConfiguration.RpsRequestedGpu,
 				)
 			}(i)

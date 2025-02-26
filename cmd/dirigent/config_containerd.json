@@ -2,11 +2,13 @@
   "Backend": "containerd",
   "DirigentControlPlaneIP": "10.0.1.253:9091",
   "BusyLoopOnSandboxStartup": false,
+  "PrepullMode": "",
 
   "AsyncMode": false,
   "AsyncResponseURL": "10.0.1.253:8082",
   "AsyncWaitToCollectMin": 1,
 
+  "RpsImage": "docker.io/cvetkovic/dirigent_empty_function:latest",
   "RpsDataSizeMB": 0.00,
 
   "Workflow": false
