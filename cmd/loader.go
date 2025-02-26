@@ -231,16 +231,18 @@ func runRPSMode(cfg *config.LoaderConfiguration, readIATFromFile bool, writeIATs
 	warmFunction, warmStartCount := generator.GenerateWarmStartFunction(experimentDuration, warmStartRPS)
 	coldFunctions, coldStartCount := generator.GenerateColdStartFunctions(experimentDuration, coldStartRPS, cfg.RpsCooldownSeconds)
 
+	// loads dirigent config only if the platform is 'dirigent'
+	dirigentConfig := config.ReadDirigentConfig(cfg)
+
 	experimentDriver := driver.NewDriver(&config.Configuration{
 		LoaderConfiguration: cfg,
 		TraceDuration:       experimentDuration,
 
-		// loads dirigent config only if the platform is 'dirigent'
-		DirigentConfiguration: config.ReadDirigentConfig(cfg),
+		DirigentConfiguration: dirigentConfig,
 
 		YAMLPath: parseYAMLSpecification(cfg),
 
-		Functions: generator.CreateRPSFunctions(cfg, warmFunction, warmStartCount, coldFunctions, coldStartCount),
+		Functions: generator.CreateRPSFunctions(cfg, dirigentConfig, warmFunction, warmStartCount, coldFunctions, coldStartCount),
 	})
 
 	// Skip experiments execution during dry run mode

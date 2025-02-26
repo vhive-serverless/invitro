@@ -52,7 +52,6 @@ type LoaderConfiguration struct {
 	RpsTarget                   float64 `json:"RpsTarget"`
 	RpsColdStartRatioPercentage float64 `json:"RpsColdStartRatioPercentage"`
 	RpsCooldownSeconds          int     `json:"RpsCooldownSeconds"`
-	RpsImage                    string  `json:"RpsImage"`
 	RpsRuntimeMs                int     `json:"RpsRuntimeMs"`
 	RpsMemoryMB                 int     `json:"RpsMemoryMB"`
 	RpsIterationMultiplier      int     `json:"RpsIterationMultiplier"`
@@ -64,7 +63,6 @@ type LoaderConfiguration struct {
 	CPULimit           string `json:"CPULimit"`
 	ExperimentDuration int    `json:"ExperimentDuration"`
 	WarmupDuration     int    `json:"WarmupDuration"`
-	PrepullMode        string `json:"PrepullMode"`
 
 	IsPartiallyPanic            bool   `json:"IsPartiallyPanic"`
 	EnableZipkinTracing         bool   `json:"EnableZipkinTracing"`
@@ -104,11 +102,13 @@ type DirigentConfig struct {
 	Backend                  string `json:"Backend"`
 	DirigentControlPlaneIP   string `json:"DirigentControlPlaneIP"`
 	BusyLoopOnSandboxStartup bool   `json:"BusyLoopOnSandboxStartup"`
+	PrepullMode              string `json:"PrepullMode"`
 
 	AsyncMode             bool   `json:"AsyncMode"`
 	AsyncResponseURL      string `json:"AsyncResponseURL"`
 	AsyncWaitToCollectMin int    `json:"AsyncWaitToCollectMin"`
 
+	RpsImage        string  `json:"RpsImage"`
 	RpsRequestedGpu int     `json:"RpsRequestedGpu"`
 	RpsDataSizeMB   float64 `json:"RpsDataSizeMB"`
 	RpsFile         string  `json:"RpsFile"`

@@ -9,7 +9,6 @@
   "RpsTarget": 1,
   "RpsColdStartRatioPercentage": 0,
   "RpsCooldownSeconds": 10,
-  "RpsImage": "docker.io/cvetkovic/dirigent_empty_function:latest",
   "RpsRuntimeMs": 10,
   "RpsMemoryMB": 2048,
   "RpsIterationMultiplier": 80,
@@ -21,7 +20,6 @@
   "CPULimit": "1vCPU",
   "ExperimentDuration": 1,
   "WarmupDuration": 0,
-  "PrepullMode": "",
 
   "IsPartiallyPanic": false,
   "EnableZipkinTracing": false,

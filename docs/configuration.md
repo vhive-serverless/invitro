@@ -11,7 +11,6 @@
 | RpsTarget                    | int       | >= 0                                                                | 0                   | Number of requests per second to issue                                                                                                                                                                                                   | 
 | RpsColdStartRatioPercentage  | int       | >= 0 && <= 100                                                      | 0                   | Percentage of cold starts out of specified RPS                                                                                                                                                                                           | 
 | RpsCooldownSeconds [^6]      | int       | > 0                                                                 | 0                   | The time it takes for the autoscaler to downscale function (higher for higher RPS)                                                                                                                                                       |
-| RpsImage                     | string    | N/A                                                                 | N/A                 | Function image to use for RPS experiments                                                                                                                                                                                                |
 | RpsRuntimeMs                 | int       | >= 0                                                                | 0                   | Requested execution time                                                                                                                                                                                                                 |
 | RpsMemoryMB                  | int       | >= 0                                                                | 0                   | Requested memory                                                                                                                                                                                                                         |
 | RpsIterationMultiplier       | int       | >= 0                                                                | 0                   | Iteration multiplier for RPS mode                                                                                                                                                                                                        |
@@ -22,7 +21,6 @@
 | CPULimit                     | string    | 1vCPU, GCP                                                          | 1vCPU               | Imposed CPU limits on worker containers (only applicable for 'Knative' platform)[^4]                                                                                                                                                     |
 | ExperimentDuration           | int       | > 0                                                                 | 1                   | Experiment duration in minutes of trace to execute excluding warmup                                                                                                                                                                      |
 | WarmupDuration               | int       | > 0                                                                 | 0                   | Warmup duration in minutes(disabled if zero)                                                                                                                                                                                             |
-| PrepullMode                  | string    | all_sync, all_async, one_sync, one_async, none                      | none                | Prepull image before starting experiments sync or async                                                                                                                                                                                  |
 | IsPartiallyPanic             | bool      | true/false                                                          | false               | Pseudo-panic-mode only in Knative                                                                                                                                                                                                        |
 | EnableZipkinTracing          | bool      | true/false                                                          | false               | Show loader span in Zipkin traces                                                                                                                                                                                                        |
 | EnableMetricsScrapping       | bool      | true/false                                                          | false               | Scrap cluster-wide metrics                                                                                                                                                                                                               |
@@ -52,7 +50,7 @@ this [table](https://cloud.google.com/functions/pricing#compute_time) for Google
 [^5]: Function can execute for at most 15 minutes as in AWS
 Lambda; https://aws.amazon.com/about-aws/whats-new/2018/10/aws-lambda-supports-functions-that-can-run-up-to-15-minutes/
 
-[^6] It is recommended that the first 10% of cold starts are discarded from the experiment results for low cold start
+[^6]: It is recommended that the first 10% of cold starts are discarded from the experiment results for low cold start
 RPS.
 
 [^7]: The generated DAGs consist of unique functions. The shape of each DAG is determined either ```Width,Depth``` or calculated based on ```EnableDAGDAtaset```.
@@ -76,19 +74,21 @@ that the node on which you run InVitro has SSH access to the target node.
 ---
 
 # Dirigent configuration
-| Parameter name           | Data type | Possible values                          | Default value | Description                                                                             |
-|--------------------------|-----------|------------------------------------------|---------------|-----------------------------------------------------------------------------------------|
-| Backend                  | string    | `containerd`, `firecracker`, `dandelion` | `containerd`  | The backend used in Dirigent                                                            |
-| DirigentControlPlaneIP   | string    | N/A                                      | N/A           | IP address of the Dirigent control plane (for function deployment)                      |
-| BusyLoopOnSandboxStartup | bool      | true/false                               | false         | Enable artificial delay on sandbox startup                                              |
-| AsyncMode                | bool      | true/false                               | false         | Enable asynchronous invocations in Dirigent                                             |
-| AsyncResponseURL         | string    | N/A                                      | N/A           | URL from which to collect invocation responses                                          |
-| AsyncWaitToCollectMin    | int       | >= 0                                     | 0             | Time after experiment ends after which to collect invocation results                    |
-| RpsRequestedGpu          | int       | >= 0                                     | 0             | Number of gpus requested from Dirigent                                                  |
-| RpsFile [^1]             | string    | N/A                                      | N/A           | If given the payload is read from this file                                             |
-| RpsDataSizeMB [^1]       | float64   | >= 0                                     | 0             | If no rps file is given this amount of random data is generated (same for all requests) |
-| Workflow [^2]            | bool      | true/false                               | false         | Send workflow requests to Dirigent                                                      | 
-| WorkflowConfigPath [^3]  | string    | N/A                                      | N/A           | Path to the configuration file for the workflow requests (see below)                    | 
+| Parameter name           | Data type | Possible values                                 | Default value | Description                                                                             |
+|--------------------------|-----------|-------------------------------------------------|---------------|-----------------------------------------------------------------------------------------|
+| Backend                  | string    | `containerd`, `firecracker`, `dandelion`        | `containerd`  | The backend used in Dirigent                                                            |
+| DirigentControlPlaneIP   | string    | N/A                                             | N/A           | IP address of the Dirigent control plane (for function deployment)                      |
+| BusyLoopOnSandboxStartup | bool      | true/false                                      | false         | Enable artificial delay on sandbox startup                                              |
+| PrepullMode              | string    | all_sync, all_async, one_sync, one_async, none  | none          | Prepull image before starting experiments sync or async                                 |
+| AsyncMode                | bool      | true/false                                      | false         | Enable asynchronous invocations in Dirigent                                             |
+| AsyncResponseURL         | string    | N/A                                             | N/A           | URL from which to collect invocation responses                                          |
+| AsyncWaitToCollectMin    | int       | >= 0                                            | 0             | Time after experiment ends after which to collect invocation results                    |
+| RpsImage                 | string    | N/A                                             | N/A           | Function image to use for RPS experiments                                               |
+| RpsRequestedGpu          | int       | >= 0                                            | 0             | Number of gpus requested from Dirigent                                                  |
+| RpsFile [^1]             | string    | N/A                                             | N/A           | If given the payload is read from this file                                             |
+| RpsDataSizeMB [^1]       | float64   | >= 0                                            | 0             | If no rps file is given this amount of random data is generated (same for all requests) |
+| Workflow [^2]            | bool      | true/false                                      | false         | Send workflow requests to Dirigent                                                      | 
+| WorkflowConfigPath [^3]  | string    | N/A                                             | N/A           | Path to the configuration file for the workflow requests (see below)                    | 
 
 [^1] Currently used only when requesting gpus (RpsRequestedGpu > 0) and ignored otherwise. 
 

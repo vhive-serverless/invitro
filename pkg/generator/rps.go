@@ -105,7 +105,7 @@ func GenerateColdStartFunctions(experimentDuration int, rpsTarget float64, coold
 	return functions, countResult
 }
 
-func CreateRPSFunctions(cfg *config.LoaderConfiguration, warmFunction common.IATArray, warmFunctionCount []int,
+func CreateRPSFunctions(cfg *config.LoaderConfiguration, dcfg *config.DirigentConfig, warmFunction common.IATArray, warmFunctionCount []int,
 	coldFunctions []common.IATArray, coldFunctionCount [][]int) []*common.Function {
 	var result []*common.Function
 
@@ -119,7 +119,7 @@ func CreateRPSFunctions(cfg *config.LoaderConfiguration, warmFunction common.IAT
 			RuntimeStats:    &common.FunctionRuntimeStats{Average: float64(cfg.RpsRuntimeMs)},
 			MemoryStats:     &common.FunctionMemoryStats{Percentile100: float64(cfg.RpsMemoryMB)},
 			DirigentMetadata: &common.DirigentMetadata{
-				Image:               cfg.RpsImage,
+				Image:               dcfg.RpsImage,
 				Port:                80,
 				Protocol:            "tcp",
 				ScalingUpperBound:   1024,
@@ -145,7 +145,7 @@ func CreateRPSFunctions(cfg *config.LoaderConfiguration, warmFunction common.IAT
 			InvocationStats: &common.FunctionInvocationStats{Invocations: coldFunctionCount[i]},
 			MemoryStats:     &common.FunctionMemoryStats{Percentile100: float64(cfg.RpsMemoryMB)},
 			DirigentMetadata: &common.DirigentMetadata{
-				Image:               cfg.RpsImage,
+				Image:               dcfg.RpsImage,
 				Port:                80,
 				Protocol:            "tcp",
 				ScalingUpperBound:   1,

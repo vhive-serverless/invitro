@@ -13,7 +13,6 @@
   "CPULimit": "1vCPU",
   "ExperimentDuration": 2,
   "WarmupDuration": 0,
-  "PrepullMode": "",
 
   "IsPartiallyPanic": false,
   "EnableZipkinTracing": false,
