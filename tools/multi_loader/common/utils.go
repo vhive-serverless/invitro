@@ -111,7 +111,6 @@ func UpdateExperimentWithSweepIndices(experiment *types.LoaderExperiment, sweepO
 	paths := SplitPath(experiment.Config["OutputPathPrefix"].(string))
 	// update the last two paths with the sweep indices
 	paths[len(paths)-2] = paths[len(paths)-2] + experimentPostFix
-	paths[len(paths)-1] = paths[len(paths)-1] + experimentPostFix
 
 	experiment.Config["OutputPathPrefix"] = path.Join(paths...)
 
