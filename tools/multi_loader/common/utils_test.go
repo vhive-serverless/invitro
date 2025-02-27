@@ -78,7 +78,7 @@ func TestUpdateExperimentWithSweepIndices(t *testing.T) {
 	assert.Equal(t, "test_experiment"+expectedPostfix, experiment.Name)
 
 	// Check OutputPathPrefix
-	expectedOutputPathPrefix := path.Join("first", "second"+expectedPostfix, "third"+expectedPostfix)
+	expectedOutputPathPrefix := path.Join("first", "second"+expectedPostfix, "third")
 	assert.Equal(t, expectedOutputPathPrefix, experiment.Config["OutputPathPrefix"])
 
 	// Verify that the sweep options have been updated

@@ -369,7 +369,7 @@ func validateGridSweepOutput(t *testing.T, output []types.LoaderExperiment) {
 			Name: "test1_ExperimentDuration_10_PostScript_1",
 			Config: map[string]interface{}{
 				"WarmupDuration":     10.0,
-				"OutputPathPrefix":   "data/out_ExperimentDuration_10_PostScript_1/test_output_ExperimentDuration_10_PostScript_1",
+				"OutputPathPrefix":   "data/out_ExperimentDuration_10_PostScript_1/test_output",
 				"ExperimentDuration": 10.0,
 			},
 			PostScript: "touch data/out/scripts/test_postscript_1",
@@ -378,7 +378,7 @@ func validateGridSweepOutput(t *testing.T, output []types.LoaderExperiment) {
 			Name: "test1_ExperimentDuration_10_PostScript_2",
 			Config: map[string]interface{}{
 				"WarmupDuration":     10.0,
-				"OutputPathPrefix":   "data/out_ExperimentDuration_10_PostScript_2/test_output_ExperimentDuration_10_PostScript_2",
+				"OutputPathPrefix":   "data/out_ExperimentDuration_10_PostScript_2/test_output",
 				"ExperimentDuration": 10.0,
 			},
 			PostScript: "touch data/out/scripts/test_postscript_2",
@@ -387,7 +387,7 @@ func validateGridSweepOutput(t *testing.T, output []types.LoaderExperiment) {
 			Name: "test1_ExperimentDuration_20_PostScript_1",
 			Config: map[string]interface{}{
 				"WarmupDuration":     10.0,
-				"OutputPathPrefix":   "data/out_ExperimentDuration_20_PostScript_1/test_output_ExperimentDuration_20_PostScript_1",
+				"OutputPathPrefix":   "data/out_ExperimentDuration_20_PostScript_1/test_output",
 				"ExperimentDuration": 20.0,
 			},
 			PostScript: "touch data/out/scripts/test_postscript_1",
@@ -396,7 +396,7 @@ func validateGridSweepOutput(t *testing.T, output []types.LoaderExperiment) {
 			Name: "test1_ExperimentDuration_20_PostScript_2",
 			Config: map[string]interface{}{
 				"WarmupDuration":     10.0,
-				"OutputPathPrefix":   "data/out_ExperimentDuration_20_PostScript_2/test_output_ExperimentDuration_20_PostScript_2",
+				"OutputPathPrefix":   "data/out_ExperimentDuration_20_PostScript_2/test_output",
 				"ExperimentDuration": 20.0,
 			},
 			PostScript: "touch data/out/scripts/test_postscript_2",
@@ -418,7 +418,7 @@ func validateLinearSweepOutput(t *testing.T, output []types.LoaderExperiment) {
 			Name: "test1_ExperimentDuration_10_PostScript_1",
 			Config: map[string]interface{}{
 				"WarmupDuration":     10.0,
-				"OutputPathPrefix":   "data/out_ExperimentDuration_10_PostScript_1/test_output_ExperimentDuration_10_PostScript_1",
+				"OutputPathPrefix":   "data/out_ExperimentDuration_10_PostScript_1/test_output",
 				"ExperimentDuration": 10.0,
 			},
 			PostScript: "touch data/out/scripts/test_postscript_1",
@@ -427,7 +427,7 @@ func validateLinearSweepOutput(t *testing.T, output []types.LoaderExperiment) {
 			Name: "test1_ExperimentDuration_20_PostScript_2",
 			Config: map[string]interface{}{
 				"WarmupDuration":     10.0,
-				"OutputPathPrefix":   "data/out_ExperimentDuration_20_PostScript_2/test_output_ExperimentDuration_20_PostScript_2",
+				"OutputPathPrefix":   "data/out_ExperimentDuration_20_PostScript_2/test_output",
 				"ExperimentDuration": 20.0,
 			},
 			PostScript: "touch data/out/scripts/test_postscript_2",
