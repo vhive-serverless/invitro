@@ -7,8 +7,7 @@ chmod 600 ~/.ssh/id_rsa
 eval "$(ssh-agent -s)" && ssh-add
 
 # Store pub key and username in kubectl secrets
-echo "Storing ssh keys in kubectl secrets"
-cat <<EOF > ssh_pub.yaml
+kubectl create -f - <<EOF
 apiVersion: v1
 kind: Secret
 metadata:
@@ -17,8 +16,6 @@ type: Opaque
 data:
   pubkey: $(cat ~/.ssh/id_rsa.pub | base64 | tr -d '\n')
 EOF
-
-kubectl create -f ssh_pub.yaml
 
 # Install ssh server in target pod
 echo "Installing ssh server in target pod"
@@ -46,9 +43,6 @@ docker exec knative-control-plane sh -c "kubectl get secrets sshpub -o jsonpath=
 docker exec knative-control-plane chmod 700 /home/$(whoami)/.ssh
 docker exec knative-control-plane chmod 600 /home/$(whoami)/.ssh/authorized_keys
 docker exec knative-control-plane chown -R $(whoami):$(whoami) /home/$(whoami)/.ssh
-
-# Clean up
-rm ssh_pub.yaml
 
 # Update /var user group and permission
 docker exec knative-control-plane chown -R $(whoami):$(whoami) /var
