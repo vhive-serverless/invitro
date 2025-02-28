@@ -829,3 +829,4 @@ InData
 RpsFile
 RpsRequestedGpu
 gpus
+SoCC
