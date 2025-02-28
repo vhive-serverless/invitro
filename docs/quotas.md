@@ -102,7 +102,7 @@ Function pods are supplied with a queue proxy sidecar. By default, the queue pro
 
 Some providers bill clients based on different provisioned resources (e.g. [Google](https://cloud.google.com/functions/pricing#compute_time), [Alibaba](https://www.alibabacloud.com/help/en/function-compute/latest/instance-types-and-instance-modes#section-mfv-5fb-ehw)). These resource quotas can be imposed with setting user process' CPU and memory limits if deployed with Kubernetes.
 
-Since utilization of provisioned CPU and memory in serverless services are low (see [RunD](https://www.usenix.org/conference/atc22/presentation/li-zijun-rund), [Owl](https://dl.acm.org/doi/abs/10.1145/3542929.3563470) papers), serverless service providers use overcommitment of resources in order to increase resource utilization. However, this may lead to performance degradation (especially, tail latency) if more than expected number of invocations arrive at the same time.
+Since utilization of provisioned CPU and memory in serverless services are low (see [RunD](https://www.usenix.org/conference/atc22/presentation/li-zijun-rund), Owl [SoCC '22] papers), serverless service providers use overcommitment of resources in order to increase resource utilization. However, this may lead to performance degradation (especially, tail latency) if more than expected number of invocations arrive at the same time.
 
 ## Usage in loader
 
