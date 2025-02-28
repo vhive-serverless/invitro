@@ -84,11 +84,11 @@ jobs:
 
       - name: Setup ssh on KinD Cluster node
         shell: bash
-        run: bash ./scripts/setup/setup_kind_ssh.sh
+        run: bash ./scripts/konk-ci/02-kind-ssh.sh
       
       - name: Setup metrics on KinD Cluster
         shell: bash
-        run: bash ./scripts/setup/setup_kind_metrics.sh
+        run: bash ./scripts/konk-ci/03-kind-metrics.sh
       
       - name: Setup traces for multi trace test
         shell: bash

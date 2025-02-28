@@ -1,4 +1,8 @@
 #!/bin/bash
+# Sets up a KinD (Kubernetes in Docker) cluster and Knative on a remote node.  
+# This script creates an environment similar to the one used in GitHub Actions, 
+# making it useful for testing end-to-end (e2e) test cases in a remote setup 
+# before running them in GitHub Actions.
 
 NODE=$1
 
