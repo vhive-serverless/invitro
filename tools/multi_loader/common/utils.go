@@ -245,26 +245,27 @@ func assignDefaultsSlice(target *[]string, value []string) {
 	}
 }
 
-func RunRemoteCommand(node string, command string) {
+func RunRemoteCommand(node string, command string) (string, error) {
 	cmd := exec.Command("ssh", "-oStrictHostKeyChecking=no", "-p 22", node, command)
 
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		log.Fatal(err)
+		return string(output), err
 	}
 	if len(output) > 0 {
 		log.Debug(node, string(output))
 	}
-
+	return string(output), nil
 }
 
-func CopyRemoteFile(remoteNode, src string, dest string) {
+func CopyRemoteFile(remoteNode, src string, dest string) error {
 	cmd := exec.Command("scp", "-rp", remoteNode+":"+src, dest)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 	if len(out) > 0 {
 		log.Debug(string(out))
 	}
+	return nil
 }

@@ -82,8 +82,15 @@ func (m *MetricManager) ResetTOP() {
 		wg.Add(1)
 		go func(node string) {
 			defer wg.Done()
-			ml_common.RunRemoteCommand(node, "if pgrep top >/dev/null; then killall top; fi")
-			ml_common.RunRemoteCommand(node, "top -b -d 15 -c -w 512 > top.txt 2>&1 &")
+			_, err := ml_common.RunRemoteCommand(node, "if pgrep top >/dev/null; then killall top; fi")
+			if err != nil {
+				log.Fatal("Failed to killall TOP for node: ", node, err)
+			}
+			_, err = ml_common.RunRemoteCommand(node, "top -b -d 15 -c -w 512 > top.txt 2>&1 &")
+			if err != nil {
+				log.Fatal("Failed to dump TOP info into temp txt file for node: ", node, err)
+			}
+
 		}(node)
 	}
 	wg.Wait()
@@ -131,9 +138,15 @@ func (m *MetricManager) collectTOPMetric() {
 		go func(node string) {
 			defer wg.Done()
 			// kill all instances of top
-			ml_common.RunRemoteCommand(node, "if pgrep top >/dev/null; then killall top; fi")
+			_, err := ml_common.RunRemoteCommand(node, "if pgrep top >/dev/null; then killall top; fi")
+			if err != nil {
+				log.Fatal("Failed to killall TOP for node: ", node, err)
+			}
 			// Copy top output to local
-			ml_common.CopyRemoteFile(node, TOP_FILENAME, path.Join(topDir, "top_"+node+".txt"))
+			err = ml_common.CopyRemoteFile(node, TOP_FILENAME, path.Join(topDir, "top_"+node+".txt"))
+			if err != nil {
+				log.Fatal("Failed to copy TOP logs from node: ", node, err)
+			}
 		}(node)
 	}
 	wg.Wait()
@@ -150,7 +163,10 @@ func (m *MetricManager) collectAutoScalerLogs() {
 		log.Fatal(err)
 	}
 	// Retrieve autoscaler logs
-	ml_common.CopyRemoteFile(m.multiLoaderConfig.AutoScalerNode, "/var/log/pods/knative-serving_autoscaler-*/autoscaler/*", autoScalerOutputDir)
+	err = ml_common.CopyRemoteFile(m.multiLoaderConfig.AutoScalerNode, "/var/log/pods/knative-serving_autoscaler-*/autoscaler/*", autoScalerOutputDir)
+	if err != nil {
+		log.Fatal("Failed to copy autoscaler logs from node: ", m.multiLoaderConfig.AutoScalerNode, err)
+	}
 }
 
 /**
@@ -164,7 +180,10 @@ func (m *MetricManager) collectActivatorLogs() {
 		log.Fatal(err)
 	}
 	// Retrieve activator logs
-	ml_common.CopyRemoteFile(m.multiLoaderConfig.ActivatorNode, "/var/log/pods/knative-serving_activator-*/activator/*", activatorOutputDir)
+	err = ml_common.CopyRemoteFile(m.multiLoaderConfig.ActivatorNode, "/var/log/pods/knative-serving_activator-*/activator/*", activatorOutputDir)
+	if err != nil {
+		log.Fatal("Failed to copy activator logs from node: ", m.multiLoaderConfig.ActivatorNode, err)
+	}
 }
 
 /**
