@@ -11,7 +11,7 @@ idna==3.7
 language-selector==0.1
 lxml==5.3.0
 netifaces==0.11.0
-numpy==1.26.4
+numpy==2.2.3
 packaging==24.2
 pandas==2.0.3
 patsy==1.0.1
