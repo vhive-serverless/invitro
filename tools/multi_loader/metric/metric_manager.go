@@ -201,18 +201,20 @@ func (m *MetricManager) collectPrometheusSnapshot() {
 	snapshot, err := m.fetchPrometheusSnapshot(10)
 	// Handle failure to retrieve snapshot
 	if err != nil {
-		log.Error("Failed to retrieve Prometheus snapshot", err)
+		log.Fatal("Failed to retrieve Prometheus snapshot", err)
 		return
 	}
 	// Check if snapshot status is successful
 	if snapshot.Status != "success" {
-		log.Error("Prometheus snapshot status not successful: ", snapshot)
+		log.Fatal("Prometheus snapshot status not successful: ", snapshot)
 		return
 	}
 	// Copy prometheus snapshot to file
-	_, err = exec.Command("kubectl cp -n monitoring prometheus-prometheus-kube-prometheus-prometheus-0:/prometheus/snapshots/ -c prometheus " + promethOutputDir).CombinedOutput()
+	_, err = exec.Command("kubectl", "cp", "-n", "monitoring",
+		"prometheus-prometheus-kube-prometheus-prometheus-0:/prometheus/snapshots/",
+		"-c", "prometheus", promethOutputDir).CombinedOutput()
 	if err != nil {
-		log.Error("Failed to copy Prometheus snapshot data from monitoring pod using kubectl. ", err)
+		log.Fatal("Failed to copy Prometheus snapshot data from monitoring pod using kubectl. ", err)
 		return
 	}
 }
@@ -246,6 +248,7 @@ func (m *MetricManager) fetchPrometheusSnapshot(maxAttempts int) (types.Promethe
 			return snapshot, nil
 		}
 		log.Debug("Prometheus snapshot not ready. Retrying...")
+		time.Sleep(100 * time.Millisecond)
 	}
 	return snapshot, fmt.Errorf("exhausted all attempts to retrieve Prometheus snapshot")
 }
