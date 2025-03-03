@@ -44,12 +44,11 @@ helm install \
     --version $prometheus_chart_version prometheus-community/kube-prometheus-stack \
     -f ./config/prometh_values_kn.yaml
 
-# Config kubectl config
+# Configure kubectl config for non-root user
 docker exec knative-control-plane sh -c "mkdir -p /home/$(whoami)/.kube"
-docker cp ~/.kube/config knative-control-plane:/home/$(whoami)/.kube/config
+docker exec knative-control-plane sh -c "cp /etc/kubernetes/admin.conf /home/$(whoami)/.kube/config"
 docker exec knative-control-plane sh -c "echo 'export KUBECONFIG=/home/$(whoami)/.kube/config' >> /home/$(whoami)/.bashrc"
 docker exec knative-control-plane sh -c "sudo chown $(whoami):$(whoami) /home/$(whoami)/.kube/config"
-docker exec knative-control-plane sh -c "sed -i 's#https://127\.0\.0\.1:[0-9]\{1,\}#https://127.0.0.1:6443#g' /home/$(whoami)/.kube/config"
 
 # wait for pods to be ready
 i=0
