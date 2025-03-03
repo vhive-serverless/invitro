@@ -828,3 +828,5 @@ RpsFile
 RpsRequestedGpu
 gpus
 SoCC
+SweepOptions
+SweepType
