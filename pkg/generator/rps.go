@@ -105,28 +105,33 @@ func GenerateColdStartFunctions(experimentDuration int, rpsTarget float64, coold
 	return functions, countResult
 }
 
-func CreateRPSFunctions(cfg *config.LoaderConfiguration, warmFunction common.IATArray, warmFunctionCount []int,
+func CreateRPSFunctions(cfg *config.LoaderConfiguration, dcfg *config.DirigentConfig, warmFunction common.IATArray, warmFunctionCount []int,
 	coldFunctions []common.IATArray, coldFunctionCount [][]int) []*common.Function {
 	var result []*common.Function
 
 	busyLoopFor := ComputeBusyLoopPeriod(cfg.RpsMemoryMB)
 
 	if warmFunction != nil || warmFunctionCount != nil {
-		result = append(result, &common.Function{
-			Name: fmt.Sprintf("warm-function-%d", rand.Int()),
-
-			InvocationStats: &common.FunctionInvocationStats{Invocations: warmFunctionCount},
-			RuntimeStats:    &common.FunctionRuntimeStats{Average: float64(cfg.RpsRuntimeMs)},
-			MemoryStats:     &common.FunctionMemoryStats{Percentile100: float64(cfg.RpsMemoryMB)},
-			DirigentMetadata: &common.DirigentMetadata{
-				Image:               cfg.RpsImage,
+		var dirigentMetadataWarm *common.DirigentMetadata
+		if dcfg != nil {
+			dirigentMetadataWarm = &common.DirigentMetadata{
+				Image:               dcfg.RpsImage,
 				Port:                80,
 				Protocol:            "tcp",
 				ScalingUpperBound:   1024,
 				ScalingLowerBound:   1,
 				IterationMultiplier: cfg.RpsIterationMultiplier,
 				IOPercentage:        0,
-			},
+			}
+		}
+
+		result = append(result, &common.Function{
+			Name: fmt.Sprintf("warm-function-%d", rand.Int()),
+
+			InvocationStats:  &common.FunctionInvocationStats{Invocations: warmFunctionCount},
+			RuntimeStats:     &common.FunctionRuntimeStats{Average: float64(cfg.RpsRuntimeMs)},
+			MemoryStats:      &common.FunctionMemoryStats{Percentile100: float64(cfg.RpsMemoryMB)},
+			DirigentMetadata: dirigentMetadataWarm,
 
 			Specification: &common.FunctionSpecification{
 				IAT:                  warmFunction,
@@ -139,20 +144,25 @@ func CreateRPSFunctions(cfg *config.LoaderConfiguration, warmFunction common.IAT
 	}
 
 	for i := 0; i < len(coldFunctions); i++ {
-		result = append(result, &common.Function{
-			Name: fmt.Sprintf("cold-function-%d-%d", i, rand.Int()),
-
-			InvocationStats: &common.FunctionInvocationStats{Invocations: coldFunctionCount[i]},
-			MemoryStats:     &common.FunctionMemoryStats{Percentile100: float64(cfg.RpsMemoryMB)},
-			DirigentMetadata: &common.DirigentMetadata{
-				Image:               cfg.RpsImage,
+		var dirigentMetadataCold *common.DirigentMetadata
+		if dcfg != nil {
+			dirigentMetadataCold = &common.DirigentMetadata{
+				Image:               dcfg.RpsImage,
 				Port:                80,
 				Protocol:            "tcp",
 				ScalingUpperBound:   1,
 				ScalingLowerBound:   0,
 				IterationMultiplier: cfg.RpsIterationMultiplier,
 				IOPercentage:        0,
-			},
+			}
+		}
+
+		result = append(result, &common.Function{
+			Name: fmt.Sprintf("cold-function-%d-%d", i, rand.Int()),
+
+			InvocationStats:  &common.FunctionInvocationStats{Invocations: coldFunctionCount[i]},
+			MemoryStats:      &common.FunctionMemoryStats{Percentile100: float64(cfg.RpsMemoryMB)},
+			DirigentMetadata: dirigentMetadataCold,
 
 			Specification: &common.FunctionSpecification{
 				IAT:                  coldFunctions[i],

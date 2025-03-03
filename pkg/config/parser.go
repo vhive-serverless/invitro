@@ -26,7 +26,9 @@ package config
 
 import (
 	"encoding/json"
+	"github.com/vhive-serverless/loader/pkg/common"
 	"os"
+	"strings"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -47,23 +49,12 @@ type LoaderConfiguration struct {
 	YAMLSelector   string `json:"YAMLSelector"`
 	EndpointPort   int    `json:"EndpointPort"`
 
-	DirigentControlPlaneIP   string `json:"DirigentControlPlaneIP"`
-	BusyLoopOnSandboxStartup bool   `json:"BusyLoopOnSandboxStartup"`
-
-	AsyncMode             bool   `json:"AsyncMode"`
-	AsyncResponseURL      string `json:"AsyncResponseURL"`
-	AsyncWaitToCollectMin int    `json:"AsyncWaitToCollectMin"`
-
 	RpsTarget                   float64 `json:"RpsTarget"`
 	RpsColdStartRatioPercentage float64 `json:"RpsColdStartRatioPercentage"`
 	RpsCooldownSeconds          int     `json:"RpsCooldownSeconds"`
-	RpsImage                    string  `json:"RpsImage"`
 	RpsRuntimeMs                int     `json:"RpsRuntimeMs"`
 	RpsMemoryMB                 int     `json:"RpsMemoryMB"`
-	RpsRequestedGpu             int     `json:"RpsRequestedGpu"`
 	RpsIterationMultiplier      int     `json:"RpsIterationMultiplier"`
-	RpsDataSizeMB               float64 `json:"RpsDataSizeMB"`
-	RpsFile                     string  `json:"RpsFile"`
 
 	TracePath          string `json:"TracePath"`
 	Granularity        string `json:"Granularity"`
@@ -72,7 +63,6 @@ type LoaderConfiguration struct {
 	CPULimit           string `json:"CPULimit"`
 	ExperimentDuration int    `json:"ExperimentDuration"`
 	WarmupDuration     int    `json:"WarmupDuration"`
-	PrepullMode        string `json:"PrepullMode"`
 
 	IsPartiallyPanic            bool   `json:"IsPartiallyPanic"`
 	EnableZipkinTracing         bool   `json:"EnableZipkinTracing"`
@@ -87,6 +77,44 @@ type LoaderConfiguration struct {
 	Width                        int  `json:"Width"`
 	Depth                        int  `json:"Depth"`
 	VSwarm                       bool `json:"VSwarm"`
+
+	// used only if platform is dirigent
+	DirigentConfigPath string `json:"DirigentConfigPath"`
+}
+
+type WorkflowFunction struct {
+	FunctionName string `json:"FunctionName"`
+	FunctionPath string `json:"FunctionPath"`
+	NumArgs      int    `json:"NumArgs"`
+	NumRets      int    `json:"NumRets"`
+}
+type CompositionConfig struct {
+	Name   string     `json:"Name"`
+	InData [][]string `json:"InData"`
+}
+type WorkflowConfig struct {
+	Name         string              `json:"Name"`
+	Functions    []WorkflowFunction  `json:"Functions"`
+	Compositions []CompositionConfig `json:"Compositions"`
+}
+
+type DirigentConfig struct {
+	Backend                  string `json:"Backend"`
+	DirigentControlPlaneIP   string `json:"DirigentControlPlaneIP"`
+	BusyLoopOnSandboxStartup bool   `json:"BusyLoopOnSandboxStartup"`
+	PrepullMode              string `json:"PrepullMode"`
+
+	AsyncMode             bool   `json:"AsyncMode"`
+	AsyncResponseURL      string `json:"AsyncResponseURL"`
+	AsyncWaitToCollectMin int    `json:"AsyncWaitToCollectMin"`
+
+	RpsImage        string  `json:"RpsImage"`
+	RpsRequestedGpu int     `json:"RpsRequestedGpu"`
+	RpsDataSizeMB   float64 `json:"RpsDataSizeMB"`
+	RpsFile         string  `json:"RpsFile"`
+
+	Workflow           bool   `json:"Workflow"`
+	WorkflowConfigPath string `json:"WorkflowConfigPath"`
 }
 
 func ReadConfigurationFile(path string) LoaderConfiguration {
@@ -100,6 +128,9 @@ func ReadConfigurationFile(path string) LoaderConfiguration {
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	// set to lower in order to always match constants
+	config.Platform = strings.ToLower(config.Platform)
 
 	return config
 }
@@ -117,6 +148,47 @@ func ReadFailureConfiguration(path string) *FailureConfiguration {
 	err = json.Unmarshal(byteValue, &config)
 	if err != nil {
 		log.Fatal(err)
+	}
+
+	return &config
+}
+
+func ReadWorkflowConfig(path string) WorkflowConfig {
+	byteValue, err := os.ReadFile(path)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	var config WorkflowConfig
+	err = json.Unmarshal(byteValue, &config)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	return config
+}
+
+func ReadDirigentConfig(cfg *LoaderConfiguration) *DirigentConfig {
+	if cfg.Platform != common.PlatformDirigent {
+		return nil
+	}
+
+	if cfg.DirigentConfigPath == "" {
+		log.Fatal("Missing DirigentConfigPath in loader configuration!")
+	}
+	byteValue, err := os.ReadFile(cfg.DirigentConfigPath)
+	if err != nil {
+		log.Fatalf("Failed to read dirigent config: %v", err)
+	}
+	var config DirigentConfig
+	err = json.Unmarshal(byteValue, &config)
+	if err != nil {
+		log.Fatalf("Failed to unmarshal dirigent config json: %v", err)
+	}
+
+	// defaults
+	if config.Backend == "" {
+		config.Backend = "containerd"
 	}
 
 	return &config

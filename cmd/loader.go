@@ -91,18 +91,16 @@ func main() {
 	}
 
 	supportedPlatforms := []string{
-		"Knative",
-		"OpenWhisk",
-		"AWSLambda",
-		"Dirigent",
-		"Dirigent-Dandelion",
+		common.PlatformKnative,
+		common.PlatformOpenWhisk,
+		common.PlatformAWSLambda,
+		common.PlatformDirigent,
 	}
-
 	if !slices.Contains(supportedPlatforms, cfg.Platform) {
 		log.Fatal("Unsupported platform!")
 	}
 
-	if cfg.Platform == "Knative" {
+	if cfg.Platform == common.PlatformKnative {
 		common.CheckCPULimit(cfg.CPULimit)
 	}
 
@@ -151,7 +149,7 @@ func parseYAMLSpecification(cfg *config.LoaderConfiguration) string {
 	case "firecracker":
 		return "workloads/firecracker/trace_func_go.yaml"
 	default:
-		if cfg.Platform != "Dirigent" && cfg.Platform != "Dirigent-Dandelion" {
+		if cfg.Platform != common.PlatformDirigent {
 			log.Fatal("Invalid 'YAMLSelector' parameter.")
 		}
 	}
@@ -195,6 +193,9 @@ func runTraceMode(cfg *config.LoaderConfiguration, readIATFromFile bool, writeIA
 		LoaderConfiguration:  cfg,
 		FailureConfiguration: config.ReadFailureConfiguration(*failurePath),
 
+		// loads dirigent config only if the platform is 'dirigent'
+		DirigentConfiguration: config.ReadDirigentConfig(cfg),
+
 		IATDistribution:  iatType,
 		ShiftIAT:         shiftIAT,
 		TraceGranularity: parseTraceGranularity(cfg),
@@ -230,13 +231,18 @@ func runRPSMode(cfg *config.LoaderConfiguration, readIATFromFile bool, writeIATs
 	warmFunction, warmStartCount := generator.GenerateWarmStartFunction(experimentDuration, warmStartRPS)
 	coldFunctions, coldStartCount := generator.GenerateColdStartFunctions(experimentDuration, coldStartRPS, cfg.RpsCooldownSeconds)
 
+	// loads dirigent config only if the platform is 'dirigent'
+	dirigentConfig := config.ReadDirigentConfig(cfg)
+
 	experimentDriver := driver.NewDriver(&config.Configuration{
 		LoaderConfiguration: cfg,
 		TraceDuration:       experimentDuration,
 
+		DirigentConfiguration: dirigentConfig,
+
 		YAMLPath: parseYAMLSpecification(cfg),
 
-		Functions: generator.CreateRPSFunctions(cfg, warmFunction, warmStartCount, coldFunctions, coldStartCount),
+		Functions: generator.CreateRPSFunctions(cfg, dirigentConfig, warmFunction, warmStartCount, coldFunctions, coldStartCount),
 	})
 
 	// Skip experiments execution during dry run mode

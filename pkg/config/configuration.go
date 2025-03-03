@@ -5,8 +5,9 @@ import (
 )
 
 type Configuration struct {
-	LoaderConfiguration  *LoaderConfiguration
-	FailureConfiguration *FailureConfiguration
+	LoaderConfiguration   *LoaderConfiguration
+	FailureConfiguration  *FailureConfiguration
+	DirigentConfiguration *DirigentConfig
 
 	IATDistribution  common.IatDistribution
 	ShiftIAT         bool // shift the invocations inside minute

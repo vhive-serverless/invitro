@@ -25,7 +25,7 @@ func NewDirigentMetadataParser(directoryPath string, functions []*common.Functio
 }
 
 func readDirigentMetadataJSON(traceFile string, platform string) *[]common.DirigentMetadata {
-	if !strings.Contains(strings.ToLower(platform), "dirigent") {
+	if !strings.Contains(platform, common.PlatformDirigent) {
 		return nil
 	}
 
@@ -58,7 +58,7 @@ func (dmp *DirigentMetadataParser) Parse() {
 	for _, function := range dmp.functions {
 		if dirigentMetadata != nil {
 			function.DirigentMetadata = dirigentMetadataByHashFunction[function.InvocationStats.HashFunction]
-		} else if strings.Contains(strings.ToLower(dmp.platform), "knative") {
+		} else if strings.Contains(strings.ToLower(dmp.platform), common.PlatformKnative) {
 			// values are not used for Knative so they are irrelevant
 			function.DirigentMetadata = convertKnativeYamlToDirigentMetadata(dmp.yamlPath)
 		}

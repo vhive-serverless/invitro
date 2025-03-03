@@ -1,17 +1,14 @@
 {
   "Seed": 42,
 
-  "Platform": "Knative",
-  "InvokeProtocol" : "grpc",
-  "YAMLSelector": "container",
+  "Platform": "Dirigent",
+  "DirigentConfigPath": "cmd/dirigent/config_dandelion_workflow.json",
+  "InvokeProtocol" : "http1",
   "EndpointPort": 80,
 
-  "BusyLoopOnSandboxStartup": false,
-
   "RpsTarget": 1,
-  "RpsColdStartRatioPercentage": 100,
+  "RpsColdStartRatioPercentage": 0,
   "RpsCooldownSeconds": 10,
-  "RpsImage": "ghcr.io/vhive-serverless/invitro_empty_function:latest",
   "RpsRuntimeMs": 10,
   "RpsMemoryMB": 2048,
   "RpsIterationMultiplier": 80,
@@ -21,7 +18,7 @@
   "OutputPathPrefix": "data/out/experiment",
   "IATDistribution": "equidistant",
   "CPULimit": "1vCPU",
-  "ExperimentDuration": 2,
+  "ExperimentDuration": 1,
   "WarmupDuration": 0,
 
   "IsPartiallyPanic": false,
@@ -30,6 +27,6 @@
   "MetricScrapingPeriodSeconds": 15,
   "AutoscalingMetric": "concurrency",
 
-  "GRPCConnectionTimeoutSeconds": 15,
+  "GRPCConnectionTimeoutSeconds": 5,
   "GRPCFunctionTimeoutSeconds": 900
 }

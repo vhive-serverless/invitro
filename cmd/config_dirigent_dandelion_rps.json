@@ -1,25 +1,17 @@
 {
   "Seed": 42,
 
-  "Platform": "Dirigent-Dandelion",
+  "Platform": "Dirigent",
+  "DirigentConfigPath": "cmd/dirigent/config_dandelion.json",
   "InvokeProtocol" : "http1",
   "EndpointPort": 80,
-
-  "DirigentControlPlaneIP": "10.0.1.253:9091",
-  "BusyLoopOnSandboxStartup": false,
-
-  "AsyncMode": false,
-  "AsyncResponseURL": "10.0.1.253:8082",
-  "AsyncWaitToCollectMin": 1,
 
   "RpsTarget": 1,
   "RpsColdStartRatioPercentage": 0,
   "RpsCooldownSeconds": 10,
-  "RpsImage": "empty",
   "RpsRuntimeMs": 10,
   "RpsMemoryMB": 2048,
   "RpsIterationMultiplier": 80,
-  "RpsDataSizeMB": 0.00,
 
   "TracePath": "RPS",
   "Granularity": "minute",
@@ -28,7 +20,6 @@
   "CPULimit": "1vCPU",
   "ExperimentDuration": 1,
   "WarmupDuration": 0,
-  "PrepullMode": "",
 
   "IsPartiallyPanic": false,
   "EnableZipkinTracing": false,
