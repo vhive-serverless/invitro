@@ -1,0 +1,36 @@
+name: Unit Tests for Azure Functions
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: Run Azure Functions Unit Tests
+    runs-on: ubuntu-20.04
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: Run Workload Copy Test
+        run: go test -v ./pkg/driver/deployment/azure_functions_test.go -run TestCopyPythonWorkload
+
+      - name: Run Zip File Health Test
+        run: go test -v ./pkg/driver/deployment/azure_functions_test.go -run TestZipHealth
+      
+      - name: Run Deploy Function Test
+        run: go test -v ./pkg/driver/deployment/azure_functions_test.go -run TestDeployFunction
+
+      - name: Run Cleanup Test
+        run: go test -v ./pkg/driver/deployment/azure_functions_test.go -run TestCleanup

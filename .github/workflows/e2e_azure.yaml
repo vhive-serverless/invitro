@@ -1,0 +1,68 @@
+name: End-to-End Azure Functions Tests
+
+on:
+  push:
+    branches:
+      - main # Trigger the workflow when code is pushed to the main branch
+  pull_request:
+    branches:
+      - main # Trigger the workflow when the PR targets the main branch
+  workflow_dispatch: # Allows manual triggering of the workflow
+
+env:
+  GOOS: linux
+  GO111MODULE: on
+
+jobs:
+  test-azure:
+    name: Test E2E Azure Functions Cloud Deployment
+    runs-on: ubuntu-20.04
+    env:
+      AZURE_APP_ID: ${{ secrets.AZURE_APP_ID }}
+      AZURE_PASSWORD: ${{ secrets.AZURE_PASSWORD }}
+      AZURE_TENANT: ${{ secrets.AZURE_TENANT }}
+
+    steps:
+      - name: Check if environment variables are set  # Validate secrets are passed
+        run: |
+          if [[ -z "$AZURE_APP_ID" ]]; then
+            echo "AZURE_APP_ID is not set. Please check if secrets.AZURE_APP_ID is in the repository."
+            exit 1
+          fi
+          if [[ -z "$AZURE_PASSWORD" ]]; then
+            echo "AZURE_PASSWORD is not set. Please check if secrets.AZURE_PASSWORD is in the repository."
+            exit 1
+          fi
+          if [[ -z "$AZURE_TENANT" ]]; then
+            echo "AZURE_TENANT is not set. Please check if secrets.AZURE_TENANT is in the repository."
+            exit 1
+          fi
+
+      - name: Checkout GitHub Repository
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Install Azure CLI
+        run: |
+          curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+          az --version
+
+      - name: Install Golang
+        uses: actions/setup-go@v5
+        with:
+          go-version: 1.22
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Azure CLI Login Using Service Principal
+        run: az login --service-principal --username $AZURE_APP_ID --password $AZURE_PASSWORD --tenant $AZURE_TENANT
+
+      - name: Build and Run Loader
+        run: go run cmd/loader.go --config cmd/config_azure_trace.json
+
+      - name: Check the output
+        run: test -f "data/out/experiment_duration_5.csv" && test $(grep true data/out/experiment_duration_5.csv | wc -l) -eq 0 # test the output file for errors (true means failure to invoke)

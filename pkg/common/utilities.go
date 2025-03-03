@@ -27,8 +27,10 @@ package common
 import (
 	"encoding/json"
 	"hash/fnv"
+	"io"
 	"log"
 	"math/rand"
+	"os"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -150,6 +152,28 @@ func GetName(function *Function) int {
 		log.Fatal(err)
 	}
 	return functionId
+}
+
+// Helper function to copy files
+func CopyFile(src, dst string) error {
+	sourceFile, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer sourceFile.Close()
+
+	destFile, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer destFile.Close()
+
+	_, err = io.Copy(destFile, sourceFile)
+	if err != nil {
+		return err
+	}
+
+	return destFile.Sync()
 }
 
 func DeepCopy[T any](a T) (T, error) {

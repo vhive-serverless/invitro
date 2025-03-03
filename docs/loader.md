@@ -263,3 +263,47 @@ Note:
   - Under `Quota name`, select `Concurrent executions` and click `Request increase at account level` (Alternatively, click [here](https://us-east-1.console.aws.amazon.com/servicequotas/home/services/lambda/quotas/L-B99A9384))
   - Under `Increase quota value`, input `1000` and click `Request`
   - Await AWS Support Team to approve the request. The request may take several days or weeks to be approved.
+
+## Using Azure Functions
+
+**Pre-requisites:**
+1. Microsoft Azure account with an active subscription ID
+2. Existing Service Principal for authentication (refer to Notes section)
+3. Go installed
+4. Python3 installed
+
+**Quick Setup for Azure Deployment:**
+1. Install the Azure CLI and verify installation:
+    ```bash
+    curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+    az --version
+    ```
+2. Use existing Service Principal credentials in order login to Azure.
+    ```bash
+    az login --service-principal --username $AZURE_APP_ID --password $AZURE_PASSWORD --tenant $AZURE_TENANT
+    ```
+   > Refer to Note section for generation of Service Principal credentials
+3. Start the Azure Functions deployment experiment:
+    ```bash
+    go run cmd/loader.go --config cmd/config_azure_trace.json
+    ```
+---
+Notes:
+
+- Service Principal must be created before running experiment, as some environments do not have browsers (e.g. CloudLab). Perform these steps in an environment that allows launching of browser and use the generated credentials. 
+  - Log in as a user (Note: This will open a browser window to select Azure account):
+     ```bash
+     az login
+     ```
+  - Create an Azure Service Principal: 
+     ```bash
+     az ad sp create-for-rbac --name "InVitro" --role Contributor --scopes /subscriptions/<your-subscription-id>
+     ```
+  - Set the following values in the environment that the experiment is being run and return to Step 2 of setup: 
+     ```bash
+     export AZURE_APP_ID=<appId>
+     export AZURE_PASSWORD=<password>
+     export AZURE_TENANT=<tenant>
+     ```
+- Current deployment is via ZIP
+- Python is used for deployment workload as Go is not supported in Consumption Plan
