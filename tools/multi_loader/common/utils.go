@@ -1,8 +1,11 @@
 package common
 
 import (
+	"compress/gzip"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path"
@@ -268,4 +271,44 @@ func CopyRemoteFile(remoteNode, src string, dest string) error {
 		log.Debug(string(out))
 	}
 	return nil
+}
+
+func DecompressGZFile(filePath string) (string, error) {
+	if !strings.HasSuffix(filePath, ".gz") {
+		return "", errors.New("incorrect file type received")
+	}
+	newFileName := strings.TrimSuffix(filePath, ".gz")
+
+	// Open compressed file
+	gzFile, err := os.Open(filePath)
+	if err != nil {
+		return "", fmt.Errorf("failed to open gzip file: %w", err)
+	}
+	defer gzFile.Close()
+
+	// Create gzip reader
+	gzReader, err := gzip.NewReader(gzFile)
+	if err != nil {
+		return "", fmt.Errorf("failed to create gzip reader: %w", err)
+	}
+	defer gzReader.Close()
+
+	// Create output file
+	outFile, err := os.Create(newFileName)
+	if err != nil {
+		return "", fmt.Errorf("failed to create output file: %w", err)
+	}
+	defer outFile.Close()
+
+	// Decompress and write to output file
+	if _, err = io.Copy(outFile, gzReader); err != nil {
+		return "", fmt.Errorf("failed to decompress data: %w", err)
+	}
+
+	// Remove the original compressed file
+	if err := os.Remove(filePath); err != nil {
+		return "", fmt.Errorf("failed to remove compressed file: %w", err)
+	}
+
+	return newFileName, nil
 }

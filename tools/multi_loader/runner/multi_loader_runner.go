@@ -119,6 +119,10 @@ func (d *MultiLoaderRunner) run() {
 			// Prepare experiment: merge with base config, create output dir and write merged config to temp file
 			d.prepareExperiment(experiment)
 
+			// Reset metric manager before starting experiment
+			d.MetricManager.Reset()
+
+			// Run experiment using loader.go
 			err := d.runExperiment(experiment)
 
 			// Collect metrics
@@ -370,9 +374,6 @@ func (d *MultiLoaderRunner) prepareExperiment(experiment types.LoaderExperiment)
 	}
 	// Write experiment configs to temp file
 	d.writeExperimentConfigToTempFile(experimentConfig, EXPERIMENT_TEMP_CONFIG_PATH)
-
-	// Reset TOP for each node
-	d.MetricManager.ResetTOP()
 }
 
 /**

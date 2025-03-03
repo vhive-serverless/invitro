@@ -1,6 +1,9 @@
 package common
 
 import (
+	"bytes"
+	"compress/gzip"
+	"os"
 	"path"
 	"path/filepath"
 	"testing"
@@ -85,4 +88,29 @@ func TestUpdateExperimentWithSweepIndices(t *testing.T) {
 	assert.Equal(t, "test_pre2", experiment.PreScript)
 	assert.Equal(t, "post1", experiment.PostScript)
 	assert.Equal(t, "2", experiment.Config["ExperimentDuration"])
+}
+
+func TestDecompressGZFile(t *testing.T) {
+	// Create a temp file and compress it
+	t.Run("DecompressGZFile Test", func(t *testing.T) {
+		testFileName := "temp_test.txt"
+		testContent := "Test content"
+		var b bytes.Buffer
+		w := gzip.NewWriter(&b)
+		w.Write([]byte(testContent))
+		w.Close()
+		os.WriteFile(testFileName+".gz", b.Bytes(), 0666)
+		defer func() {
+			os.Remove(testFileName)
+			os.Remove(testFileName + ".gz")
+		}()
+
+		DecompressGZFile(testFileName + ".gz")
+
+		out, err := os.ReadFile(testFileName)
+		if err != nil {
+			assert.Fail(t, err.Error())
+		}
+		assert.Equal(t, testContent, string(out))
+	})
 }
