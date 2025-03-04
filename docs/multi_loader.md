@@ -15,6 +15,23 @@ As a wrapper around loader, multi-loader requires the initial cluster setup to b
 | Generated             | bool                   | true, false                   | false         | (Optional) if iats were already generated         |
 | PreScript           | string             | any bash command | ""           | (Optional) A global script that runs once before all experiments |
 | PostScript          | string             | any bash command | ""           | (Optional) A global script that runs once after all experiments  |
+| MasterNode          | string             | "10.0.1.1"      | ""           | (Optional) The node acting as the master                    |
+| AutoScalerNode      | string             | "10.0.1.1"      | ""           | (Optional) The node responsible for autoscaling             |
+| ActivatorNode       | string             | "10.0.1.1"      | ""           | (Optional) The node responsible for activating services     |
+| LoaderNode          | string             | "10.0.1.2"      | ""           | (Optional) The node responsible for running the loaders     |
+| WorkerNodes         | []string           | ["10.0.1.3"]    | []           | (Optional) A list of worker nodes to distribute the workload|
+| Metrics             | []string           | ["activator", "autoscaler", "top", "prometheus"] | []    | (Optional) List of supported metrics that the multi-loader will collate at the end of each experiment
+
+> **_Note_**: 
+> Node addresses are optional as Multi-Loader uses `kubectl` to find them. If needed, you can define addresses manually, which will override the automatic detection.
+
+#### **Metrics Collected**  
+More information regarding the metrics that can be collected at the end of each experiment:
+
+- **activator** – Captures Knative activator latency and request handling performance  
+- **autoscaler** – Tracks Knative autoscaler decisions, scaling events, and resource utilization
+- **top** – Provides CPU and memory usage statistics for each nodes
+- **prometheus** – Gathers system-wide performance metrics from Prometheus  
 
 ### LoaderStudy
 | Parameter name        | Data type              | Possible values               | Default value | Description                                                        |

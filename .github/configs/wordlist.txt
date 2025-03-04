@@ -816,3 +816,9 @@ py
 DDR
 SweepOptions
 SweepType
+ActivatorNode
+AutoScalerNode
+LoaderNode
+MasterNode
+WorkerNodes
+prometheus

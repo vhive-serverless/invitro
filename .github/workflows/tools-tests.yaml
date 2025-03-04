@@ -22,7 +22,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        module: [ tools/plotter, tools/multi_loader/runner, tools/multi_loader/common]
+        module: [ tools/plotter, tools/multi_loader/runner, tools/multi_loader/common, tools/multi_loader/metric]
     steps:
     - name: Set up Golang
       uses: actions/setup-go@v5
