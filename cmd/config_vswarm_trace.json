@@ -2,16 +2,18 @@
   "Seed": 42,
 
   "Platform": "Knative",
-  "InvokeProtocol": "grpc",
+  "InvokeProtocol" : "grpc",
   "YAMLSelector": "container",
   "EndpointPort": 80,
 
-  "TracePath": "data/traces/example",
+  "BusyLoopOnSandboxStartup": false,
+
+  "TracePath": "data/traces/example/",
   "Granularity": "minute",
   "OutputPathPrefix": "data/out/experiment",
-  "IATDistribution": "equidistant",
+  "IATDistribution": "exponential",
   "CPULimit": "1vCPU",
-  "ExperimentDuration": 2,
+  "ExperimentDuration": 10,
   "WarmupDuration": 0,
 
   "IsPartiallyPanic": false,
@@ -25,5 +27,6 @@
   "DAGMode": false,
   "EnableDAGDataset": true,
   "Width": 2,
-  "Depth": 2
+  "Depth": 2,
+  "VSwarm": true
 }
