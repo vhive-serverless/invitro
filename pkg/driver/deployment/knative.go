@@ -113,6 +113,8 @@ func knativeDeploySingleFunction(function *common.Function, yamlPath string, isP
 
 	// Default is the function name, but if the function is a vSwarm function, the proxy name is used
 	proxyName := function.Name
+	foi_flag := false
+	foi_proxy := ""
 
 	if vSwarm {
 		// Read and unmarshal the mapper output file into a map
@@ -146,6 +148,7 @@ func knativeDeploySingleFunction(function *common.Function, yamlPath string, isP
 		foi := string(funcs[0])
 		if foi == function.HashFunction {
 			log.Warn("Function of interest found")
+			foi_flag = true
 		}
 		// Read the deployment info file for yaml locations and predeployment commands if any
 
@@ -205,6 +208,15 @@ func knativeDeploySingleFunction(function *common.Function, yamlPath string, isP
 			}
 			yamlPath = yamlPath + proxyName + "-" + randString + ".yaml"
 			proxyName = proxyName + "-" + randString
+			if foi_flag == true {
+				foi_flag = false
+				// Write the proxy name to a new file
+				foi_proxy = proxyName
+				err = os.WriteFile(mapperPath+"/foi_proxy.txt", []byte(foi_proxy), 0644)
+				if err != nil {
+					log.Warn("Failed to write foi proxy file")
+				}
+			}
 		} else {
 			// If the function is the trace function, use the default yaml path
 			proxyName = function.Name

@@ -41,6 +41,7 @@ import (
 
 	"github.com/gocarina/gocsv"
 	log "github.com/sirupsen/logrus"
+	"github.com/sfreiberg/simplessh"
 	"github.com/vhive-serverless/loader/pkg/common"
 	"github.com/vhive-serverless/loader/pkg/generator"
 	mc "github.com/vhive-serverless/loader/pkg/metric"
@@ -588,6 +589,18 @@ func (d *Driver) internalRun(iatOnly bool, generated bool) {
 			globalMetricsCollector,
 		)
 	} else {
+		mapperPath := d.Configuration.LoaderConfiguration.TracePath
+		foi_proxy := ""
+		if d.Configuration.LoaderConfiguration.VSwarm {
+			// Read the foi proxy text file
+			foiFile, err := os.ReadFile(mapperPath + "/foi_proxy.txt")
+			if err != nil {
+				log.Warn("No foi proxy file")
+			}
+			foi_proxy = string(foiFile)
+			go SshAndRunCommand(foi_proxy)
+		}
+
 		log.Infof("Starting function invocation driver\n")
 		functionsPerDAG = 1
 		for _, function := range d.Configuration.Functions {
@@ -619,6 +632,42 @@ func (d *Driver) internalRun(iatOnly bool, generated bool) {
 	log.Infof("Trace has finished executing function invocation driver\n")
 	log.Infof("Number of successful invocations: \t%d\n", atomic.LoadInt64(&successfulInvocations))
 	log.Infof("Number of failed invocations: \t%d\n", atomic.LoadInt64(&failedInvocations))
+}
+
+func SshAndRunCommand(endpoint string) error {
+    var client *simplessh.Client
+    var err error
+	log.Info("Connecting to the remote machine")
+
+    // Option A: Using a specific private key path:
+    //if client, err = simplessh.ConnectWithKeyFile("hostname_to_ssh_to", "username", "/home/user/.ssh/id_rsa"); err != nil {
+
+    // Option B: Using your default private key at $HOME/.ssh/id_rsa:
+    //if client, err = simplessh.ConnectWithKeyFile("hostname_to_ssh_to", "username"); err != nil {
+
+    // Option C: Use the current user to ssh and the default private key file:
+    if client, err = simplessh.ConnectWithKeyFile("node-2", "Lakshman", "/users/Lakshman/.ssh/id_ed25519"); err != nil {
+        log.Info("Failed to connect to the remote machine: ", err)
+		return err
+    }
+	log.Info("Connected to the remote machine")
+    defer client.Close()
+
+    // Now run the commands on the remote machine:
+	if _, err := client.Exec("sleep 600"); err != nil {
+        log.Println(err)
+    }
+	log.Info("Tmuxing")
+	if _, err := client.Exec("tmux"); err != nil {
+        log.Println(err)
+    }
+	log.Info("Running the command")
+	cmd_str := "python3 perf_pod.py -p " + endpoint + " -c 7 -i 600000 -e 600000"
+	if _, err := client.Exec(cmd_str); err != nil {
+		log.Println(err)
+	}
+
+    return nil
 }
 
 func (d *Driver) RunExperiment(iatOnly bool, generated bool) {
