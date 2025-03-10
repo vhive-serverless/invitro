@@ -20,7 +20,7 @@ env:
 jobs:
   unit_tests:
     name: Build and test
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
@@ -44,6 +44,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.9'
+        env:
+          PIP_TRUSTED_HOST: "pypi.python.org pypi.org files.pythonhosted.org"
 
       - uses: actions/cache@v4
         with:

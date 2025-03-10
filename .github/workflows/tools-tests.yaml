@@ -18,7 +18,7 @@ env:
 jobs:
   unit_tests:
     name: Unit Tests
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
@@ -38,7 +38,7 @@ jobs:
 
   mapper_e2e:
     name: Mapper E2E Test
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
