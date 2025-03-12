@@ -38,7 +38,7 @@ func TestLogConsolidation(t *testing.T) {
 		w.Close()
 		os.WriteFile(strings.Join([]string{path.Join(logDir, logFileName[0]), (startTime.Add(-time.Minute * 1)).Format(TIMESTAMP_FORMAT), "gz"}, "."), b.Bytes(), 0666)
 
-		// Create valid roated log with mixed of old and new timestamp
+		// Create valid rotated log with mixed of old and new timestamp
 		b.Reset()
 		w = gzip.NewWriter(&b)
 		for i, line := range logData {
@@ -47,7 +47,7 @@ func TestLogConsolidation(t *testing.T) {
 		w.Close()
 		os.WriteFile(strings.Join([]string{path.Join(logDir, logFileName[1]), (startTime.Add(time.Minute*time.Duration(2) - time.Second*30)).Format(TIMESTAMP_FORMAT), "gz"}, "."), b.Bytes(), 0666)
 
-		// Create current log with special case
+		// Create current log
 		f, err := os.OpenFile(path.Join(logDir, logFileName[2]), os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0666)
 		if err != nil {
 			assert.Fail(t, err.Error())
