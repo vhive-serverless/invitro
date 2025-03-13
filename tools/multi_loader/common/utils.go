@@ -56,7 +56,8 @@ func DeterminePlatformFromConfig(multiLoaderConfig types.MultiLoaderConfiguratio
 	if err = json.Unmarshal(baseConfigByteValue, &loaderConfig); err != nil {
 		log.Fatal(err)
 	}
-	return loaderConfig.Platform
+	// transform platform to lowercase to match defined constant case
+	return strings.ToLower(loaderConfig.Platform)
 }
 
 /**

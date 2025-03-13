@@ -11,12 +11,13 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/vhive-serverless/loader/pkg/common"
 	"github.com/vhive-serverless/loader/tools/multi_loader/types"
 )
 
 func TestLogConsolidation(t *testing.T) {
 	t.Run("Log Consolidation Test", func(t *testing.T) {
-		metricManager := NewMetricManager("Knative", types.MultiLoaderConfiguration{})
+		metricManager := NewMetricManager(common.PlatformKnative, types.MultiLoaderConfiguration{})
 
 		startTime := time.Now()
 		podName := "test"
