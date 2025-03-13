@@ -51,7 +51,7 @@ func NewMultiLoaderRunner(configPath string, verbosity string, failFast bool) (*
 	platform := ml_common.DeterminePlatformFromConfig(multiLoaderConfig)
 
 	// Determine Node Group for Knative platform
-	if strings.HasPrefix(platform, "Knative") && len(multiLoaderConfig.Metrics) > 0 {
+	if strings.HasPrefix(platform, common.PlatformKnative) && len(multiLoaderConfig.Metrics) > 0 {
 		ml_common.DetermineNodesIPs(&multiLoaderConfig)
 		ml_common.CheckKnativeSpecificMultiLoaderConfig(multiLoaderConfig)
 	}

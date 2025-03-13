@@ -14,6 +14,7 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
+	"github.com/vhive-serverless/loader/pkg/common"
 	ml_common "github.com/vhive-serverless/loader/tools/multi_loader/common"
 	"github.com/vhive-serverless/loader/tools/multi_loader/types"
 )
@@ -37,7 +38,7 @@ type MetricManager struct {
 
 func NewMetricManager(platform string, multiLoaderConfig types.MultiLoaderConfiguration) *MetricManager {
 	return &MetricManager{
-		platform:          platform,
+		platform:          strings.ToLower(platform),
 		metricsToCollect:  multiLoaderConfig.Metrics,
 		multiLoaderConfig: multiLoaderConfig,
 	}
@@ -362,7 +363,7 @@ func (m *MetricManager) fetchPrometheusSnapshot(maxAttempts int) (types.Promethe
  */
 func (m *MetricManager) shouldCollect(targetMetrics string) bool {
 	// Only collect for Knative
-	if !strings.HasPrefix(m.platform, "Knative") {
+	if !strings.HasPrefix(m.platform, common.PlatformKnative) {
 		return false
 	}
 	for _, metric := range m.metricsToCollect {
