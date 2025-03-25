@@ -106,7 +106,7 @@ func GenerateColdStartFunctions(experimentDuration int, rpsTarget float64, coold
 }
 
 func CreateRPSFunctions(cfg *config.LoaderConfiguration, dcfg *config.DirigentConfig, warmFunction common.IATArray, warmFunctionCount []int,
-	coldFunctions []common.IATArray, coldFunctionCount [][]int) []*common.Function {
+	coldFunctions []common.IATArray, coldFunctionCount [][]int, yamlPath string) []*common.Function {
 	var result []*common.Function
 
 	busyLoopFor := ComputeBusyLoopPeriod(cfg.RpsMemoryMB)
@@ -139,6 +139,7 @@ func CreateRPSFunctions(cfg *config.LoaderConfiguration, dcfg *config.DirigentCo
 				RuntimeSpecification: createRuntimeSpecification(len(warmFunction), cfg.RpsRuntimeMs, cfg.RpsMemoryMB),
 			},
 
+			YAMLPath:            yamlPath,
 			ColdStartBusyLoopMs: busyLoopFor,
 		})
 	}
@@ -170,6 +171,7 @@ func CreateRPSFunctions(cfg *config.LoaderConfiguration, dcfg *config.DirigentCo
 				RuntimeSpecification: createRuntimeSpecification(len(coldFunctions[i]), cfg.RpsRuntimeMs, cfg.RpsMemoryMB),
 			},
 
+			YAMLPath:            yamlPath,
 			ColdStartBusyLoopMs: busyLoopFor,
 		})
 	}
