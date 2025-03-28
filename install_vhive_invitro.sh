@@ -1,3 +1,5 @@
+set -euxo pipefail
+
 git clone --depth=1 https://github.com/vhive-serverless/vhive.git
 cd vhive
 mkdir -p /tmp/vhive-logs
@@ -13,7 +15,7 @@ pushd ~/vhive/scripts > /dev/null && ./install_go.sh && source /etc/profile && g
 
 cd ..
 git clone --branch=sesame25-tutorial https://github.com/vhive-serverless/invitro.git loader
-echo -en "\n\n" | sudo apt-get install python3-pip python-dev
+echo -en "\n\n" | sudo apt-get install python3-pip python-dev-is-python3
 cd; cd loader; pip install -r config/requirements.txt
 
 
