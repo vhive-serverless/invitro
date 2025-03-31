@@ -22,7 +22,7 @@
  * SOFTWARE.
  */
 
-package metric
+package common
 
 type StartType string
 

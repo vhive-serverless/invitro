@@ -11,7 +11,6 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"github.com/vhive-serverless/loader/pkg/common"
-	mc "github.com/vhive-serverless/loader/pkg/metric"
 )
 
 type azureFunctionsInvoker struct {
@@ -24,14 +23,14 @@ func newAzureFunctionsInvoker(announceDoneExe *sync.WaitGroup) *azureFunctionsIn
 	}
 }
 
-func (i *azureFunctionsInvoker) Invoke(function *common.Function, runtimeSpec *common.RuntimeSpecification) (bool, *mc.ExecutionRecord) {
+func (i *azureFunctionsInvoker) Invoke(function *common.Function, runtimeSpec *common.RuntimeSpecification) (bool, *common.ExecutionRecord) {
 	log.Tracef("(Invoke)\t %s: %d[ms], %d[MiB]", function.Name, runtimeSpec.Runtime, runtimeSpec.Memory)
 
 	dataString := fmt.Sprintf(`{"RuntimeInMilliSec": %d, "MemoryInMebiBytes": %d}`, runtimeSpec.Runtime, runtimeSpec.Memory)
 	success, executionRecordBase, res, bodyBytes := azureHttpInvocation(dataString, function)
 
 	executionRecordBase.RequestedDuration = uint32(runtimeSpec.Runtime * 1e3)
-	record := &mc.ExecutionRecord{ExecutionRecordBase: *executionRecordBase}
+	record := &common.ExecutionRecord{ExecutionRecordBase: *executionRecordBase}
 
 	if !success {
 		return false, record
@@ -53,8 +52,8 @@ func (i *azureFunctionsInvoker) Invoke(function *common.Function, runtimeSpec *c
 	return true, record
 }
 
-func azureHttpInvocation(dataString string, function *common.Function) (bool, *mc.ExecutionRecordBase, *http.Response, []byte) {
-	record := &mc.ExecutionRecordBase{}
+func azureHttpInvocation(dataString string, function *common.Function) (bool, *common.ExecutionRecordBase, *http.Response, []byte) {
+	record := &common.ExecutionRecordBase{}
 
 	start := time.Now()
 	record.StartTime = start.UnixMicro()

@@ -6,7 +6,7 @@ import (
 )
 
 func TestMapperParserWrapper(t *testing.T) {
-	parser := NewMapperParser("test_data", 10)
+	parser := NewMapperParser("test_data", 10, "test")
 	functions := parser.Parse()
 
 	if len(functions) != 1 {

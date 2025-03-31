@@ -30,17 +30,17 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	log "github.com/sirupsen/logrus"
+	"github.com/vhive-serverless/loader/pkg/common"
 	"github.com/vhive-serverless/loader/pkg/config"
 	"github.com/vhive-serverless/loader/pkg/driver/clients"
 	"github.com/vhive-serverless/loader/pkg/driver/deployment"
 	"github.com/vhive-serverless/loader/pkg/driver/failure"
-
-	log "github.com/sirupsen/logrus"
-	"github.com/vhive-serverless/loader/pkg/common"
 	"github.com/vhive-serverless/loader/pkg/generator"
 	mc "github.com/vhive-serverless/loader/pkg/metric"
 	"github.com/vhive-serverless/loader/pkg/trace"
@@ -49,9 +49,8 @@ import (
 type Driver struct {
 	Configuration          *config.Configuration
 	SpecificationGenerator *generator.SpecificationGenerator
-	Invoker                clients.Invoker
 
-	AsyncRecords          *common.LockFreeQueue[*mc.ExecutionRecord]
+	AsyncRecords          *common.LockFreeQueue[*common.ExecutionRecord]
 	readOpenWhiskMetadata sync.Mutex
 	allFunctionsInvoked   sync.WaitGroup
 }
@@ -61,14 +60,19 @@ func NewDriver(driverConfig *config.Configuration) *Driver {
 		Configuration:          driverConfig,
 		SpecificationGenerator: generator.NewSpecificationGenerator(driverConfig.LoaderConfiguration.Seed),
 
-		AsyncRecords:          common.NewLockFreeQueue[*mc.ExecutionRecord](),
+		AsyncRecords:          common.NewLockFreeQueue[*common.ExecutionRecord](),
 		readOpenWhiskMetadata: sync.Mutex{},
 		allFunctionsInvoked:   sync.WaitGroup{},
 	}
 
-	d.Invoker = clients.CreateInvoker(driverConfig, &d.allFunctionsInvoked, &d.readOpenWhiskMetadata)
-
 	return d
+}
+
+func (d *Driver) generateInvokers() {
+	for _, function := range d.Configuration.Functions {
+		trace_func := strings.Contains(function.Name, "trace-func")
+		function.Invoker = clients.CreateInvoker(d.Configuration, &d.allFunctionsInvoked, &d.readOpenWhiskMetadata, !trace_func)
+	}
 }
 
 // ///////////////////////////////////////
@@ -92,7 +96,7 @@ type InvocationMetadata struct {
 	SuccessCount        *int64
 	FailedCount         *int64
 	FunctionsInvoked    *int64
-	RecordOutputChannel chan *mc.ExecutionRecord
+	RecordOutputChannel chan *common.ExecutionRecord
 	AnnounceDoneWG      *sync.WaitGroup
 	AnnounceDoneExe     *sync.WaitGroup
 }
@@ -117,7 +121,7 @@ func (d *Driver) invokeFunction(metadata *InvocationMetadata) {
 
 	var success bool
 	node := metadata.RootFunction.Front()
-	var record *mc.ExecutionRecord
+	var record *common.ExecutionRecord
 	var runtimeSpecifications *common.RuntimeSpecification
 	var branches []*list.List
 	var invocationRetries int
@@ -125,8 +129,7 @@ func (d *Driver) invokeFunction(metadata *InvocationMetadata) {
 		function := node.Value.(*common.Node).Function
 		runtimeSpecifications = &function.Specification.RuntimeSpecification[metadata.IatIndex]
 
-		success, record = d.Invoker.Invoke(function, runtimeSpecifications)
-
+		success, record = function.Invoker.Invoke(function, runtimeSpecifications)
 		if !success && (d.Configuration.LoaderConfiguration.DAGMode && invocationRetries == 0) {
 			log.Debugf("Invocation with for function %s with ID %s failed. Retrying Invocation", function.Name, metadata.InvocationID)
 			invocationRetries += 1
@@ -163,7 +166,7 @@ func (d *Driver) invokeFunction(metadata *InvocationMetadata) {
 	}
 }
 
-func (d *Driver) functionsDriver(functionLinkedList *list.List, announceFunctionDone *sync.WaitGroup, addInvocationsToGroup *sync.WaitGroup, totalSuccessful *int64, totalFailed *int64, totalIssued *int64, recordOutputChannel chan *mc.ExecutionRecord) {
+func (d *Driver) functionsDriver(functionLinkedList *list.List, announceFunctionDone *sync.WaitGroup, addInvocationsToGroup *sync.WaitGroup, totalSuccessful *int64, totalFailed *int64, totalIssued *int64, recordOutputChannel chan *common.ExecutionRecord) {
 	defer announceFunctionDone.Done()
 
 	function := functionLinkedList.Front().Value.(*common.Node).Function
@@ -232,8 +235,8 @@ func (d *Driver) functionsDriver(functionLinkedList *list.List, announceFunction
 			invocationID := composeInvocationID(d.Configuration.TraceGranularity, minuteIndex, invocationSinceTheBeginningOfMinute)
 			log.Debugf("Test mode invocation fired - ID = %s.\n", invocationID)
 
-			recordOutputChannel <- &mc.ExecutionRecord{
-				ExecutionRecordBase: mc.ExecutionRecordBase{
+			recordOutputChannel <- &common.ExecutionRecord{
+				ExecutionRecordBase: common.ExecutionRecordBase{
 					Phase:        int(currentPhase),
 					InvocationID: invocationID,
 					StartTime:    time.Now().UnixNano(),
@@ -334,7 +337,7 @@ func (d *Driver) globalTimekeeper(totalTraceDuration int, signalReady *sync.Wait
 	ticker.Stop()
 }
 
-func (d *Driver) startBackgroundProcesses(allRecordsWritten *sync.WaitGroup) (*sync.WaitGroup, chan *mc.ExecutionRecord, chan int64, chan int) {
+func (d *Driver) startBackgroundProcesses(allRecordsWritten *sync.WaitGroup) (*sync.WaitGroup, chan *common.ExecutionRecord, chan int64, chan int) {
 	auxiliaryProcessBarrier := &sync.WaitGroup{}
 
 	finishCh := make(chan int, 1)
@@ -349,7 +352,7 @@ func (d *Driver) startBackgroundProcesses(allRecordsWritten *sync.WaitGroup) (*s
 
 	auxiliaryProcessBarrier.Add(2)
 
-	globalMetricsCollector := make(chan *mc.ExecutionRecord)
+	globalMetricsCollector := make(chan *common.ExecutionRecord)
 	totalIssuedChannel := make(chan int64)
 	go mc.CreateGlobalMetricsCollector(d.outputFilename("duration"), globalMetricsCollector, auxiliaryProcessBarrier, allRecordsWritten, totalIssuedChannel)
 
@@ -501,6 +504,8 @@ func (d *Driver) RunExperiment() {
 
 	go failure.ScheduleFailure(d.Configuration.LoaderConfiguration.Platform, d.Configuration.FailureConfiguration)
 
+	//Generate clients
+	d.generateInvokers()
 	// Generate load
 	d.internalRun()
 
