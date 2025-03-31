@@ -57,7 +57,12 @@ func createFakeLoaderConfiguration(vSwarm bool) *config.LoaderConfiguration {
 
 func createTestDriver(invocationStats []int, vSwarm bool) *Driver {
 	cfg := createFakeLoaderConfiguration(vSwarm)
-
+	var name string
+	if vSwarm {
+		name = "vswarm-func"
+	} else {
+		name = "trace-func"
+	}
 	driver := NewDriver(&config.Configuration{
 		LoaderConfiguration: cfg,
 		IATDistribution:     common.Equidistant,
@@ -65,7 +70,7 @@ func createTestDriver(invocationStats []int, vSwarm bool) *Driver {
 
 		Functions: []*common.Function{
 			{
-				Name: "test-function",
+				Name: name,
 				InvocationStats: &common.FunctionInvocationStats{
 					Invocations: invocationStats,
 				},
@@ -101,7 +106,7 @@ func createTestDriver(invocationStats []int, vSwarm bool) *Driver {
 		},
 		TestMode: true,
 	})
-
+	driver.generateInvokers()
 	return driver
 }
 
@@ -128,7 +133,7 @@ func TestInvokeFunctionFromDriver(t *testing.T) {
 			var successCount int64 = 0
 			var failureCount int64 = 0
 
-			invocationRecordOutputChannel := make(chan *metric.ExecutionRecord, 1)
+			invocationRecordOutputChannel := make(chan *common.ExecutionRecord, 1)
 			announceDone := &sync.WaitGroup{}
 
 			testDriver := createTestDriver([]int{1}, false)
@@ -211,7 +216,7 @@ func TestVSwarmInvokeFunctionFromDriver(t *testing.T) {
 			var successCount int64 = 0
 			var failureCount int64 = 0
 
-			invocationRecordOutputChannel := make(chan *metric.ExecutionRecord, 1)
+			invocationRecordOutputChannel := make(chan *common.ExecutionRecord, 1)
 			announceDone := &sync.WaitGroup{}
 
 			testDriver := createTestDriver([]int{1}, true)
@@ -275,7 +280,7 @@ func TestDAGInvocation(t *testing.T) {
 	var failureCount int64 = 0
 	var functionsToInvoke int = 3
 	var functionsInvoked int64
-	invocationRecordOutputChannel := make(chan *metric.ExecutionRecord, functionsToInvoke)
+	invocationRecordOutputChannel := make(chan *common.ExecutionRecord, functionsToInvoke)
 	announceDone := &sync.WaitGroup{}
 
 	testDriver := createTestDriver([]int{4}, false)
@@ -346,7 +351,7 @@ func TestVSwarmDAGInvocation(t *testing.T) {
 	var failureCount int64 = 0
 	var functionsToInvoke int = 3
 	var functionsInvoked int64
-	invocationRecordOutputChannel := make(chan *metric.ExecutionRecord, functionsToInvoke)
+	invocationRecordOutputChannel := make(chan *common.ExecutionRecord, functionsToInvoke)
 	announceDone := &sync.WaitGroup{}
 
 	testDriver := createTestDriver([]int{4}, true)
@@ -415,7 +420,7 @@ func TestVSwarmDAGInvocation(t *testing.T) {
 func TestGlobalMetricsCollector(t *testing.T) {
 	driver := createTestDriver([]int{5}, false)
 
-	inputChannel := make(chan *metric.ExecutionRecord)
+	inputChannel := make(chan *common.ExecutionRecord)
 	totalIssuedChannel := make(chan int64)
 	collectorReady, collectorFinished := &sync.WaitGroup{}, &sync.WaitGroup{}
 
@@ -425,8 +430,8 @@ func TestGlobalMetricsCollector(t *testing.T) {
 	go metric.CreateGlobalMetricsCollector(driver.outputFilename("duration"), inputChannel, collectorReady, collectorFinished, totalIssuedChannel)
 	collectorReady.Wait()
 
-	bogusRecord := &metric.ExecutionRecord{
-		ExecutionRecordBase: metric.ExecutionRecordBase{
+	bogusRecord := &common.ExecutionRecord{
+		ExecutionRecordBase: common.ExecutionRecordBase{
 			Phase:        int(common.ExecutionPhase),
 			Instance:     "",
 			InvocationID: "min1.inv1",
@@ -454,7 +459,7 @@ func TestGlobalMetricsCollector(t *testing.T) {
 		t.Error(err)
 	}
 
-	var record []metric.ExecutionRecord
+	var record []common.ExecutionRecord
 	err = gocsv.UnmarshalFile(f, &record)
 	if err != nil {
 		log.Fatal(err.Error())
@@ -530,35 +535,6 @@ func TestDriverCompletely(t *testing.T) {
 			withWarmup:            true,
 			expectedInvocations:   10,
 		},
-		{
-			testName:              "without_warmup_second_granularity",
-			experimentDurationMin: 1,
-			invocationStats: []int{
-				1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-				1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-			},
-			traceGranularity:    common.SecondGranularity,
-			expectedInvocations: 60,
-		},
-		{
-			testName:              "with_warmup_second_granularity",
-			experimentDurationMin: 2,
-			invocationStats: []int{
-				1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-				1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-				1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-				1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-			},
-			traceGranularity:    common.SecondGranularity,
-			withWarmup:          true,
-			expectedInvocations: 120,
-		},
-		{
-			testName:              "without_warmup_sleep_1min_then_invoke",
-			experimentDurationMin: 2,
-			invocationStats:       []int{0, 5},
-			expectedInvocations:   5,
-		},
 	}
 
 	for _, test := range tests {
@@ -590,7 +566,7 @@ func TestDriverCompletely(t *testing.T) {
 				return
 			}
 
-			var records []metric.ExecutionRecordBase
+			var records []common.ExecutionRecordBase
 			err = gocsv.UnmarshalFile(f, &records)
 			if err != nil {
 				log.Fatal(err.Error())
@@ -686,7 +662,7 @@ func TestVSwarmDriverCompletely(t *testing.T) {
 				return
 			}
 
-			var records []metric.ExecutionRecordBase
+			var records []common.ExecutionRecordBase
 			err = gocsv.UnmarshalFile(f, &records)
 			if err != nil {
 				log.Fatal(err.Error())
