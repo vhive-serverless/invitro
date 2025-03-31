@@ -2,9 +2,6 @@ package driver
 
 import (
 	"bytes"
-	log "github.com/sirupsen/logrus"
-	"github.com/vhive-serverless/loader/pkg/driver/clients"
-	"github.com/vhive-serverless/loader/pkg/metric"
 	"io"
 	"math"
 	"net"
@@ -12,9 +9,13 @@ import (
 	"strconv"
 	"sync"
 	"time"
+
+	log "github.com/sirupsen/logrus"
+	"github.com/vhive-serverless/loader/pkg/common"
+	"github.com/vhive-serverless/loader/pkg/driver/clients"
 )
 
-func (d *Driver) writeAsyncRecordsToLog(logCh chan *metric.ExecutionRecord) {
+func (d *Driver) writeAsyncRecordsToLog(logCh chan *common.ExecutionRecord) {
 	const batchSize = 50
 
 	client := &http.Client{
