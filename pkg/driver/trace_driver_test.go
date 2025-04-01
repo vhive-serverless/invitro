@@ -535,6 +535,35 @@ func TestDriverCompletely(t *testing.T) {
 			withWarmup:            true,
 			expectedInvocations:   10,
 		},
+		{
+			testName:              "without_warmup_second_granularity",
+			experimentDurationMin: 1,
+			invocationStats: []int{
+				1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+				1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+			},
+			traceGranularity:    common.SecondGranularity,
+			expectedInvocations: 60,
+		},
+		{
+			testName:              "with_warmup_second_granularity",
+			experimentDurationMin: 2,
+			invocationStats: []int{
+				1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+				1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+				1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+				1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+			},
+			traceGranularity:    common.SecondGranularity,
+			withWarmup:          true,
+			expectedInvocations: 120,
+		},
+		{
+			testName:              "without_warmup_sleep_1min_then_invoke",
+			experimentDurationMin: 2,
+			invocationStats:       []int{0, 5},
+			expectedInvocations:   5,
+		},
 	}
 
 	for _, test := range tests {
