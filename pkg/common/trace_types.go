@@ -116,10 +116,10 @@ type Function struct {
 	YAMLPath          string
 	PredeploymentPath []string
 	Specification     *FunctionSpecification
+	Invoker           Invoker
 
 	// used only for dirigent workflows
 	WorkflowMetadata *WorkflowMetadata
-	Invoker          Invoker
 }
 
 type Node struct {
