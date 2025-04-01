@@ -26,7 +26,7 @@ python-dateutil==2.9.0.post0
 pytz==2025.1
 PyYAML==6.0
 requests==2.32.2
-requests-unixsocket==0.3.0
+requests-unixsocket==0.4.1
 scipy==1.13.0
 six==1.17.0
 soupsieve==2.5
