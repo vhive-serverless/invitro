@@ -504,7 +504,7 @@ func (d *Driver) RunExperiment() {
 
 	go failure.ScheduleFailure(d.Configuration.LoaderConfiguration.Platform, d.Configuration.FailureConfiguration)
 
-	//Generate clients
+	// Generate clients
 	d.generateInvokers()
 	// Generate load
 	d.internalRun()

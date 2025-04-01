@@ -29,17 +29,16 @@ import (
 	"os/exec"
 
 	log "github.com/sirupsen/logrus"
-	"github.com/vhive-serverless/loader/pkg/common"
 )
 
-func ScrapeDeploymentScales() []common.DeploymentScale {
+func ScrapeDeploymentScales() []DeploymentScale {
 	cmd := exec.Command("python3", "pkg/metric/scrape_scales.py")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		log.Warn("Fail to scrape deployment scales: ", err)
 	}
 
-	var results []common.DeploymentScale
+	var results []DeploymentScale
 	err = json.Unmarshal(out, &results)
 	if err != nil {
 		log.Warn("Fail to parse deployment scales: ", string(out[:]), err)
@@ -48,7 +47,7 @@ func ScrapeDeploymentScales() []common.DeploymentScale {
 	return results
 }
 
-func ScrapeKnStats() common.KnStats {
+func ScrapeKnStats() KnStats {
 	cmd := exec.Command(
 		"python3",
 		"pkg/metric/scrape_kn.py",
@@ -58,7 +57,7 @@ func ScrapeKnStats() common.KnStats {
 		log.Warn("Fail to scrape Knative: ", err)
 	}
 
-	var result common.KnStats
+	var result KnStats
 	err = json.Unmarshal(out, &result)
 	if err != nil {
 		log.Warn("Fail to parse Knative: ", string(out[:]), err)
@@ -67,14 +66,14 @@ func ScrapeKnStats() common.KnStats {
 	return result
 }
 
-func ScrapeClusterUsage() common.ClusterUsage {
+func ScrapeClusterUsage() ClusterUsage {
 	cmd := exec.Command("python3", "pkg/metric/scrape_infra.py")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		log.Warn("Fail to scrape cluster usage: ", err)
 	}
 
-	var result common.ClusterUsage
+	var result ClusterUsage
 	err = json.Unmarshal(out, &result)
 	if err != nil {
 		log.Warn("Fail to parse cluster usage: ", string(out[:]), err)
