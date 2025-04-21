@@ -146,7 +146,7 @@ func (i *grpcInvoker) Invoke(function *common.Function, runtimeSpec *common.Runt
 
 	grpcStart := time.Now()
 
-	conn, err := grpc.NewClient(function.Endpoint, dialOptions...)
+	conn, err := grpc.NewClient("passthrough:///" + function.Endpoint, dialOptions...)
 	if err != nil {
 		logrus.Debugf("Failed to establish a gRPC connection - %v\n", err)
 

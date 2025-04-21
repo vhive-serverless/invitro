@@ -15,7 +15,6 @@ type Configuration struct {
 	// TraceDuration In minutes.
 	TraceDuration int
 
-	YAMLPath string
 	TestMode bool
 
 	Functions []*common.Function

@@ -207,7 +207,6 @@ func runTraceMode(cfg *config.LoaderConfiguration, readIATFromFile bool, writeIA
 		TraceGranularity: parseTraceGranularity(cfg),
 		TraceDuration:    durationToParse,
 
-		YAMLPath: yamlPath,
 		TestMode: false,
 
 		Functions: functions,
@@ -218,7 +217,7 @@ func runTraceMode(cfg *config.LoaderConfiguration, readIATFromFile bool, writeIA
 		return
 	}
 
-	log.Infof("Using %s as a service YAML specification file.\n", experimentDriver.Configuration.YAMLPath)
+	log.Infof("Using %s as a service YAML specification file.\n", yamlPath)
 
 	experimentDriver.GenerateSpecification()
 	experimentDriver.ReadOrWriteFileSpecification(writeIATsToFile, readIATFromFile)
@@ -227,6 +226,7 @@ func runTraceMode(cfg *config.LoaderConfiguration, readIATFromFile bool, writeIA
 
 func runRPSMode(cfg *config.LoaderConfiguration, readIATFromFile bool, writeIATsToFile bool) {
 	experimentDuration := determineDurationToParse(cfg.ExperimentDuration, cfg.WarmupDuration)
+	yamlPath := parseYAMLSpecification(cfg)
 
 	rpsTarget := cfg.RpsTarget
 	coldStartPercentage := cfg.RpsColdStartRatioPercentage
@@ -246,9 +246,7 @@ func runRPSMode(cfg *config.LoaderConfiguration, readIATFromFile bool, writeIATs
 
 		DirigentConfiguration: dirigentConfig,
 
-		YAMLPath: parseYAMLSpecification(cfg),
-
-		Functions: generator.CreateRPSFunctions(cfg, dirigentConfig, warmFunction, warmStartCount, coldFunctions, coldStartCount),
+		Functions: generator.CreateRPSFunctions(cfg, dirigentConfig, warmFunction, warmStartCount, coldFunctions, coldStartCount, yamlPath),
 	})
 
 	// Skip experiments execution during dry run mode
