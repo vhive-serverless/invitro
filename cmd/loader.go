@@ -238,13 +238,13 @@ func runRPSMode(cfg *config.LoaderConfiguration, readIATFromFile bool, writeIATs
 	warmFunctions := make([]common.IATArray, cfg.RpsFunctionCount)
 	warmStartCounts := make([][]int, cfg.RpsFunctionCount)
 	for i := 0; i < cfg.RpsFunctionCount; i++ {
-		warmFunction, warmStartCount := generator.GenerateWarmStartFunction(experimentDuration, warmStartRPS)
+		warmFunction, warmStartCount := generator.GenerateWarmStartFunction(experimentDuration, parseTraceGranularity(cfg), warmStartRPS)
 		warmFunctions[i] = warmFunction
 		warmFunctions[i][0] = float64(i) / warmStartRPS / float64(cfg.RpsFunctionCount) * 1_000_000
 		warmStartCounts[i] = warmStartCount
 	}
 
-	coldFunctions, coldStartCount := generator.GenerateColdStartFunctions(experimentDuration, coldStartRPS, cfg.RpsCooldownSeconds)
+	coldFunctions, coldStartCount := generator.GenerateColdStartFunctions(experimentDuration, parseTraceGranularity(cfg), coldStartRPS, cfg.RpsCooldownSeconds)
 
 	// loads dirigent config only if the platform is 'dirigent'
 	dirigentConfig := config.ReadDirigentConfig(cfg)

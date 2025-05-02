@@ -10,11 +10,15 @@ import (
 	"github.com/vhive-serverless/loader/pkg/config"
 )
 
-func generateFunctionByRPS(experimentDuration int, rpsTarget float64) common.IATArray {
+func generateFunctionByRPS(experimentDuration int, granularity common.TraceGranularity, rpsTarget float64) common.IATArray {
 	iat := 1000000.0 / float64(rpsTarget) // μs
 
 	duration := 0.0 // μs
-	totalExperimentDurationMs := float64(experimentDuration * 60_000_000.0)
+
+	totalExperimentDurationMs := float64(experimentDuration * 1_000_000)
+	if granularity == common.MinuteGranularity {
+		totalExperimentDurationMs = float64(experimentDuration * 60)
+	}
 
 	var iatResult []float64
 	for duration < totalExperimentDurationMs {
@@ -30,7 +34,7 @@ func generateFunctionByRPS(experimentDuration int, rpsTarget float64) common.IAT
 	return iatResult
 }
 
-func countNumberOfInvocationsPerMinute(experimentDuration int, iatResult []float64) []int {
+func countNumberOfInvocationsPerMinute(experimentDuration int, granularity common.TraceGranularity, iatResult []float64) []int {
 	result := make([]int, experimentDuration)
 
 	// set zero count for each minute
@@ -40,9 +44,15 @@ func countNumberOfInvocationsPerMinute(experimentDuration int, iatResult []float
 
 	cnt := make(map[int]int)
 	timestamp := 0.0
+	interval := 0
+	if granularity == common.MinuteGranularity {
+		interval = 60_000_000
+	} else {
+		interval = 1_000_000
+	}
 	for i := 0; i < len(iatResult); i++ {
 		t := timestamp + iatResult[i]
-		minute := int(t) / 60_000_000
+		minute := int(t) / interval
 		cnt[minute]++
 		timestamp = t
 	}
@@ -55,26 +65,26 @@ func countNumberOfInvocationsPerMinute(experimentDuration int, iatResult []float
 	return result
 }
 
-func generateFunctionByRPSWithOffset(experimentDuration int, rpsTarget float64, offset float64) (common.IATArray, []int) {
-	iat := generateFunctionByRPS(experimentDuration, rpsTarget)
+func generateFunctionByRPSWithOffset(experimentDuration int, granularity common.TraceGranularity, rpsTarget float64, offset float64) (common.IATArray, []int) {
+	iat := generateFunctionByRPS(experimentDuration, granularity, rpsTarget)
 	iat[0] += offset
 
-	count := countNumberOfInvocationsPerMinute(experimentDuration, iat)
+	count := countNumberOfInvocationsPerMinute(experimentDuration, granularity, iat)
 	return iat, count
 }
 
-func GenerateWarmStartFunction(experimentDuration int, rpsTarget float64) (common.IATArray, []int) {
+func GenerateWarmStartFunction(experimentDuration int, granularity common.TraceGranularity, rpsTarget float64) (common.IATArray, []int) {
 	if rpsTarget == 0 {
-		return nil, countNumberOfInvocationsPerMinute(experimentDuration, nil)
+		return nil, countNumberOfInvocationsPerMinute(experimentDuration, granularity, nil)
 	}
 
-	iat := generateFunctionByRPS(experimentDuration, rpsTarget)
-	count := countNumberOfInvocationsPerMinute(experimentDuration, iat)
+	iat := generateFunctionByRPS(experimentDuration, granularity, rpsTarget)
+	count := countNumberOfInvocationsPerMinute(experimentDuration, granularity, iat)
 	return iat, count
 }
 
 // GenerateColdStartFunctions It is recommended that the first 10% of cold starts are discarded from the experiment results for low cold start RPS.
-func GenerateColdStartFunctions(experimentDuration int, rpsTarget float64, cooldownSeconds int) ([]common.IATArray, [][]int) {
+func GenerateColdStartFunctions(experimentDuration int, granularity common.TraceGranularity, rpsTarget float64, cooldownSeconds int) ([]common.IATArray, [][]int) {
 	iat := 1000000.0 / float64(rpsTarget) // ms
 	totalFunctions := int(math.Ceil(rpsTarget * float64(cooldownSeconds)))
 
@@ -93,9 +103,9 @@ func GenerateColdStartFunctions(experimentDuration int, rpsTarget float64, coold
 		var fx common.IATArray
 		var count []int
 		if rpsTarget >= 1 {
-			fx, count = generateFunctionByRPSWithOffset(experimentDuration, 1/float64(cooldownSeconds), float64(offset))
+			fx, count = generateFunctionByRPSWithOffset(experimentDuration, granularity, 1/float64(cooldownSeconds), float64(offset))
 		} else {
-			fx, count = generateFunctionByRPSWithOffset(experimentDuration, 1/(float64(totalFunctions)/rpsTarget), float64(offset))
+			fx, count = generateFunctionByRPSWithOffset(experimentDuration, granularity, 1/(float64(totalFunctions)/rpsTarget), float64(offset))
 		}
 
 		functions = append(functions, fx)
