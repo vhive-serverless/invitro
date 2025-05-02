@@ -26,16 +26,19 @@ package clients
 
 import (
 	"context"
+
 	"github.com/sirupsen/logrus"
 	"github.com/vhive-serverless/loader/pkg/common"
 	"github.com/vhive-serverless/loader/pkg/config"
 	"github.com/vhive-serverless/loader/pkg/workload/proto"
+
 	//proto "github.com/JooyoungPark73/khala/pkg/proto"
+	"strings"
+	"time"
+
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
-	"strings"
-	"time"
 
 	mc "github.com/vhive-serverless/loader/pkg/metric"
 )
@@ -96,7 +99,7 @@ func (i SayHelloRPC) Invoke(function *common.Function, runtimeSpec *common.Runti
 		return false
 	}
 	record.ActualDuration = 0
-	record.Instance = extractSwarmFunction(response.GetMessage())
+	record.Instance = response.GetMessage()
 	record.ActualMemoryUsage = common.Kib2Mib(0) //Memory usage may not be available for all vSwarm benchmarks
 
 	return true
@@ -140,7 +143,7 @@ func (i *grpcInvoker) Invoke(function *common.Function, runtimeSpec *common.Runt
 
 	grpcStart := time.Now()
 
-	conn, err := grpc.NewClient("passthrough:///" + function.Endpoint, dialOptions...)
+	conn, err := grpc.NewClient("passthrough:///"+function.Endpoint, dialOptions...)
 	if err != nil {
 		logrus.Debugf("Failed to establish a gRPC connection - %v\n", err)
 
