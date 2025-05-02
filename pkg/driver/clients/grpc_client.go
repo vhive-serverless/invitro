@@ -26,12 +26,11 @@ package clients
 
 import (
 	"context"
-	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
 	"github.com/vhive-serverless/loader/pkg/common"
 	"github.com/vhive-serverless/loader/pkg/config"
 	"github.com/vhive-serverless/loader/pkg/workload/proto"
-	helloworld "github.com/vhive-serverless/vSwarm/utils/protobuf/helloworld"
+	//proto "github.com/JooyoungPark73/khala/pkg/proto"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -85,14 +84,9 @@ type SayHelloRPC struct {
 }
 
 func (i SayHelloRPC) Invoke(function *common.Function, runtimeSpec *common.RuntimeSpecification, conn *grpc.ClientConn, record *mc.ExecutionRecord, executionCxt context.Context) bool {
-	grpcClient := helloworld.NewGreeterClient(conn)
-	response, err := grpcClient.SayHello(executionCxt, &helloworld.HelloRequest{
+	grpcClient := proto.NewGreeterClient(conn)
+	response, err := grpcClient.SayHello(executionCxt, &proto.HelloRequest{
 		Name: "Invoke Relay",
-		VHiveMetadata: MakeVHiveMetadata(
-			uuid.New().String(),
-			uuid.New().String(),
-			time.Now().UTC(),
-		),
 	})
 	if err != nil {
 		logrus.Debugf("gRPC timeout exceeded for function %s - %s", function.Name, err)

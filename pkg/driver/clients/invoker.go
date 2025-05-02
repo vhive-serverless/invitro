@@ -40,7 +40,7 @@ func CreateInvoker(cfg *config.Configuration, announceDoneExe *sync.WaitGroup, r
 	case common.PlatformOpenWhisk:
 		return newOpenWhiskInvoker(announceDoneExe, readOpenWhiskMetadata)
 	case common.PlatformURL:
-		return newGRPCInvoker(cfg.LoaderConfiguration, ExecutorRPC{})
+		return newGRPCInvoker(cfg.LoaderConfiguration, SayHelloRPC{})
 	default:
 		logrus.Fatal("Unsupported platform.")
 	}

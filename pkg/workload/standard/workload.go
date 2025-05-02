@@ -55,17 +55,17 @@ const (
 )
 
 type funcServer struct {
-	proto.UnimplementedExecutorServer
+	proto.UnimplementedGreeterServer
 }
 
-func (s *funcServer) Execute(_ context.Context, req *proto.FaasRequest) (*proto.FaasReply, error) {
+func (s *funcServer) SayHello(_ context.Context, req *proto.HelloRequest) (*proto.HelloReply, error) {
 	var msg string
 	start := time.Now()
 
 	if serverSideCode == TraceFunction {
 		// Minimum execution time is AWS billing granularity - 1ms,
 		// as defined in SpecificationGenerator::generateExecutionSpecs
-		timeLeftMilliseconds := req.RuntimeInMilliSec
+		timeLeftMilliseconds := uint32(10)//req.RuntimeInMilliSec
 		/*toAllocate := util.Mib2b(req.MemoryInMebiBytes - ContainerImageSizeMB)
 		if toAllocate < 0 {
 			toAllocate = 0
@@ -81,10 +81,10 @@ func (s *funcServer) Execute(_ context.Context, req *proto.FaasRequest) (*proto.
 		msg = fmt.Sprintf("OK - EMPTY - %s", hostname)
 	}
 
-	return &proto.FaasReply{
+	return &proto.HelloReply{
 		Message:            msg,
-		DurationInMicroSec: uint32(time.Since(start).Microseconds()),
-		MemoryUsageInKb:    req.MemoryInMebiBytes * 1024,
+		//DurationInMicroSec: uint32(time.Since(start).Microseconds()),
+		//MemoryUsageInKb:    req.MemoryInMebiBytes * 1024,
 	}, nil
 }
 
@@ -141,7 +141,7 @@ func StartGRPCServer(serverAddress string, serverPort int, functionType Function
 	}()
 
 	reflection.Register(grpcServer) // gRPC Server Reflection is used by gRPC CLI
-	proto.RegisterExecutorServer(grpcServer, &funcServer{})
+	proto.RegisterGreeterServer(grpcServer, &funcServer{})
 	err = grpcServer.Serve(lis)
 	util.Check(err)
 }
