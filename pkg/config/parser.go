@@ -26,9 +26,10 @@ package config
 
 import (
 	"encoding/json"
-	"github.com/vhive-serverless/loader/pkg/common"
 	"os"
 	"strings"
+
+	"github.com/vhive-serverless/loader/pkg/common"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -55,6 +56,7 @@ type LoaderConfiguration struct {
 	RpsRuntimeMs                int     `json:"RpsRuntimeMs"`
 	RpsMemoryMB                 int     `json:"RpsMemoryMB"`
 	RpsIterationMultiplier      int     `json:"RpsIterationMultiplier"`
+	RpsFunctionCount            int     `json:"RpsFunctionCount"`
 
 	TracePath          string `json:"TracePath"`
 	Granularity        string `json:"Granularity"`

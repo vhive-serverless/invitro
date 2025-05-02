@@ -235,7 +235,15 @@ func runRPSMode(cfg *config.LoaderConfiguration, readIATFromFile bool, writeIATs
 	warmStartRPS := rpsTarget * (100 - coldStartPercentage) / 100
 	coldStartRPS := rpsTarget * coldStartPercentage / 100
 
-	warmFunction, warmStartCount := generator.GenerateWarmStartFunction(experimentDuration, warmStartRPS)
+	warmFunctions := make([]common.IATArray, cfg.RpsFunctionCount)
+	warmStartCounts := make([][]int, cfg.RpsFunctionCount)
+	for i := 0; i < cfg.RpsFunctionCount; i++ {
+		warmFunction, warmStartCount := generator.GenerateWarmStartFunction(experimentDuration, warmStartRPS)
+		warmFunctions[i] = warmFunction
+		warmFunctions[i][0] = float64(i) / warmStartRPS / float64(cfg.RpsFunctionCount) * 1_000_000
+		warmStartCounts[i] = warmStartCount
+	}
+
 	coldFunctions, coldStartCount := generator.GenerateColdStartFunctions(experimentDuration, coldStartRPS, cfg.RpsCooldownSeconds)
 
 	// loads dirigent config only if the platform is 'dirigent'
@@ -247,7 +255,7 @@ func runRPSMode(cfg *config.LoaderConfiguration, readIATFromFile bool, writeIATs
 
 		DirigentConfiguration: dirigentConfig,
 
-		Functions: generator.CreateRPSFunctions(cfg, dirigentConfig, warmFunction, warmStartCount, coldFunctions, coldStartCount, yamlPath),
+		Functions: generator.CreateRPSFunctions(cfg, dirigentConfig, warmFunctions, warmStartCounts, coldFunctions, coldStartCount, yamlPath),
 	})
 
 	// Skip experiments execution during dry run mode

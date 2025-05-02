@@ -2,11 +2,12 @@ package generator
 
 import (
 	"fmt"
+	"math"
+	"math/rand"
+
 	"github.com/sirupsen/logrus"
 	"github.com/vhive-serverless/loader/pkg/common"
 	"github.com/vhive-serverless/loader/pkg/config"
-	"math"
-	"math/rand"
 )
 
 func generateFunctionByRPS(experimentDuration int, rpsTarget float64) common.IATArray {
@@ -105,7 +106,7 @@ func GenerateColdStartFunctions(experimentDuration int, rpsTarget float64, coold
 	return functions, countResult
 }
 
-func CreateRPSFunctions(cfg *config.LoaderConfiguration, dcfg *config.DirigentConfig, warmFunction common.IATArray, warmFunctionCount []int,
+func CreateRPSFunctions(cfg *config.LoaderConfiguration, dcfg *config.DirigentConfig, warmFunction []common.IATArray, warmFunctionCount [][]int,
 	coldFunctions []common.IATArray, coldFunctionCount [][]int, yamlPath string) []*common.Function {
 	var result []*common.Function
 
@@ -125,23 +126,25 @@ func CreateRPSFunctions(cfg *config.LoaderConfiguration, dcfg *config.DirigentCo
 			}
 		}
 
-		result = append(result, &common.Function{
-			Name: fmt.Sprintf("warm-function-%d", rand.Int()),
+		for i := 0; i < len(warmFunction); i++ {
+			result = append(result, &common.Function{
+				Name: fmt.Sprintf("warm-function-%d-%d", i, rand.Int()),
 
-			InvocationStats:  &common.FunctionInvocationStats{Invocations: warmFunctionCount},
-			RuntimeStats:     &common.FunctionRuntimeStats{Average: float64(cfg.RpsRuntimeMs)},
-			MemoryStats:      &common.FunctionMemoryStats{Percentile100: float64(cfg.RpsMemoryMB)},
-			DirigentMetadata: dirigentMetadataWarm,
+				InvocationStats:  &common.FunctionInvocationStats{Invocations: warmFunctionCount[i]},
+				RuntimeStats:     &common.FunctionRuntimeStats{Average: float64(cfg.RpsRuntimeMs)},
+				MemoryStats:      &common.FunctionMemoryStats{Percentile100: float64(cfg.RpsMemoryMB)},
+				DirigentMetadata: dirigentMetadataWarm,
 
-			Specification: &common.FunctionSpecification{
-				IAT:                  warmFunction,
-				PerMinuteCount:       warmFunctionCount,
-				RuntimeSpecification: createRuntimeSpecification(len(warmFunction), cfg.RpsRuntimeMs, cfg.RpsMemoryMB),
-			},
+				Specification: &common.FunctionSpecification{
+					IAT:                  warmFunction[i],
+					PerMinuteCount:       warmFunctionCount[i],
+					RuntimeSpecification: createRuntimeSpecification(len(warmFunction[i]), cfg.RpsRuntimeMs, cfg.RpsMemoryMB),
+				},
 
-			YAMLPath:            yamlPath,
-			ColdStartBusyLoopMs: busyLoopFor,
-		})
+				YAMLPath:            yamlPath,
+				ColdStartBusyLoopMs: busyLoopFor,
+			})
+		}
 	}
 
 	for i := 0; i < len(coldFunctions); i++ {

@@ -16,10 +16,15 @@ func newURLDeployer() *urlDeployer {
 }
 
 func (*urlDeployer) Deploy(cfg *config.Configuration) {
-	file, err := os.ReadFile(cfg.LoaderConfiguration.TracePath + "/endpoints.txt")
+	filePath := cfg.LoaderConfiguration.TracePath + "/endpoints.txt"
+	if cfg.LoaderConfiguration.TracePath == "RPS" {
+		filePath = "endpoints.txt"
+	}
+
+	file, err := os.ReadFile(filePath)
 
 	if err != nil {
-		log.Fatalf("URL file not found: %s, err=%e", cfg.LoaderConfiguration.TracePath+"/endpoints.txt", err)
+		log.Fatalf("URL file not found: %s, err=%e", filePath, err)
 	}
 
 	endpoints := strings.Split(string(file), "\n")

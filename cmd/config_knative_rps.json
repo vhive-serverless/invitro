@@ -11,6 +11,7 @@
   "RpsTarget": 1,
   "RpsColdStartRatioPercentage": 100,
   "RpsCooldownSeconds": 10,
+  "RpsFunctionCount": 1,
   "RpsImage": "ghcr.io/vhive-serverless/invitro_empty_function:latest",
   "RpsRuntimeMs": 10,
   "RpsMemoryMB": 2048,

@@ -1,0 +1,4 @@
+example.com:80
+example.com:443
+example.com:8080
+example.com:8443
