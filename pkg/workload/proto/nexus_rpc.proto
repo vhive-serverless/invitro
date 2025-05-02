@@ -1,0 +1,18 @@
+syntax = "proto3";
+
+option go_package = "github.com/JooyoungPark73/khala/pkg/proto";
+package proto;
+
+service NexusRPCServer {
+    rpc NexusRPC(NexusRPCRequest) returns (NexusRPCResponse) {}
+}
+
+message NexusRPCRequest{
+    string msg = 1;
+    bytes payload = 2;
+}
+
+message NexusRPCResponse{
+    string msg = 1;
+    bytes payload = 2;
+}

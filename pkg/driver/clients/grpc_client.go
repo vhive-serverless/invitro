@@ -87,9 +87,10 @@ type SayHelloRPC struct {
 }
 
 func (i SayHelloRPC) Invoke(function *common.Function, runtimeSpec *common.RuntimeSpecification, conn *grpc.ClientConn, record *mc.ExecutionRecord, executionCxt context.Context) bool {
-	grpcClient := proto.NewGreeterClient(conn)
-	response, err := grpcClient.SayHello(executionCxt, &proto.HelloRequest{
-		Name: "Invoke Relay",
+	grpcClient := proto.NewNexusRPCServerClient(conn)
+	response, err := grpcClient.NexusRPC(executionCxt, &proto.NexusRPCRequest{
+		Msg:     "",
+		Payload: []byte("Hello"),
 	})
 	if err != nil {
 		logrus.Debugf("gRPC timeout exceeded for function %s - %s", function.Name, err)
@@ -99,7 +100,7 @@ func (i SayHelloRPC) Invoke(function *common.Function, runtimeSpec *common.Runti
 		return false
 	}
 	record.ActualDuration = 0
-	record.Instance = response.GetMessage()
+	record.Instance = response.GetMsg()
 	record.ActualMemoryUsage = common.Kib2Mib(0) //Memory usage may not be available for all vSwarm benchmarks
 
 	return true

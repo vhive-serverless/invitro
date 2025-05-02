@@ -55,17 +55,17 @@ const (
 )
 
 type funcServer struct {
-	proto.UnimplementedGreeterServer
+	proto.UnimplementedNexusRPCServerServer
 }
 
-func (s *funcServer) SayHello(_ context.Context, req *proto.HelloRequest) (*proto.HelloReply, error) {
+func (s *funcServer) NexusRPC(_ context.Context, req *proto.NexusRPCRequest) (*proto.NexusRPCResponse, error) {
 	var msg string
 	start := time.Now()
 
 	if serverSideCode == TraceFunction {
 		// Minimum execution time is AWS billing granularity - 1ms,
 		// as defined in SpecificationGenerator::generateExecutionSpecs
-		timeLeftMilliseconds := uint32(10)//req.RuntimeInMilliSec
+		timeLeftMilliseconds := uint32(10) //req.RuntimeInMilliSec
 		/*toAllocate := util.Mib2b(req.MemoryInMebiBytes - ContainerImageSizeMB)
 		if toAllocate < 0 {
 			toAllocate = 0
@@ -81,10 +81,9 @@ func (s *funcServer) SayHello(_ context.Context, req *proto.HelloRequest) (*prot
 		msg = fmt.Sprintf("OK - EMPTY - %s", hostname)
 	}
 
-	return &proto.HelloReply{
-		Message:            msg,
-		//DurationInMicroSec: uint32(time.Since(start).Microseconds()),
-		//MemoryUsageInKb:    req.MemoryInMebiBytes * 1024,
+	return &proto.NexusRPCResponse{
+		Msg:     msg,
+		Payload: []byte("Hello, World!"),
 	}, nil
 }
 
@@ -141,7 +140,7 @@ func StartGRPCServer(serverAddress string, serverPort int, functionType Function
 	}()
 
 	reflection.Register(grpcServer) // gRPC Server Reflection is used by gRPC CLI
-	proto.RegisterGreeterServer(grpcServer, &funcServer{})
+	proto.RegisterNexusRPCServerServer(grpcServer, &funcServer{})
 	err = grpcServer.Serve(lis)
 	util.Check(err)
 }
