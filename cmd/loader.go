@@ -96,6 +96,7 @@ func main() {
 		common.PlatformOpenWhisk,
 		common.PlatformAWSLambda,
 		common.PlatformDirigent,
+		common.PlatformGCR,
 	}
 	if !slices.Contains(supportedPlatforms, cfg.Platform) {
 		log.Fatal("Unsupported platform!")
@@ -150,7 +151,7 @@ func parseYAMLSpecification(cfg *config.LoaderConfiguration) string {
 	case "firecracker":
 		return "workloads/firecracker/trace_func_go.yaml"
 	default:
-		if cfg.Platform != common.PlatformDirigent {
+		if cfg.Platform != common.PlatformDirigent && cfg.Platform != common.PlatformGCR {
 			log.Fatal("Invalid 'YAMLSelector' parameter.")
 		}
 	}

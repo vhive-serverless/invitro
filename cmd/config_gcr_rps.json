@@ -1,14 +1,15 @@
 {
   "Seed": 42,
 
-  "Platform": "Knative",
-  "InvokeProtocol" : "grpc",
+  "Platform": "GCR",
+  "DirigentConfigPath": "cmd/dirigent/config_containerd.json",
+  "InvokeProtocol" : "http2",
   "EndpointPort": 80,
 
   "BusyLoopOnSandboxStartup": false,
 
   "RpsTarget": 1,
-  "RpsColdStartRatioPercentage": 100,
+  "RpsColdStartRatioPercentage": 0,
   "RpsCooldownSeconds": 10,
   "RpsImage": "ghcr.io/vhive-serverless/invitro_empty_function:latest",
   "RpsRuntimeMs": 10,

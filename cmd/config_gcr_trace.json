@@ -1,8 +1,9 @@
 {
   "Seed": 42,
 
-  "Platform": "Knative",
-  "InvokeProtocol" : "grpc",
+  "Platform": "GCR",
+  "DirigentConfigPath": "cmd/dirigent/config_containerd.json",
+  "InvokeProtocol" : "http2",
   "EndpointPort": 80,
 
   "BusyLoopOnSandboxStartup": false,

@@ -122,7 +122,8 @@ type GCRConfig struct {
 	Project        string `json:"Project"`
 	ServiceAccount string `json:"ServiceAccount"`
 
-	AllowUnauthenticated bool `json:"AllowUnauthenticated"`
+	AllowUnauthenticated bool   `json:"AllowUnauthenticated"`
+	EndpointSuffix       string `json:"EndpointSuffix"`
 }
 
 func ReadConfigurationFile(path string) LoaderConfiguration {
@@ -195,7 +196,7 @@ func ReadWorkflowConfig(path string) WorkflowConfig {
 }
 
 func ReadDirigentConfig(cfg *LoaderConfiguration) *DirigentConfig {
-	if cfg.Platform != common.PlatformDirigent {
+	if cfg.Platform != common.PlatformDirigent && cfg.Platform != common.PlatformGCR {
 		return nil
 	}
 
