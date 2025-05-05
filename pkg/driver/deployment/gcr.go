@@ -81,7 +81,7 @@ func deploySingle(function *common.Function, configuration *config.Configuration
 	}
 
 	if configuration.LoaderConfiguration.InvokeProtocol == "grpc" || configuration.LoaderConfiguration.InvokeProtocol == "http2" {
-		args = append(args, "--use-http2") // use HTTP/2 end-to-end
+		//args = append(args, "--use-http2") // use HTTP/2 end-to-end
 	}
 
 	err := exec.Command("gcloud", args...).Run()
@@ -90,20 +90,18 @@ func deploySingle(function *common.Function, configuration *config.Configuration
 		return
 	}
 
-	// e.g., warm-function-3253699760163344042-328799819690.us-central1.run.app:80
+	// e.g., warm-function-3253699760163344042-328799819690.us-central1.run.app
 	function.Endpoint = fmt.Sprintf(
-		"%s-%s.%s.run.app:%d",
+		"%s-%s.%s.run.app",
 		function.Name,
 		configuration.GCRConfiguration.EndpointSuffix,
 		configuration.GCRConfiguration.Region,
-		function.DirigentMetadata.Port,
 	)
 
 	logrus.Infof("Successfully registed %s with Google Cloud Run.", function.Name)
 }
 
 func (gcr *gcrDeployer) Clean() {
-
 	wg := sync.WaitGroup{}
 	for _, function := range gcr.functions {
 		wg.Add(1)
@@ -112,15 +110,15 @@ func (gcr *gcrDeployer) Clean() {
 			defer wg.Done()
 
 			args := []string{
-				"cloud",
 				"run",
 				"services",
 				"delete",
 				function.Name,
 				fmt.Sprintf("--region=%s", gcr.region),
+				"--quiet", // to disable '-y' prompting
 			}
 
-			err := exec.Command("gcloud", args...)
+			err := exec.Command("gcloud", args...).Run()
 			if err != nil {
 				logrus.Errorf("Failed to remove function %s from Google Cloud Run - %v", function.Name, err)
 				return

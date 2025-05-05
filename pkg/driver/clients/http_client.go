@@ -31,6 +31,7 @@ type httpInvoker struct {
 	dirigentCfg *config.DirigentConfig
 
 	isKnative   bool
+	isGCR       bool
 	isDandelion bool
 	isWorkflow  bool
 }
@@ -45,6 +46,7 @@ func newHTTPInvoker(cfg *config.Configuration) *httpInvoker {
 		dirigentCfg: dcfg,
 
 		isKnative:   strings.Contains(strings.ToLower(lcfg.Platform), common.PlatformKnative),
+		isGCR:       strings.Contains(strings.ToLower(lcfg.Platform), common.PlatformGCR),
 		isDandelion: strings.Contains(strings.ToLower(dcfg.Backend), common.BackendDandelion),
 		isWorkflow:  dcfg.Workflow,
 	}
@@ -121,7 +123,7 @@ func (i *httpInvoker) functionInvocationRequest(function *common.Function, runti
 	}
 
 	// add system specific stuff
-	if !i.isKnative {
+	if !i.isKnative && !i.isGCR {
 		req.Host = function.Name
 	}
 

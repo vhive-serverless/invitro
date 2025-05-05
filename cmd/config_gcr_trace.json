@@ -3,7 +3,7 @@
 
   "Platform": "GCR",
   "DirigentConfigPath": "cmd/dirigent/config_containerd.json",
-  "InvokeProtocol" : "http2",
+  "InvokeProtocol" : "http1",
   "EndpointPort": 80,
 
   "BusyLoopOnSandboxStartup": false,

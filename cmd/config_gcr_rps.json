@@ -3,7 +3,7 @@
 
   "Platform": "GCR",
   "DirigentConfigPath": "cmd/dirigent/config_containerd.json",
-  "InvokeProtocol" : "http2",
+  "InvokeProtocol" : "http1",
   "EndpointPort": 80,
 
   "BusyLoopOnSandboxStartup": false,
@@ -21,7 +21,7 @@
   "OutputPathPrefix": "data/out/experiment",
   "IATDistribution": "equidistant",
   "CPULimit": "1vCPU",
-  "ExperimentDuration": 2,
+  "ExperimentDuration": 1,
   "WarmupDuration": 0,
 
   "IsPartiallyPanic": false,
