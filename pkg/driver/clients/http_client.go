@@ -53,7 +53,7 @@ func newHTTPInvoker(cfg *config.Configuration) *httpInvoker {
 }
 
 var payload []byte = nil
-var contentType string = "application/octet-stream"
+var contentType = "application/octet-stream"
 
 func CreateRandomPayload(sizeInMB float64) *bytes.Buffer {
 	if payload == nil {

@@ -5,6 +5,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/vhive-serverless/loader/pkg/common"
 	"github.com/vhive-serverless/loader/pkg/config"
+	"os"
 	"os/exec"
 	"sync"
 )
@@ -16,14 +17,6 @@ type gcrDeployer struct {
 
 func newGCRDeployer() *gcrDeployer {
 	return &gcrDeployer{}
-}
-
-func checkIfGcloudUtilityIsInstalled() bool {
-	return false
-}
-
-func checkContainerImageFormat() bool {
-	return false
 }
 
 func (gcr *gcrDeployer) Deploy(cfg *config.Configuration) {
@@ -81,11 +74,15 @@ func deploySingle(function *common.Function, configuration *config.Configuration
 	}
 
 	if configuration.LoaderConfiguration.InvokeProtocol == "grpc" || configuration.LoaderConfiguration.InvokeProtocol == "http2" {
-		//args = append(args, "--use-http2") // use HTTP/2 end-to-end
+		// NOTE: https://cloud.google.com/blog/products/serverless/cloud-run-gets-websockets-http-2-and-grpc-bidirectional-streams
+		args = append(args, "--use-http2") // use HTTP/2 end-to-end
 	}
 
-	err := exec.Command("gcloud", args...).Run()
-	if err != nil {
+	cmd := exec.Command("gcloud", args...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Run(); err != nil {
 		logrus.Errorf("Failed to deploy function %s to Google Cloud Run - %v", function.Name, err)
 		return
 	}
@@ -97,6 +94,9 @@ func deploySingle(function *common.Function, configuration *config.Configuration
 		configuration.GCRConfiguration.EndpointSuffix,
 		configuration.GCRConfiguration.Region,
 	)
+	if configuration.LoaderConfiguration.InvokeProtocol == "grpc" {
+		function.Endpoint += ":80"
+	}
 
 	logrus.Infof("Successfully registed %s with Google Cloud Run.", function.Name)
 }
@@ -118,8 +118,11 @@ func (gcr *gcrDeployer) Clean() {
 				"--quiet", // to disable '-y' prompting
 			}
 
-			err := exec.Command("gcloud", args...).Run()
-			if err != nil {
+			cmd := exec.Command("gcloud", args...)
+			cmd.Stdout = os.Stdout
+			cmd.Stderr = os.Stderr
+
+			if err := cmd.Run(); err != nil {
 				logrus.Errorf("Failed to remove function %s from Google Cloud Run - %v", function.Name, err)
 				return
 			}
