@@ -39,6 +39,12 @@ func CreateInvoker(cfg *config.Configuration, announceDoneExe *sync.WaitGroup, r
 		}
 	case common.PlatformOpenWhisk:
 		return newOpenWhiskInvoker(announceDoneExe, readOpenWhiskMetadata)
+	case common.PlatformGCR:
+		if cfg.LoaderConfiguration.InvokeProtocol == "grpc" {
+			return newGRPCInvoker(cfg.LoaderConfiguration, ExecutorRPC{})
+		} else {
+			return newHTTPInvoker(cfg)
+		}
 	default:
 		logrus.Fatal("Unsupported platform.")
 	}

@@ -8,6 +8,7 @@ type Configuration struct {
 	LoaderConfiguration   *LoaderConfiguration
 	FailureConfiguration  *FailureConfiguration
 	DirigentConfiguration *DirigentConfig
+	GCRConfiguration      *GCRConfig
 
 	IATDistribution  common.IatDistribution
 	ShiftIAT         bool // shift the invocations inside minute

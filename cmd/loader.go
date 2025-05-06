@@ -50,6 +50,7 @@ const (
 var (
 	configPath    = flag.String("config", "cmd/config_knative_trace.json", "Path to loader configuration file")
 	failurePath   = flag.String("failureConfig", "cmd/failure.json", "Path to the failure configuration file")
+	gcrPath       = flag.String("gcrConfig", "cmd/gcr_settings.json", "Path to Google Cloud Run configuration file")
 	verbosity     = flag.String("verbosity", "info", "Logging verbosity - choose from [info, debug, trace]")
 	iatGeneration = flag.Bool("iatGeneration", false, "Generate IATs only or run invocations as well")
 	iatFromFile   = flag.Bool("generated", false, "True if iats were already generated")
@@ -95,6 +96,7 @@ func main() {
 		common.PlatformOpenWhisk,
 		common.PlatformAWSLambda,
 		common.PlatformDirigent,
+		common.PlatformGCR,
 	}
 	if !slices.Contains(supportedPlatforms, cfg.Platform) {
 		log.Fatal("Unsupported platform!")
@@ -149,7 +151,7 @@ func parseYAMLSpecification(cfg *config.LoaderConfiguration) string {
 	case "firecracker":
 		return "workloads/firecracker/trace_func_go.yaml"
 	default:
-		if cfg.Platform != common.PlatformDirigent {
+		if cfg.Platform != common.PlatformDirigent && cfg.Platform != common.PlatformGCR {
 			log.Fatal("Invalid 'YAMLSelector' parameter.")
 		}
 	}
@@ -201,6 +203,7 @@ func runTraceMode(cfg *config.LoaderConfiguration, readIATFromFile bool, writeIA
 
 		// loads dirigent config only if the platform is 'dirigent'
 		DirigentConfiguration: config.ReadDirigentConfig(cfg),
+		GCRConfiguration:      config.ReadGCRConfiguration(*gcrPath),
 
 		IATDistribution:  iatType,
 		ShiftIAT:         shiftIAT,
@@ -245,6 +248,7 @@ func runRPSMode(cfg *config.LoaderConfiguration, readIATFromFile bool, writeIATs
 		TraceDuration:       experimentDuration,
 
 		DirigentConfiguration: dirigentConfig,
+		GCRConfiguration:      config.ReadGCRConfiguration(*gcrPath),
 
 		Functions: generator.CreateRPSFunctions(cfg, dirigentConfig, warmFunction, warmStartCount, coldFunctions, coldStartCount, yamlPath),
 	})

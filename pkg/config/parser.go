@@ -117,6 +117,15 @@ type DirigentConfig struct {
 	WorkflowConfigPath string `json:"WorkflowConfigPath"`
 }
 
+type GCRConfig struct {
+	Region         string `json:"Region"`
+	Project        string `json:"Project"`
+	ServiceAccount string `json:"ServiceAccount"`
+
+	AllowUnauthenticated bool   `json:"AllowUnauthenticated"`
+	EndpointSuffix       string `json:"EndpointSuffix"`
+}
+
 func ReadConfigurationFile(path string) LoaderConfiguration {
 	byteValue, err := os.ReadFile(path)
 	if err != nil {
@@ -153,6 +162,24 @@ func ReadFailureConfiguration(path string) *FailureConfiguration {
 	return &config
 }
 
+func ReadGCRConfiguration(path string) *GCRConfig {
+	byteValue, err := os.ReadFile(path)
+	if err != nil {
+		log.Warnf("Google Cloud Run configuration not found at '%s'...", path)
+		return &GCRConfig{}
+	}
+
+	log.Infof("Google Cloud Run configuration found.")
+
+	var config GCRConfig
+	err = json.Unmarshal(byteValue, &config)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	return &config
+}
+
 func ReadWorkflowConfig(path string) WorkflowConfig {
 	byteValue, err := os.ReadFile(path)
 	if err != nil {
@@ -169,7 +196,7 @@ func ReadWorkflowConfig(path string) WorkflowConfig {
 }
 
 func ReadDirigentConfig(cfg *LoaderConfiguration) *DirigentConfig {
-	if cfg.Platform != common.PlatformDirigent {
+	if cfg.Platform != common.PlatformDirigent && cfg.Platform != common.PlatformGCR {
 		return nil
 	}
 
