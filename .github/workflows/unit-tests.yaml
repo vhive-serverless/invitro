@@ -53,7 +53,7 @@ jobs:
           key: ${{ env.pythonLocation }}-${{ hashFiles('setup.py') }}-${{ hashFiles('tools/trace_synthesizer/requirements.txt') }}
 
       - name: Install requirements
-        run: pip install -r ./tools/trace_synthesizer/requirements.txt
+        run: pip install --upgrade pip && pip install -r ./tools/trace_synthesizer/requirements.txt
 
       - name: Build loader
         run: go build cmd/loader.go
