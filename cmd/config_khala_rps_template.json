@@ -20,7 +20,7 @@
   "TracePath": "RPS",
   "Granularity": "second",
   "OutputPathPrefix": "invitro/data/out/$EXPERIMENT/experiment",
-  "IATDistribution": "equidistant",
+  "IATDistribution": "exponential",
   "CPULimit": "1vCPU",
   "ExperimentDuration": $EXPERIMENT_DURATION,
   "WarmupDuration": $WARMUP_DURATION,
