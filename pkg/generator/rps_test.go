@@ -1,9 +1,10 @@
 package generator
 
 import (
-	"github.com/vhive-serverless/loader/pkg/common"
 	"math"
 	"testing"
+
+	"github.com/vhive-serverless/loader/pkg/common"
 )
 
 func TestWarmStartMatrix(t *testing.T) {
@@ -92,7 +93,7 @@ func TestWarmStartMatrix(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run("warm_start_"+test.testName, func(t *testing.T) {
-			matrix, minuteCount := GenerateWarmStartFunction(test.experimentDuration, test.rpsTarget)
+			matrix, minuteCount := GenerateWarmStartFunction(0, test.experimentDuration, common.SecondGranularity, test.rpsTarget, common.Equidistant, false, 42)
 
 			if len(matrix) != len(test.expectedIAT) {
 				t.Errorf("Unexpected IAT array size - got: %d, expected: %d", len(matrix), len(test.expectedIAT))
@@ -375,7 +376,7 @@ func TestColdStartMatrix(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run("cold_start_"+test.testName, func(t *testing.T) {
-			matrix, minuteCounts := GenerateColdStartFunctions(test.experimentDuration, test.rpsTarget, test.cooldownSeconds)
+			matrix, minuteCounts := GenerateColdStartFunctions(test.experimentDuration, common.SecondGranularity, test.rpsTarget, test.cooldownSeconds, common.Equidistant, false, 42)
 
 			if len(matrix) != len(test.expectedIAT) {
 				t.Errorf("Unexpected number of functions - got: %d, expected: %d", len(matrix), len(test.expectedIAT))

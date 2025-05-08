@@ -8,10 +8,10 @@
 
   "BusyLoopOnSandboxStartup": false,
 
-  "RpsTarget": 0.050000,
+  "RpsTarget": 0.125000,
   "RpsColdStartRatioPercentage": 0,
   "RpsCooldownSeconds": 10,
-  "RpsFunctionCount": 20,
+  "RpsFunctionCount": 80,
   "RpsImage": "ghcr.io/vhive-serverless/invitro_empty_function:latest",
   "RpsRuntimeMs": 10,
   "RpsMemoryMB": 2048,
@@ -19,10 +19,10 @@
 
   "TracePath": "RPS",
   "Granularity": "second",
-  "OutputPathPrefix": "invitro/data/out/cnn_serving-noio_worker_20_rps_1_nexus_core_18_freq_2400000_firecracker_core_2_freq_2400000_s3_nexus_rpc_nexus/experiment",
-  "IATDistribution": "equidistant",
+  "OutputPathPrefix": "invitro/data/out/pyaes_serve-noio_worker_80_rps_10_nexus_core_3_freq_2400000_firecracker_core_17_freq_2400000_s3_nexus_rpc_nexus/experiment",
+  "IATDistribution": "exponential",
   "CPULimit": "1vCPU",
-  "ExperimentDuration": 10,
+  "ExperimentDuration": 30,
   "WarmupDuration": 10,
 
   "IsPartiallyPanic": false,
@@ -32,5 +32,5 @@
   "AutoscalingMetric": "concurrency",
 
   "GRPCConnectionTimeoutSeconds": 15,
-  "GRPCFunctionTimeoutSeconds": 900
+  "GRPCFunctionTimeoutSeconds": 10
 }

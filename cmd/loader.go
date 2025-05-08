@@ -235,16 +235,20 @@ func runRPSMode(cfg *config.LoaderConfiguration, readIATFromFile bool, writeIATs
 	warmStartRPS := rpsTarget * (100 - coldStartPercentage) / 100
 	coldStartRPS := rpsTarget * coldStartPercentage / 100
 
+	iatType, shiftIAT := parseIATDistribution(cfg)
+
 	warmFunctions := make([]common.IATArray, cfg.RpsFunctionCount)
 	warmStartCounts := make([][]int, cfg.RpsFunctionCount)
 	for i := 0; i < cfg.RpsFunctionCount; i++ {
-		warmFunction, warmStartCount := generator.GenerateWarmStartFunction(experimentDuration, parseTraceGranularity(cfg), warmStartRPS)
+		warmFunction, warmStartCount := generator.GenerateWarmStartFunction(i, experimentDuration, parseTraceGranularity(cfg), warmStartRPS, iatType, shiftIAT, cfg.Seed)
 		warmFunctions[i] = warmFunction
-		warmFunctions[i][0] = float64(i) / warmStartRPS / float64(cfg.RpsFunctionCount) * 1_000_000
+		if len(warmFunctions[i]) > 0 {
+			warmFunctions[i][0] = (float64(i) / float64(cfg.RpsFunctionCount)) * (1000000.0 / float64(warmStartRPS))
+		}
 		warmStartCounts[i] = warmStartCount
 	}
 
-	coldFunctions, coldStartCount := generator.GenerateColdStartFunctions(experimentDuration, parseTraceGranularity(cfg), coldStartRPS, cfg.RpsCooldownSeconds)
+	coldFunctions, coldStartCount := generator.GenerateColdStartFunctions(experimentDuration, parseTraceGranularity(cfg), coldStartRPS, cfg.RpsCooldownSeconds, iatType, shiftIAT, cfg.Seed)
 
 	// loads dirigent config only if the platform is 'dirigent'
 	dirigentConfig := config.ReadDirigentConfig(cfg)
