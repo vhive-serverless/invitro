@@ -67,7 +67,8 @@ common_init() {
         # install precise NTP clock synchronizer
         server_exec $1 'sudo apt-get update && sudo apt-get install -y chrony htop sysstat'
         # synchronize clock across nodes
-        server_exec $1 "sudo chronyd -q \"server ops.emulab.net iburst\""
+        server_exec $1 "echo \"server ops.emulab.net iburst prefer\" > >(sudo tee -a /etc/chrony/chrony.conf >/dev/null)"
+        server_exec $1 'sudo systemctl restart chronyd'
         # dump clock info
         server_exec $1 'sudo chronyc tracking'
 
@@ -190,8 +191,8 @@ function extend_CIDR() {
 
 function clone_loader() {
     server_exec $1 "git clone --depth=1 --branch=$LOADER_BRANCH $LOADER_REPO loader"
-    server_exec $1 'echo -en "\n\n" | sudo apt-get install -y python3-pip python-dev'
-    server_exec $1 'cd; cd loader; pip install -r config/requirements.txt'
+    server_exec $1 'echo -en "\n\n" | sudo apt-get install -y python3-pip'
+    # server_exec $1 'cd; cd loader; pip install -r config/requirements.txt --break-system-packages'
 }
 
 function copy_k8s_certificates() {
