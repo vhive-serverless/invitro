@@ -46,6 +46,9 @@ jobs:
           python-version: '3.9'
         env:
           PIP_TRUSTED_HOST: "pypi.python.org pypi.org files.pythonhosted.org"
+      
+      - name: Upgrade pip
+        run: python3 -m pip install --upgrade pip
 
       - uses: actions/cache@v4
         with:

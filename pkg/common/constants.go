@@ -108,10 +108,11 @@ var ValidCPULimits = []string{CPULimit1vCPU, CPULimitGCP}
 
 // platform
 const (
-	PlatformKnative   string = "knative"
-	PlatformDirigent  string = "dirigent"
-	PlatformOpenWhisk string = "openwhisk"
-	PlatformAWSLambda string = "awslambda"
+	PlatformKnative        string = "knative"
+	PlatformDirigent       string = "dirigent"
+	PlatformOpenWhisk      string = "openwhisk"
+	PlatformAWSLambda      string = "awslambda"
+	PlatformAzureFunctions string = "azurefunctions"
 )
 
 // dirigent backend
