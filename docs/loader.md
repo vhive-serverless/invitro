@@ -285,3 +285,60 @@ Note:
   - Under `Quota name`, select `Concurrent executions` and click `Request increase at account level` (Alternatively, click [here](https://us-east-1.console.aws.amazon.com/servicequotas/home/services/lambda/quotas/L-B99A9384))
   - Under `Increase quota value`, input `1000` and click `Request`
   - Await AWS Support Team to approve the request. The request may take several days or weeks to be approved.
+
+## Using Azure Functions
+
+**Pre-requisites:**
+1. Microsoft Azure account with an active subscription ID
+2. Existing Service Principal for authentication (refer to Notes section)
+3. Go installed
+4. Python3 installed
+
+**Quick Setup for Azure Deployment:**
+1. Install the Azure CLI and verify installation:
+    ```bash
+    curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+    az --version
+    ```
+2. Use existing Service Principal credentials in order login to Azure.
+    ```bash
+    az login --service-principal --username $AZURE_APP_ID --password $AZURE_PASSWORD --tenant $AZURE_TENANT_ID
+    ```
+   > Refer to Note section for generation of Service Principal credentials
+3. Start the Azure Functions deployment experiment:
+    ```bash
+    go run cmd/loader.go --config cmd/config_azure_trace.json
+    ```
+---
+Notes:
+
+- A Service Principal must be created before running the experiment, as some environments (e.g., CloudLab nodes) do not support interactive login or browser-based authentication. You can create the required Service Principal using the Azure Portal.
+1. Login to [Azure Portal](https://portal.azure.com) and search for **"App registrations"**.
+2. Click **+ New registration**:
+   - Name: `InVitro`
+   - Supported account types: *Single tenant* (default)
+   - Skip Redirect URI
+   - Click **Register**
+3. Once registered, note down the following:
+   - **Application (client) ID** → This is your `AZURE_APP_ID`
+   - **Directory (tenant) ID** → This is your `AZURE_TENANT_ID`
+4. Click **Add a certificate or secret**
+   - Click **+ New client secret**
+   - Add a description and choose an expiry (e.g., 6 months)
+   - Click **Add**
+   - Copy the secret **value** → This is your `AZURE_PASSWORD`
+5. Assign roles:
+   - Go to **Subscriptions** → Select your subscription
+   - Click **Access Control (IAM)** → **+ Add** → **Add role assignment**
+   - Choose **Contributor** under "Privileged administrator roles"
+   - Assign access to: *User, group, or service principal*
+   - Under "Members", search for your new app registration (`InVitro`)
+   - Click **Review + Assign**  
+6. Set the following environment variables in your experiment environment: 
+     ```bash
+     export AZURE_APP_ID=<appId>
+     export AZURE_PASSWORD=<password>
+     export AZURE_TENANT_ID=<tenant>
+     ```
+- Current deployment is via ZIP
+- Python is used for deployment workload as Go is not supported in Consumption Plan
