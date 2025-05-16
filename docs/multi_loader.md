@@ -31,7 +31,7 @@ More information regarding the metrics that can be collected at the end of each 
 - **activator** – Captures Knative Activator logs which includes health and readiness status updates for service endpoints it manages
 - **autoscaler** – Tracks Knative autoscaler decisions, scaling events, and resource utilization
 - **top** – Provides CPU and memory usage statistics for each nodes
-- **prometheus** – Captures a snapshot of Prometheus’s TSDB, which includes system-wide performance metrics. The snapshot can be restored in an active Prometheus instance for further analysis. For details, see the *Restore Prometheus Data* section in [this guide](https://devopstales.github.io/home/backup-and-retore-prometheus/).
+- **prometheus** – Captures a snapshot of Prometheus’s TSDB, which includes system-wide performance metrics. The snapshot can be restored in an active Prometheus instance for further analysis. For details, see the *Restore Prometheus Data* section in [this guide](https://devopstales.github.io/kubernetes/backup-and-retore-prometheus/).
 
 
 ### LoaderStudy
