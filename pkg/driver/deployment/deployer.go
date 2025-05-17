@@ -4,6 +4,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/vhive-serverless/loader/pkg/common"
 	"github.com/vhive-serverless/loader/pkg/config"
+	"strings"
 )
 
 type FunctionDeployer interface {
@@ -12,7 +13,7 @@ type FunctionDeployer interface {
 }
 
 func CreateDeployer(cfg *config.Configuration) FunctionDeployer {
-	switch cfg.LoaderConfiguration.Platform {
+	switch strings.ToLower(cfg.LoaderConfiguration.Platform) {
 	case common.PlatformAWSLambda:
 		return newAWSLambdaDeployer()
 	case common.PlatformDirigent:
@@ -21,6 +22,8 @@ func CreateDeployer(cfg *config.Configuration) FunctionDeployer {
 		return newKnativeDeployer()
 	case common.PlatformOpenWhisk:
 		return newOpenWhiskDeployer()
+	case common.PlatformGCR:
+		return newGCRDeployer()
 	default:
 		logrus.Fatal("Unsupported platform.")
 	}
