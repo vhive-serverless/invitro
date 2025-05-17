@@ -211,3 +211,9 @@ tools/plotter/test-out
 
 data/traces/azure_*
 data/traces/day*
+
+# Azure deployment
+azure_functions_for_zip/
+azurefunctions_setup/shared_azure_workload/exec_func.py
+azure_functions_for_zip_test/
+function*.zip

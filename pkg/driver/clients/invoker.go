@@ -18,6 +18,8 @@ func CreateInvoker(cfg *config.Configuration, announceDoneExe *sync.WaitGroup, r
 	switch strings.ToLower(cfg.LoaderConfiguration.Platform) {
 	case common.PlatformAWSLambda:
 		return newAWSLambdaInvoker(announceDoneExe)
+	case common.PlatformAzureFunctions:
+		return newAzureFunctionsInvoker(announceDoneExe)
 	case common.PlatformDirigent:
 		if cfg.DirigentConfiguration == nil {
 			logrus.Fatal("Failed to create invoker: dirigent configuration is required for platform 'dirigent'")

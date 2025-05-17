@@ -15,6 +15,8 @@ func CreateDeployer(cfg *config.Configuration) FunctionDeployer {
 	switch cfg.LoaderConfiguration.Platform {
 	case common.PlatformAWSLambda:
 		return newAWSLambdaDeployer()
+	case common.PlatformAzureFunctions:
+		return newAzureFunctionsDeployer()
 	case common.PlatformDirigent:
 		return newDirigentDeployer()
 	case common.PlatformKnative:
