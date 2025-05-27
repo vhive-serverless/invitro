@@ -151,6 +151,7 @@ prometheus:
     interval: "15s"
 
   prometheusSpec:
+    maximumStartupDurationSeconds: 60
     scrapeInterval: "15s"
     nodeAffinity:
       requiredDuringSchedulingIgnoredDuringExecution:

@@ -34,7 +34,7 @@ server_exec() {
 	server_exec 'sudo apt install htop'
 
 	#* Deploy Metrics Server to k8s in namespace kube-system.
-	metrics_server_version="v0.7.1"
+	metrics_server_version="v0.7.2"
 	server_exec "kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/download/${metrics_server_version}/components.yaml"
 	server_exec "kubectl patch deployment metrics-server -n kube-system --type='json' -p='[{"op": "add", "path": "/spec/template/spec/containers/0/args/-", "value": "--kubelet-insecure-tls=true"}]'"
 
@@ -46,7 +46,7 @@ server_exec() {
 
 	server_exec 'kubectl create namespace monitoring'
 	release_label="prometheus"
-	prometheus_chart_version="60.1.0"
+	prometheus_chart_version="72.6.2"
 	server_exec "cd loader; helm install -n monitoring $release_label --version $prometheus_chart_version prometheus-community/kube-prometheus-stack -f config/prometh_values_kn.yaml"
 
 	#* Apply the ServiceMonitors/PodMonitors to collect metrics from Knative.
@@ -65,7 +65,7 @@ server_exec() {
 
 	#* Set up port prometheus panel (infinite loops are important to circumvent kubectl timeout in the middle of experiments).
 	server_exec 'tmux new -s prometheusd -d'
-	server_exec 'tmux send -t prometheusd "while true; do kubectl port-forward -n monitoring svc/prometheus-operated 9090; done" ENTER'
+	server_exec 'tmux send -t prometheusd "while true; do kubectl port-forward -n monitoring service/prometheus-kube-prometheus-prometheus 9090; done" ENTER'
 
 	#* Set up grafana dash board (id: admin, pwd: prom-operator).
 	server_exec 'tmux new -s grafanad -d'
