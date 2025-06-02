@@ -282,6 +282,6 @@ function distribute_loader_ssh_key() {
 
 
     if [[ "$DEPLOY_PROMETHEUS" == true ]]; then
-        $DIR/expose_infra_metrics.sh $MASTER_NODE
+        $DIR/expose_infra_metrics.sh $MASTER_NODE $@
     fi
 }
