@@ -91,6 +91,13 @@ prometheus-node-exporter:
   prometheus:
     monitor:
       interval: "15s"
+  extraArgs:
+  # default values from prometheus-node-exporter chart
+  - --collector.filesystem.mount-points-exclude=^/(dev|proc|sys|var/lib/docker/.+|var/lib/kubelet/.+)($|/)
+  - --collector.filesystem.fs-types-exclude=^(autofs|binfmt_misc|bpf|cgroup2?|configfs|debugfs|devpts|devtmpfs|fusectl|hugetlbfs|iso9660|mqueue|nsfs|overlay|proc|procfs|pstore|rpc_pipefs|securityfs|selinuxfs|squashfs|sysfs|tracefs)$
+  # enable perf collector
+  - --collector.perf
+  - --collector.perf.cpus=0-9 # adjust according to number of cores (xl170 has 10 cores)
 
 prometheusOperator:
   admissionWebhooks:
