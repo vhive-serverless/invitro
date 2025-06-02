@@ -80,12 +80,12 @@ kube-state-metrics:
             values:
             - monitoring
             - singlenode
-    metricLabelsAllowlist:
-      - pods=[*]
-      - deployments=[app.kubernetes.io/name,app.kubernetes.io/component,app.kubernetes.io/instance]
-    prometheus:
-      monitor:
-        interval: "15s"
+  metricLabelsAllowlist:
+    - pods=[*]
+    - deployments=[app.kubernetes.io/name,app.kubernetes.io/component,app.kubernetes.io/instance]
+  prometheus:
+    monitor:
+      interval: "15s"
 
 prometheus-node-exporter:
   prometheus:
