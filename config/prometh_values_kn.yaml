@@ -185,3 +185,15 @@ prometheus:
       requests:
         memory: 150Mi
     enableAdminAPI: true
+
+additionalPrometheusRulesMap:
+  perf-custom:
+    groups:
+      - name: "custom:perf_rules"
+        rules:
+        - record: "custom_perf_instructions_per_cycle:rate1m"
+          expr: |
+            sum by (cpu,instance) (rate(node_perf_instructions_total[1m])) / 
+            sum by (cpu,instance) (rate(node_perf_cpucycles_total[1m]))
+          labels:
+            unit: "instructions/cycle"
