@@ -12,6 +12,7 @@ import (
 	"crypto/tls"
 	"bytes"
 	"time"
+	"encoding/base64"
 )
 
 type awsLambdaInvoker struct {
@@ -97,7 +98,7 @@ func awsHttpInvocation(dataString string, function *common.Function, AnnounceDon
 		record.ConnectionTimeout = true
 		return false, record, resp
 	}
-	// defer resp.Body.Close()
+	defer resp.Body.Close()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		log.Debugf("http request for function %s failed - error code: %s", function.Name, resp.Status)
@@ -105,6 +106,41 @@ func awsHttpInvocation(dataString string, function *common.Function, AnnounceDon
 		record.ConnectionTimeout = true
 		return false, record, resp
 	}
+
+bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		log.Warnf("Failed to read output %s - %v", function.Name, err)
+
+		record.ResponseTime = time.Since(start).Microseconds()
+		record.FunctionTimeout = true
+
+		return false, record, resp
+	}
+
+	rawJson, err := base64.StdEncoding.DecodeString(string(bodyBytes))
+	if err != nil {
+		log.Warnf("Failed to decode base64 output %s - %v", function.Name, err)
+
+		record.ResponseTime = time.Since(start).Microseconds()
+		record.FunctionTimeout = true
+
+		return false, record, resp
+	}
+
+	var deserializedResponse FunctionResponse
+	err = json.Unmarshal(rawJson, &deserializedResponse)
+	if err != nil {
+		log.Warnf("Failed to deserialize response %s - %v", function.Name, err)
+
+		record.ResponseTime = time.Since(start).Microseconds()
+		record.FunctionTimeout = true
+
+		return false, record, resp
+	}
+
+	record.Instance = deserializedResponse.Function
+	record.ResponseTime = time.Since(start).Microseconds()
+	record.ActualDuration = uint32(deserializedResponse.ExecutionTime)
 
 	return true, record, resp
 }
