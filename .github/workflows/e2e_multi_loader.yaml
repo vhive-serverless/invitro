@@ -39,17 +39,17 @@ jobs:
 
       - name: Check multi_loader output
         run: |
-          # check if there are 4 output folders: *_example_1_test, *_example_2_test, *_example_3_test & dry_run
-          folder_count=$(find data/out/multi-test/test-experiment -mindepth 1 -maxdepth 1 -type d | wc -l)
-          if [ "$folder_count" -ne 4 ]; then
-            echo "Output folder count is $folder_count, expected 4"
+          # check if there are 3 output folders: */example_1_test, */example_2_test, */example_3_test
+          folder_count=$(find data/out/multi-test/*test-experiment/ -mindepth 1 -maxdepth 1 -type d | wc -l)
+          if [ "$folder_count" -ne 3 ]; then
+            echo "Output folder count is $folder_count, expected 3"
             exit 1
           else
             echo "Output correct number of folders"
           fi
 
           # Check for errors in each output CSV file
-          for file in $(find . -name "*_example_1_test/example_1_test_duration_1.csv" -o -name "*_example_2_test/example_2_test_duration_1.csv" -o -name "*_example_3_test/example_3_test_duration_1.csv"); do
+          for file in $(find . -name "*/example_1_test/experiment_duration_1.csv" -o -name "*/example_2_test/experiment_duration_1.csv" -o -name "*/example_3_test/experiment_duration_1.csv"); do
             if [ ! -f "$file" ]; then
               echo "File $file not found!"
               exit 1
@@ -115,7 +115,7 @@ jobs:
       - name: Check multi_loader output
         run: |
           # check if there are 2 output folders: *_example_1_test & dry_run
-          folder_count=$(find data/out/multi-test/test-experiment -mindepth 1 -maxdepth 1 -type d | wc -l)
+          folder_count=$(find data/out/multi-test -mindepth 1 -maxdepth 1 -type d | wc -l)
           if [ "$folder_count" -ne 2 ]; then
             echo "Output folder count is $folder_count, expected 2"
             exit 1
@@ -124,7 +124,7 @@ jobs:
           fi
 
           # Check for errors in output CSV file
-          file=$(find . -wholename "*_example_1_test/example_1_test_duration_1.csv")
+          file=$(find . -wholename "*/example_1_test/experiment_duration_1.csv")
 
           if [ ! -f "$file" ]; then
             echo "File $file not found!"
@@ -137,15 +137,15 @@ jobs:
           fi
 
           # Check if advanced logs output are present
-          # in data/out/multi-test/test-experiment/*_example_1_test/, there should be folders called ["top", "autoscaler", "activator", "prometheus_snapshot"] and each folder should have at least one file
+          # in data/out/multi-test/*/example_1_test/, there should be folders called ["top", "autoscaler", "activator", "prometheus_snapshot"] and each folder should have at least one file
           for metric in top autoscaler activator prometheus_snapshot; do
-            folder="data/out/multi-test/test-experiment/*_example_1_test/$metric"
+            folder="data/out/multi-test/*/example_1_test/$metric"
             if [ ! -d $folder ]; then
               echo "Folder $metric not found! Expected to find $metric folder"
               exit 1
             fi
 
-            if [ $(find data/out/multi-test/test-experiment/*_example_1_test/$metric -type f | wc -l) -eq 0 ]; then
+            if [ $(find data/out/multi-test/*/example_1_test/$metric -type f | wc -l) -eq 0 ]; then
               echo "No files found in $metric folder, expected at least one"
               exit 1
             fi

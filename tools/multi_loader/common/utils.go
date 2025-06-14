@@ -134,7 +134,7 @@ func UpdateExperimentWithSweepIndices(experiment *types.LoaderExperiment, sweepO
 
 func DetermineWorkerNodeIPs() []string {
 	out := DetermineNodeIP(Worker)
-	workerNodes := strings.Split(out, " \n")
+	workerNodes := strings.Split(out, "\n")
 	for i := range workerNodes {
 		workerNodes[i] = strings.TrimSpace(workerNodes[i])
 	}

@@ -111,7 +111,9 @@ func (d *MultiLoaderRunner) run() {
 				log.Info(fmt.Sprintf("[Study %d/%d][Experiment %d/%d] Running %s", si+1, len(d.MultiLoaderConfig.Studies), ei+1, len(experimentsPartialConfig), experiment.Name))
 			}
 			// Run pre script
-			common.RunCommand(experiment.PreScript)
+			if !d.DryRun {
+				common.RunCommand(experiment.PreScript)
+			}
 
 			// Set metric manager output directory
 			d.MetricManager.SetOutputDir(path.Dir(experiment.Config["OutputPathPrefix"].(string)))
@@ -120,19 +122,25 @@ func (d *MultiLoaderRunner) run() {
 			d.prepareExperiment(experiment)
 
 			// Reset metric manager before starting experiment
-			d.MetricManager.Reset()
+			if !d.DryRun {
+				d.MetricManager.Reset()
+			}
 
 			// Run experiment using loader.go
 			err := d.runExperiment(experiment)
 
 			// Collect metrics
-			d.MetricManager.CollectMetrics()
+			if !d.DryRun {
+				d.MetricManager.CollectMetrics()
+			}
 
 			// Perform cleanup
 			d.performCleanup()
 
 			// Run post script
-			common.RunCommand(experiment.PostScript)
+			if !d.DryRun {
+				common.RunCommand(experiment.PostScript)
+			}
 
 			// Check if should continue this study
 			if err != nil {
@@ -248,10 +256,10 @@ func (d *MultiLoaderRunner) createExperimentFromStudy(study types.LoaderStudy, e
 	}
 	studyConfig["OutputPathPrefix"] = path.Join(
 		study.OutputDir,
-		study.Name,
 		dryRunAdditionalPath,
-		time.Now().Format(TIME_FORMAT)+"_"+experimentName,
+		time.Now().Format(TIME_FORMAT)+"_"+study.Name,
 		experimentName,
+		"experiment",
 	)
 	// Add loader command flags
 	d.addCommandFlagsToExperiment(experiment)

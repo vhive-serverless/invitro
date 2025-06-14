@@ -60,11 +60,11 @@ func (m *MetricManager) CollectMetrics() {
 	}
 
 	if m.shouldCollect(ml_common.AutoScaler) {
-		m.collectPodLogs(m.multiLoaderConfig.AutoScalerNode, ml_common.AutoScalerPod.String(), ACTIVATOR_DIR_NAME)
+		m.collectPodLogs(m.multiLoaderConfig.AutoScalerNode, ml_common.AutoScalerPod.String(), AUTOSCALER_DIR_NAME)
 	}
 
 	if m.shouldCollect(ml_common.Activator) {
-		m.collectPodLogs(m.multiLoaderConfig.ActivatorNode, ml_common.ActivatorPod.String(), AUTOSCALER_DIR_NAME)
+		m.collectPodLogs(m.multiLoaderConfig.ActivatorNode, ml_common.ActivatorPod.String(), ACTIVATOR_DIR_NAME)
 	}
 
 	if m.shouldCollect(ml_common.Prometheus) {
