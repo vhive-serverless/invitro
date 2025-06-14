@@ -37,7 +37,7 @@ func TestUnpackExperiment(t *testing.T) {
 		for _, experiment := range multiLoader.MultiLoaderConfig.Studies {
 			subExperiments := multiLoader.unpackStudy(experiment)
 			expectedNames := []string{"test-experiment_example_1_test", "test-experiment_example_2_test", "test-experiment_example_3.1_test"}
-			expectedOutputPrefixes := []string{"example_1_test", "example_2_test", "example_3.1_test"}
+			expectedOutputPrefixes := []string{"example_1_test/experiment", "example_2_test/experiment", "example_3.1_test/experiment"}
 			validateUnpackedExperiment(t, subExperiments, experiment, expectedNames, expectedOutputPrefixes)
 		}
 	})
