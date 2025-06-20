@@ -13,7 +13,7 @@ env:
 jobs:
   resolve-modules:
     name: Resolve Modules
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-24.04
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
@@ -25,7 +25,7 @@ jobs:
   golangci:
     name: GolangCI Lint
     needs: resolve-modules
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-24.04
     strategy:
       matrix: { dir: ['cmd', 'pkg', 'tools/plotter'] }
       fail-fast: false

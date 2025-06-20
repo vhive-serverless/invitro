@@ -1,6 +1,9 @@
 package common
 
 import (
+	"bytes"
+	"net"
+	"os/exec"
 	"path"
 	"slices"
 	"strings"
@@ -26,10 +29,8 @@ func CheckMultiLoaderConfig(multiLoaderConfig types.MultiLoaderConfiguration) {
 
 	for _, study := range multiLoaderConfig.Studies {
 		// Check if platform is defined, if so check if consistent with base config
-		if _, ok := study.Config["Platform"]; ok {
-			if study.Config["Platform"] != platform {
-				log.Fatal("Platform in study ", study.Name, " is inconsistent with base configuration's platform ", platform)
-			}
+		if platformValue, ok := study.Config["Platform"].(string); ok && platformValue != "" && !strings.EqualFold(platformValue, platform) {
+			log.Fatal("Platform in study ", study.Name, " is inconsistent with base configuration's platform ", platform)
 		}
 		// Check trace directory
 		// if configs does not have TracePath or OutputPathPreix, either TracesDir or (TracesFormat and TraceValues) should be defined along with OutputDir
@@ -69,4 +70,46 @@ func CheckSweepType(sweepType string) {
 	if sweepType != "" && !slices.Contains(SweepTypes, sweepType) {
 		log.Fatal("Invalid Sweep Type ", sweepType)
 	}
+}
+
+func CheckKnativeSpecificMultiLoaderConfig(multiLoaderConfig types.MultiLoaderConfiguration) {
+	log.Debug("Checking platform specific multi-loader configuration")
+	// Check knative specific configurations
+	// Check if metrics are valid
+	for _, metric := range multiLoaderConfig.Metrics {
+		CheckCollectableMetrics(metric)
+	}
+	// Check nodes
+	CheckNode(multiLoaderConfig.MasterNode)
+	CheckNode(multiLoaderConfig.AutoScalerNode)
+	CheckNode(multiLoaderConfig.ActivatorNode)
+	CheckNode(multiLoaderConfig.LoaderNode)
+	for _, node := range multiLoaderConfig.WorkerNodes {
+		CheckNode(node)
+	}
+	log.Debug("Nodes are reachable")
+}
+
+func CheckCollectableMetrics(metrics string) {
+	if !slices.Contains(ValidCollectableMetrics, metrics) {
+		log.Fatal("Invalid metrics ", metrics)
+	}
+}
+
+func CheckNode(node string) {
+	if !IsValidIP(node) {
+		log.Fatal("Invalid IP address for node ", node)
+	}
+	cmd := exec.Command("ssh", "-oStrictHostKeyChecking=no", "-p", "22", node, "exit")
+	// -oStrictHostKeyChecking=no -p 22
+	out, err := cmd.CombinedOutput()
+	if bytes.Contains(out, []byte("Permission denied")) || err != nil {
+		log.Error(string(out))
+		log.Fatal("Failed to connect to node ", node)
+	}
+}
+
+func IsValidIP(ip string) bool {
+	parsedIP := net.ParseIP(ip)
+	return parsedIP != nil
 }

@@ -18,11 +18,11 @@ env:
 jobs:
   unit_tests:
     name: Unit Tests
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
-        module: [ tools/plotter, tools/multi_loader/runner, tools/multi_loader/common]
+        module: [ tools/plotter, tools/multi_loader/runner, tools/multi_loader/common, tools/multi_loader/metric]
     steps:
     - name: Set up Golang
       uses: actions/setup-go@v5
@@ -38,7 +38,7 @@ jobs:
 
   mapper_e2e:
     name: Mapper E2E Test
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
