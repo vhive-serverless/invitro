@@ -15,6 +15,7 @@ type MapperTraceParser struct {
 	DirectoryPath         string
 	duration              int
 	functionNameGenerator *rand.Rand
+	yamlPath              string
 }
 
 type DeploymentInfo struct {
@@ -30,12 +31,13 @@ type functionToDeploymentInfo map[string]DeploymentInfo
 
 type functionToProxy map[string]MapperOutput
 
-func NewMapperParser(directoryPath string, totalDuration int) *MapperTraceParser {
+func NewMapperParser(directoryPath string, totalDuration int, yamlPath string) *MapperTraceParser {
 	return &MapperTraceParser{
 		DirectoryPath: directoryPath,
 
 		duration:              totalDuration,
 		functionNameGenerator: rand.New(rand.NewSource(time.Now().UnixNano())),
+		yamlPath:              yamlPath,
 	}
 }
 
@@ -48,15 +50,21 @@ func (p *MapperTraceParser) extractFunctions(mapperOutput functionToProxy, deplo
 
 	runtimeByHashFunction := createRuntimeMap(runtime)
 	memoryByHashFunction := createMemoryMap(memory)
-
+	var yamlPath string
+	var predeploymentPath []string
 	for i := 0; i < len(*invocations); i++ {
 		invocationStats := (*invocations)[i]
 		hashFunction := invocationStats.HashFunction
 		hashApp := invocationStats.HashApp
 		hashOwner := invocationStats.HashOwner
 		proxyFunction := mapperOutput[hashFunction+hashOwner+hashApp].ProxyFunction
-		yamlPath := deploymentInfo[proxyFunction].YamlLocation
-		predeploymentPath := deploymentInfo[proxyFunction].PredeploymentPath
+		if proxyFunction == "trace-func-go" {
+			yamlPath = p.yamlPath
+			predeploymentPath = make([]string, 0)
+		} else {
+			yamlPath = deploymentInfo[proxyFunction].YamlLocation
+			predeploymentPath = deploymentInfo[proxyFunction].PredeploymentPath
+		}
 		function := &common.Function{
 			Name: fmt.Sprintf("%s-%d-%d", proxyFunction, i, p.functionNameGenerator.Uint64()),
 

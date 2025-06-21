@@ -7,14 +7,9 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/vhive-serverless/loader/pkg/common"
 	"github.com/vhive-serverless/loader/pkg/config"
-	"github.com/vhive-serverless/loader/pkg/metric"
 )
 
-type Invoker interface {
-	Invoke(*common.Function, *common.RuntimeSpecification) (bool, *metric.ExecutionRecord)
-}
-
-func CreateInvoker(cfg *config.Configuration, announceDoneExe *sync.WaitGroup, readOpenWhiskMetadata *sync.Mutex) Invoker {
+func CreateInvoker(cfg *config.Configuration, announceDoneExe *sync.WaitGroup, readOpenWhiskMetadata *sync.Mutex, vSwarm bool) common.Invoker {
 	switch strings.ToLower(cfg.LoaderConfiguration.Platform) {
 	case common.PlatformAWSLambda:
 		return newAWSLambdaInvoker(announceDoneExe)
@@ -31,7 +26,7 @@ func CreateInvoker(cfg *config.Configuration, announceDoneExe *sync.WaitGroup, r
 		}
 	case common.PlatformKnative:
 		if cfg.LoaderConfiguration.InvokeProtocol == "grpc" {
-			if !cfg.LoaderConfiguration.VSwarm {
+			if !vSwarm {
 				return newGRPCInvoker(cfg.LoaderConfiguration, ExecutorRPC{})
 			} else {
 				return newGRPCInvoker(cfg.LoaderConfiguration, SayHelloRPC{})
