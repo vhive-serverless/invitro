@@ -96,6 +96,7 @@ type WorkflowMetadata struct {
 type Invoker interface {
 	Invoke(function *Function, runtimeSpecification *RuntimeSpecification) (bool, *ExecutionRecord)
 }
+
 type Function struct {
 	Name     string
 	Endpoint string
