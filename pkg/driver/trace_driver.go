@@ -70,8 +70,8 @@ func NewDriver(driverConfig *config.Configuration) *Driver {
 
 func (d *Driver) generateInvokers() {
 	for _, function := range d.Configuration.Functions {
-		trace_func := strings.Contains(function.Name, "trace-func")
-		function.Invoker = clients.CreateInvoker(d.Configuration, &d.allFunctionsInvoked, &d.readOpenWhiskMetadata, !trace_func)
+		vswarm_func := d.Configuration.LoaderConfiguration.VSwarm && !strings.Contains(function.Name, "trace-func")
+		function.Invoker = clients.CreateInvoker(d.Configuration, &d.allFunctionsInvoked, &d.readOpenWhiskMetadata, vswarm_func)
 	}
 }
 
