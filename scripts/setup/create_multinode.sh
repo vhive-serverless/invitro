@@ -29,18 +29,34 @@ DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" > /dev/null 2>&1 && pwd)"
 
 source "$DIR/setup.cfg"
 
+DOCKER_CREDS='{"docker-credentials":{"ghcr.io":{"username":"","password":""}}}'
+# Escape the double quotes so they survive the shell layers
+ESCAPED_CREDS=$(echo "$DOCKER_CREDS" | sed 's/"/\\"/g')
+
 if [ "$CLUSTER_MODE" = "container" ]
 then
     OPERATION_MODE="stock-only"
-    FIRECRACKER_SNAPSHOTS=""
+    VHIVE_ARGS=""
+    STARGZ=""
 elif [ $CLUSTER_MODE = "firecracker" ]
 then
     OPERATION_MODE="firecracker"
-    FIRECRACKER_SNAPSHOTS=""
-elif [ $CLUSTER_MODE = "firecracker_snapshots" ]
+    VHIVE_ARGS=""
+    STARGZ=""
+elif [ $CLUSTER_MODE = "firecracker_stargz" ]
 then
     OPERATION_MODE="firecracker"
-    FIRECRACKER_SNAPSHOTS="-snapshots"
+    VHIVE_ARGS="-ss proxy -dockerCredentials '$ESCAPED_CREDS'"
+    STARGZ="use-stargz"
+elif [ $CLUSTER_MODE = "firecracker_local_snapshots" ]
+then
+    OPERATION_MODE="firecracker"
+    VHIVE_ARGS="-snapshots 'local'"
+elif [ $CLUSTER_MODE = "firecracker_remote_snapshots" ]
+then
+    OPERATION_MODE="firecracker"
+    VHIVE_ARGS="-ss proxy -dockerCredentials '$ESCAPED_CREDS' -minioCredentials '$MASTER_NODE:9000;minio;minio123'" # Here, we need to pass don't pass the snapshots arg, so vHive does not try to connect to MinIO on the first startup. MinIO can only be deployed after the cluster is up and running, and for that, vHive needs to be running first. After that, we can restart vHive to connect to MinIO.
+    STARGZ="use-stargz"
 else
     echo "Unsupported cluster mode"
     exit 1
@@ -60,7 +76,7 @@ common_init() {
     internal_init() {
         server_exec $1 "git clone --branch=$VHIVE_BRANCH $VHIVE_REPO"
 
-        server_exec $1 "pushd ~/vhive/scripts > /dev/null && ./install_go.sh && source /etc/profile && go build -o setup_tool && ./setup_tool setup_node ${OPERATION_MODE} && popd > /dev/null"
+        server_exec $1 "pushd ~/vhive/scripts > /dev/null && ./install_go.sh && source /etc/profile && go build -o setup_tool && ./setup_tool setup_node ${OPERATION_MODE} ${STARGZ} && popd > /dev/null"
         
         server_exec $1 'tmux new -s containerd -d'
         server_exec $1 'tmux send -t containerd "sudo containerd 2>&1 | tee ~/containerd_log.txt" ENTER'
@@ -93,7 +109,7 @@ function setup_master() {
 
     server_exec $MASTER_NODE '~/loader/scripts/setup/rewrite_yaml_files.sh'
 
-    MN_CLUSTER="pushd ~/vhive/scripts > /dev/null && ./setup_tool create_multinode_cluster ${OPERATION_MODE} && popd > /dev/null"
+    MN_CLUSTER="pushd ~/vhive/scripts > /dev/null && ./setup_tool create_multinode_cluster ${OPERATION_MODE} ${SCHEDULER} && popd > /dev/null"
     server_exec "$MASTER_NODE" "tmux send -t master \"$MN_CLUSTER\" ENTER"
 
     # Get the join token from k8s.
@@ -115,9 +131,17 @@ function setup_vhive_firecracker_daemon() {
     server_exec $node 'cd vhive; source /etc/profile && go build'
     server_exec $node 'tmux new -s firecracker -d'
     server_exec $node 'tmux send -t firecracker "sudo PATH=$PATH /usr/local/bin/firecracker-containerd --config /etc/firecracker-containerd/config.toml 2>&1 | tee ~/firecracker_log.txt" ENTER'
+    if [ -n "$STARGZ" ]; then
+        server_exec $node 'tmux new -s http-address-resolver -d'
+        server_exec $node 'tmux send -t http-address-resolver "sudo PATH=$PATH /usr/local/bin/http-address-resolver" ENTER'
+
+        server_exec $node 'tmux new -s demux-snapshotter -d'
+        server_exec $node "tmux send -t demux-snapshotter 'sudo /bin/bash -c '\''while true; do /usr/local/bin/demux-snapshotter; done'\''' ENTER"
+    fi
+    
     server_exec $node 'tmux new -s vhive -d'
     server_exec $node 'tmux send -t vhive "cd vhive" ENTER'
-    RUN_VHIVE_CMD="sudo ./vhive ${FIRECRACKER_SNAPSHOTS} 2>&1 | tee ~/vhive_log.txt"
+    RUN_VHIVE_CMD="sudo ./vhive ${VHIVE_ARGS} 2>&1 | tee ~/vhive_log.txt"
     server_exec $node "tmux send -t vhive \"$RUN_VHIVE_CMD\" ENTER"
 }
 
@@ -264,6 +288,33 @@ function distribute_loader_ssh_key() {
     done
 
     echo "Master node $MASTER_NODE finalised."
+
+    # Setup MinIO for remote snapshots
+    if [ $CLUSTER_MODE = "firecracker_remote_snapshots" ]; then
+        echo "Setting up MinIO for remote snapshots on master node: $MASTER_NODE"
+        server_exec $MASTER_NODE 'sudo mkdir -p ~/tmp/minio'
+        server_exec $MASTER_NODE 'cd ~/vhive/configs/storage/minio && \
+            MINIO_NODE_NAME=$(hostname) MINIO_PATH=~/tmp/minio envsubst < pv.yaml | kubectl apply -f - && \
+            kubectl apply -f pv-claim.yaml && \
+            kubectl apply -f deployment.yaml && \
+            kubectl apply -f service.yaml'
+
+        # Wait for MinIO to be ready
+        echo "Waiting for MinIO to be ready..."
+        while ! server_exec $MASTER_NODE 'kubectl get pods -n default -l app=minio | grep -q "Running"'; do
+            sleep 5
+        done
+        echo "MinIO is ready."
+
+        # Iterate fro each worker node to restart the vhive service, now that MinIO is set up
+        for node in "$@"; do
+            echo "Restarting vhive service on worker node: $node"
+            server_exec $node 'tmux send -t vhive C-c' # Stop the current vhive process
+            server_exec $node 'tmux send -t vhive "sudo rm /etc/vhive-cri/vhive-cri.sock" ENTER' # Remove the old socket file
+            RUN_VHIVE_CMD="sudo ./vhive ${VHIVE_ARGS} -snapshots remote 2>&1 | tee ~/vhive_log.txt"
+            server_exec $node "tmux send -t vhive \"$RUN_VHIVE_CMD\" ENTER"
+        done
+    fi
 
     # Copy API server certificates from master to each worker node
     copy_k8s_certificates "$@"

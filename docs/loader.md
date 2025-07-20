@@ -14,7 +14,7 @@ can choose the APT cluster `d430` node.
 First, configure `script/setup/setup.cfg`. You can specify there which vHive branch to use, loader branch, operation
 mode (sandbox type), and maximum number of pods per node. All these configurations are mandatory. We currently support
 the following modes: containerd (`container`), Firecracker (`firecracker`), and Firecracker with
-snapshots (`firecracker_snapshots`).Loader will be cloned on every node specified as argument of the cluster create
+snapshots (`firecracker_local_snapshots` or `firecracker_remote_snapshots`).Loader will be cloned on every node specified as argument of the cluster create
 script. The same holds for Kubernetes API server certificate.
 
 * To create a multi-node cluster, specify the node addresses as the arguments and run the following command:
@@ -132,7 +132,9 @@ This untar the tarball into the `workloads/container/yamls` directory, which con
 To run load generator use the following command:
 
 ```bash
-$ go run cmd/loader.go --config cmd/config_knative_trace.json
+$ go run cmd/loader.go --config cmd/config_knative_trace.json --verbosity debug
+# or, for stargz:
+$ go run cmd/loader.go --config cmd/config_knative_stargz_trace.json --verbosity debug
 ```
 To run load generator with vSwarm functions based on `mapper_output.json` run the following:
 

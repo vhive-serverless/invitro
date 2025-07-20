@@ -3,7 +3,7 @@
 
   "Platform": "Knative",
   "InvokeProtocol" : "grpc",
-  "YAMLSelector": "firecracker",
+  "YAMLSelector": "firecracker_stargz",
   "EndpointPort": 80,
 
   "BusyLoopOnSandboxStartup": false,
