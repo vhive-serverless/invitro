@@ -3,10 +3,10 @@
 
   "Platform": "Dirigent",
   "DirigentConfigPath": "cmd/dirigent/config_containerd.json",
-  "InvokeProtocol" : "http2",
+  "InvokeProtocol" : "http1",
   "EndpointPort": 80,
 
-  "TracePath": "data/traces/example",
+  "TracePath": "data/traces/azure_100",
   "Granularity": "minute",
   "OutputPathPrefix": "data/out/experiment",
   "IATDistribution": "exponential",
