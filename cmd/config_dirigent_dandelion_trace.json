@@ -6,12 +6,12 @@
   "InvokeProtocol" : "http1",
   "EndpointPort": 80,
 
-  "TracePath": "data/traces/example",
+  "TracePath": "data/traces/azure_100",
   "Granularity": "minute",
   "OutputPathPrefix": "data/out/experiment",
   "IATDistribution": "exponential",
   "CPULimit": "1vCPU",
-  "ExperimentDuration": 2,
+  "ExperimentDuration": 30,
   "WarmupDuration": 0,
 
   "IsPartiallyPanic": false,
