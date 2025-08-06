@@ -135,6 +135,10 @@ To run load generator use the following command:
 $ go run cmd/loader.go --config cmd/config_knative_trace.json --verbosity debug
 # or, for stargz:
 $ go run cmd/loader.go --config cmd/config_knative_stargz_trace.json --verbosity debug
+# or, for cold start:
+$ go run cmd/loader.go --config cmd/config_knative_trace_cold_start.json --verbosity debug
+# or, for stargz cold start:
+$ go run cmd/loader.go --config cmd/config_knative_stargz_trace_cold_start.json --verbosity debug
 ```
 To run load generator with vSwarm functions based on `mapper_output.json` run the following:
 
