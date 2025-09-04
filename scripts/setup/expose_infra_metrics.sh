@@ -34,7 +34,7 @@ server_exec() {
 	server_exec 'sudo apt install htop'
 
 	#* Deploy Metrics Server to k8s in namespace kube-system.
-	metrics_server_version="v0.7.1"
+	metrics_server_version="v0.7.2"
 	server_exec "kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/download/${metrics_server_version}/components.yaml"
 	server_exec "kubectl patch deployment metrics-server -n kube-system --type='json' -p='[{"op": "add", "path": "/spec/template/spec/containers/0/args/-", "value": "--kubelet-insecure-tls=true"}]'"
 
@@ -46,14 +46,15 @@ server_exec() {
 
 	server_exec 'kubectl create namespace monitoring'
 	release_label="prometheus"
-	prometheus_chart_version="60.1.0"
+	prometheus_chart_version="72.6.2"
 	server_exec "cd loader; helm install -n monitoring $release_label --version $prometheus_chart_version prometheus-community/kube-prometheus-stack -f config/prometh_values_kn.yaml"
 
 	#* Apply the ServiceMonitors/PodMonitors to collect metrics from Knative.
 	#* The ports of the control manager and scheduler are mapped in a way that prometheus default installation can find them. 
 	#* Also apply the grafana dashboards for Knative.
-	server_exec "curl -s https://raw.githubusercontent.com/knative-extensions/monitoring/main/servicemonitor.yaml | sed 's/interval: 30s/interval: 2s/g' | kubectl apply -f -"
-	server_exec 'kubectl apply -f https://raw.githubusercontent.com/knative-extensions/monitoring/main/grafana/dashboards.yaml'
+	commit_version="https://raw.githubusercontent.com/knative-extensions/monitoring/2427116e8e3cf0c65118c42a7f586490a1bb3ec2"
+	server_exec "curl -sL $commit_version/config/serving-monitors.yaml | sed 's/interval: 30s/interval: 2s/g' | kubectl apply -f -"
+	server_exec "curl -sL $commit_version/config/configmap-serving-dashboard.json | sed 's/"namespace": "knative-serving"/"namespace": "monitoring"/g' | kubectl apply -f -"
 
 	#* Bind addresses of the control manager and scheduler to "0.0.0.0" so that prometheus can scrape them from any domains.
 	server_exec 'cd loader; sudo kubeadm upgrade apply --config config/kubeadm_init.yaml --ignore-preflight-errors all --force --v=7'
