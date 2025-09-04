@@ -5,6 +5,19 @@ alertmanager:
   serviceMonitor:
     interval: "15s"
   alertmanagerSpec:
+    affinity:
+      nodeAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          nodeSelectorTerms:
+          - matchExpressions:
+            - key: loader-nodetype
+              operator: In
+              values:
+              - monitoring
+              - singlenode
+
+grafana:
+  affinity:
     nodeAffinity:
       requiredDuringSchedulingIgnoredDuringExecution:
         nodeSelectorTerms:
@@ -14,17 +27,6 @@ alertmanager:
             values:
             - monitoring
             - singlenode
-
-grafana:
-  nodeAffinity:
-    requiredDuringSchedulingIgnoredDuringExecution:
-      nodeSelectorTerms:
-      - matchExpressions:
-        - key: loader-nodetype
-          operator: In
-          values:
-          - monitoring
-          - singlenode
   serviceMonitor:
     interval: "15s"
     scrapeTimeout: "15s" # Cannot be larger than Prometheus scrape intervals
@@ -68,15 +70,16 @@ kubeProxy:
     interval: "15s"
 
 kube-state-metrics:
-  nodeAffinity:
-    requiredDuringSchedulingIgnoredDuringExecution:
-      nodeSelectorTerms:
-      - matchExpressions:
-        - key: loader-nodetype
-          operator: In
-          values:
-          - monitoring
-          - singlenode
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+        - matchExpressions:
+          - key: loader-nodetype
+            operator: In
+            values:
+            - monitoring
+            - singlenode
   metricLabelsAllowlist:
     - pods=[*]
     - deployments=[app.kubernetes.io/name,app.kubernetes.io/component,app.kubernetes.io/instance]
@@ -85,6 +88,8 @@ kube-state-metrics:
       interval: "15s"
 
 prometheus-node-exporter:
+  service:
+    listenOnAllInterfaces: false
   prometheus:
     monitor:
       interval: "15s"
@@ -92,22 +97,23 @@ prometheus-node-exporter:
 prometheusOperator:
   admissionWebhooks:
     deployment:
-      nodeAffinity:
-        requiredDuringSchedulingIgnoredDuringExecution:
-          nodeSelectorTerms:
-          - matchExpressions:
-            - key: loader-nodetype
-              operator: In
-              values:
-              - monitoring
-              - singlenode
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                - key: loader-nodetype
+                  operator: In
+                  values:
+                    - monitoring
+                    - singlenode
     patch:
-      resources: 
+      resources:
         limits:
           cpu: 1
           memory: 5Gi
         requests:
-          memory: 150Mi 
+          memory: 150Mi
       nodeAffinity:
         requiredDuringSchedulingIgnoredDuringExecution:
           nodeSelectorTerms:
@@ -127,15 +133,16 @@ prometheusOperator:
     requests:
       cpu: 100m
       memory: 100Mi
-  nodeAffinity:
-    requiredDuringSchedulingIgnoredDuringExecution:
-      nodeSelectorTerms:
-      - matchExpressions:
-        - key: loader-nodetype
-          operator: In
-          values:
-          - monitoring
-          - singlenode
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+        - matchExpressions:
+          - key: loader-nodetype
+            operator: In
+            values:
+            - monitoring
+            - singlenode
 
   prometheusConfigReloader:
     resources:
@@ -151,16 +158,18 @@ prometheus:
     interval: "15s"
 
   prometheusSpec:
+    maximumStartupDurationSeconds: 60
     scrapeInterval: "15s"
-    nodeAffinity:
-      requiredDuringSchedulingIgnoredDuringExecution:
-        nodeSelectorTerms:
-        - matchExpressions:
-          - key: loader-nodetype
-            operator: In
-            values:
-            - monitoring
-            - singlenode
+    affinity:
+      nodeAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          nodeSelectorTerms:
+          - matchExpressions:
+            - key: loader-nodetype
+              operator: In
+              values:
+              - monitoring
+              - singlenode
     serviceMonitorSelectorNilUsesHelmValues: false
     podMonitorSelectorNilUsesHelmValues: false
     walCompression: false
