@@ -1,0 +1,4 @@
+github.com/vhive-serverless/vHive/scripts/configs v0.0.0-20231114022852-400a49d284cb h1:JoudbjIOvkLiDY7WjaQosP0IKipHnlxFOCIeICQrtRQ=
+github.com/vhive-serverless/vHive/scripts/configs v0.0.0-20231114022852-400a49d284cb/go.mod h1:nJSon4Eng7PdZ4HJX9dnZ7H4qxVm/r5zseFPfom7Jto=
+github.com/vhive-serverless/vHive/scripts/utils v0.0.0-20231114022852-400a49d284cb h1:SmFLKJc4wAhr61ige8hoLiLWDKAI2uewBQUNejI63Hs=
+github.com/vhive-serverless/vHive/scripts/utils v0.0.0-20231114022852-400a49d284cb/go.mod h1:xyjKlPn6JqSQtzKOCu8L4DW4rQcNmhxK9f97cOPo0Sg=

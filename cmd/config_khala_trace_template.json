@@ -1,0 +1,31 @@
+{
+  "Seed": 42,
+
+  "Platform": "nexus",
+  "InvokeProtocol" : "grpc",
+  "YAMLSelector": "nexus",
+  "EndpointPort": 80,
+
+  "BusyLoopOnSandboxStartup": false,
+
+  "TracePath": "data/traces/nexus",
+  "Granularity": "minute",
+  "OutputPathPrefix": "data/out/$EXPERIMENT/experiment",
+  "IATDistribution": "exponential",
+  "CPULimit": "1vCPU",
+  "ExperimentDuration": 5,
+  "WarmupDuration": 2,
+
+  "IsPartiallyPanic": false,
+  "EnableZipkinTracing": false,
+  "EnableMetricsScrapping": false,
+  "MetricScrapingPeriodSeconds": 15,
+  "AutoscalingMetric": "concurrency",
+
+  "GRPCConnectionTimeoutSeconds": 30,
+  "GRPCFunctionTimeoutSeconds": 900,
+  "DAGMode": false,
+  "EnableDAGDataset": true,
+  "Width": 2,
+  "Depth": 2
+}

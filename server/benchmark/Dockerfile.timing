@@ -1,0 +1,25 @@
+FROM debian:stable-slim
+# RUN apk add --no-cache libc6-compat 
+
+ENV DEBIAN_FRONTEND noninteractive
+
+RUN apt-get update -y
+RUN apt-get install -y --no-install-recommends \ 
+    ca-certificates \
+    python3 \
+    gcc \
+    libc6-dev
+
+COPY --from=golang:1.17 /usr/local/go/ /usr/local/go/
+# COPY --from=golang:1.17-bullseye ./lib/cgo .
+
+ENV PATH="/usr/local/go/bin:${PATH}"
+
+WORKDIR /app
+
+COPY go.* ./
+RUN go mod download
+
+COPY * ./
+
+CMD ["python3", "drive_benchmark.py"]

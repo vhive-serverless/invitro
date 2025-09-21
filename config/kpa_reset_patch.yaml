@@ -1,0 +1,4 @@
+metadata:
+  annotations:
+    autoscaling.knative.dev/min-scale: "0"
+    # autoscaling.knative.dev/scale-down-delay: "0s" # This has NO effects!!! (potential bug of kn)

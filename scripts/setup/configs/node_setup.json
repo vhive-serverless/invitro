@@ -1,0 +1,52 @@
+{
+    "NODE_SETUP": {
+        "MASTER_NODE": [
+            "10.0.1.1"
+        ],
+        "LOADER_NODE": [
+            "10.0.1.2"
+        ],
+        "WORKER_NODE": [
+            "10.0.1.2",
+            "10.0.1.3",
+            "10.0.1.4",
+            "10.0.1.5",
+            "10.0.1.6",
+            "10.0.1.7",
+            "10.0.1.8"
+        ],
+        "MINIO_OPERATOR_NODE": [
+            "10.0.1.1"
+        ],
+        "MINIO_TENANT_NODE": [
+            "10.0.1.5",
+            "10.0.1.6",
+            "10.0.1.7",
+            "10.0.1.8"
+        ]
+    },
+
+    "NODE_LABEL": {
+        "loader-nodetype=master": [
+            "10.0.1.1"
+        ],
+        "loader-nodetype=monitoring": [
+            "10.0.1.2"
+        ],
+        "loader-nodetype=worker": [
+            "10.0.1.3",
+            "10.0.1.4"
+        ],
+        "minio-type=operator": [
+            "10.0.1.1"
+        ],
+        "minio-type=tenant": [
+            "10.0.1.5",
+            "10.0.1.6",
+            "10.0.1.7",
+            "10.0.1.8"
+        ]
+    },
+
+    "NODE_URL": ["username@er067.server.us","username@er015.server.us","username@er007.server.us","username@er063.server.us","username@er008.server.us","username@er060.server.us","username@er068.server.us","username@er056.server.us"]
+}

@@ -1,0 +1,321 @@
+#!/usr/bin/env python3
+"""
+Generate function invocation traces from a base reference CSV.
+
+This script ports the logic from map_traces.ipynb into a reusable CLI.
+
+High-level steps:
+1) Load the base invocation trace CSV (reference dataset).
+2) Compute per-function statistics over the time-series columns.
+3) For each workload and target RPS, select a representative function whose
+   average invocation rate is closest to the target, while staying within a
+   min/max bound derived from the target.
+4) Generate the final trace by duplicating and time-shifting functions
+   (wrap-around) per the requested multiplier.
+
+Output: CSV with columns [FunctionName] + [minute columns]
+
+Example:
+  python generate_trace.py \
+    --input data/traces/reference/preprocessed_150/invocations.csv \
+    --output data/traces/nexus/invocations.csv \
+    --function-multiplier 2
+
+Optionally customize workload->RPS mapping via --workload-rps-json
+  JSON example: {"mapper": 75, "reducer": 16}
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from pathlib import Path
+from typing import Dict, Iterable, List, Tuple
+
+import pandas as pd
+
+
+DEFAULT_INPUT = "data/traces/reference/preprocessed_150/invocations.csv"
+DEFAULT_OUTPUT = "data/traces/nexus/invocations.csv"
+
+
+DEFAULT_WORKLOAD_RPS: Dict[str, float] = {
+    "chameleonserve": 1000,
+    "cnnserve": 120,
+    "imageresize": 24,
+    "lrserving": 950,
+    "mapper": 75,
+    "pyaesserve": 1400,
+    "reducer": 16,
+    "rnnserve": 600,
+    "streducer": 320,
+    "sttrainer": 275,
+}
+
+
+def _get_numbered_columns(df: pd.DataFrame) -> List[str]:
+    """Return columns that look like numeric time indexes (all digits or ints).
+
+    Preserves the original column labels (could be int or str). A column
+    qualifies if it's an int or a string comprised only of digits.
+    """
+    cols: List[str] = []
+    for c in df.columns:
+        if isinstance(c, str) and c.isdigit():
+            cols.append(c)
+    return cols
+
+
+def compute_invocation_stats(base_invocation_trace: pd.DataFrame) -> Tuple[pd.DataFrame, List[str]]:
+    """Compute per-row stats and return the augmented DataFrame and numbered columns.
+
+    The input is expected to contain metadata columns such as HashOwner, HashApp,
+    HashFunction, Trigger, followed by per-minute integer columns.
+    """
+    # Standardize all column labels to strings for consistent selection
+    df = base_invocation_trace.copy()
+    df.columns = df.columns.map(str)
+    numbered_columns = _get_numbered_columns(df)
+    
+    # Keep original metadata columns if present
+    meta_cols = [c for c in ["HashOwner", "HashApp", "HashFunction", "Trigger"] if c in df.columns]
+    invocation = pd.DataFrame()
+    if meta_cols:
+        invocation = pd.concat([df[meta_cols], invocation], axis=1)
+
+    invocation_count_only = df[numbered_columns]
+
+    # Stats across the numbered columns
+    invocation_count_only_stats = pd.DataFrame()
+    # Use pandas operations directly instead of numpy
+    invocation_count_only_stats["invocation_count_sum"] = invocation_count_only.sum(axis=1)
+    invocation_count_only_stats["invocation_count_avg"] = invocation_count_only.mean(axis=1)
+    invocation_count_only_stats["invocation_count_max"] = invocation_count_only.max(axis=1)
+    invocation_count_only_stats["invocation_count_min"] = invocation_count_only.min(axis=1)
+
+    invocation = pd.concat([invocation, invocation_count_only_stats], axis=1)
+    invocation = pd.concat([invocation, invocation_count_only], axis=1)
+    invocation = invocation.sort_values(by=["invocation_count_sum"], ascending=False)
+
+    return invocation, numbered_columns
+
+
+def get_function_per_target_rps(
+    invocation: pd.DataFrame,
+    target_rps: float,
+    *,
+    min_divisor: float = 10.0,
+    max_multiplier: float = 2.0,
+) -> pd.DataFrame:
+    """Filter and select the function closest to the target RPS.
+
+    - We constrain each candidate's per-minute min and max counts using
+      bounds derived from the target.
+    - Then we pick the row whose average is closest to target RPM (RPS*60).
+
+    Raises ValueError if no function matches the constraints.
+    """
+    target_invocation_min = target_rps * 60.0 / min_divisor
+    target_invocation_max = target_rps * 60.0 * max_multiplier
+
+    filt = invocation[
+        (invocation["invocation_count_max"] < target_invocation_max)
+        & (invocation["invocation_count_min"] > target_invocation_min)
+    ].copy()
+
+    if len(filt) == 0:
+        raise ValueError(f"No function found for target_rps {target_rps}")
+
+    target_rpm = target_rps * 60.0
+    filt["invocation_count_avg_diff"] = (filt["invocation_count_avg"] - target_rpm).abs()
+    # Pick the index with minimal difference to avoid sort typing issues
+    best_idx = filt["invocation_count_avg_diff"].idxmin()
+    return filt.loc[[best_idx]]
+
+
+def build_per_workload_trace(
+    invocation: pd.DataFrame,
+    workload_rps: Dict[str, float],
+    *,
+    selection_divisor: float = 10.0,
+    min_divisor: float = 10.0,
+    max_multiplier: float = 2.0,
+    name_suffix: str = "",
+) -> pd.DataFrame:
+    """Construct a per-workload trace by selecting representative functions.
+
+    selection_divisor controls how we reduce the given target RPS when searching
+    for a representative function (defaults to 10, as in the notebook).
+    The resulting DataFrame includes FunctionName and a 'target_rps' column
+    (scaled by target_rps_scale) along with all original columns from the
+    selected rows (stats + time series). The consumer may later trim columns.
+    """
+    per_workload_trace = pd.DataFrame()
+    for workload, target_rps in workload_rps.items():
+        # Notebook used target_rps / 10 when selecting
+        selected = get_function_per_target_rps(
+            invocation,
+            target_rps / selection_divisor,
+            min_divisor=min_divisor,
+            max_multiplier=max_multiplier,
+        )
+
+        row = selected.copy()
+        # Apply suffix to workload name if provided (e.g., -s3, -rpc, -s3-rpc)
+        workload_name = f"{str(workload)}{name_suffix}"
+        row.insert(0, "FunctionName", workload_name)
+        # Notebook inserted target_rps multiplied by 6 (kept for parity)
+        row.insert(1, "target_rps", target_rps / selection_divisor * 60)
+        per_workload_trace = pd.concat([per_workload_trace, row], ignore_index=True)
+
+    return per_workload_trace
+
+
+def generate_trace(
+    per_workload_trace: pd.DataFrame,
+    function_multiplier: int,
+    *,
+    shift_step: int = 1,
+) -> pd.DataFrame:
+    """Duplicate and time-shift each workload's selected function.
+
+    For each input row, create `function_multiplier` rows.
+    The i-th duplicate is rotated left by (shift_step * i) positions across the
+    time-series (numbered) columns, with wrap-around.
+    """
+    generated_trace = pd.DataFrame()
+    # Ensure string columns for consistent indexing
+    df = per_workload_trace.copy()
+    df.columns = df.columns.map(str)
+    numbered_columns = _get_numbered_columns(df)
+    if not numbered_columns:
+        raise ValueError("No numbered time-series columns detected in per_workload_trace")
+    trace_length = len(numbered_columns)
+
+    for _, row in df.iterrows():
+        for i in range(function_multiplier):
+            new_row = row.copy()
+            # Ensure FunctionName is a string label, stable across duplicates
+            new_row["FunctionName"] = f"{row['FunctionName']}"
+
+            if i > 0 and trace_length > 0:
+                shift_amount = (shift_step * i) % trace_length
+                values = new_row.loc[numbered_columns].tolist()
+                shifted = values[shift_amount:] + values[:shift_amount]
+                # Assign back in one shot
+                new_row.loc[numbered_columns] = shifted
+
+            generated_trace = pd.concat([generated_trace, pd.DataFrame([new_row])], ignore_index=True)
+
+    # Keep only FunctionName and time-series columns
+    # Ensure a DataFrame slice
+    generated_trace = generated_trace.loc[:, ["FunctionName"] + numbered_columns]
+    return pd.DataFrame(generated_trace)
+
+
+def parse_workload_rps_arg(value: str) -> Dict[str, float]:
+    """Parse workload RPS mapping from a string.
+
+    Accepts either a path to a JSON file or an inline JSON object.
+    """
+    p = Path(value)
+    try:
+        if p.exists():
+            with p.open("r", encoding="utf-8") as f:
+                return json.load(f)
+        # Not a file: try to parse as JSON literal
+        return json.loads(value)
+    except Exception as e:
+        raise argparse.ArgumentTypeError(f"Invalid workload RPS mapping: {e}")
+
+
+def build_arg_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Generate function invocation traces from a reference CSV")
+    parser.add_argument("--input", default=DEFAULT_INPUT, help="Path to base invocation CSV (reference dataset)")
+    parser.add_argument("--output", default=DEFAULT_OUTPUT, help="Path to write the generated trace CSV")
+    parser.add_argument(
+        "--workload-rps",
+        dest="workload_rps",
+        type=parse_workload_rps_arg,
+        default=DEFAULT_WORKLOAD_RPS,
+        help="Workload->RPS mapping as JSON path or inline JSON (default: built-in map)",
+    )
+    parser.add_argument("--function-multiplier", type=int, default=1, help="Number of functions per workload to generate (duplicates with time shifts)")
+    parser.add_argument("--shift-step", type=int, default=1, help="Shift step per duplicate (positions to rotate left per increment)")
+    parser.add_argument("--selection-divisor", type=float, default=10.0, help="Divide target RPS by this when selecting representative functions")
+    parser.add_argument("--min-divisor", type=float, default=10.0, help="Lower bound: target_rps*60/min_divisor for per-minute minimum filter")
+    parser.add_argument("--max-multiplier", type=float, default=2.0, help="Upper bound: target_rps*60*max_multiplier for per-minute maximum filter")
+    # Suffix flags: append to workload names, ensuring -s3 precedes -rpc if both are set
+    parser.add_argument("--s3", action="store_true", help="Append '-s3' to workload names")
+    parser.add_argument("--rpc", action="store_true", help="Append '-rpc' to workload names (after '-s3' if both set)")
+    parser.add_argument("--dry-run", action="store_true", help="Run selection and show summary without writing output")
+    return parser
+
+
+def main(argv: Iterable[str] | None = None) -> int:
+    args = build_arg_parser().parse_args(list(argv) if argv is not None else None)
+
+    input_path = Path(args.input)
+    output_path = Path(args.output)
+
+    if not input_path.exists():
+        print(f"[ERROR] Input CSV not found: {input_path}", file=sys.stderr)
+        return 2
+
+    print(f"[INFO] Loading base invocation trace: {input_path}")
+    base_df = pd.read_csv(input_path)
+
+    print("[INFO] Computing per-function statistics...")
+    invocation, numbered_columns = compute_invocation_stats(base_df)
+    if not numbered_columns:
+        print("[ERROR] No numbered time-series columns detected in base invocation trace.", file=sys.stderr)
+        return 2
+
+    print("[INFO] Selecting representative functions per workload...")
+    try:
+        # Build the name suffix based on flags, enforcing order: -s3 before -rpc
+        suffix_parts: List[str] = []
+        if args.s3:
+            suffix_parts.append("s3")
+        if args.rpc:
+            suffix_parts.append("rpc")
+        name_suffix = ("-" + "-".join(suffix_parts)) if suffix_parts else ""
+
+        per_workload_trace = build_per_workload_trace(
+            invocation,
+            args.workload_rps,
+            selection_divisor=args.selection_divisor,
+            min_divisor=args.min_divisor,
+            max_multiplier=args.max_multiplier,
+            name_suffix=name_suffix,
+        )
+    except ValueError as e:
+        print(f"[ERROR] {e}", file=sys.stderr)
+        return 3
+
+    print("[INFO] Generating final trace with time-shifted duplicates...")
+    try:
+        generated_trace = generate_trace(
+            per_workload_trace,
+            args.function_multiplier,
+            shift_step=args.shift_step,
+        )
+    except ValueError as e:
+        print(f"[ERROR] {e}", file=sys.stderr)
+        return 3
+
+    if args.dry_run:
+        with pd.option_context('display.max_columns', None):
+            print(generated_trace.head())
+        print("[INFO] Dry-run enabled; not writing output.")
+        return 0
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    generated_trace.to_csv(output_path, index=False)
+    print(f"[INFO] Wrote generated trace to: {output_path}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

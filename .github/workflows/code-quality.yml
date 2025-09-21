@@ -1,0 +1,48 @@
+name: Code quality checks
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+
+env:
+  GOOS: linux
+  GO111MODULE: on
+
+jobs:
+  resolve-modules:
+    name: Resolve Modules
+    runs-on: ubuntu-24.04
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - name: Checkout Sources
+        uses: actions/checkout@v4
+      - id: set-matrix
+        run: ./utils/golangci-lint/resolve-modules.sh
+
+  golangci:
+    name: GolangCI Lint
+    needs: resolve-modules
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix: { dir: ['cmd', 'pkg', 'tools/plotter'] }
+      fail-fast: false
+    steps:
+      - name: Setup Go 1.22
+        uses: actions/setup-go@v5
+        with:
+          go-version: 1.22
+
+      - name: Install dependencies for cgo
+        run: sudo apt update && sudo apt install libsnmp-dev
+
+      - name: Checkout code into go module directory
+        uses: actions/checkout@v4
+        
+      - name: Lint with golangci-lint
+        uses: golangci/golangci-lint-action@v6.5.0
+        with:
+          working-directory: ${{ matrix.dir }}
+          args: --timeout 5m

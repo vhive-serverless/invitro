@@ -1,0 +1,15 @@
+*.csv
+
+*.test
+
+.ipynb_checkpoints
+*/.ipynb_checkpoints/*
+
+profile_default/
+ipython_config.py
+
+.env
+.venv
+
+multi_loader/multi_loader_config_test.json
+!multi_loader/test_data/*/*.csv

@@ -1,0 +1,42 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: $FUNC_NAME
+  namespace: default
+spec:
+  template:
+    metadata:
+      annotations:
+        autoscaling.knative.dev/initial-scale: "1"  # Should start from 0, otherwise we can't deploy more functions than the node physically permits.
+        autoscaling.knative.dev/min-scale: "1"  # This parameter only has a per-revision key, so it's necessary to have here in case of the warmup messes up.
+        autoscaling.knative.dev/target-burst-capacity: "-1"  # Put activator always in the path explicitly.
+        autoscaling.knative.dev/max-scale: "10"  # Maximum instances limit of Azure.
+
+        autoscaling.knative.dev/panic-window-percentage: $PANIC_WINDOW
+        autoscaling.knative.dev/panic-threshold-percentage: $PANIC_THRESHOLD
+        autoscaling.knative.dev/metric: $AUTOSCALING_METRIC
+        autoscaling.knative.dev/target: $AUTOSCALING_TARGET
+    spec:
+      containerConcurrency: 1
+      containers:
+        - image: crccheck/hello-world:latest # Stub image (https://github.com/ease-lab/vhive/issues/68).
+          ports:
+            - name: h2c # For GRPC support.
+              containerPort: 50051
+          env:
+            - name: GUEST_PORT # Port on which the firecracker-containerd container is accepting requests.
+              value: "50051"
+            - name: GUEST_IMAGE # Container image to use for firecracker-containerd container.
+              value: "ghcr.io/vhive-serverless/invitro_trace_function_firecracker:latest"
+            - name: ITERATIONS_MULTIPLIER
+              value: "102"
+            - name: COLD_START_BUSY_LOOP_MS
+              value: $COLD_START_BUSY_LOOP_MS
+            - name: IO_PERCENTAGE
+              value: "0"
+          resources:
+            limits:
+              cpu: $CPU_LIMITS
+            requests:
+              cpu: $CPU_REQUEST
+              memory: $MEMORY_REQUESTS

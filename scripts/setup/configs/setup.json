@@ -1,0 +1,12 @@
+{
+    "VHIVE_REPO": "https://github.com/vhive-serverless/vhive",
+    "VHIVE_BRANCH": "v1.8",
+    "LOADER_REPO": "https://github.com/vhive-serverless/invitro",
+    "LOADER_BRANCH": "khala-loader",
+    "KHALA_REPO": "https://github.com/hyscale-lab/khala.git",
+    "KHALA_BRANCH": "jy/nexus-knative-impl",
+    "CLUSTER_MODE": "container",
+    "PODS_PER_NODE": 240,
+    "DEPLOY_PROMETHEUS": true,
+    "DEPLOY_MINIO": true
+}

@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: timing
+spec:
+  initContainers:
+  - name: timing-1
+    image: docker.io/hyhe/benchmark-timing:latest
+  - name: timing-2
+    image: docker.io/hyhe/benchmark-timing:latest
+  containers:
+  - name: timing-final
+    image: docker.io/hyhe/benchmark-timing:latest
+  restartPolicy: Never

@@ -1,0 +1,49 @@
+syntax = "proto3";
+
+option go_package = "github.com/JooyoungPark73/khala/pkg/proto";
+package proto;
+
+service KhalaKnativeIntegration {
+    rpc AddVM(AddVMRequest) returns (AddVMResponse);
+    rpc RemoveVM(RemoveVMRequest) returns (RemoveVMResponse);
+    rpc DestroyAll(DestroyAllRequest) returns (DestroyAllResponse);
+    rpc CreateSnapshot(CreateSnapshotRequest) returns (CreateSnapshotResponse);
+}
+
+message AddVMRequest {
+    string vm_name = 1; 
+}
+
+message AddVMResponse {
+    bool success = 1;
+    string vm_id = 2;
+    string workload_name = 3;
+    string ip = 4;
+    string rpc_port = 5;
+}
+
+message RemoveVMRequest {
+    string vm_id = 1;
+}
+
+message RemoveVMResponse {
+    bool success = 1;
+    string message = 2;
+}
+
+message DestroyAllRequest {
+    bool destroy_all = 1;
+}
+
+message DestroyAllResponse {
+    bool success = 1;
+}
+
+message CreateSnapshotRequest {
+    string workload = 1;
+}
+
+message CreateSnapshotResponse {
+    bool success = 1;
+    string message = 2;
+}

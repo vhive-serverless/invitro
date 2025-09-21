@@ -1,0 +1,72 @@
+name: Sampler integration tests
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - '**.md'
+  pull_request:
+    branches:
+      - main
+    paths-ignore:
+      - '**.md'
+  workflow_dispatch:
+
+jobs:
+  integration_tests:
+    name: Integration tests
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+    env:
+      tpath: sampler/tests
+
+    steps:
+    - name: Check out code
+      uses: actions/checkout@v4
+      with:
+        lfs: 'true'
+
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.9'
+
+    - uses: actions/cache@v4
+      with:
+        path: ${{ env.pythonLocation }}
+        key: ${{ env.pythonLocation }}-${{ hashFiles('setup.py') }}-${{ hashFiles('requirements.txt') }}
+
+    - name: Install requirements
+      run: pip install -r ./requirements.txt
+
+    - name: Drawing samples
+      run: |
+        tar -xzvf $tpath/inputs/preprocessed.tar.gz -C $tpath/inputs/
+        python -m sampler sample --source_trace $tpath/inputs/preprocessed --original_trace $tpath/inputs/preprocessed --output $tpath/sampled --min-size 10 --step-size=10 --max-size=50
+
+#    - name: Plotting results
+#      run: |
+#        python3 -m sampler plot -t $tpath/sampled/samples/10 -s invocations.csv -k invocations -o plot_invocations
+#        python3 -m sampler plot -t $tpath/sampled/samples/10 -s durations.csv -k durations -o plot_durations
+#        python3 -m sampler plot -t $tpath/sampled/samples/10 -s memory.csv -k memory -o plot_memory
+
+    - name: Run unit tests
+      run: |
+        cd sampler ; python3 -m pytest tests/ -s; cd -;
+
+    - name: Configure git for private modules
+      env:
+        GOPRIVATE: github.com/eth-easl/loader
+        TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
+      run: git config --global url."https://${TOKEN}:x-oauth-basic@github.com".insteadOf "https://github.com"
+
+    - name: Run generate minute timeline
+      run: |
+        cd tools/generateTimeline
+        go run generateTimeline.go -scale minute -tracePath ../../$tpath/sampled/samples/10 -duration 3
+
+    - name: Run generate millisecond timeline
+      run: |
+        cd tools/generateTimeline
+        go run generateTimeline.go -scale millisecond -tracePath ../../$tpath/sampled/samples/10 -duration 3

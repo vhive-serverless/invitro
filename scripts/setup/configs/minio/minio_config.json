@@ -1,0 +1,6 @@
+{
+    "HelmDownloadUrl": "https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3",
+	"MinIOVersion": "7.1.1",
+	"MinIOValuePath": "~/loader/scripts/setup/configs/minio",
+	"MinIOCClientUrl": "https://dl.min.io/client/mc/release/linux-amd64/mc"
+}

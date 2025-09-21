@@ -1,0 +1,10 @@
+spec:
+  containers:
+  - command:
+    - kube-scheduler
+    - --bind-address=127.0.0.1
+    - --kubeconfig=/etc/kubernetes/scheduler.conf
+    - --leader-elect=true
+    - --port=0
+    - --kubelet-insecure-tls
+    - --logtostderr

@@ -1,0 +1,6 @@
+{
+    "MetricsServerVersion": "v0.7.2",
+    "PromChartVersion": "72.6.2",
+    "PromValuePath": "~/loader/scripts/setup/configs/prometheus",
+    "KnativePromURL": "https://raw.githubusercontent.com/knative-extensions/monitoring/2427116e8e3cf0c65118c42a7f586490a1bb3ec2"
+}

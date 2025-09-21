@@ -1,0 +1,12 @@
+whisk:
+  ingress:
+    type: NodePort
+    apiHostName: <master_node_public_IP>
+    apiHostPort: 31001
+
+nginx:
+  httpsNodePort: 31001
+
+k8s:
+  persistence:
+    enabled: false

@@ -1,0 +1,198 @@
+alertmanager:
+  config:
+    route:
+      group_by: ['job']
+  serviceMonitor:
+    interval: "15s"
+  alertmanagerSpec:
+    affinity:
+      nodeAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          nodeSelectorTerms:
+          - matchExpressions:
+            - key: loader-nodetype
+              operator: In
+              values:
+              - monitoring
+              - singlenode
+
+grafana:
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+        - matchExpressions:
+          - key: loader-nodetype
+            operator: In
+            values:
+            - monitoring
+            - singlenode
+  serviceMonitor:
+    interval: "15s"
+    scrapeTimeout: "15s" # Cannot be larger than Prometheus scrape intervals
+
+kubeApiServer:
+  serviceMonitor:
+    interval: "15s"
+    metricRelabelings: []
+
+kubelet:
+  serviceMonitor:
+    interval: "15s"
+    cAdvisorMetricRelabelings: []
+
+kubeControllerManager:
+  service:
+    targetPort: 10257
+  serviceMonitor:
+    interval: "15s"
+    https: true
+    insecureSkipVerify: true
+
+coreDns:
+  serviceMonitor:
+    interval: "15s"
+
+kubeEtcd:
+  serviceMonitor:
+    interval: "15s"
+
+kubeScheduler:
+  service:
+    targetPort: 10259
+  serviceMonitor:
+    interval: "15s"
+    https: true
+    insecureSkipVerify: true
+
+kubeProxy:
+  serviceMonitor:
+    interval: "15s"
+
+kube-state-metrics:
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+        - matchExpressions:
+          - key: loader-nodetype
+            operator: In
+            values:
+            - monitoring
+            - singlenode
+  metricLabelsAllowlist:
+    - pods=[*]
+    - deployments=[app.kubernetes.io/name,app.kubernetes.io/component,app.kubernetes.io/instance]
+  prometheus:
+    monitor:
+      interval: "15s"
+
+prometheus-node-exporter:
+  service:
+    listenOnAllInterfaces: false
+  prometheus:
+    monitor:
+      interval: "15s"
+  extraArgs:
+    # enable perf collector
+    - --collector.perf
+    - --collector.perf.cpus=0-27 # adjust according to number of cores (xl170 has 10 cores, c6620 has 28 cores)
+
+prometheusOperator:
+  admissionWebhooks:
+    deployment:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                - key: loader-nodetype
+                  operator: In
+                  values:
+                    - monitoring
+                    - singlenode
+    patch:
+      resources:
+        limits:
+          cpu: 1
+          memory: 5Gi
+        requests:
+          memory: 150Mi
+      nodeAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          nodeSelectorTerms:
+          - matchExpressions:
+            - key: loader-nodetype
+              operator: In
+              values:
+              - monitoring
+              - singlenode
+
+  serviceMonitor:
+    interval: "15s"
+  resources:
+    limits:
+      cpu: 2
+      memory: 5Gi
+    requests:
+      cpu: 100m
+      memory: 100Mi
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+        - matchExpressions:
+          - key: loader-nodetype
+            operator: In
+            values:
+            - monitoring
+            - singlenode
+
+  prometheusConfigReloader:
+    resources:
+      requests:
+        cpu: 200m
+        memory: 50Mi
+      limits:
+        cpu: 1
+        memory: 2Gi
+
+prometheus:
+  serviceMonitor:
+    interval: "15s"
+
+  prometheusSpec:
+    maximumStartupDurationSeconds: 60
+    scrapeInterval: "15s"
+    affinity:
+      nodeAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          nodeSelectorTerms:
+          - matchExpressions:
+            - key: loader-nodetype
+              operator: In
+              values:
+              - monitoring
+              - singlenode
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+    walCompression: false
+    resources:
+      limits:
+        cpu: 3
+        memory: 10Gi
+      requests:
+        memory: 150Mi
+    enableAdminAPI: true
+
+additionalPrometheusRulesMap:
+  perf-custom:
+    groups:
+      - name: "custom:perf_rules"
+        rules:
+        - record: "custom_perf_instructions_per_cycle:rate1m"
+          expr: |
+            sum by (cpu,instance) (rate(node_perf_instructions_total[1m])) / 
+            sum by (cpu,instance) (rate(node_perf_cpucycles_total[1m]))
+          labels:
+            unit: "instructions/cycle"

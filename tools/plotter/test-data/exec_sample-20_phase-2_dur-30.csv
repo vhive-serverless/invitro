@@ -1,0 +1,8 @@
+phase,rps,timestamp,response_time,requested_duration,actual_duration,memory,timeout,failed,mem_load,interval,master_cpu,master_mem,worker_cpu_avg,worker_cpu_max,worker_cpu_active_avg,worker_mem,desired_pods,unready_pods,pending_pods,requested_pods,running_pods,activator_queue,activator_request_count,autoscaler_stable_queue,autoscaler_panic_queue,scheduling_p99,scheduling_p50,e2e_placement_p99,e2e_placement_p50,coldstart_count
+2,1,1663691665771983,1679804,215000,217691,243712,false,false,238,17336,2,5,1,1,0,0,-99,-99,-99,-99,-99,-99,-99,-99,-99,0,0,0,0,0
+2,1,1663691684901458,1482262,105000,98299,129024,false,false,281,14959,2,5,3,3,0,0,-99,-99,-99,-99,-99,-99,-99,-99,-99,0,0,0,0,0
+2,1,1663691669940657,31969740,27504000,30658281,158720,false,false,155,4167,2,5,6,6,6,3,-99,-99,-99,-99,-99,-99,-99,-99,-99,0,0,0,0,0
+2,1,1663691715608215,29110243,26032000,29085145,145408,false,false,142,30706,2,5,6,6,6,3,-99,-99,-99,-99,-99,-99,-99,-99,-99,0,0,0,0,3
+2,1,1663691749497165,2451531,462000,409298,177152,true,false,173,33888,2,5,6,6,6,3,-99,-99,-99,-99,-99,-99,-99,-99,-99,0,0,0,0,3
+2,1,1663691772805449,145909,130000,121390,125952,false,true,123,23307,2,5,5,5,5,2,-99,-99,-99,-99,-99,-99,-99,-99,-99,0,0,0,0,0
+2,1,1663691774016955,105594,70000,70174,118784,false,false,116,1210,2,5,5,5,5,2,-99,-99,-99,-99,-99,-99,-99,-99,-99,0,0,0,0,0

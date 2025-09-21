@@ -1,0 +1,6 @@
+# azurefunctionsconfig.yaml
+azurefunctionsconfig:
+  resource_group: invitro-rg  # Name of the resource group
+  storage_account_name: invitrostorage  # Name of the storage account
+  function_app_name: invitro-functionapp  # Name of the function app
+  location: EastUS  # Region where resource created

@@ -1,0 +1,14 @@
+nodeSelector:
+  minio-type: tenant
+
+storageClass:
+  name: local-storage
+  reclaimPolicy: Retain
+  volumeBindingMode: WaitForFirstConsumer
+
+classes:
+  - name: local-storage
+    
+    hostDir: /mnt/resources
+    mountDir: /mnt/resources/minio
+    storageClassName: local-storage
