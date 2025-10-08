@@ -230,6 +230,54 @@ def parse_workload_rps_arg(value: str) -> Dict[str, float]:
         raise argparse.ArgumentTypeError(f"Invalid workload RPS mapping: {e}")
 
 
+def add_warmup_phase(df: pd.DataFrame, warmup: int) -> pd.DataFrame:
+    """Add a warmup phase that linearly ramps up to the first minute's value.
+
+    For each function row, we prepend `warmup` minute columns named (-warmup .. -1)
+    whose values increase linearly from 0 (exclusive) up to the value of the
+    first original time-series column (inclusive). The final warmup column (-1)
+    matches the first real minute's invocation count.
+
+    Example (warmup=3, first minute = 90):
+      added cols: -3=30, -2=60, -1=90, then original columns start at 0,1,2,...
+    """
+    if warmup <= 0:
+        return df
+
+    df = df.copy()
+    df.columns = df.columns.map(str)
+    numbered_columns = _get_numbered_columns(df)
+    if not numbered_columns:
+        raise ValueError("No numbered time-series columns detected in the DataFrame")
+
+    first_col = numbered_columns[0]
+
+    # Warmup columns use negative labels so they are not re-detected later
+    warmup_columns = [str(i) for i in range(-warmup, 0)]
+
+    # Initialize with zeros (correct dtype)
+    warmup_data = pd.DataFrame(
+        0,
+        index=df.index,
+        columns=warmup_columns,
+        dtype=df[first_col].dtype,
+    )
+
+    # Fill with linear ramp per row
+    # Step k (1-based) value = first_val * k / warmup
+    for idx in df.index:
+        first_val = df.loc[idx, first_col]
+        if pd.isna(first_val):
+            continue
+        # Convert to float to ensure numeric type for arithmetic
+        first_val_numeric = float(first_val)
+        for k, col in enumerate(warmup_columns, start=1):
+            warmup_data.at[idx, col] = int(first_val_numeric * k / warmup)
+
+    # Concatenate: FunctionName + warmup + original numbered columns
+    df = pd.concat([df[["FunctionName"]], warmup_data, df[numbered_columns]], axis=1)
+    return df
+
 def build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Generate function invocation traces from a reference CSV")
     parser.add_argument("--input", default=DEFAULT_INPUT, help="Path to base invocation CSV (reference dataset)")
@@ -250,6 +298,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--s3", action="store_true", help="Append '-s3' to workload names")
     parser.add_argument("--rpc", action="store_true", help="Append '-rpc' to workload names (after '-s3' if both set)")
     parser.add_argument("--dry-run", action="store_true", help="Run selection and show summary without writing output")
+    parser.add_argument("--warmup", type=int, default=2, help="Warmup duration in minutes to add to the trace")
     return parser
 
 
@@ -310,6 +359,9 @@ def main(argv: Iterable[str] | None = None) -> int:
             print(generated_trace.head())
         print("[INFO] Dry-run enabled; not writing output.")
         return 0
+    
+    # add warmup phase
+    generated_trace = add_warmup_phase(generated_trace, args.warmup)    
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     generated_trace.to_csv(output_path, index=False)

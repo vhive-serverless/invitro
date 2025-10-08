@@ -111,7 +111,7 @@ func DeployKhala(workerNodeSetup WorkerNodeSetup, corePoolPolicy string) error {
 		wg.Add(1)
 	}
 	wg.Wait()
-	time.Sleep(10 * time.Second)
+	time.Sleep(30 * time.Second)
 
 	return nil
 }
@@ -123,6 +123,7 @@ func CleanKhala(workerNodeSetup WorkerNodeSetup, removeSnapshots bool) {
 		`tmux kill-session -t kn-integration 2>/dev/null || true`,
 		`sudo rm -rf ~/khala/runtime/overlayfs/*.overlay`,
 		`sudo rm -rf ~/khala/runtime/logs/*.log`,
+		`bash -c 'cd ~/khala && bash cleanup_worker.sh'`,
 	}
 	if removeSnapshots {
 		CommandList = append(CommandList,
