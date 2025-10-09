@@ -162,7 +162,7 @@ func CleanKhala(workerNodeSetup WorkerNodeSetup, removeSnapshots bool) {
 	wg.Wait()
 
 	loaderUtils.ServerExec("10.0.1.1", "bash -c 'cd ~/khala && bash cleanup_etcd.sh'")
-	cmd := exec.Command("bash", "-c", "cd ~/loader && make clean && sleep 1 && make clean")
+	cmd := exec.Command("bash", "-c", "cd ~/loader && make clean && sleep 1 && make clean && kubectl rollout restart -n knative-serving deployment/activator")
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		log.Fatalf("Failed to clean loader: %v, output: %s", err, string(output))
