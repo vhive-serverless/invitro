@@ -53,6 +53,7 @@ sudo mkfs."${FILESYSTEM}" -f "${TARGET_DEVICE}"
 
 echo "INFO: Creating mount point ${MOUNT_POINT}..."
 sudo mkdir -p "${MOUNT_POINT}"
+sudo chmod 777 "${MOUNT_POINT}"
 
 echo "INFO: Adding entry to /etc/fstab..."
 UUID=$(sudo blkid -s UUID -o value "${TARGET_DEVICE}")

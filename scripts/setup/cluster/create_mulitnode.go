@@ -6,9 +6,9 @@ import (
 	"github.com/vhive-serverless/vHive/scripts/utils"
 )
 
-func CreateMultiNodeSetup(configDir string) {
+func CreateMultiNodeSetup(configDir string, configName string) {
 	// Load Configurations
-	_, extNodeSetup, err := configs.GetNodeSetup(configDir)
+	_, extNodeSetup, err := configs.GetNodeSetup(configDir, configName)
 	if err != nil {
 		utils.FatalPrintf("Failed to get node setup config: %v\n", err)
 	}
@@ -92,18 +92,10 @@ func CreateMultiNodeSetup(configDir string) {
 
 	// Label Nodes
 	utils.InfoPrintf("Labeling nodes...\n")
-	if err := loaderUtils.LabelNodes(masterNode, configDir); err != nil {
+	if err := loaderUtils.LabelNodes(masterNode, configDir, configName); err != nil {
 		utils.FatalPrintf("Failed to label nodes: %v\n", err)
 	}
 	utils.InfoPrintf("Node labeling completed.\n")
-
-	if setupCfg.DeployMinio {
-		utils.InfoPrintf("Setting up MinIO...\n")
-		if err := setupMinio(masterNode, minioOperatorNodes, minioTenantNodes, minioConfig); err != nil {
-			utils.FatalPrintf("Failed to setup MinIO: %v\n", err)
-		}
-		utils.InfoPrintf("MinIO setup completed.\n")
-	}
 
 	// Deploy Prometheus if enabled
 	if setupCfg.DeployPrometheus {
@@ -112,6 +104,14 @@ func CreateMultiNodeSetup(configDir string) {
 			utils.FatalPrintf("Failed to setup Prometheus components: %v\n", err)
 		}
 		utils.InfoPrintf("Prometheus components setup completed.\n")
+	}
+
+	if setupCfg.DeployMinio {
+		utils.InfoPrintf("Setting up MinIO...\n")
+		if err := setupMinio(masterNode, minioOperatorNodes, minioTenantNodes, minioConfig); err != nil {
+			utils.FatalPrintf("Failed to setup MinIO: %v\n", err)
+		}
+		utils.InfoPrintf("MinIO setup completed.\n")
 	}
 
 	// Post-Setup Configuration

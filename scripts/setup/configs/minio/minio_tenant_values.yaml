@@ -10,7 +10,7 @@ tenant:
     - servers: 1 # Must be either 1 or >= 4
       name: pool-0
       volumesPerServer: 1
-      size: 200Gi
+      size: 700Gi
       nodeSelector:
         minio-type: tenant
       storageClassName: local-storage

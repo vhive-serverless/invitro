@@ -46,8 +46,8 @@ type PrometheusConfig struct {
 	KnativePromURL       string `json:"KnativePromURL"`
 }
 
-func GetNodeSetup(path string) (*NodeSetup, *NodeSetup, error) {
-	configPath := filepath.Join(path, "node_setup.json")
+func GetNodeSetup(path string, configName string) (*NodeSetup, *NodeSetup, error) {
+	configPath := filepath.Join(path, configName)
 	configFile, err := os.ReadFile(configPath)
 	if err != nil {
 		return nil, nil, err

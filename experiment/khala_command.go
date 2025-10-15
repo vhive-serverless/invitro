@@ -27,6 +27,12 @@ var (
 func main() {
 	// unmarshall config file
 	flag.Parse()
+
+	log.SetFormatter(&log.TextFormatter{
+		TimestampFormat: "2006-01-02T15:04:05.999",
+		FullTimestamp:   true,
+	})
+	
 	workerNodeSetup, err := getWorkerNodes()
 	if err != nil {
 		log.Fatalf("Failed to read worker node setup: %v", err)
@@ -182,7 +188,7 @@ func CleanKhala(workerNodeSetup WorkerNodeSetup, removeSnapshots bool) {
 	if khalaDied {
 		CleanupCmd = append(CleanupCmd, []string{
 			"kubectl rollout restart daemonset calico-node -n kube-system",
-			"sleep 30",
+			"sleep 60",
 			"kubectl rollout restart deployment calico-kube-controllers -n kube-system",
 			"sleep 10",
 		}...)

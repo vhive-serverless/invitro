@@ -10,7 +10,8 @@ import (
 )
 
 var (
-	Setup = flag.String("setup-type", "create_multinode_cluster", "Type of setup to perform")
+	Setup      = flag.String("setup-type", "create_multinode_cluster", "Type of setup to perform")
+	configName = flag.String("config", "node_setup.json", "Configuration file name")
 )
 
 func main() {
@@ -22,7 +23,7 @@ func main() {
 
 	switch *Setup {
 	case "create_multinode_cluster":
-		cluster.CreateMultiNodeSetup("configs")
+		cluster.CreateMultiNodeSetup("configs", *configName)
 		// Call the function to create a multinode cluster
 
 	default:

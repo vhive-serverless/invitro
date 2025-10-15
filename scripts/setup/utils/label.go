@@ -11,8 +11,8 @@ import (
 // LabelNodes applies labels to Kubernetes nodes based on the configuration file using kubectl commands.
 // masterNode is the IP address of the master node where kubectl commands will be executed.
 // configDir specifies the directory where `node_setup.json` is located.
-func LabelNodes(masterNode, configDir string) error {
-	_, extNodeSetup, err := configs.GetNodeSetup(configDir)
+func LabelNodes(masterNode, configDir, configName string) error {
+	_, extNodeSetup, err := configs.GetNodeSetup(configDir, configName)
 	if !utils.CheckErrorWithMsg(err, "Failed to get node setup config from %s: %v", configDir, err) {
 		return err
 	}
