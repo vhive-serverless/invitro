@@ -121,6 +121,20 @@ cat ../calico/calico.yaml | \
     yq '
     (
         select
+        (
+            .spec.template.spec.containers[].name == "calico-node"
+        ) | .spec.template.spec.containers[0].env 
+    ) |= . + [ {"name": "FELIX_INTERFACEPREFIX", "value": "cali"} ]' | 
+    yq '
+    (
+        select
+        (
+            .spec.template.spec.containers[].name == "calico-node"
+        ) | .spec.template.spec.containers[0].env 
+    ) |= . + [ {"name": "FELIX_INTERFACEEXCLUDE", "value": "/^kube/,/^veth[0-9]*-/"} ]' | 
+    yq '
+    (
+        select
         (           
                 .metadata.name == "calico-config"
             and .metadata.namespace == "kube-system"

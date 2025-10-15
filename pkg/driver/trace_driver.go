@@ -502,7 +502,9 @@ func (d *Driver) RunExperiment() {
 	deployer.Deploy(d.Configuration)
 
 	go failure.ScheduleFailure(d.Configuration.LoaderConfiguration.Platform, d.Configuration.FailureConfiguration)
-
+	
+	// wait for the system to stabilize
+	time.Sleep(10 * time.Second) 
 	// Generate load
 	d.internalRun()
 

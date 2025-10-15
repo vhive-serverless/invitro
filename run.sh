@@ -1,10 +1,10 @@
 #!/bin/bash
 
-for multiplier in 1 2 3 4 5 6 7 8
+for multiplier in 2 4 6 8 10 12 14 16
 do
     divisor=100
     WARMUP=$multiplier
-    EXP_DUR=5
+    EXP_DUR=1
 
     # test baseline, logical sep, physical sep, dynamic core pool
     ### baseline
@@ -21,7 +21,7 @@ do
     go run cmd/loader.go --config cmd/config_khala_trace.json | tee data/out/$EXP/loader.log
     go run experiment/khala_command.go --command=clean --remove-snapshots=false
 
-    sleep 10
+    sleep 60
 
 
     ### logical sep
@@ -38,7 +38,7 @@ do
     go run cmd/loader.go --config cmd/config_khala_trace.json | tee data/out/$EXP/loader.log
     go run experiment/khala_command.go --command=clean --remove-snapshots=false
 
-    sleep 10
+    sleep 60
 
 
     ### physical sep
@@ -55,7 +55,7 @@ do
     go run cmd/loader.go --config cmd/config_khala_trace.json | tee data/out/$EXP/loader.log
     go run experiment/khala_command.go --command=clean --remove-snapshots=false
 
-    sleep 10
+    sleep 60
 
 
     ### dynamic frequency scaling
@@ -72,7 +72,7 @@ do
     go run cmd/loader.go --config cmd/config_khala_trace.json | tee data/out/$EXP/loader.log
     go run experiment/khala_command.go --command=clean --remove-snapshots=false
 
-    sleep 10
+    sleep 60
 
 
 done

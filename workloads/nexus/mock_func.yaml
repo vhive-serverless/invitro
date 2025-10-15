@@ -29,7 +29,7 @@ spec:
                 - worker
                 - singlenode
       containers:
-        - image: ghcr.io/vhive-serverless/invitro_trace_function:latest
+        - image: ghcr.io/vhive-serverless/invitro_trace_function@sha256:5a715495b139ce26d9b332a166b2cc4d4ba79bc56bd55062fdaa781a96f6f091
           imagePullPolicy: IfNotPresent
           ports:
             - name: h2c  # For gRPC support
