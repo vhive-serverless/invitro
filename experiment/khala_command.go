@@ -20,6 +20,7 @@ import (
 var (
 	Command         = flag.String("command", "deploy", "Command to execute: deploy or clean")
 	CorePoolPolicy  = flag.String("core-pool-policy", "", "Core pool policy: baseline, l-sep, or l-shared")
+	Implementation  = flag.String("impl", "go", "Implementation to use: go or cpp")
 	RemoveSnapshots = flag.Bool("remove-snapshots", false, "Whether to remove existing snapshots before deploying Khala")
 	Debug           = flag.Bool("debug", false, "Enable debug mode")
 )
@@ -32,7 +33,7 @@ func main() {
 		TimestampFormat: "2006-01-02T15:04:05.999",
 		FullTimestamp:   true,
 	})
-	
+
 	workerNodeSetup, err := getWorkerNodes()
 	if err != nil {
 		log.Fatalf("Failed to read worker node setup: %v", err)
@@ -49,10 +50,14 @@ func main() {
 		log.Fatalf("Unknown core pool policy: %s", *CorePoolPolicy)
 	}
 
+	if *Implementation != "go" && *Implementation != "cpp" {
+		log.Fatalf("Unknown implementation: %s", *Implementation)
+	}
+
 	switch *Command {
 	case "deploy":
 		log.Infof("Deploying Khala on worker nodes: %v", workerNodeSetup.WorkerNodes)
-		DeployKhala(workerNodeSetup, *CorePoolPolicy, *Debug)
+		DeployKhala(workerNodeSetup, *CorePoolPolicy, *Implementation, *Debug)
 	case "clean":
 		log.Infof("Cleaning Khala on worker nodes: %v", workerNodeSetup.WorkerNodes)
 		CleanKhala(workerNodeSetup, *RemoveSnapshots)
@@ -79,7 +84,7 @@ func getWorkerNodes() (WorkerNodeSetup, error) {
 	return workerNodeSetup, nil
 }
 
-func DeployKhala(workerNodeSetup WorkerNodeSetup, corePoolPolicy string, debug bool) error {
+func DeployKhala(workerNodeSetup WorkerNodeSetup, corePoolPolicy string, implementation string, debug bool) error {
 	// 1. cleanup minio
 	log.Infof("Cleaning up minio")
 	cmd := exec.Command("bash", "-c", "cd ~/khala && bash ./scripts/deploy-minio-obj.sh http://myminio-api.minio.10.200.3.4.sslip.io")
@@ -90,6 +95,7 @@ func DeployKhala(workerNodeSetup WorkerNodeSetup, corePoolPolicy string, debug b
 	}
 
 	deploymentCmd := "cd ~/khala && sudo ./bin/kn-integration"
+	deploymentCmd += " --impl=" + implementation
 	if corePoolPolicy != "" {
 		deploymentCmd += " --corepool=" + corePoolPolicy
 	}
@@ -147,29 +153,31 @@ func CleanKhala(workerNodeSetup WorkerNodeSetup, removeSnapshots bool) {
 	var wg sync.WaitGroup
 	var khalaDied bool
 	for _, workerNode := range workerNodeSetup.WorkerNodes {
-		go func(node string) {
+		go func(node string, khalaDied *bool) {
 			defer wg.Done()
-			conn, err := grpc.NewClient(workerNode+":8000", grpc.WithTransportCredentials(insecure.NewCredentials()))
+			conn, err := grpc.NewClient(node+":8000", grpc.WithTransportCredentials(insecure.NewCredentials()))
 			if err != nil {
-				log.Errorf("Failed to connect to nexus endpoint %s: %v", workerNode, err)
-				khalaDied = true
+				log.Errorf("Failed to connect to nexus endpoint %s: %v", node, err)
+				*khalaDied = true
 			}
 			defer conn.Close()
 			client := proto.NewKhalaKnativeIntegrationClient(conn)
 
 			_, err = client.DestroyAll(context.Background(), &proto.DestroyAllRequest{DestroyAll: true})
 			if err != nil {
-				log.Errorf("Failed to destroy all on nexus endpoint %s: %v", workerNode, err)
+				log.Errorf("Failed to destroy all on nexus endpoint %s: %v", node, err)
+				*khalaDied = true
 			}
+			*khalaDied = false
 
 			for _, cmd := range CommandList {
 				_, err := loaderUtils.ServerExec(node, cmd)
 				if err != nil {
-					log.Errorf("Failed to execute command '%s' on nexus endpoint %s: %v", cmd, workerNode, err)
+					log.Errorf("Failed to execute command '%s' on nexus endpoint %s: %v", cmd, node, err)
 				}
 			}
 
-		}(workerNode)
+		}(workerNode, &khalaDied)
 		wg.Add(1)
 	}
 	wg.Wait()
@@ -184,25 +192,37 @@ func CleanKhala(workerNodeSetup WorkerNodeSetup, removeSnapshots bool) {
 	}
 
 	// 4. restart cluster components
-	CleanupCmd := []string{}
 	if khalaDied {
-		CleanupCmd = append(CleanupCmd, []string{
+		CleanupCmd := []string{
 			"kubectl rollout restart daemonset calico-node -n kube-system",
-			"sleep 60",
-			"kubectl rollout restart deployment calico-kube-controllers -n kube-system",
+			"kubectl rollout status daemonset calico-node -n kube-system",
 			"sleep 10",
-		}...)
+			"kubectl rollout restart deployment calico-kube-controllers -n kube-system",
+			"kubectl rollout status deployment calico-kube-controllers -n kube-system",
+			"sleep 10",
+		}
+		log.Infof("Khala appears to have died on one or more worker nodes, restarting calico")
+		for _, cmd := range CleanupCmd {
+			cmd := exec.Command("bash", "-c", cmd)
+			output, err := cmd.CombinedOutput()
+			if err != nil {
+				log.Errorf("Failed to execute command '%s': %v, output: %s", cmd, err, string(output))
+			}
+		}
 	}
-	CleanupCmd = append(CleanupCmd, []string{
-		"kubectl rollout restart -n knative-serving deployment/activator",
-		"sleep 10",
-	}...)
-
-	for _, cmd := range CleanupCmd {
-		cmd := exec.Command("bash", "-c", cmd)
-		output, err := cmd.CombinedOutput()
-		if err != nil {
-			log.Errorf("Failed to execute command '%s': %v, output: %s", cmd, err, string(output))
+	{
+		CleanupCmd := []string{
+			"kubectl rollout restart -n knative-serving deployment/activator",
+			"kubectl rollout status -n knative-serving deployment/activator",
+			"sleep 10",
+		}
+		log.Infof("Restarting knative activator")
+		for _, cmd := range CleanupCmd {
+			cmd := exec.Command("bash", "-c", cmd)
+			output, err := cmd.CombinedOutput()
+			if err != nil {
+				log.Errorf("Failed to execute command '%s': %v, output: %s", cmd, err, string(output))
+			}
 		}
 	}
 
