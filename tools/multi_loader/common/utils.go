@@ -180,10 +180,7 @@ func DetermineNodesIPs(multiLoaderConfig *types.MultiLoaderConfiguration) {
 
 	switch {
 	case IsKinD():
-		nodeIP := DetermineNodeIP(Worker)
-		masterIP = nodeIP
-		loaderIP = nodeIP
-		workerIPs = []string{nodeIP}
+		fallthrough
 	case IsSingleNode():
 		nodeIP := DetermineNodeIP(SingleNode)
 		masterIP = nodeIP
@@ -201,7 +198,7 @@ func DetermineNodesIPs(multiLoaderConfig *types.MultiLoaderConfiguration) {
 	assignDefaults(&multiLoaderConfig.AutoScalerNode, DeterminePodIP(AutoScalerPod))
 	assignDefaults(&multiLoaderConfig.ActivatorNode, DeterminePodIP(ActivatorPod))
 
-	log.Trace("Node IPs determined", multiLoaderConfig)
+	log.Debug("Node IPs determined", multiLoaderConfig)
 }
 
 /**
