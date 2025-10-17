@@ -35,7 +35,7 @@ jobs:
         run: bash ./scripts/setup/setup_multi_test_trace.sh
 
       - name: Build and run multi-loader
-        run: go run tools/multi_loader/multi_loader.go --multiLoaderConfigPath tools/multi_loader/multi_loader_config.json
+        run: go run tools/multi_loader/multi_loader.go --multiLoaderConfigPath tools/multi_loader/multi_loader_config.json --verbosity debug
 
       - name: Check multi_loader output
         run: |
@@ -110,7 +110,7 @@ jobs:
           echo "multi_loader_config.json modified successfully"
 
       - name: Build and run multi-loader
-        run: go run tools/multi_loader/multi_loader.go --multiLoaderConfigPath tools/multi_loader/multi_loader_config.json
+        run: go run tools/multi_loader/multi_loader.go --multiLoaderConfigPath tools/multi_loader/multi_loader_config.json --verbosity debug
   
       - name: Check multi_loader output
         run: |
