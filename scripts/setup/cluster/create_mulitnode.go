@@ -8,60 +8,39 @@ import (
 
 func CreateMultiNodeSetup(configDir string, configName string) {
 	// Load Configurations
-	_, extNodeSetup, err := configs.GetNodeSetup(configDir, configName)
+	cfg, err := configs.CommonConfigSetup(configDir, configName)
 	if err != nil {
-		utils.FatalPrintf("Failed to get node setup config: %v\n", err)
+		utils.FatalPrintf("Failed to load configurations: %v\n", err)
 	}
-
-	setupCfg, err := configs.GetSetupJSON(configDir)
-	if err != nil {
-		utils.FatalPrintf("Failed to get setup config: %v\n", err)
-	}
-
-	minioConfig, err := configs.GetMinioConfig(configDir)
-	if err != nil {
-		utils.FatalPrintf("Failed to get MinIO config: %v\n", err)
-	}
-
-	promConfig, err := configs.GetPromConfig(configDir)
-	if err != nil {
-		utils.FatalPrintf("Failed to get Prometheus config: %v\n", err)
-	}
-
-	masterNode := extNodeSetup.NodeSetup.MasterNode[0]
-	workerNodes := extNodeSetup.NodeSetup.WorkerNode
-	minioOperatorNodes := extNodeSetup.NodeSetup.MinioOperatorNode
-	minioTenantNodes := extNodeSetup.NodeSetup.MinioTenantNode
-	allNodes := append([]string{masterNode}, workerNodes...)
 
 	// Distribute Loader SSH Key
 	utils.InfoPrintf("Distributing loader SSH key...\n")
-	if err := distributeLoaderSSHKey(masterNode, allNodes); err != nil {
+	if err := distributeLoaderSSHKey(cfg.MasterNode, cfg.AllNodes); err != nil {
 		utils.FatalPrintf("Failed to distribute loader SSH key: %v\n", err)
 	}
 	utils.InfoPrintf("Loader SSH key distributed.\n")
 
 	// Determine Operation Mode
 	var operationMode string
-	switch setupCfg.ClusterMode {
+	switch cfg.SetupCfg.ClusterMode {
 	case "container":
 		operationMode = "stock-only"
 	case "firecracker", "firecracker_snapshots":
 		operationMode = "firecracker"
 	default:
-		utils.FatalPrintf("Unsupported cluster mode: %s\n", setupCfg.ClusterMode)
+		utils.FatalPrintf("Unsupported cluster mode: %s\n", cfg.SetupCfg.ClusterMode)
 	}
 
 	// Common Initialization on all nodes
 	utils.InfoPrintf("Starting common initialization on all nodes...\n")
-	if err := commonInit(allNodes, setupCfg, operationMode); err != nil {
+	if err := commonInit(cfg.AllNodes, cfg.SetupCfg, operationMode); err != nil {
 		utils.FatalPrintf("Failed during common initialization: %v\n", err)
 	}
 	utils.InfoPrintf("Common initialization completed.\n")
 
 	// Setup Master Node
-	utils.InfoPrintf("Setting up master node: %s\n", masterNode)
-	joinToken, err := setupMaster(masterNode, operationMode)
+	utils.InfoPrintf("Setting up master node: %s\n", cfg.MasterNode)
+	joinToken, err := setupMaster(cfg.MasterNode, operationMode)
 	if err != nil {
 		utils.FatalPrintf("Failed to setup master node: %v\n", err)
 	}
@@ -69,15 +48,15 @@ func CreateMultiNodeSetup(configDir string, configName string) {
 
 	// Setup Worker Nodes
 	utils.InfoPrintf("Setting up worker nodes...\n")
-	if err := setupWorkers(workerNodes, joinToken, setupCfg, operationMode); err != nil {
+	if err := setupWorkers(cfg.WorkerNodes, joinToken, cfg.SetupCfg, operationMode); err != nil {
 		utils.FatalPrintf("Failed to setup worker nodes: %v\n", err)
 	}
 	utils.InfoPrintf("Worker nodes setup completed.\n")
 
 	// Extend CIDR if necessary
-	if setupCfg.PodsPerNode > 240 {
+	if cfg.SetupCfg.PodsPerNode > 240 {
 		utils.InfoPrintf("Extending CIDR range...\n")
-		if err := extendCIDR(masterNode, workerNodes, joinToken); err != nil {
+		if err := extendCIDR(cfg.MasterNode, cfg.WorkerNodes, joinToken); err != nil {
 			utils.FatalPrintf("Failed to extend CIDR range: %v\n", err)
 		}
 		utils.InfoPrintf("CIDR range extended.\n")
@@ -85,30 +64,30 @@ func CreateMultiNodeSetup(configDir string, configName string) {
 
 	// Finalize Cluster Setup
 	utils.InfoPrintf("Finalizing cluster setup...\n")
-	if err := finalizeClusterSetup(masterNode, allNodes); err != nil {
+	if err := finalizeClusterSetup(cfg.MasterNode, cfg.AllNodes); err != nil {
 		utils.FatalPrintf("Failed to finalize cluster setup: %v\n", err)
 	}
 	utils.InfoPrintf("Cluster setup finalized.\n")
 
 	// Label Nodes
 	utils.InfoPrintf("Labeling nodes...\n")
-	if err := loaderUtils.LabelNodes(masterNode, configDir, configName); err != nil {
+	if err := loaderUtils.LabelNodes(cfg.MasterNode, configDir, configName); err != nil {
 		utils.FatalPrintf("Failed to label nodes: %v\n", err)
 	}
 	utils.InfoPrintf("Node labeling completed.\n")
 
 	// Deploy Prometheus if enabled
-	if setupCfg.DeployPrometheus {
+	if cfg.SetupCfg.DeployPrometheus {
 		utils.InfoPrintf("Setting up Prometheus components...\n")
-		if err := setupPrometheus(masterNode, allNodes, promConfig); err != nil {
+		if err := setupPrometheus(cfg.MasterNode, cfg.AllNodes, cfg.PromConfig); err != nil {
 			utils.FatalPrintf("Failed to setup Prometheus components: %v\n", err)
 		}
 		utils.InfoPrintf("Prometheus components setup completed.\n")
 	}
 
-	if setupCfg.DeployMinio {
+	if cfg.SetupCfg.DeployMinio {
 		utils.InfoPrintf("Setting up MinIO...\n")
-		if err := setupMinio(masterNode, minioOperatorNodes, minioTenantNodes, minioConfig); err != nil {
+		if err := setupMinio(cfg.MasterNode, cfg.MinioOperatorNodes, cfg.MinioTenantNodes, cfg.MinioConfig); err != nil {
 			utils.FatalPrintf("Failed to setup MinIO: %v\n", err)
 		}
 		utils.InfoPrintf("MinIO setup completed.\n")
@@ -116,7 +95,7 @@ func CreateMultiNodeSetup(configDir string, configName string) {
 
 	// Post-Setup Configuration
 	utils.InfoPrintf("Applying post-setup configurations...\n")
-	if err := applyPostSetupConfigurations(masterNode); err != nil {
+	if err := applyPostSetupConfigurations(cfg.MasterNode); err != nil {
 		utils.FatalPrintf("Failed to apply post-setup configurations: %v\n", err)
 	}
 	utils.InfoPrintf("Post-setup configurations applied successfully.\n")

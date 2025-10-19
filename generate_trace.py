@@ -272,7 +272,12 @@ def add_warmup_phase(df: pd.DataFrame, warmup: int) -> pd.DataFrame:
         # Convert to float to ensure numeric type for arithmetic
         first_val_numeric = float(first_val)
         for k, col in enumerate(warmup_columns, start=1):
-            warmup_data.at[idx, col] = int(first_val_numeric * k / warmup)
+            if k == 1:
+                warmup_data.at[idx, col] = int(first_val_numeric * 0.2 / warmup)
+            if k == 2:
+                warmup_data.at[idx, col] = int(first_val_numeric * 0.5 / warmup)
+            else:
+                warmup_data.at[idx, col] = int(first_val_numeric * k / warmup)
 
     # Concatenate: FunctionName + warmup + original numbered columns
     df = pd.concat([df[["FunctionName"]], warmup_data, df[numbered_columns]], axis=1)

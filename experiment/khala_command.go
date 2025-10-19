@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -151,14 +152,14 @@ func CleanKhala(workerNodeSetup WorkerNodeSetup, removeSnapshots bool) {
 	}
 
 	var wg sync.WaitGroup
-	var khalaDied bool
+	var khalaDied atomic.Bool
 	for _, workerNode := range workerNodeSetup.WorkerNodes {
-		go func(node string, khalaDied *bool) {
+		go func(node string) {
 			defer wg.Done()
 			conn, err := grpc.NewClient(node+":8000", grpc.WithTransportCredentials(insecure.NewCredentials()))
 			if err != nil {
 				log.Errorf("Failed to connect to nexus endpoint %s: %v", node, err)
-				*khalaDied = true
+				khalaDied.Store(true)
 			}
 			defer conn.Close()
 			client := proto.NewKhalaKnativeIntegrationClient(conn)
@@ -166,9 +167,8 @@ func CleanKhala(workerNodeSetup WorkerNodeSetup, removeSnapshots bool) {
 			_, err = client.DestroyAll(context.Background(), &proto.DestroyAllRequest{DestroyAll: true})
 			if err != nil {
 				log.Errorf("Failed to destroy all on nexus endpoint %s: %v", node, err)
-				*khalaDied = true
+				khalaDied.Store(true)
 			}
-			*khalaDied = false
 
 			for _, cmd := range CommandList {
 				_, err := loaderUtils.ServerExec(node, cmd)
@@ -177,22 +177,25 @@ func CleanKhala(workerNodeSetup WorkerNodeSetup, removeSnapshots bool) {
 				}
 			}
 
-		}(workerNode, &khalaDied)
+		}(workerNode)
 		wg.Add(1)
 	}
 	wg.Wait()
 
-	loaderUtils.ServerExec("10.0.1.1", "bash -c 'cd ~/khala && bash cleanup_etcd.sh'")
+	out, err := loaderUtils.ServerExec("10.0.1.1", "bash -c 'cd ~/loader && bash cleanup_etcd.sh'")
+	if err != nil {
+		log.Errorf("Failed to clean etcd: %v, output: %s", err, out)
+	}
 
 	// 3. cleanup loader
 	cmd := exec.Command("bash", "-c", "cd ~/loader && make clean && sleep 1 && make clean")
-	output, err := cmd.CombinedOutput()
+	out_byte, err := cmd.CombinedOutput()
 	if err != nil {
-		log.Errorf("Failed to clean loader: %v, output: %s", err, string(output))
+		log.Errorf("Failed to clean loader: %v, output: %s", err, string(out_byte))
 	}
 
 	// 4. restart cluster components
-	if khalaDied {
+	if khalaDied.Load() || true {
 		CleanupCmd := []string{
 			"kubectl rollout restart daemonset calico-node -n kube-system",
 			"kubectl rollout status daemonset calico-node -n kube-system",
@@ -204,9 +207,9 @@ func CleanKhala(workerNodeSetup WorkerNodeSetup, removeSnapshots bool) {
 		log.Infof("Khala appears to have died on one or more worker nodes, restarting calico")
 		for _, cmd := range CleanupCmd {
 			cmd := exec.Command("bash", "-c", cmd)
-			output, err := cmd.CombinedOutput()
+			out_byte, err := cmd.CombinedOutput()
 			if err != nil {
-				log.Errorf("Failed to execute command '%s': %v, output: %s", cmd, err, string(output))
+				log.Errorf("Failed to execute command '%s': %v, output: %s", cmd, err, string(out_byte))
 			}
 		}
 	}
@@ -219,18 +222,28 @@ func CleanKhala(workerNodeSetup WorkerNodeSetup, removeSnapshots bool) {
 		log.Infof("Restarting knative activator")
 		for _, cmd := range CleanupCmd {
 			cmd := exec.Command("bash", "-c", cmd)
-			output, err := cmd.CombinedOutput()
+			out_byte, err := cmd.CombinedOutput()
 			if err != nil {
-				log.Errorf("Failed to execute command '%s': %v, output: %s", cmd, err, string(output))
+				log.Errorf("Failed to execute command '%s': %v, output: %s", cmd, err, string(out_byte))
 			}
 		}
 	}
 
 	log.Infof("Cleaning up minio")
-	cmd = exec.Command("bash", "-c", "cd ~/khala && bash ./scripts/deploy-minio-obj.sh http://myminio-api.minio.10.200.3.4.sslip.io")
-	output, err = cmd.CombinedOutput()
+	out, err = loaderUtils.ServerExec("10.0.1.1", "bash -c 'cd ~/loader/scripts/setup && go run setup.go --setup-type=cleanup_minio --config=node_setup.json'")
 	if err != nil {
-		log.Errorf("Failed to cleanup minio: %v, output: %s", err, string(output))
+		log.Errorf("Failed to clean minio: %v, output: %s", err, out)
 	}
+	out, err = loaderUtils.ServerExec("10.0.1.1", "bash -c 'cd ~/loader/scripts/setup && go run setup.go --setup-type=redeploy_minio --config=node_setup.json'")
+	if err != nil {
+		log.Errorf("Failed to redeploy minio: %v, output: %s", err, out)
+	}
+
+	cmd = exec.Command("bash", "-c", "cd ~/khala && bash ./scripts/deploy-minio-obj.sh http://myminio-api.minio.10.200.3.4.sslip.io")
+	out_byte, err = cmd.CombinedOutput()
+	if err != nil {
+		log.Errorf("Failed to cleanup minio: %v, output: %s", err, string(out_byte))
+	}
+
 	log.Infof("Khala cleaned on all worker nodes")
 }

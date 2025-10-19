@@ -26,12 +26,12 @@ tenant:
     value: "monitoring"
   - name: MINIO_PROMETHEUS_AUTH_TYPE
     value: "public"
-  # - name: MINIO_STORAGE_CLASS_STANDARD
-  #   value: "EC:0"
-  # - name: MINIO_STORAGE_CLASS_RRS
-  #   value: "EC:0"
+  - name: MINIO_STORAGE_CLASS_STANDARD
+    value: "EC:0"
+  - name: MINIO_STORAGE_CLASS_RRS
+    value: "EC:0"
   - name: MINIO_SCANNER_SPEED
-    value: "fastest"
+    value: "default"
 
 ingress:
   api:

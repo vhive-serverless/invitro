@@ -3,7 +3,11 @@
 for multiplier in 2 4 6 8 10 12 14 16
 do
     divisor=100
-    WARMUP=$multiplier
+    WARMUP=$(($multiplier / 2))
+    if [ $WARMUP -lt 2 ]; then
+        WARMUP=3
+    fi
+    EXPWARMUP=$(($WARMUP+2))
     EXP_DUR=1
 
     # test baseline, logical sep, physical sep, dynamic core pool
@@ -17,7 +21,7 @@ do
 
     mkdir -p data/out/$EXP
     go run experiment/khala_command.go --command=deploy
-    cat cmd/config_khala_trace_template.json | EXPERIMENT="$EXP" EXP_DUR="$EXP_DUR" WARMUP="$WARMUP" envsubst > cmd/config_khala_trace.json
+    cat cmd/config_khala_trace_template.json | EXPERIMENT="$EXP" EXP_DUR="$EXP_DUR" WARMUP="$EXPWARMUP" envsubst > cmd/config_khala_trace.json
     go run cmd/loader.go --config cmd/config_khala_trace.json | tee data/out/$EXP/loader.log
     go run experiment/khala_command.go --command=clean --remove-snapshots=false
 
@@ -33,8 +37,8 @@ do
         --warmup $WARMUP --s3 --rpc
     
     mkdir -p data/out/$EXP
-    go run experiment/khala_command.go --command=deploy 
-    cat cmd/config_khala_trace_template.json | EXPERIMENT="$EXP" EXP_DUR="$EXP_DUR" WARMUP="$WARMUP" envsubst > cmd/config_khala_trace.json
+    go run experiment/khala_command.go --command=deploy
+    cat cmd/config_khala_trace_template.json | EXPERIMENT="$EXP" EXP_DUR="$EXP_DUR" WARMUP="$EXPWARMUP" envsubst > cmd/config_khala_trace.json
     go run cmd/loader.go --config cmd/config_khala_trace.json | tee data/out/$EXP/loader.log
     go run experiment/khala_command.go --command=clean --remove-snapshots=false
 
@@ -51,7 +55,7 @@ do
 
     mkdir -p data/out/$EXP
     go run experiment/khala_command.go --command=deploy --core-pool-policy corepool_freq_static
-    cat cmd/config_khala_trace_template.json | EXPERIMENT="$EXP" EXP_DUR="$EXP_DUR" WARMUP="$WARMUP" envsubst > cmd/config_khala_trace.json
+    cat cmd/config_khala_trace_template.json | EXPERIMENT="$EXP" EXP_DUR="$EXP_DUR" WARMUP="$EXPWARMUP" envsubst > cmd/config_khala_trace.json
     go run cmd/loader.go --config cmd/config_khala_trace.json | tee data/out/$EXP/loader.log
     go run experiment/khala_command.go --command=clean --remove-snapshots=false
 
@@ -68,7 +72,7 @@ do
 
     mkdir -p data/out/$EXP
     go run experiment/khala_command.go --command=deploy --core-pool-policy corepool_freq_dynamic
-    cat cmd/config_khala_trace_template.json | EXPERIMENT="$EXP" EXP_DUR="$EXP_DUR" WARMUP="$WARMUP" envsubst > cmd/config_khala_trace.json
+    cat cmd/config_khala_trace_template.json | EXPERIMENT="$EXP" EXP_DUR="$EXP_DUR" WARMUP="$EXPWARMUP" envsubst > cmd/config_khala_trace.json
     go run cmd/loader.go --config cmd/config_khala_trace.json | tee data/out/$EXP/loader.log
     go run experiment/khala_command.go --command=clean --remove-snapshots=false
 

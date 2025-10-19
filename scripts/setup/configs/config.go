@@ -5,7 +5,21 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+
+	"github.com/vhive-serverless/vHive/scripts/utils"
 )
+
+type InvitroSetupConfig struct {
+	MasterNode         string
+	WorkerNodes        []string
+	MinioOperatorNodes []string
+	MinioTenantNodes   []string
+	AllNodes           []string
+
+	SetupCfg    *SetupConfig
+	MinioConfig *MinioConfig
+	PromConfig  *PrometheusConfig
+}
 
 type NodeSetup struct {
 	NodeSetup struct {
@@ -44,6 +58,50 @@ type PrometheusConfig struct {
 	PromChartVersion     string `json:"PromChartVersion"`
 	PromValuePath        string `json:"PromValuePath"`
 	KnativePromURL       string `json:"KnativePromURL"`
+}
+
+func CommonConfigSetup(configDir string, configName string) (*InvitroSetupConfig, error) {
+	// Load Configurations
+	_, extNodeSetup, err := GetNodeSetup(configDir, configName)
+	if err != nil {
+		utils.FatalPrintf("Failed to get node setup config: %v\n", err)
+		return nil, err
+	}
+
+	setupCfg, err := GetSetupJSON(configDir)
+	if err != nil {
+		utils.FatalPrintf("Failed to get setup config: %v\n", err)
+		return nil, err
+	}
+
+	minioConfig, err := GetMinioConfig(configDir)
+	if err != nil {
+		utils.FatalPrintf("Failed to get MinIO config: %v\n", err)
+		return nil, err
+	}
+
+	promConfig, err := GetPromConfig(configDir)
+	if err != nil {
+		utils.FatalPrintf("Failed to get Prometheus config: %v\n", err)
+		return nil, err
+	}
+
+	masterNode := extNodeSetup.NodeSetup.MasterNode[0]
+	workerNodes := extNodeSetup.NodeSetup.WorkerNode
+	minioOperatorNodes := extNodeSetup.NodeSetup.MinioOperatorNode
+	minioTenantNodes := extNodeSetup.NodeSetup.MinioTenantNode
+	allNodes := append([]string{masterNode}, workerNodes...)
+
+	return &InvitroSetupConfig{
+		MasterNode:         masterNode,
+		WorkerNodes:        workerNodes,
+		MinioOperatorNodes: minioOperatorNodes,
+		MinioTenantNodes:   minioTenantNodes,
+		AllNodes:           allNodes,
+		SetupCfg:           setupCfg,
+		MinioConfig:        minioConfig,
+		PromConfig:         promConfig,
+	}, nil
 }
 
 func GetNodeSetup(path string, configName string) (*NodeSetup, *NodeSetup, error) {

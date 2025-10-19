@@ -120,6 +120,15 @@ func CreateMinioNamespace(masterNode string) error {
 	return nil
 }
 
+func DeleteMinioNamespace(masterNode string) error {
+	utils.WaitPrintf("Deleting MinIO namespace\n")
+	_, err := loaderUtils.ServerExec(masterNode, "kubectl delete namespace minio")
+	if !utils.CheckErrorWithMsg(err, "Failed to delete MinIO namespace\n") {
+		return err
+	}
+	return nil
+}
+
 func SetMinioOperator(masterNode string, numOperator int, minioConfig *configs.MinioConfig) error {
 	utils.WaitPrintf("Installing MinIO operator\n")
 	opConfigPath := path.Join(minioConfig.MinIOValuePath, "minio_operator_values.yaml")
@@ -128,18 +137,19 @@ func SetMinioOperator(masterNode string, numOperator int, minioConfig *configs.M
 		return err
 	}
 
-	bashCmd :=
-		`kubectl apply -f - <<EOF` +
-			`apiVersion: v1` +
-			`kind: Secret` +
-			`metadata:` +
-			`name: console-sa-secret` +
-			`namespace: minio` +
-			`annotations:` +
-			`kubernetes.io/service-account.name: console-sa` +
-			`type: kubernetes.io/service-account-token` +
-			`EOF` +
-			`kubectl -n minio get secret console-sa-secret -o jsonpath="{.data.token}" | base64 --decode`
+	bashCmd := `
+kubectl apply -f - <<EOF
+apiVersion: v1
+kind: Secret
+metadata:
+  name: console-sa-secret
+  namespace: minio
+  annotations:
+    kubernetes.io/service-account.name: console-sa
+type: kubernetes.io/service-account-token
+EOF
+kubectl -n minio get secret console-sa-secret -o jsonpath="{.data.token}" | base64 --decode
+`
 
 	// Get the Operator Console URL by running these commands:
 	// kubectl --namespace minio port-forward svc/console 9095:9090 due to collision with prometheus
@@ -150,6 +160,15 @@ func SetMinioOperator(masterNode string, numOperator int, minioConfig *configs.M
 		return err
 	}
 
+	return nil
+}
+
+func UninstallMinioOperator(masterNode string) error {
+	utils.WaitPrintf("Uninstalling MinIO operator\n")
+	_, err := loaderUtils.ServerExec(masterNode, "helm uninstall minio-operator --namespace minio")
+	if !utils.CheckErrorWithMsg(err, "Failed to uninstall MinIO operator\n") {
+		return err
+	}
 	return nil
 }
 
@@ -201,6 +220,26 @@ func CreatePVDirC6620(tenantNode []string, minioConfig *configs.MinioConfig) err
 	return nil
 }
 
+func CleanPVDir(tenantNode []string) error {
+	var wg sync.WaitGroup
+	errChan := make(chan error, len(tenantNode))
+
+	utils.WaitPrintf("Creating MinIO PV directory on each Tenant node\n")
+	// Create PV Directory on each Tenant node
+	for _, node := range tenantNode {
+		wg.Add(1)
+		go func(node string) {
+			defer wg.Done()
+			_, err := loaderUtils.ServerExec(node, "sudo rm -rf /mnt/resources/minio/*")
+			if !utils.CheckErrorWithMsg(err, "Failed to remove MinIO PV directory on node %s\n", node) {
+				errChan <- err
+			}
+		}(node)
+	}
+	wg.Wait()
+	return nil
+}
+
 func CreateMinioPV(masterNode string, tenantNode []string, minioConfig *configs.MinioConfig) error {
 	utils.WaitPrintf("Creating MinIO PV using Helm provisioner\n")
 	storageClassPath := path.Join(minioConfig.MinIOValuePath, "minio_storage_class.yaml")
@@ -227,6 +266,15 @@ func CreateMinioTenant(masterNode string, numTenant int, minioConfig *configs.Mi
 	return nil
 }
 
+func UninstallMinioTenant(masterNode string) error {
+	utils.WaitPrintf("Uninstalling MinIO tenant\n")
+	_, err := loaderUtils.ServerExec(masterNode, "helm uninstall minio-tenant --namespace minio")
+	if !utils.CheckErrorWithMsg(err, "Failed to uninstall MinIO tenant\n") {
+		return err
+	}
+	return nil
+}
+
 func SetupMinioClient(masterNode string) error {
 	minIOClientUrl := "https://dl.min.io/client/mc/release/linux-amd64/mc"
 	utils.WaitPrintf("Setting up MinIO client\n")
@@ -234,5 +282,110 @@ func SetupMinioClient(masterNode string) error {
 	if !utils.CheckErrorWithMsg(err, "Failed to set up MinIO client\n") {
 		return err
 	}
+	return nil
+}
+
+func DeletePVC(masterNode string, minioConfig *configs.MinioConfig) error {
+	utils.WaitPrintf("Deleting MinIO PVC\n")
+	_, err := loaderUtils.ServerExec(masterNode, "helm uninstall local-provisioner --namespace kube-system")
+	if !utils.CheckErrorWithMsg(err, "Failed to delete MinIO PV\n") {
+		return err
+	}
+
+	storageClassPath := path.Join(minioConfig.MinIOValuePath, "minio_storage_class.yaml")
+	_, err = loaderUtils.ServerExec(masterNode, fmt.Sprintf("kubectl delete -f %s", storageClassPath))
+	if !utils.CheckErrorWithMsg(err, "Failed to delete MinIO storage class\n") {
+		return err
+	}
+
+	_, err = loaderUtils.ServerExec(masterNode, "kubectl delete pvc --all -n minio")
+	if !utils.CheckErrorWithMsg(err, "Failed to delete MinIO PVCs\n") {
+		return err
+	}
+
+	_, err = loaderUtils.ServerExec(masterNode, "kubectl delete pv $(kubectl get pv | grep '^local-pv-' | awk '{print $1}')")
+	if !utils.CheckErrorWithMsg(err, "Failed to delete MinIO PVs\n") {
+		return err
+	}
+
+	return nil
+}
+
+func CleanupMinio(configDir string, configName string) error {
+	cfg, err := configs.CommonConfigSetup(configDir, configName)
+	if err != nil {
+		utils.FatalPrintf("Failed to load configurations: %v\n", err)
+		return err
+	}
+
+	// Uninstall MinIO Tenant
+	err = UninstallMinioTenant(cfg.MasterNode)
+	if err != nil {
+		return err
+	}
+
+	// Uninstall MinIO Operator
+	err = UninstallMinioOperator(cfg.MasterNode)
+	if err != nil {
+		return err
+	}
+
+	// Delete PVCs
+	err = DeletePVC(cfg.MasterNode, cfg.MinioConfig)
+	if err != nil {
+		return err
+	}
+
+	// Delete MinIO Namespace
+	err = DeleteMinioNamespace(cfg.MasterNode)
+	if err != nil {
+		return err
+	}
+
+	// Clean PV Directory on Tenant nodes
+	err = CleanPVDir(cfg.MinioTenantNodes)
+	if err != nil {
+		return err
+	}
+
+	time.Sleep(5 * time.Second)
+
+	return nil
+}
+
+func RedeployMinio(configDir string, configName string) error {
+	cfg, err := configs.CommonConfigSetup(configDir, configName)
+	if err != nil {
+		utils.FatalPrintf("Failed to load configurations: %v\n", err)
+		return err
+	}
+	numOperator := len(cfg.MinioOperatorNodes)
+	numTenant := len(cfg.MinioTenantNodes)
+
+	// Create k8s MinIO Namespace
+	err = CreateMinioNamespace(cfg.MasterNode)
+	if err != nil {
+		return err
+	}
+
+	err = SetMinioOperator(cfg.MasterNode, numOperator, cfg.MinioConfig)
+	if err != nil {
+		return err
+	}
+
+	// Create PV using helm provisioner
+	err = CreateMinioPV(cfg.MasterNode, cfg.MinioTenantNodes, cfg.MinioConfig)
+	if err != nil {
+		return err
+	}
+
+	// Install MinIO Tenant
+	err = CreateMinioTenant(cfg.MasterNode, numTenant, cfg.MinioConfig)
+	if err != nil {
+		return err
+	}
+
+	time.Sleep(5 * time.Second)
+
 	return nil
 }

@@ -25,6 +25,11 @@ func main() {
 	case "create_multinode_cluster":
 		cluster.CreateMultiNodeSetup("configs", *configName)
 		// Call the function to create a multinode cluster
+	case "redeploy_minio":
+		cluster.RedeployMinio("configs", *configName)
+		// Call the function to redeploy MinIO
+	case "cleanup_minio":
+		cluster.CleanupMinio("configs", *configName)
 
 	default:
 		utils.FatalPrintf("Invalid subcommand --> %s! Available subcommands list: \n", *Setup)
