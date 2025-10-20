@@ -30,7 +30,7 @@ jobs:
           ]
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Kubernetes KinD Cluster and install Knative
         uses: ./.github/actions/ci_knative_setup
