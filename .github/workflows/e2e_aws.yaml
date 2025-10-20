@@ -38,7 +38,7 @@ jobs:
 
       # AWS CLI v2 and Docker Client & Server v24 are pre-installed
       - name: Install Golang (Ubuntu 20.04 Cached Tool)
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: 1.21
 
