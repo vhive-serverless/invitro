@@ -342,3 +342,4 @@ Notes:
      ```
 - Current deployment is via ZIP
 - Python is used for deployment workload as Go is not supported in Consumption Plan
+- Default region used is `southeastasia`. You can change this in `azurefunctions_setup/azurefunctionsconfig.yaml`
