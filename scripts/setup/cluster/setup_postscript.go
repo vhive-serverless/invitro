@@ -16,7 +16,7 @@ func applyPostSetupConfigurations(masterNode string) error {
 		return err
 	}
 
-	_, err = loaderUtils.ServerExec(masterNode, `kubectl patch deployment activator -n knative-serving -p '{"spec": {"template": {"spec": {"containers": [{"name": "activator", "image": "nivekiba/activator-ecd51ca5034883acbe737fde417a3d86:final", "imagePullPolicy": "Always"}]}}}}'`)
+	_, err = loaderUtils.ServerExec(masterNode, `kubectl patch deployment activator -n knative-serving -p '{"spec": {"template": {"spec": {"containers": [{"name": "activator", "image": "nehalem90/activator-ecd51ca5034883acbe737fde417a3d86:latest", "imagePullPolicy": "Always"}]}}}}'`)
 	if err != nil {
 		return err
 	}

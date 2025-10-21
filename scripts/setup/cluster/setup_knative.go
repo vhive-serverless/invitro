@@ -98,12 +98,12 @@ func commonInit(nodes []string, cfg *configs.SetupConfig, operationMode string) 
 			}
 
 			// Run stabilize script
-			utils.WaitPrintf("Running stabilize script on node %s...\n", node)
-			_, err = loaderUtils.ServerExec(node, "~/loader/scripts/setup/stabilize.sh")
-			if !utils.CheckErrorWithMsg(err, "Failed to run stabilize script on node %s: %v \n", node, err) {
-				errChan <- err
-				return
-			}
+			// utils.WaitPrintf("Running stabilize script on node %s...\n", node)
+			// _, err = loaderUtils.ServerExec(node, "~/loader/scripts/setup/stabilize.sh")
+			// if !utils.CheckErrorWithMsg(err, "Failed to run stabilize script on node %s: %v \n", node, err) {
+			// 	errChan <- err
+			// 	return
+			// }
 		}(node)
 	}
 

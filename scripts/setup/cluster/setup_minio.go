@@ -224,7 +224,7 @@ func CleanPVDir(tenantNode []string) error {
 	var wg sync.WaitGroup
 	errChan := make(chan error, len(tenantNode))
 
-	utils.WaitPrintf("Creating MinIO PV directory on each Tenant node\n")
+	utils.WaitPrintf("Cleaning MinIO PV directory on each Tenant node\n")
 	// Create PV Directory on each Tenant node
 	for _, node := range tenantNode {
 		wg.Add(1)

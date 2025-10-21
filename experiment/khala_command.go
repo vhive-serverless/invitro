@@ -95,7 +95,7 @@ func DeployKhala(workerNodeSetup WorkerNodeSetup, corePoolPolicy string, impleme
 		return err
 	}
 
-	deploymentCmd := "cd ~/khala && sudo ./bin/kn-integration"
+	deploymentCmd := "cd ~/khala && sudo ./bin/kn-integration --pool-size=20"
 	deploymentCmd += " --impl=" + implementation
 	if corePoolPolicy != "" {
 		deploymentCmd += " --corepool=" + corePoolPolicy
@@ -195,7 +195,7 @@ func CleanKhala(workerNodeSetup WorkerNodeSetup, removeSnapshots bool) {
 	}
 
 	// 4. restart cluster components
-	if khalaDied.Load() || true {
+	if khalaDied.Load() {
 		CleanupCmd := []string{
 			"kubectl rollout restart daemonset calico-node -n kube-system",
 			"kubectl rollout status daemonset calico-node -n kube-system",
@@ -230,13 +230,18 @@ func CleanKhala(workerNodeSetup WorkerNodeSetup, removeSnapshots bool) {
 	}
 
 	log.Infof("Cleaning up minio")
-	out, err = loaderUtils.ServerExec("10.0.1.1", "bash -c 'cd ~/loader/scripts/setup && go run setup.go --setup-type=cleanup_minio --config=node_setup.json'")
-	if err != nil {
-		log.Errorf("Failed to clean minio: %v, output: %s", err, out)
-	}
-	out, err = loaderUtils.ServerExec("10.0.1.1", "bash -c 'cd ~/loader/scripts/setup && go run setup.go --setup-type=redeploy_minio --config=node_setup.json'")
-	if err != nil {
-		log.Errorf("Failed to redeploy minio: %v, output: %s", err, out)
+	if khalaDied.Load() {
+		out, err = loaderUtils.ServerExec("10.0.1.1", "bash -c 'source /etc/profile && cd ~/loader/scripts/setup && go run setup.go --setup-type=cleanup_minio --config=node_setup.json'")
+		if err != nil {
+			log.Errorf("Failed to clean minio: %v, output: %s", err, out)
+		}
+		time.Sleep(10 * time.Second)
+		out, err = loaderUtils.ServerExec("10.0.1.1", "bash -c 'source /etc/profile && cd ~/loader/scripts/setup && go run setup.go --setup-type=redeploy_minio --config=node_setup.json'")
+		if err != nil {
+			log.Errorf("Failed to redeploy minio: %v, output: %s", err, out)
+		}
+
+		time.Sleep(60 * time.Second)
 	}
 
 	cmd = exec.Command("bash", "-c", "cd ~/khala && bash ./scripts/deploy-minio-obj.sh http://myminio-api.minio.10.200.3.4.sslip.io")

@@ -75,6 +75,7 @@ def compute_invocation_stats(base_invocation_trace: pd.DataFrame) -> Tuple[pd.Da
     """
     # Standardize all column labels to strings for consistent selection
     df = base_invocation_trace.copy()
+    df = df[df["Trigger"] == "http"]  # Filter to HTTP-triggered functions only
     df.columns = df.columns.map(str)
     numbered_columns = _get_numbered_columns(df)
     
@@ -273,9 +274,9 @@ def add_warmup_phase(df: pd.DataFrame, warmup: int) -> pd.DataFrame:
         first_val_numeric = float(first_val)
         for k, col in enumerate(warmup_columns, start=1):
             if k == 1:
-                warmup_data.at[idx, col] = int(first_val_numeric * 0.2 / warmup)
-            if k == 2:
-                warmup_data.at[idx, col] = int(first_val_numeric * 0.5 / warmup)
+                warmup_data.at[idx, col] = min(20, int(first_val_numeric * 0.2 / warmup))
+            elif k == 2:
+                warmup_data.at[idx, col] = int(first_val_numeric / warmup)
             else:
                 warmup_data.at[idx, col] = int(first_val_numeric * k / warmup)
 
