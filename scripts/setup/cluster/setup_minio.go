@@ -304,9 +304,7 @@ func DeletePVC(masterNode string, minioConfig *configs.MinioConfig) error {
 	}
 
 	_, err = loaderUtils.ServerExec(masterNode, "kubectl delete pv $(kubectl get pv | grep '^local-pv-' | awk '{print $1}')")
-	if !utils.CheckErrorWithMsg(err, "Failed to delete MinIO PVs\n") {
-		return err
-	}
+	utils.CheckErrorWithMsg(err, "Failed to delete MinIO PVs\n")
 
 	return nil
 }
@@ -319,34 +317,19 @@ func CleanupMinio(configDir string, configName string) error {
 	}
 
 	// Uninstall MinIO Tenant
-	err = UninstallMinioTenant(cfg.MasterNode)
-	if err != nil {
-		return err
-	}
+	UninstallMinioTenant(cfg.MasterNode)
 
 	// Uninstall MinIO Operator
-	err = UninstallMinioOperator(cfg.MasterNode)
-	if err != nil {
-		return err
-	}
+	UninstallMinioOperator(cfg.MasterNode)
 
 	// Delete PVCs
-	err = DeletePVC(cfg.MasterNode, cfg.MinioConfig)
-	if err != nil {
-		return err
-	}
+	DeletePVC(cfg.MasterNode, cfg.MinioConfig)
 
 	// Delete MinIO Namespace
-	err = DeleteMinioNamespace(cfg.MasterNode)
-	if err != nil {
-		return err
-	}
+	DeleteMinioNamespace(cfg.MasterNode)
 
 	// Clean PV Directory on Tenant nodes
-	err = CleanPVDir(cfg.MinioTenantNodes)
-	if err != nil {
-		return err
-	}
+	CleanPVDir(cfg.MinioTenantNodes)
 
 	time.Sleep(5 * time.Second)
 
