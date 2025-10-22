@@ -26,6 +26,9 @@ package clients
 
 import (
 	"context"
+	"strings"
+	"time"
+
 	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
 	"github.com/vhive-serverless/loader/pkg/common"
@@ -35,20 +38,16 @@ import (
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
-	"strings"
-	"time"
-
-	mc "github.com/vhive-serverless/loader/pkg/metric"
 )
 
 type invoker interface {
-	Invoke(function *common.Function, runtimeSpec *common.RuntimeSpecification, conn *grpc.ClientConn, record *mc.ExecutionRecord, executionCxt context.Context) bool
+	Invoke(function *common.Function, runtimeSpec *common.RuntimeSpecification, conn *grpc.ClientConn, record *common.ExecutionRecord, executionCxt context.Context) bool
 }
 
 type ExecutorRPC struct {
 }
 
-func (i ExecutorRPC) Invoke(function *common.Function, runtimeSpec *common.RuntimeSpecification, conn *grpc.ClientConn, record *mc.ExecutionRecord, executionCxt context.Context) bool {
+func (i ExecutorRPC) Invoke(function *common.Function, runtimeSpec *common.RuntimeSpecification, conn *grpc.ClientConn, record *common.ExecutionRecord, executionCxt context.Context) bool {
 	grpcClient := proto.NewExecutorClient(conn)
 
 	response, err := grpcClient.Execute(executionCxt, &proto.FaasRequest{
@@ -84,7 +83,7 @@ func (i ExecutorRPC) Invoke(function *common.Function, runtimeSpec *common.Runti
 type SayHelloRPC struct {
 }
 
-func (i SayHelloRPC) Invoke(function *common.Function, runtimeSpec *common.RuntimeSpecification, conn *grpc.ClientConn, record *mc.ExecutionRecord, executionCxt context.Context) bool {
+func (i SayHelloRPC) Invoke(function *common.Function, runtimeSpec *common.RuntimeSpecification, conn *grpc.ClientConn, record *common.ExecutionRecord, executionCxt context.Context) bool {
 	grpcClient := helloworld.NewGreeterClient(conn)
 	response, err := grpcClient.SayHello(executionCxt, &helloworld.HelloRequest{
 		Name: "Invoke Relay",
@@ -120,11 +119,11 @@ func newGRPCInvoker(cfg *config.LoaderConfiguration, invoker invoker) *grpcInvok
 	}
 }
 
-func (i *grpcInvoker) Invoke(function *common.Function, runtimeSpec *common.RuntimeSpecification) (bool, *mc.ExecutionRecord) {
+func (i *grpcInvoker) Invoke(function *common.Function, runtimeSpec *common.RuntimeSpecification) (bool, *common.ExecutionRecord) {
 	logrus.Tracef("(Invoke)\t %s: %d[ms], %d[MiB]", function.Name, runtimeSpec.Runtime, runtimeSpec.Memory)
 
-	record := &mc.ExecutionRecord{
-		ExecutionRecordBase: mc.ExecutionRecordBase{
+	record := &common.ExecutionRecord{
+		ExecutionRecordBase: common.ExecutionRecordBase{
 			RequestedDuration: uint32(runtimeSpec.Runtime * 1e3),
 		},
 	}
@@ -146,7 +145,7 @@ func (i *grpcInvoker) Invoke(function *common.Function, runtimeSpec *common.Runt
 
 	grpcStart := time.Now()
 
-	conn, err := grpc.NewClient("passthrough:///" + function.Endpoint, dialOptions...)
+	conn, err := grpc.NewClient("passthrough:///"+function.Endpoint, dialOptions...)
 	if err != nil {
 		logrus.Debugf("Failed to establish a gRPC connection - %v\n", err)
 

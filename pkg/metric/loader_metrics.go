@@ -2,12 +2,13 @@ package metric
 
 import (
 	"encoding/csv"
-	"github.com/gocarina/gocsv"
-	log "github.com/sirupsen/logrus"
-	"github.com/vhive-serverless/loader/pkg/common"
 	"math"
 	"os"
 	"sync"
+
+	"github.com/gocarina/gocsv"
+	log "github.com/sirupsen/logrus"
+	"github.com/vhive-serverless/loader/pkg/common"
 )
 
 func RunCSVWriter(records chan interface{}, filename string, writerDone *sync.WaitGroup) {
@@ -25,7 +26,7 @@ func RunCSVWriter(records chan interface{}, filename string, writerDone *sync.Wa
 	writerDone.Done()
 }
 
-func CreateGlobalMetricsCollector(filename string, collector chan *ExecutionRecord,
+func CreateGlobalMetricsCollector(filename string, collector chan *common.ExecutionRecord,
 	signalReady *sync.WaitGroup, signalEverythingWritten *sync.WaitGroup, totalIssuedChannel chan int64) {
 
 	// NOTE: totalNumberOfInvocations is initialized to MaxInt64 not to allow collector to complete before

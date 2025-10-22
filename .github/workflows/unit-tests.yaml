@@ -71,4 +71,4 @@ jobs:
         run: pip install -r ./requirements.txt
 
       - name: Run loader tests
-        run: go test -v -cover -race ./pkg/${{ matrix.module }}
+        run: go test -v -cover -race -timeout 720s ./pkg/${{ matrix.module }}

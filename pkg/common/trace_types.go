@@ -93,6 +93,10 @@ type WorkflowMetadata struct {
 	InvocationRequest string
 }
 
+type Invoker interface {
+	Invoke(function *Function, runtimeSpecification *RuntimeSpecification) (bool, *ExecutionRecord)
+}
+
 type Function struct {
 	Name     string
 	Endpoint string
@@ -113,6 +117,7 @@ type Function struct {
 	YAMLPath          string
 	PredeploymentPath []string
 	Specification     *FunctionSpecification
+	Invoker           Invoker
 
 	// used only for dirigent workflows
 	WorkflowMetadata *WorkflowMetadata

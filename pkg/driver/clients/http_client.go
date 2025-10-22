@@ -5,10 +5,6 @@ import (
 	"crypto/rand"
 	"encoding/json"
 	"fmt"
-	log "github.com/sirupsen/logrus"
-	"github.com/vhive-serverless/loader/pkg/common"
-	"github.com/vhive-serverless/loader/pkg/config"
-	mc "github.com/vhive-serverless/loader/pkg/metric"
 	"io"
 	"mime/multipart"
 	"net/http"
@@ -16,6 +12,10 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	log "github.com/sirupsen/logrus"
+	"github.com/vhive-serverless/loader/pkg/common"
+	"github.com/vhive-serverless/loader/pkg/config"
 )
 
 type FunctionResponse struct {
@@ -160,11 +160,11 @@ func (i *httpInvoker) workflowInvocationRequest(wf *common.Function) *http.Reque
 	return req
 }
 
-func (i *httpInvoker) Invoke(function *common.Function, runtimeSpec *common.RuntimeSpecification) (bool, *mc.ExecutionRecord) {
+func (i *httpInvoker) Invoke(function *common.Function, runtimeSpec *common.RuntimeSpecification) (bool, *common.ExecutionRecord) {
 	log.Tracef("(Invoke)\t %s: %d[ms], %d[MiB]", function.Name, runtimeSpec.Runtime, runtimeSpec.Memory)
 
-	record := &mc.ExecutionRecord{
-		ExecutionRecordBase: mc.ExecutionRecordBase{
+	record := &common.ExecutionRecord{
+		ExecutionRecordBase: common.ExecutionRecordBase{
 			RequestedDuration: uint32(runtimeSpec.Runtime * 1e3),
 		},
 	}
@@ -247,7 +247,7 @@ func (i *httpInvoker) Invoke(function *common.Function, runtimeSpec *common.Runt
 	return true, record
 }
 
-func DeserializeDirigentResponse(body []byte, record *mc.ExecutionRecord) error {
+func DeserializeDirigentResponse(body []byte, record *common.ExecutionRecord) error {
 	var deserializedResponse FunctionResponse
 	err := json.Unmarshal(body, &deserializedResponse)
 	if err != nil {

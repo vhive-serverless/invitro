@@ -3,11 +3,11 @@ package clients
 import (
 	"encoding/json"
 	"fmt"
-	log "github.com/sirupsen/logrus"
-	"github.com/vhive-serverless/loader/pkg/common"
-	mc "github.com/vhive-serverless/loader/pkg/metric"
 	"io"
 	"sync"
+
+	log "github.com/sirupsen/logrus"
+	"github.com/vhive-serverless/loader/pkg/common"
 )
 
 type awsLambdaInvoker struct {
@@ -20,14 +20,14 @@ func newAWSLambdaInvoker(announceDoneExe *sync.WaitGroup) *awsLambdaInvoker {
 	}
 }
 
-func (i *awsLambdaInvoker) Invoke(function *common.Function, runtimeSpec *common.RuntimeSpecification) (bool, *mc.ExecutionRecord) {
+func (i *awsLambdaInvoker) Invoke(function *common.Function, runtimeSpec *common.RuntimeSpecification) (bool, *common.ExecutionRecord) {
 	log.Tracef("(Invoke)\t %s: %d[ms], %d[MiB]", function.Name, runtimeSpec.Runtime, runtimeSpec.Memory)
 
 	dataString := fmt.Sprintf(`{"RuntimeInMilliSec": %d, "MemoryInMebiBytes": %d}`, runtimeSpec.Runtime, runtimeSpec.Memory)
 	success, executionRecordBase, res := httpInvocation(dataString, function, i.announceDoneExe, false)
 
 	executionRecordBase.RequestedDuration = uint32(runtimeSpec.Runtime * 1e3)
-	record := &mc.ExecutionRecord{ExecutionRecordBase: *executionRecordBase}
+	record := &common.ExecutionRecord{ExecutionRecordBase: *executionRecordBase}
 
 	if !success {
 		return false, record
