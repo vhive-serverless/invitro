@@ -56,8 +56,15 @@ func NewNexusParser(directoryPath string, totalDuration int, yamlPath string) *N
 func (p *NexusTraceParser) extractFunctions(invocations *[]common.FunctionInvocationStats, runtime *[]common.FunctionRuntimeStats, memory *[]common.FunctionMemoryStats) []*common.Function {
 	var result []*common.Function
 
+	runtimeMap := make(map[string]common.FunctionRuntimeStats)
+	for _, r := range *runtime {
+		key := fmt.Sprintf("%s-%s", r.HashApp, r.HashFunction)
+		runtimeMap[key] = r
+	}
+
 	for i, funcInv := range *invocations {
-		funcRuntime := (*runtime)[i]
+		// funcRuntime := (*runtime)[i]
+		funcRuntime := runtimeMap[fmt.Sprintf("%s-%s", funcInv.HashApp, funcInv.HashFunction)]
 		funcMemory := (*memory)[i]
 
 		f := &common.Function{
@@ -77,9 +84,10 @@ func (p *NexusTraceParser) extractFunctions(invocations *[]common.FunctionInvoca
 
 func (p *NexusTraceParser) Parse() []*common.Function {
 	invocationPath := p.DirectoryPath + "/invocations.csv"
+	runtimePath := p.DirectoryPath + "/durations.csv"
 
 	invocationTrace := parseNexusInvocationTrace(invocationPath, p.duration)
-	runtimeTrace := createMockRuntimeStats(invocationTrace)
+	runtimeTrace := createMockRuntimeStats(runtimePath)
 	memoryTrace := createMockMemoryStats(invocationTrace)
 
 	return p.extractFunctions(invocationTrace, runtimeTrace, memoryTrace)
@@ -146,15 +154,43 @@ func parseNexusInvocationTrace(traceFile string, traceDuration int) *[]common.Fu
 	return &result
 }
 
-func createMockRuntimeStats(functions *[]common.FunctionInvocationStats) *[]common.FunctionRuntimeStats {
+func createMockRuntimeStats(statFile string) *[]common.FunctionRuntimeStats {
 	var stats []common.FunctionRuntimeStats
-	for _, function := range *functions {
-		stats = append(stats, common.FunctionRuntimeStats{
-			HashOwner:    function.HashOwner,
-			HashApp:      function.HashApp,
-			HashFunction: function.HashFunction,
+	csvfile, err := os.Open(statFile)
+	if err != nil {
+		log.Fatal("Failed to open invocation CSV file.", err)
+	}
+	defer csvfile.Close()
 
-			Average: 200, // ms
+	reader := csv.NewReader(csvfile)
+	_, err = reader.Read()
+	if err != nil {
+		if err == io.EOF {
+			return &stats // Empty file
+		}
+		log.Fatal(err)
+	}
+	rowID := 0
+	for {
+		record, err := reader.Read()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		AverageDuration, err := strconv.ParseFloat(record[1], 64)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		stats = append(stats, common.FunctionRuntimeStats{
+			HashOwner:    "",
+			HashApp:      record[0],
+			HashFunction: strconv.Itoa(rowID),
+
+			Average: AverageDuration,
 			Count:   100,
 			Minimum: 100,
 			Maximum: 500,
@@ -167,7 +203,9 @@ func createMockRuntimeStats(functions *[]common.FunctionInvocationStats) *[]comm
 			Percentile99:  400,
 			Percentile100: 500,
 		})
+		rowID++
 	}
+
 	return &stats
 }
 

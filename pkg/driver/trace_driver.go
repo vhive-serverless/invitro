@@ -492,9 +492,9 @@ func (d *Driver) ReadOrWriteFileSpecification(writeIATsToFile bool, readIATsFrom
 }
 
 func (d *Driver) RunExperiment() {
-	if d.Configuration.WithWarmup() {
-		trace.DoStaticTraceProfiling(d.Configuration.Functions)
-	}
+	// if d.Configuration.WithWarmup() {
+	// 	trace.DoStaticTraceProfiling(d.Configuration.Functions)
+	// }
 
 	trace.ApplyResourceLimits(d.Configuration.Functions, d.Configuration.LoaderConfiguration.CPULimit)
 
@@ -502,9 +502,9 @@ func (d *Driver) RunExperiment() {
 	deployer.Deploy(d.Configuration)
 
 	go failure.ScheduleFailure(d.Configuration.LoaderConfiguration.Platform, d.Configuration.FailureConfiguration)
-	
+
 	// wait for the system to stabilize
-	time.Sleep(10 * time.Second) 
+	time.Sleep(10 * time.Second)
 	// Generate load
 	d.internalRun()
 

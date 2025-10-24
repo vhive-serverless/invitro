@@ -40,17 +40,27 @@ func TestNexusTraceParserWithRealData(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 
 	// Create a dummy invocations.csv file with content from data/traces/nexus/invocations.csv
-	csvContent := `FunctionName,1,2,3,4,5
+	invocationCsvContent := `FunctionName,1,2,3,4,5
 pyaesserve-s3-rpc,5,5,5,5,5
 pyaesserve-s3-rpc,1,1,1,1,1
 pyaesserve-s3-rpc,2,2,2,2,2
 `
 	invocationsPath := filepath.Join(tempDir, "invocations.csv")
-	err = os.WriteFile(invocationsPath, []byte(csvContent), 0644)
+	err = os.WriteFile(invocationsPath, []byte(invocationCsvContent), 0644)
 	if err != nil {
 		t.Fatalf("Failed to write dummy csv file: %v", err)
 	}
 
+	durationCsvContent := `FunctionName,AvgDurationMs
+pyaesserve-s3-rpc,23.477
+pyaesserve-s3-rpc,23.477
+pyaesserve-s3-rpc,23.477
+`
+	durationPath := filepath.Join(tempDir, "durations.csv")
+	err = os.WriteFile(durationPath, []byte(durationCsvContent), 0644)
+	if err != nil {
+		t.Fatalf("Failed to write dummy csv file: %v", err)
+	}
 	// Create a parser instance
 	parser := NewNexusParser(tempDir, 200, "test.yaml")
 

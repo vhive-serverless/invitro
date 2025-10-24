@@ -37,7 +37,7 @@ import pandas as pd
 
 
 DEFAULT_INPUT = "data/traces/reference/preprocessed_150/invocations.csv"
-DEFAULT_OUTPUT = "data/traces/nexus/invocations.csv"
+DEFAULT_OUTPUT = "data/traces/nexus"
 
 
 DEFAULT_WORKLOAD_RPS: Dict[str, float] = {
@@ -51,6 +51,19 @@ DEFAULT_WORKLOAD_RPS: Dict[str, float] = {
     "rnnserve": 600,
     "streducer": 320,
     "sttrainer": 275,
+}
+
+DEFAULT_WORKLOAD_AVG_DURATION_MS: Dict[str, float] = {
+    "chameleonserve": 28.686,
+    "cnnserve": 482.07,
+    "imageresize": 2121.732,
+    "lrserving": 88.197,
+    "mapper": 816.582,
+    "pyaesserve": 23.477,
+    "reducer": 5143.899,
+    "rnnserve": 80.3555,
+    "streducer": 296.879,
+    "sttrainer": 202.207,
 }
 
 
@@ -105,6 +118,7 @@ def compute_invocation_stats(base_invocation_trace: pd.DataFrame) -> Tuple[pd.Da
 def get_function_per_target_rps(
     invocation: pd.DataFrame,
     target_rps: float,
+    mode : str = "synthetic",
     *,
     min_divisor: float = 10.0,
     max_multiplier: float = 2.0,
@@ -114,30 +128,44 @@ def get_function_per_target_rps(
     - We constrain each candidate's per-minute min and max counts using
       bounds derived from the target.
     - Then we pick the row whose average is closest to target RPM (RPS*60).
+    - if mode is "synthetic", we directly use the target RPM and fill a new dataframe with that value
+    - And we create a new DataFrame with just that row.
 
     Raises ValueError if no function matches the constraints.
     """
-    target_invocation_min = target_rps * 60.0 / min_divisor
-    target_invocation_max = target_rps * 60.0 * max_multiplier
+    if mode == "trace":
+        target_invocation_min = target_rps * 60.0 / min_divisor
+        target_invocation_max = target_rps * 60.0 * max_multiplier
 
-    filt = invocation[
-        (invocation["invocation_count_max"] < target_invocation_max)
-        & (invocation["invocation_count_min"] > target_invocation_min)
-    ].copy()
+        filt = invocation[
+            (invocation["invocation_count_max"] < target_invocation_max)
+            & (invocation["invocation_count_min"] > target_invocation_min)
+        ].copy()
 
-    if len(filt) == 0:
-        raise ValueError(f"No function found for target_rps {target_rps}")
+        if len(filt) == 0:
+            raise ValueError(f"No function found for target_rps {target_rps}")
 
-    target_rpm = target_rps * 60.0
-    filt["invocation_count_avg_diff"] = (filt["invocation_count_avg"] - target_rpm).abs()
-    # Pick the index with minimal difference to avoid sort typing issues
-    best_idx = filt["invocation_count_avg_diff"].idxmin()
-    return filt.loc[[best_idx]]
+        target_rpm = target_rps * 60.0
+        filt["invocation_count_avg_diff"] = (filt["invocation_count_avg"] - target_rpm).abs()
+        # Pick the index with minimal difference to avoid sort typing issues
+        best_idx = filt["invocation_count_avg_diff"].idxmin()
+        return filt.loc[[best_idx]]
+    elif mode == "synthetic":
+        # In synthetic mode, we directly use the target_rpm, and not find 
+        target_rpm = target_rps * 60.0
+        # create a dataframe filled with target_rpm, and same length as invocation
+        target_rpm_list = [target_rpm] * (len(invocation.columns)-8)
+        target_rpm_list = [int(x) for x in target_rpm_list]
+        invocation_df = pd.DataFrame([list(invocation.iloc[0, 0:8]) + target_rpm_list], index=[0], columns=invocation.columns)
+        return invocation_df
+    else:
+        raise ValueError(f"Unknown mode: {mode}")
 
 
 def build_per_workload_trace(
     invocation: pd.DataFrame,
     workload_rps: Dict[str, float],
+    mode : str = "synthetic",
     *,
     selection_divisor: float = 10.0,
     min_divisor: float = 10.0,
@@ -158,6 +186,7 @@ def build_per_workload_trace(
         selected = get_function_per_target_rps(
             invocation,
             target_rps / selection_divisor,
+            mode = mode,
             min_divisor=min_divisor,
             max_multiplier=max_multiplier,
         )
@@ -177,8 +206,9 @@ def generate_trace(
     per_workload_trace: pd.DataFrame,
     function_multiplier: int,
     *,
+    mode : str = "synthetic",
     shift_step: int = 1,
-) -> pd.DataFrame:
+) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """Duplicate and time-shift each workload's selected function.
 
     For each input row, create `function_multiplier` rows.
@@ -194,25 +224,52 @@ def generate_trace(
         raise ValueError("No numbered time-series columns detected in per_workload_trace")
     trace_length = len(numbered_columns)
 
-    for _, row in df.iterrows():
-        for i in range(function_multiplier):
+    if mode == "trace":
+        for _, row in df.iterrows():
+            for i in range(function_multiplier):
+                # create new function row
+                new_row = row.copy()
+                # Ensure FunctionName is a string label, stable across duplicates
+                new_row["FunctionName"] = f"{row['FunctionName']}"
+
+                if i > 0 and trace_length > 0:
+                    shift_amount = (shift_step * i) % trace_length
+                    values = new_row.loc[numbered_columns].tolist()
+                    shifted = values[shift_amount:] + values[:shift_amount]
+                    # Assign back in one shot
+                    new_row.loc[numbered_columns] = shifted
+
+                generated_trace = pd.concat([generated_trace, pd.DataFrame([new_row])], ignore_index=True)
+
+    elif mode == "synthetic":
+        for _, row in df.iterrows():
+            # we multiply RPS with function multiplier
             new_row = row.copy()
             # Ensure FunctionName is a string label, stable across duplicates
             new_row["FunctionName"] = f"{row['FunctionName']}"
-
-            if i > 0 and trace_length > 0:
-                shift_amount = (shift_step * i) % trace_length
-                values = new_row.loc[numbered_columns].tolist()
-                shifted = values[shift_amount:] + values[:shift_amount]
-                # Assign back in one shot
-                new_row.loc[numbered_columns] = shifted
-
+            
+            values = row.loc[numbered_columns].tolist()
+            scaled_values = [v * function_multiplier for v in values]
+            new_row.loc[numbered_columns] = scaled_values
+        
             generated_trace = pd.concat([generated_trace, pd.DataFrame([new_row])], ignore_index=True)
-
+            
     # Keep only FunctionName and time-series columns
     # Ensure a DataFrame slice
     generated_trace = generated_trace.loc[:, ["FunctionName"] + numbered_columns]
-    return pd.DataFrame(generated_trace)
+    
+    
+    # add duration dataframe
+    duration_df = pd.DataFrame()
+    for _, row in generated_trace.iterrows():
+        workload_name = row['FunctionName']
+        # remove suffixes to get base workload name
+        base_workload_name = workload_name.split('-')[0]
+        duration_ms = DEFAULT_WORKLOAD_AVG_DURATION_MS.get(base_workload_name, 100.0)  # default to 100ms if not found
+        duration_row = pd.DataFrame([[workload_name] + [duration_ms]], columns=["FunctionName", "AvgDurationMs"])
+        duration_df = pd.concat([duration_df, duration_row], ignore_index=True)
+    
+    return generated_trace, duration_df
 
 
 def parse_workload_rps_arg(value: str) -> Dict[str, float]:
@@ -273,12 +330,13 @@ def add_warmup_phase(df: pd.DataFrame, warmup: int) -> pd.DataFrame:
         # Convert to float to ensure numeric type for arithmetic
         first_val_numeric = float(first_val)
         for k, col in enumerate(warmup_columns, start=1):
-            if k == 1:
-                warmup_data.at[idx, col] = min(20, int(first_val_numeric * 0.2 / warmup))
-            elif k == 2:
-                warmup_data.at[idx, col] = int(first_val_numeric / warmup)
-            else:
-                warmup_data.at[idx, col] = int(first_val_numeric * k / warmup)
+            # if k == 1:
+            #     warmup_data.at[idx, col] = min(20, int(first_val_numeric * 0.2 / warmup))
+            # elif k == 2:
+            #     warmup_data.at[idx, col] = int(first_val_numeric / warmup)
+            # else:
+            #     warmup_data.at[idx, col] = int(first_val_numeric * k / warmup)
+            warmup_data.at[idx, col] = int(first_val_numeric * k / warmup)
 
     # Concatenate: FunctionName + warmup + original numbered columns
     df = pd.concat([df[["FunctionName"]], warmup_data, df[numbered_columns]], axis=1)
@@ -286,6 +344,7 @@ def add_warmup_phase(df: pd.DataFrame, warmup: int) -> pd.DataFrame:
 
 def build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Generate function invocation traces from a reference CSV")
+    parser.add_argument("--mode", choices=["synthetic", "trace"], default="synthetic", help="Operation mode (default: generate)")
     parser.add_argument("--input", default=DEFAULT_INPUT, help="Path to base invocation CSV (reference dataset)")
     parser.add_argument("--output", default=DEFAULT_OUTPUT, help="Path to write the generated trace CSV")
     parser.add_argument(
@@ -340,6 +399,7 @@ def main(argv: Iterable[str] | None = None) -> int:
         per_workload_trace = build_per_workload_trace(
             invocation,
             args.workload_rps,
+            mode = args.mode,
             selection_divisor=args.selection_divisor,
             min_divisor=args.min_divisor,
             max_multiplier=args.max_multiplier,
@@ -351,9 +411,10 @@ def main(argv: Iterable[str] | None = None) -> int:
 
     print("[INFO] Generating final trace with time-shifted duplicates...")
     try:
-        generated_trace = generate_trace(
+        generated_trace, generated_duration = generate_trace(
             per_workload_trace,
             args.function_multiplier,
+            mode = args.mode,
             shift_step=args.shift_step,
         )
     except ValueError as e:
@@ -363,14 +424,16 @@ def main(argv: Iterable[str] | None = None) -> int:
     if args.dry_run:
         with pd.option_context('display.max_columns', None):
             print(generated_trace.head())
+            print(generated_duration.head())
         print("[INFO] Dry-run enabled; not writing output.")
         return 0
     
     # add warmup phase
     generated_trace = add_warmup_phase(generated_trace, args.warmup)    
 
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    generated_trace.to_csv(output_path, index=False)
+    output_path.mkdir(parents=True, exist_ok=True)
+    generated_trace.to_csv(output_path / "invocations.csv", index=False)
+    generated_duration.to_csv(output_path / "durations.csv", index=False)
     print(f"[INFO] Wrote generated trace to: {output_path}")
     return 0
 

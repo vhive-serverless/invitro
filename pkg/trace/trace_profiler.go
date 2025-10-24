@@ -35,7 +35,7 @@ func DoStaticTraceProfiling(functions []*common.Function) {
 	for i := 0; i < len(functions); i++ {
 		f := functions[i]
 
-		f.InitialScale = int(math.Ceil(profileConcurrency(functions[i])))
+		f.InitialScale = int(math.Ceil(2 * profileConcurrency(functions[i])))
 		log.Debugf("Function %s initial scale will be %d.\n", f.Name, f.InitialScale)
 	}
 }
@@ -79,7 +79,13 @@ func ConvertMemoryToCpu(memoryRequest int) int {
 }
 
 func profileConcurrency(function *common.Function) float64 {
-	IPM := function.InvocationStats.Invocations[0]
+	// Max Invocations Per Minute
+	IPM := 0
+	for _, inv := range function.InvocationStats.Invocations {
+		if inv > IPM {
+			IPM = inv
+		}
+	}
 
 	// Arrival rate - unit 1 s
 	rps := float64(IPM) / 60.0

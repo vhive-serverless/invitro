@@ -220,15 +220,20 @@ func runTraceMode(cfg *config.LoaderConfiguration, readIATFromFile bool, writeIA
 		Functions: functions,
 	})
 
+	log.Infof("Using %s as a service YAML specification file.\n", yamlPath)
+
+	experimentDriver.GenerateSpecification()
+	experimentDriver.ReadOrWriteFileSpecification(writeIATsToFile, readIATFromFile)
+
+	if experimentDriver.Configuration.WithWarmup() {
+		trace.DoStaticTraceProfiling(experimentDriver.Configuration.Functions)
+	}
+
 	// Skip experiments execution during dry run mode
 	if *dryRun {
 		return
 	}
 
-	log.Infof("Using %s as a service YAML specification file.\n", yamlPath)
-
-	experimentDriver.GenerateSpecification()
-	experimentDriver.ReadOrWriteFileSpecification(writeIATsToFile, readIATFromFile)
 	experimentDriver.RunExperiment()
 }
 
@@ -268,6 +273,10 @@ func runRPSMode(cfg *config.LoaderConfiguration, readIATFromFile bool, writeIATs
 
 		Functions: generator.CreateRPSFunctions(cfg, dirigentConfig, warmFunctions, warmStartCounts, coldFunctions, coldStartCount, yamlPath),
 	})
+
+	if experimentDriver.Configuration.WithWarmup() {
+		trace.DoStaticTraceProfiling(experimentDriver.Configuration.Functions)
+	}
 
 	// Skip experiments execution during dry run mode
 	if *dryRun {
