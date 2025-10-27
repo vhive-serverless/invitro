@@ -124,6 +124,23 @@ func nexusDeploySingleFunction(function *common.Function, yamlPath string, isPar
 			fmt.Println("Predeployment command response is" + line)
 		}
 	}
+
+	// inform nexus of the new function
+	wg := sync.WaitGroup{}
+	for _, khalaClient := range khalaClients {
+		wg.Add(1)
+		go func(client *proto.KhalaKnativeIntegrationClient) {
+			defer wg.Done()
+			_, err := (*client).CreateSnapshot(context.Background(), &proto.CreateSnapshotRequest{
+				Workload: function.Name,
+			})
+			if err != nil {
+				log.Errorf("Failed to inform nexus of new function %s: %v", function.Name, err)
+			}
+		}(khalaClient)
+	}
+	wg.Wait()
+
 	cmd := exec.Command(
 		"bash",
 		"./pkg/driver/deployment/knative.sh",
@@ -133,8 +150,8 @@ func nexusDeploySingleFunction(function *common.Function, yamlPath string, isPar
 		strconv.Itoa(function.CPURequestsMilli)+"m",
 		strconv.Itoa(function.CPULimitsMilli)+"m",
 		strconv.Itoa(function.MemoryRequestsMiB)+"Mi",
-		// strconv.Itoa(function.InitialScale),
-		strconv.Itoa(0),
+		strconv.Itoa(function.InitialScale),
+		// strconv.Itoa(0),
 		panicWindow,
 		panicThreshold,
 
@@ -162,20 +179,5 @@ func nexusDeploySingleFunction(function *common.Function, yamlPath string, isPar
 	function.Endpoint = fmt.Sprintf("%s:%d", function.Endpoint, endpointPort)
 	log.Debugf("Deployed function on %s\n", function.Endpoint)
 
-	// inform nexus of the new function
-	wg := sync.WaitGroup{}
-	for _, khalaClient := range khalaClients {
-		wg.Add(1)
-		go func(client *proto.KhalaKnativeIntegrationClient) {
-			defer wg.Done()
-			_, err := (*client).CreateSnapshot(context.Background(), &proto.CreateSnapshotRequest{
-				Workload: function.Name,
-			})
-			if err != nil {
-				log.Errorf("Failed to inform nexus of new function %s: %v", function.Name, err)
-			}
-		}(khalaClient)
-	}
-	wg.Wait()
 	return true
 }

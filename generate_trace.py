@@ -3,26 +3,8 @@
 Generate function invocation traces from a base reference CSV.
 
 This script ports the logic from map_traces.ipynb into a reusable CLI.
-
-High-level steps:
-1) Load the base invocation trace CSV (reference dataset).
-2) Compute per-function statistics over the time-series columns.
-3) For each workload and target RPS, select a representative function whose
-   average invocation rate is closest to the target, while staying within a
-   min/max bound derived from the target.
-4) Generate the final trace by duplicating and time-shifting functions
-   (wrap-around) per the requested multiplier.
-
-Output: CSV with columns [FunctionName] + [minute columns]
-
-Example:
-  python generate_trace.py \
-    --input data/traces/reference/preprocessed_150/invocations.csv \
-    --output data/traces/nexus/invocations.csv \
-    --function-multiplier 2
-
-Optionally customize workload->RPS mapping via --workload-rps-json
-  JSON example: {"mapper": 75, "reducer": 16}
+The refactored version encapsulates the logic within a TraceGenerator class
+for improved modularity and maintainability.
 """
 
 from __future__ import annotations
@@ -30,411 +12,314 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, Iterable, List, Tuple
 
 import pandas as pd
 
+# --- Default Configuration ---
 
 DEFAULT_INPUT = "data/traces/reference/preprocessed_150/invocations.csv"
-DEFAULT_OUTPUT = "data/traces/nexus"
-
+DEFAULT_OUTPUT_DIR = "data/traces/nexus"
 
 DEFAULT_WORKLOAD_RPS: Dict[str, float] = {
-    "chameleonserve": 1000,
-    "cnnserve": 120,
-    "imageresize": 24,
-    "lrserving": 950,
-    "mapper": 75,
-    "pyaesserve": 1400,
-    "reducer": 16,
-    "rnnserve": 600,
-    "streducer": 320,
-    "sttrainer": 275,
+    "chameleonserve": 1000, "cnnserve": 120, "imageresize": 24, "lrserving": 950,
+    "mapper": 75, "pyaesserve": 1400, "reducer": 16, "rnnserve": 600,
+    "streducer": 320, "sttrainer": 275,
 }
 
 DEFAULT_WORKLOAD_AVG_DURATION_MS: Dict[str, float] = {
-    "chameleonserve": 28.686,
-    "cnnserve": 482.07,
-    "imageresize": 2121.732,
-    "lrserving": 88.197,
-    "mapper": 816.582,
-    "pyaesserve": 23.477,
-    "reducer": 5143.899,
-    "rnnserve": 80.3555,
-    "streducer": 296.879,
+    "chameleonserve": 28.686, "cnnserve": 482.07, "imageresize": 2121.732,
+    "lrserving": 88.197, "mapper": 816.582, "pyaesserve": 23.477,
+    "reducer": 5143.899, "rnnserve": 80.3555, "streducer": 296.879,
     "sttrainer": 202.207,
 }
 
+# --- Configuration Class ---
 
-def _get_numbered_columns(df: pd.DataFrame) -> List[str]:
-    """Return columns that look like numeric time indexes (all digits or ints).
+@dataclass
+class Config:
+    """Configuration for the trace generator."""
+    input_path: Path
+    output_dir: Path
+    mode: str = "synthetic"
+    workload_rps: Dict[str, float] = field(default_factory=lambda: DEFAULT_WORKLOAD_RPS)
+    function_multiplier: int = 1
+    shift_step: int = 1
+    selection_divisor: float = 10.0
+    min_divisor: float = 10.0
+    max_multiplier: float = 2.0
+    name_suffix: str = ""
+    warmup_minutes: int = 2
+    dry_run: bool = False
 
-    Preserves the original column labels (could be int or str). A column
-    qualifies if it's an int or a string comprised only of digits.
-    """
-    cols: List[str] = []
-    for c in df.columns:
-        if isinstance(c, str) and c.isdigit():
-            cols.append(c)
-    return cols
+# --- Core Logic Class ---
 
+class TraceGenerator:
+    """Generates invocation traces based on a reference dataset and configuration."""
 
-def compute_invocation_stats(base_invocation_trace: pd.DataFrame) -> Tuple[pd.DataFrame, List[str]]:
-    """Compute per-row stats and return the augmented DataFrame and numbered columns.
+    def __init__(self, config: Config):
+        self.config = config
+        self.base_df = self._load_base_trace()
+        self.time_cols = self._get_time_columns(self.base_df)
+        self.invocation_stats_df = self._compute_invocation_stats()
 
-    The input is expected to contain metadata columns such as HashOwner, HashApp,
-    HashFunction, Trigger, followed by per-minute integer columns.
-    """
-    # Standardize all column labels to strings for consistent selection
-    df = base_invocation_trace.copy()
-    df = df[df["Trigger"] == "http"]  # Filter to HTTP-triggered functions only
-    df.columns = df.columns.map(str)
-    numbered_columns = _get_numbered_columns(df)
-    
-    # Keep original metadata columns if present
-    meta_cols = [c for c in ["HashOwner", "HashApp", "HashFunction", "Trigger"] if c in df.columns]
-    invocation = pd.DataFrame()
-    if meta_cols:
-        invocation = pd.concat([df[meta_cols], invocation], axis=1)
+    def run(self) -> Tuple[pd.DataFrame, pd.DataFrame]:
+        """Execute the full trace generation pipeline."""
+        print("[INFO] Selecting representative functions per workload...")
+        template_df = self._build_workload_templates()
 
-    invocation_count_only = df[numbered_columns]
+        print("[INFO] Generating final trace with time-shifted duplicates...")
+        generated_trace = self._generate_from_templates(template_df)
+        
+        if self.config.warmup_minutes > 0:
+            print(f"[INFO] Adding a {self.config.warmup_minutes}-minute warmup phase...")
+            generated_trace = self._add_warmup(generated_trace)
 
-    # Stats across the numbered columns
-    invocation_count_only_stats = pd.DataFrame()
-    # Use pandas operations directly instead of numpy
-    invocation_count_only_stats["invocation_count_sum"] = invocation_count_only.sum(axis=1)
-    invocation_count_only_stats["invocation_count_avg"] = invocation_count_only.mean(axis=1)
-    invocation_count_only_stats["invocation_count_max"] = invocation_count_only.max(axis=1)
-    invocation_count_only_stats["invocation_count_min"] = invocation_count_only.min(axis=1)
+        print("[INFO] Creating average duration data...")
+        duration_df = self._create_duration_df(generated_trace)
+        
+        return generated_trace, duration_df
 
-    invocation = pd.concat([invocation, invocation_count_only_stats], axis=1)
-    invocation = pd.concat([invocation, invocation_count_only], axis=1)
-    invocation = invocation.sort_values(by=["invocation_count_sum"], ascending=False)
+    def _load_base_trace(self) -> pd.DataFrame:
+        """Loads and pre-filters the base invocation trace CSV."""
+        print(f"[INFO] Loading base invocation trace: {self.config.input_path}")
+        df = pd.read_csv(self.config.input_path)
+        df.columns = df.columns.map(str)
+        # Filter to HTTP-triggered functions only, as in the original script
+        return df[df["Trigger"] == "http"].copy()
 
-    return invocation, numbered_columns
+    @staticmethod
+    def _get_time_columns(df: pd.DataFrame) -> List[str]:
+        """Return columns that look like numeric time indexes."""
+        cols = [c for c in df.columns if isinstance(c, str) and c.isdigit()]
+        if not cols:
+            raise ValueError("No numbered time-series columns detected in base trace.")
+        return cols
 
+    def _compute_invocation_stats(self) -> pd.DataFrame:
+        """Compute per-row stats over the time-series columns."""
+        print("[INFO] Computing per-function statistics...")
+        df = self.base_df
+        time_series_data = df[self.time_cols]
+        
+        stats = pd.DataFrame(index=df.index)
+        stats["invocation_count_sum"] = time_series_data.sum(axis=1)
+        stats["invocation_count_avg"] = time_series_data.mean(axis=1)
+        stats["invocation_count_max"] = time_series_data.max(axis=1)
+        stats["invocation_count_min"] = time_series_data.min(axis=1)
 
-def get_function_per_target_rps(
-    invocation: pd.DataFrame,
-    target_rps: float,
-    mode : str = "synthetic",
-    *,
-    min_divisor: float = 10.0,
-    max_multiplier: float = 2.0,
-) -> pd.DataFrame:
-    """Filter and select the function closest to the target RPS.
+        # Combine metadata, stats, and time-series data
+        meta_cols = [c for c in ["HashOwner", "HashApp", "HashFunction", "Trigger"] if c in df.columns]
+        result = pd.concat([df[meta_cols], stats, time_series_data], axis=1)
+        return result.sort_values(by="invocation_count_sum", ascending=False)
 
-    - We constrain each candidate's per-minute min and max counts using
-      bounds derived from the target.
-    - Then we pick the row whose average is closest to target RPM (RPS*60).
-    - if mode is "synthetic", we directly use the target RPM and fill a new dataframe with that value
-    - And we create a new DataFrame with just that row.
+    def _build_workload_templates(self) -> pd.DataFrame:
+        """Construct a template trace by selecting a representative function for each workload."""
+        template_rows = []
+        for workload, target_rps in self.config.workload_rps.items():
+            # The original logic scales the target RPS for selection
+            selection_rps = target_rps / self.config.selection_divisor
+            
+            if self.config.mode == "trace":
+                selected_fn = self._select_closest_function(selection_rps)
+            elif self.config.mode == "synthetic":
+                selected_fn = self._create_synthetic_function(selection_rps)
+            else:
+                raise ValueError(f"Unknown mode: {self.config.mode}")
 
-    Raises ValueError if no function matches the constraints.
-    """
-    if mode == "trace":
-        target_invocation_min = target_rps * 60.0 / min_divisor
-        target_invocation_max = target_rps * 60.0 * max_multiplier
+            # Add FunctionName and target_rps columns for parity with original script
+            workload_name = f"{workload}{self.config.name_suffix}"
+            selected_fn["FunctionName"] = workload_name
+            selected_fn["target_rps"] = selection_rps * 60
+            template_rows.append(selected_fn)
 
-        filt = invocation[
-            (invocation["invocation_count_max"] < target_invocation_max)
-            & (invocation["invocation_count_min"] > target_invocation_min)
-        ].copy()
+        return pd.DataFrame(template_rows).reset_index(drop=True)
 
-        if len(filt) == 0:
+    def _select_closest_function(self, target_rps: float) -> pd.Series:
+        """Filter and select the function whose average invocation rate is closest to the target."""
+        target_rpm = target_rps * 60.0
+        min_rpm_bound = target_rpm / self.config.min_divisor
+        max_rpm_bound = target_rpm * self.config.max_multiplier
+        
+        candidates = self.invocation_stats_df[
+            (self.invocation_stats_df["invocation_count_max"] < max_rpm_bound) &
+            (self.invocation_stats_df["invocation_count_min"] > min_rpm_bound)
+        ]
+
+        if candidates.empty:
             raise ValueError(f"No function found for target_rps {target_rps}")
 
-        target_rpm = target_rps * 60.0
-        filt["invocation_count_avg_diff"] = (filt["invocation_count_avg"] - target_rpm).abs()
-        # Pick the index with minimal difference to avoid sort typing issues
-        best_idx = filt["invocation_count_avg_diff"].idxmin()
-        return filt.loc[[best_idx]]
-    elif mode == "synthetic":
-        # In synthetic mode, we directly use the target_rpm, and not find 
-        target_rpm = target_rps * 60.0
-        # create a dataframe filled with target_rpm, and same length as invocation
-        target_rpm_list = [target_rpm] * (len(invocation.columns)-8)
-        target_rpm_list = [int(x) for x in target_rpm_list]
-        invocation_df = pd.DataFrame([list(invocation.iloc[0, 0:8]) + target_rpm_list], index=[0], columns=invocation.columns)
-        return invocation_df
-    else:
-        raise ValueError(f"Unknown mode: {mode}")
+        # Find the row with the minimum absolute difference from the target RPM
+        diff = (candidates["invocation_count_avg"] - target_rpm).abs()
+        best_match_idx = diff.idxmin()
+        return candidates.loc[best_match_idx].copy()
 
+    def _create_synthetic_function(self, target_rps: float) -> pd.Series:
+        """Create a function trace with a constant invocation rate."""
+        target_rpm = int(target_rps * 60.0)
+        # Create a new Series with the same structure as a row from invocation_stats_df
+        synthetic_row = pd.Series(index=self.invocation_stats_df.columns, dtype='object')
+        # Fill time columns with the constant target RPM
+        synthetic_row[self.time_cols] = target_rpm
+        return synthetic_row
 
-def build_per_workload_trace(
-    invocation: pd.DataFrame,
-    workload_rps: Dict[str, float],
-    mode : str = "synthetic",
-    *,
-    selection_divisor: float = 10.0,
-    min_divisor: float = 10.0,
-    max_multiplier: float = 2.0,
-    name_suffix: str = "",
-) -> pd.DataFrame:
-    """Construct a per-workload trace by selecting representative functions.
-
-    selection_divisor controls how we reduce the given target RPS when searching
-    for a representative function (defaults to 10, as in the notebook).
-    The resulting DataFrame includes FunctionName and a 'target_rps' column
-    (scaled by target_rps_scale) along with all original columns from the
-    selected rows (stats + time series). The consumer may later trim columns.
-    """
-    per_workload_trace = pd.DataFrame()
-    for workload, target_rps in workload_rps.items():
-        # Notebook used target_rps / 10 when selecting
-        selected = get_function_per_target_rps(
-            invocation,
-            target_rps / selection_divisor,
-            mode = mode,
-            min_divisor=min_divisor,
-            max_multiplier=max_multiplier,
-        )
-
-        row = selected.copy()
-        # Apply suffix to workload name if provided (e.g., -s3, -rpc, -s3-rpc)
-        workload_name = f"{str(workload)}{name_suffix}"
-        row.insert(0, "FunctionName", workload_name)
-        # Notebook inserted target_rps multiplied by 6 (kept for parity)
-        row.insert(1, "target_rps", target_rps / selection_divisor * 60)
-        per_workload_trace = pd.concat([per_workload_trace, row], ignore_index=True)
-
-    return per_workload_trace
-
-
-def generate_trace(
-    per_workload_trace: pd.DataFrame,
-    function_multiplier: int,
-    *,
-    mode : str = "synthetic",
-    shift_step: int = 1,
-) -> Tuple[pd.DataFrame, pd.DataFrame]:
-    """Duplicate and time-shift each workload's selected function.
-
-    For each input row, create `function_multiplier` rows.
-    The i-th duplicate is rotated left by (shift_step * i) positions across the
-    time-series (numbered) columns, with wrap-around.
-    """
-    generated_trace = pd.DataFrame()
-    # Ensure string columns for consistent indexing
-    df = per_workload_trace.copy()
-    df.columns = df.columns.map(str)
-    numbered_columns = _get_numbered_columns(df)
-    if not numbered_columns:
-        raise ValueError("No numbered time-series columns detected in per_workload_trace")
-    trace_length = len(numbered_columns)
-
-    if mode == "trace":
-        for _, row in df.iterrows():
-            for i in range(function_multiplier):
-                # create new function row
-                new_row = row.copy()
-                # Ensure FunctionName is a string label, stable across duplicates
-                new_row["FunctionName"] = f"{row['FunctionName']}"
-
-                if i > 0 and trace_length > 0:
-                    shift_amount = (shift_step * i) % trace_length
-                    values = new_row.loc[numbered_columns].tolist()
-                    shifted = values[shift_amount:] + values[:shift_amount]
-                    # Assign back in one shot
-                    new_row.loc[numbered_columns] = shifted
-
-                generated_trace = pd.concat([generated_trace, pd.DataFrame([new_row])], ignore_index=True)
-
-    elif mode == "synthetic":
-        for _, row in df.iterrows():
-            # we multiply RPS with function multiplier
-            new_row = row.copy()
-            # Ensure FunctionName is a string label, stable across duplicates
-            new_row["FunctionName"] = f"{row['FunctionName']}"
-            
-            values = row.loc[numbered_columns].tolist()
-            scaled_values = [v * function_multiplier for v in values]
-            new_row.loc[numbered_columns] = scaled_values
+    def _generate_from_templates(self, template_df: pd.DataFrame) -> pd.DataFrame:
+        """Duplicate and time-shift/scale each workload's template function."""
+        generated_rows = []
+        for _, template_row in template_df.iterrows():
+            if self.config.mode == "trace":
+                generated_rows.extend(self._generate_shifted_rows(template_row))
+            elif self.config.mode == "synthetic":
+                generated_rows.extend(self._generate_scaled_rows(template_row))
         
-            generated_trace = pd.concat([generated_trace, pd.DataFrame([new_row])], ignore_index=True)
-            
-    # Keep only FunctionName and time-series columns
-    # Ensure a DataFrame slice
-    generated_trace = generated_trace.loc[:, ["FunctionName"] + numbered_columns]
-    
-    
-    # add duration dataframe
-    duration_df = pd.DataFrame()
-    for _, row in generated_trace.iterrows():
-        workload_name = row['FunctionName']
-        # remove suffixes to get base workload name
-        base_workload_name = workload_name.split('-')[0]
-        duration_ms = DEFAULT_WORKLOAD_AVG_DURATION_MS.get(base_workload_name, 100.0)  # default to 100ms if not found
-        duration_row = pd.DataFrame([[workload_name] + [duration_ms]], columns=["FunctionName", "AvgDurationMs"])
-        duration_df = pd.concat([duration_df, duration_row], ignore_index=True)
-    
-    return generated_trace, duration_df
+        # Keep only FunctionName and time-series columns
+        final_cols = ["FunctionName"] + self.time_cols
+        return pd.DataFrame(generated_rows)[final_cols]
 
+    def _generate_shifted_rows(self, template_row: pd.Series) -> List[Dict]:
+        """Generate multiple rows by time-shifting (rotating) the time-series data."""
+        rows = []
+        values = template_row[self.time_cols].tolist()
+        trace_length = len(values)
+
+        for i in range(self.config.function_multiplier):
+            new_row = template_row.copy()
+            if i > 0 and trace_length > 0:
+                shift = (self.config.shift_step * i) % trace_length
+                shifted_values = values[shift:] + values[:shift]
+                new_row[self.time_cols] = shifted_values
+            rows.append(new_row.to_dict())
+        return rows
+
+    def _generate_scaled_rows(self, template_row: pd.Series) -> List[Dict]:
+        """Generate a single row by scaling the RPM by the function multiplier."""
+        new_row = template_row.copy()
+        scaled_values = [v * self.config.function_multiplier for v in new_row[self.time_cols]]
+        new_row[self.time_cols] = scaled_values
+        return [new_row.to_dict()] # Return as a list of one
+
+    def _add_warmup(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Prepend warmup columns that linearly ramp up to the first minute's value."""
+        warmup_minutes = self.config.warmup_minutes
+        first_col = self.time_cols[0]
+        
+        # Create new column names for the warmup phase (e.g., -2, -1)
+        warmup_cols = [str(i) for i in range(-warmup_minutes, 0)]
+        warmup_df = pd.DataFrame(index=df.index, columns=warmup_cols, dtype=int)
+        
+        for idx, row in df.iterrows():
+            first_val = float(row[first_col])
+            for k, col_name in enumerate(warmup_cols, start=1):
+                warmup_df.at[idx, col_name] = int(first_val * k / warmup_minutes)
+        
+        warmup_df = warmup_df.astype(int)
+        # Concatenate: FunctionName | warmup columns | original time columns
+        return pd.concat([df[["FunctionName"]], warmup_df, df[self.time_cols]], axis=1)
+
+    @staticmethod
+    def _create_duration_df(final_trace_df: pd.DataFrame) -> pd.DataFrame:
+        """Create a DataFrame mapping each function to its average duration."""
+        duration_rows = []
+        for _, row in final_trace_df.iterrows():
+            func_name = row['FunctionName']
+            # Remove suffixes like -s3 or -rpc to find the base workload name
+            base_workload = func_name.split('-')[0]
+            duration_ms = DEFAULT_WORKLOAD_AVG_DURATION_MS.get(base_workload, 100.0)
+            duration_rows.append({"FunctionName": func_name, "AvgDurationMs": duration_ms})
+        return pd.DataFrame(duration_rows)
+
+
+# --- CLI and Main Execution ---
 
 def parse_workload_rps_arg(value: str) -> Dict[str, float]:
-    """Parse workload RPS mapping from a string.
-
-    Accepts either a path to a JSON file or an inline JSON object.
-    """
+    """Parse workload RPS mapping from a JSON file path or an inline JSON string."""
     p = Path(value)
     try:
         if p.exists():
             with p.open("r", encoding="utf-8") as f:
                 return json.load(f)
-        # Not a file: try to parse as JSON literal
         return json.loads(value)
     except Exception as e:
-        raise argparse.ArgumentTypeError(f"Invalid workload RPS mapping: {e}")
-
-
-def add_warmup_phase(df: pd.DataFrame, warmup: int) -> pd.DataFrame:
-    """Add a warmup phase that linearly ramps up to the first minute's value.
-
-    For each function row, we prepend `warmup` minute columns named (-warmup .. -1)
-    whose values increase linearly from 0 (exclusive) up to the value of the
-    first original time-series column (inclusive). The final warmup column (-1)
-    matches the first real minute's invocation count.
-
-    Example (warmup=3, first minute = 90):
-      added cols: -3=30, -2=60, -1=90, then original columns start at 0,1,2,...
-    """
-    if warmup <= 0:
-        return df
-
-    df = df.copy()
-    df.columns = df.columns.map(str)
-    numbered_columns = _get_numbered_columns(df)
-    if not numbered_columns:
-        raise ValueError("No numbered time-series columns detected in the DataFrame")
-
-    first_col = numbered_columns[0]
-
-    # Warmup columns use negative labels so they are not re-detected later
-    warmup_columns = [str(i) for i in range(-warmup, 0)]
-
-    # Initialize with zeros (correct dtype)
-    warmup_data = pd.DataFrame(
-        0,
-        index=df.index,
-        columns=warmup_columns,
-        dtype=df[first_col].dtype,
-    )
-
-    # Fill with linear ramp per row
-    # Step k (1-based) value = first_val * k / warmup
-    for idx in df.index:
-        first_val = df.loc[idx, first_col]
-        if pd.isna(first_val):
-            continue
-        # Convert to float to ensure numeric type for arithmetic
-        first_val_numeric = float(first_val)
-        for k, col in enumerate(warmup_columns, start=1):
-            # if k == 1:
-            #     warmup_data.at[idx, col] = min(20, int(first_val_numeric * 0.2 / warmup))
-            # elif k == 2:
-            #     warmup_data.at[idx, col] = int(first_val_numeric / warmup)
-            # else:
-            #     warmup_data.at[idx, col] = int(first_val_numeric * k / warmup)
-            warmup_data.at[idx, col] = int(first_val_numeric * k / warmup)
-
-    # Concatenate: FunctionName + warmup + original numbered columns
-    df = pd.concat([df[["FunctionName"]], warmup_data, df[numbered_columns]], axis=1)
-    return df
+        raise argparse.ArgumentTypeError(f"Invalid workload RPS mapping '{value}': {e}")
 
 def build_arg_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Generate function invocation traces from a reference CSV")
-    parser.add_argument("--mode", choices=["synthetic", "trace"], default="synthetic", help="Operation mode (default: generate)")
-    parser.add_argument("--input", default=DEFAULT_INPUT, help="Path to base invocation CSV (reference dataset)")
-    parser.add_argument("--output", default=DEFAULT_OUTPUT, help="Path to write the generated trace CSV")
-    parser.add_argument(
-        "--workload-rps",
-        dest="workload_rps",
-        type=parse_workload_rps_arg,
-        default=DEFAULT_WORKLOAD_RPS,
-        help="Workload->RPS mapping as JSON path or inline JSON (default: built-in map)",
-    )
-    parser.add_argument("--function-multiplier", type=int, default=1, help="Number of functions per workload to generate (duplicates with time shifts)")
-    parser.add_argument("--shift-step", type=int, default=1, help="Shift step per duplicate (positions to rotate left per increment)")
-    parser.add_argument("--selection-divisor", type=float, default=10.0, help="Divide target RPS by this when selecting representative functions")
-    parser.add_argument("--min-divisor", type=float, default=10.0, help="Lower bound: target_rps*60/min_divisor for per-minute minimum filter")
-    parser.add_argument("--max-multiplier", type=float, default=2.0, help="Upper bound: target_rps*60*max_multiplier for per-minute maximum filter")
-    # Suffix flags: append to workload names, ensuring -s3 precedes -rpc if both are set
-    parser.add_argument("--s3", action="store_true", help="Append '-s3' to workload names")
-    parser.add_argument("--rpc", action="store_true", help="Append '-rpc' to workload names (after '-s3' if both set)")
-    parser.add_argument("--dry-run", action="store_true", help="Run selection and show summary without writing output")
-    parser.add_argument("--warmup", type=int, default=2, help="Warmup duration in minutes to add to the trace")
+    """Build the command-line argument parser."""
+    parser = argparse.ArgumentParser(description="Generate function invocation traces from a reference CSV.")
+    parser.add_argument("--mode", choices=["synthetic", "trace"], default="synthetic", help="Mode: 'synthetic' for constant load, 'trace' for pattern-based.")
+    parser.add_argument("--input", default=DEFAULT_INPUT, help=f"Path to base invocation CSV. Default: {DEFAULT_INPUT}")
+    parser.add_argument("--output", default=DEFAULT_OUTPUT_DIR, help=f"Directory to write output CSVs. Default: {DEFAULT_OUTPUT_DIR}")
+    parser.add_argument("--workload-rps", dest="workload_rps", type=parse_workload_rps_arg, default=DEFAULT_WORKLOAD_RPS, help="Workload->RPS mapping as a JSON file path or inline JSON.")
+    parser.add_argument("--function-multiplier", type=int, default=1, help="Functions per workload to generate. In 'trace' mode, creates time-shifted duplicates. In 'synthetic' mode, scales the load.")
+    parser.add_argument("--shift-step", type=int, default=1, help="Shift step for duplicates in 'trace' mode.")
+    parser.add_argument("--selection-divisor", type=float, default=10.0, help="Divide target RPS by this when selecting functions.")
+    parser.add_argument("--min-divisor", type=float, default=10.0, help="Lower bound filter for function selection.")
+    parser.add_argument("--max-multiplier", type=float, default=2.0, help="Upper bound filter for function selection.")
+    parser.add_argument("--s3", action="store_true", help="Append '-s3' suffix to workload names.")
+    parser.add_argument("--rpc", action="store_true", help="Append '-rpc' suffix to workload names.")
+    parser.add_argument("--warmup", type=int, default=2, help="Warmup duration in minutes to prepend to the trace.")
+    parser.add_argument("--dry-run", action="store_true", help="Run all steps but do not write output files.")
     return parser
 
-
 def main(argv: Iterable[str] | None = None) -> int:
-    args = build_arg_parser().parse_args(list(argv) if argv is not None else None)
+    """Main execution function."""
+    parser = build_arg_parser()
+    args = parser.parse_args(list(argv) if argv is not None else None)
 
-    input_path = Path(args.input)
-    output_path = Path(args.output)
+    if not Path(args.input).exists():
+        print(f"[ERROR] Input file not found: {args.input}", file=sys.stderr)
+        return 1
+        
+    # Build the name suffix based on flags, ensuring order: -s3 before -rpc
+    suffix_parts = []
+    if args.s3: suffix_parts.append("s3")
+    if args.rpc: suffix_parts.append("rpc")
+    name_suffix = f"-{'-'.join(suffix_parts)}" if suffix_parts else ""
 
-    if not input_path.exists():
-        print(f"[ERROR] Input CSV not found: {input_path}", file=sys.stderr)
-        return 2
-
-    print(f"[INFO] Loading base invocation trace: {input_path}")
-    base_df = pd.read_csv(input_path)
-
-    print("[INFO] Computing per-function statistics...")
-    invocation, numbered_columns = compute_invocation_stats(base_df)
-    if not numbered_columns:
-        print("[ERROR] No numbered time-series columns detected in base invocation trace.", file=sys.stderr)
-        return 2
-
-    print("[INFO] Selecting representative functions per workload...")
     try:
-        # Build the name suffix based on flags, enforcing order: -s3 before -rpc
-        suffix_parts: List[str] = []
-        if args.s3:
-            suffix_parts.append("s3")
-        if args.rpc:
-            suffix_parts.append("rpc")
-        name_suffix = ("-" + "-".join(suffix_parts)) if suffix_parts else ""
-
-        per_workload_trace = build_per_workload_trace(
-            invocation,
-            args.workload_rps,
-            mode = args.mode,
+        config = Config(
+            input_path=Path(args.input),
+            output_dir=Path(args.output),
+            mode=args.mode,
+            workload_rps=args.workload_rps,
+            function_multiplier=args.function_multiplier,
+            shift_step=args.shift_step,
             selection_divisor=args.selection_divisor,
             min_divisor=args.min_divisor,
             max_multiplier=args.max_multiplier,
             name_suffix=name_suffix,
+            warmup_minutes=args.warmup,
+            dry_run=args.dry_run,
         )
-    except ValueError as e:
-        print(f"[ERROR] {e}", file=sys.stderr)
-        return 3
 
-    print("[INFO] Generating final trace with time-shifted duplicates...")
-    try:
-        generated_trace, generated_duration = generate_trace(
-            per_workload_trace,
-            args.function_multiplier,
-            mode = args.mode,
-            shift_step=args.shift_step,
-        )
-    except ValueError as e:
-        print(f"[ERROR] {e}", file=sys.stderr)
-        return 3
+        generator = TraceGenerator(config)
+        invocations_df, durations_df = generator.run()
 
-    if args.dry_run:
-        with pd.option_context('display.max_columns', None):
-            print(generated_trace.head())
-            print(generated_duration.head())
-        print("[INFO] Dry-run enabled; not writing output.")
-        return 0
-    
-    # add warmup phase
-    generated_trace = add_warmup_phase(generated_trace, args.warmup)    
+        if args.dry_run:
+            print("[INFO] Dry-run enabled; skipping output file generation.")
+            with pd.option_context('display.max_columns', None, 'display.width', 1000):
+                print("\n--- Generated Invocations (Head) ---")
+                print(invocations_df.head())
+                print("\n--- Generated Durations (Head) ---")
+                print(durations_df.head())
+            return 0
 
-    output_path.mkdir(parents=True, exist_ok=True)
-    generated_trace.to_csv(output_path / "invocations.csv", index=False)
-    generated_duration.to_csv(output_path / "durations.csv", index=False)
-    print(f"[INFO] Wrote generated trace to: {output_path}")
+        # Write output files
+        output_dir = Path(args.output)
+        output_dir.mkdir(parents=True, exist_ok=True)
+        invocations_path = output_dir / "invocations.csv"
+        durations_path = output_dir / "durations.csv"
+        
+        invocations_df.to_csv(invocations_path, index=False)
+        durations_df.to_csv(durations_path, index=False)
+        
+        print(f"\n[SUCCESS] Wrote generated traces to: {output_dir.resolve()}")
+
+    except (ValueError, FileNotFoundError) as e:
+        print(f"[ERROR] A problem occurred: {e}", file=sys.stderr)
+        return 1
+        
     return 0
 
 

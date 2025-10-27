@@ -28,6 +28,7 @@ import (
 	"context"
 
 	"github.com/sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 	"github.com/vhive-serverless/loader/pkg/common"
 	"github.com/vhive-serverless/loader/pkg/config"
 	"github.com/vhive-serverless/loader/pkg/workload/proto"
@@ -187,12 +188,42 @@ func (i *grpcInvoker) Invoke(function *common.Function, runtimeSpec *common.Runt
 	defer gRPCConnectionClose(conn)
 
 	record.GRPCConnectionEstablishTime = time.Since(grpcStart).Microseconds()
-	executionCxt, cancelExecution := context.WithTimeout(context.Background(), time.Duration(i.cfg.GRPCFunctionTimeoutSeconds)*time.Second)
+	executionCxt, cancelExecution := context.WithTimeout(context.Background(), perFunctionTimeout(i.cfg, function))
 	defer cancelExecution()
 	success := i.invoker.Invoke(function, runtimeSpec, conn, record, executionCxt)
 	record.ResponseTime = time.Since(start).Microseconds()
 	logrus.Tracef("(E2E Latency) %s: %.2f[ms]\n", function.Name, float64(record.ResponseTime)/1e3)
 	return success, record
+}
+
+func perFunctionTimeout(cfg *config.LoaderConfiguration, function *common.Function) time.Duration {
+	// map of function name to timeout values can be added here
+	// split function name by '-' and get the first part
+
+	functionTimeouts := map[string]float64{
+		"chameleonserve": 28.686,
+		"cnnserve":       482.07,
+		"imageresize":    2121.732,
+		"lrserving":      88.197,
+		"mapper":         816.582,
+		"pyaesserve":     23.477,
+		"reducer":        5143.899,
+		"rnnserve":       80.3555,
+		"streducer":      296.879,
+		"sttrainer":      202.207,
+	}
+
+	parsedName := strings.Split(function.Name, "-")[0]
+	if timeout, ok := functionTimeouts[parsedName]; ok {
+		SLO := time.Duration(timeout * float64(time.Millisecond) * 20)
+		log.Tracef("Using custom timeout for function %s: %.2f seconds", function.Name, SLO.Seconds())
+		return SLO
+	} else {
+		SLO := time.Duration(cfg.GRPCFunctionTimeoutSeconds) * time.Second
+		log.Tracef("Using default timeout for function %s: %d seconds", function.Name, cfg.GRPCFunctionTimeoutSeconds)
+		return SLO
+	}
+
 }
 
 func extractInstanceName(data string) string {
@@ -203,6 +234,7 @@ func extractInstanceName(data string) string {
 
 	return data[indexOfHyphen:]
 }
+
 func extractSwarmFunction(data string) string {
 	index := strings.Index(data, "fn: ")
 	verticalBarIndex := strings.Index(data, " |")
