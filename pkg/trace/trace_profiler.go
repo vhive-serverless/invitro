@@ -35,8 +35,12 @@ func DoStaticTraceProfiling(functions []*common.Function) {
 	for i := 0; i < len(functions); i++ {
 		f := functions[i]
 
-		f.InitialScale = int(math.Ceil(3 * profileConcurrency(functions[i])))
+		f.InitialScale = int(math.Ceil(4 * profileConcurrency(functions[i])))
+		f.MaxScale = int(math.Ceil(4 * profileConcurrency(functions[i])))
+		// f.MaxScale = 200
+
 		log.Debugf("Function %s initial scale will be %d.\n", f.Name, f.InitialScale)
+		log.Debugf("Function %s max scale will be %d.\n", f.Name, f.MaxScale)
 	}
 }
 

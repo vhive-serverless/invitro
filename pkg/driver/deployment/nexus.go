@@ -151,6 +151,7 @@ func nexusDeploySingleFunction(function *common.Function, yamlPath string, isPar
 		strconv.Itoa(function.CPULimitsMilli)+"m",
 		strconv.Itoa(function.MemoryRequestsMiB)+"Mi",
 		strconv.Itoa(function.InitialScale),
+		strconv.Itoa(function.MaxScale),
 		// strconv.Itoa(0),
 		panicWindow,
 		panicThreshold,

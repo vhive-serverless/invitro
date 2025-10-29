@@ -30,10 +30,10 @@ DEFAULT_WORKLOAD_RPS: Dict[str, float] = {
 }
 
 DEFAULT_WORKLOAD_AVG_DURATION_MS: Dict[str, float] = {
-    "chameleonserve": 28.686, "cnnserve": 482.07, "imageresize": 2121.732,
-    "lrserving": 88.197, "mapper": 816.582, "pyaesserve": 23.477,
-    "reducer": 5143.899, "rnnserve": 80.3555, "streducer": 296.879,
-    "sttrainer": 202.207,
+    "chameleonserve": 80.62, "cnnserve": 481.005, "imageresize": 2070.765,
+    "lrserving": 106.3495, "mapper": 809.065, "pyaesserve": 55.638,
+    "reducer": 4935.275, "rnnserve": 101.7505, "streducer": 312.2645,
+    "sttrainer": 213.7305,
 }
 
 # --- Configuration Class ---

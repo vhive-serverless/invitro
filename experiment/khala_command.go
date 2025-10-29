@@ -62,6 +62,9 @@ func main() {
 	case "clean":
 		log.Infof("Cleaning Khala on worker nodes: %v", workerNodeSetup.WorkerNodes)
 		CleanKhala(workerNodeSetup, *RemoveSnapshots)
+	case "create-snapshots":
+		log.Infof("Creating snapshots on worker nodes: %v", workerNodeSetup.WorkerNodes)
+		CreateSnapshots(workerNodeSetup)
 	default:
 		log.Fatalf("Unknown command: %s", *Command)
 	}
@@ -251,4 +254,33 @@ func CleanKhala(workerNodeSetup WorkerNodeSetup, removeSnapshots bool) {
 	}
 
 	log.Infof("Khala cleaned on all worker nodes")
+}
+
+func CreateSnapshots(workerNodeSetup WorkerNodeSetup) {
+	workloadList := []string{"chameleonserve-0", "cnnserve-0", "imageresize-0", "lrserving-0", "mapper-0", "pyaesserve-0", "reducer-0", "rnnserve-0", "streducer-0", "sttrainer-0", "chameleonserve-s3-rpc-0", "cnnserve-s3-rpc-0", "imageresize-s3-rpc-0", "lrserving-s3-rpc-0", "mapper-s3-rpc-0", "pyaesserve-s3-rpc-0", "reducer-s3-rpc-0", "rnnserve-s3-rpc-0", "streducer-s3-rpc-0", "sttrainer-s3-rpc-0"}
+
+	var wg sync.WaitGroup
+	for _, workerNode := range workerNodeSetup.WorkerNodes {
+		go func(node string) {
+			defer wg.Done()
+			conn, err := grpc.NewClient(node+":8000", grpc.WithTransportCredentials(insecure.NewCredentials()))
+			if err != nil {
+				log.Errorf("Failed to connect to nexus endpoint %s: %v", node, err)
+			}
+			defer conn.Close()
+			client := proto.NewKhalaKnativeIntegrationClient(conn)
+
+			for _, workload := range workloadList {
+				_, err = client.CreateSnapshot(context.Background(), &proto.CreateSnapshotRequest{Workload: workload})
+				if err != nil {
+					log.Errorf("Failed to create snapshot for function %s on nexus endpoint %s: %v", workload, node, err)
+				} else {
+					log.Infof("Snapshot created for function %s on nexus endpoint %s", workload, node)
+				}
+			}
+
+		}(workerNode)
+		wg.Add(1)
+	}
+	wg.Wait()
 }
