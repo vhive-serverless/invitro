@@ -54,10 +54,11 @@ type MinioConfig struct {
 }
 
 type PrometheusConfig struct {
-	MetricsServerVersion string `json:"MetricsServerVersion"`
-	PromChartVersion     string `json:"PromChartVersion"`
-	PromValuePath        string `json:"PromValuePath"`
-	KnativePromURL       string `json:"KnativePromURL"`
+	MetricsServerVersion    string `json:"MetricsServerVersion"`
+	PromChartVersion        string `json:"PromChartVersion"`
+	PushgatewayChartVersion string `json:"PushgatewayChartVersion"`
+	PromValuePath           string `json:"PromValuePath"`
+	KnativePromURL          string `json:"KnativePromURL"`
 }
 
 func CommonConfigSetup(configDir string, configName string) (*InvitroSetupConfig, error) {

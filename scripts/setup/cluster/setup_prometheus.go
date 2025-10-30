@@ -75,6 +75,13 @@ func setupPrometheus(masterNode string, allNode []string, promConfig *configs.Pr
 		return err
 	}
 
+	// Install Prometheus pushgateway using helm
+	utils.WaitPrintf("Installing Prometheus pushgateway (version %s) on master node %s...\n", promConfig.PushgatewayChartVersion, masterNode)
+	_, err = loaderUtils.ServerExec(masterNode, fmt.Sprintf("helm install -n monitoring prometheus-pushgateway --version %s prometheus-community/prometheus-pushgateway -f %s/prom_pushgateway.yaml", promConfig.PushgatewayChartVersion, promConfig.PromValuePath))
+	if !utils.CheckErrorWithMsg(err, "Failed to install Prometheus pushgateway on master node %s: %v\n", masterNode, err) {
+		return err
+	}
+
 	// Apply ServiceMonitors/PodMonitors for Knative metrics
 	utils.WaitPrintf("Applying Knative ServiceMonitors/PodMonitors on master node %s...\n", masterNode)
 	_, err = loaderUtils.ServerExec(masterNode, fmt.Sprintf("curl -sL %s/config/serving-monitors.yaml | sed 's/interval: 30s/interval: 2s/g' | kubectl apply -f -", promConfig.KnativePromURL))

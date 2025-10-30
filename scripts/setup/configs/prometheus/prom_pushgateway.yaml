@@ -1,0 +1,26 @@
+enabled: true
+serviceMonitor:
+  enabled: true
+  additionalLabels:
+    release: prometheus
+  interval: "5s"
+affinity:
+  nodeAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      nodeSelectorTerms:
+      - matchExpressions:
+        - key: loader-nodetype  
+          operator: In
+          values:
+          - monitoring
+          - singlenode
+ingress:
+  enabled: true
+  ingressClassName: ""
+  annotations:
+    kubernetes.io/ingress.class: "istio"
+  hosts: 
+    - prom-pushgateway.monitoring.10.200.3.4.sslip.io
+  paths:
+    - /
+  pathType: Prefix
