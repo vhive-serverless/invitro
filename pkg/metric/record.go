@@ -116,6 +116,23 @@ type KnStats struct {
 	E2ePlacementP50 float64 `csv:"e2e_placement_p50" json:"e2e_placement_p50"`
 }
 
+type CgroupMetrics struct {
+	AvgActualCoreFreq float64 `csv:"avg_actual_core_freq" json:"avg_actual_core_freq"`
+	AvgCPUUtilization float64 `csv:"avg_cpu_utilization" json:"avg_cpu_utilization"`
+	CoreCount         float64 `csv:"core_count" json:"core_count"`
+	CoreFreqSetting   float64 `csv:"core_freq_setting" json:"core_freq_setting"`
+	CPUTimeSystemUS   float64 `csv:"cpu_time_system_us" json:"cpu_time_system_us"`
+	CPUTimeTotalUS    float64 `csv:"cpu_time_total_us" json:"cpu_time_total_us"`
+	CPUTimeUserUS     float64 `csv:"cpu_time_user_us" json:"cpu_time_user_us"`
+	CPUPressureFull   float64 `csv:"cpu_pressure_full" json:"cpu_pressure_full"`
+	CPUPressureSome   float64 `csv:"cpu_pressure_some" json:"cpu_pressure_some"`
+}
+
+type NodeHardwareMetrics struct {
+	Cgroups               map[string]CgroupMetrics `json:"cgroups"`
+	PowerConsumptionWatts float64                  `csv:"power_consumption_watts" json:"power_consumption_watts"`
+}
+
 type ClusterUsage struct {
 	Timestamp       int64     `csv:"timestamp" json:"timestamp"`
 	MasterCpuPct    float64   `csv:"master_cpu_pct" json:"master_cpu_pct"`
@@ -140,6 +157,8 @@ type ClusterUsage struct {
 	Pods            []int     `csv:"pods" json:"pods"`
 	LoaderCpu       float64   `csv:"loader_cpu" json:"loader_cpu"`
 	LoaderMem       float64   `csv:"loader_mem" json:"loader_mem"`
+
+	HardwareMetrics map[string]NodeHardwareMetrics `json:"hardware_metrics"`
 }
 
 type AdfResult struct {
