@@ -26,6 +26,7 @@ package clients
 
 import (
 	"context"
+	"math"
 
 	"github.com/sirupsen/logrus"
 	log "github.com/sirupsen/logrus"
@@ -209,13 +210,14 @@ func perFunctionTimeout(cfg *config.LoaderConfiguration, function *common.Functi
 
 	parsedName := strings.Split(function.Name, "-")[0]
 	if timeout, ok := functionTimeouts[parsedName]; ok {
-		SLO := time.Duration(timeout * float64(time.Millisecond) * 20)
-		log.Tracef("Using custom timeout for function %s: %.2f seconds", function.Name, SLO.Seconds())
-		return SLO
+		SLO := float64(10)
+		newTimeout := time.Duration(math.Min(timeout*SLO, 20*1000) * float64(time.Millisecond))
+		log.Tracef("Using custom timeout for function %s: %.2f seconds", function.Name, newTimeout.Seconds())
+		return newTimeout
 	} else {
-		SLO := time.Duration(cfg.GRPCFunctionTimeoutSeconds) * time.Second
+		newTimeout := time.Duration(cfg.GRPCFunctionTimeoutSeconds) * time.Second
 		log.Tracef("Using default timeout for function %s: %d seconds", function.Name, cfg.GRPCFunctionTimeoutSeconds)
-		return SLO
+		return newTimeout
 	}
 
 }
