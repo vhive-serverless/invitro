@@ -5,22 +5,26 @@
 # kubectl rollout restart -n knative-serving deployment/activator
 # sleep 10
 
-for multiplier in 1
+for max_multiplier in 20
 do
     divisor=100
-    WARMUP=$(($multiplier / 2))
-    EXPWARMUP=$(($WARMUP+2))
-    EXP_DUR=5
+    EXPWARMUP=1
+    EXP_DUR=$max_multiplier
 
     # test baseline, logical sep, physical sep, dynamic core pool
+
     ### baseline
-    echo "Running Baseline with function multiplier: $multiplier"
-    EXP="baseline_m-${multiplier}_d-${divisor}"
-    python3 generate_trace.py \
-        --function-multiplier $multiplier \
-        --selection-divisor $divisor \
-        --mode synthetic \
-        --warmup $WARMUP
+    echo "Running Baseline with function multiplier: $max_multiplier"
+    EXP="baseline_m-${max_multiplier}_d-${divisor}"
+
+    python3 generate_scaled_trace.py \
+        --divisor $divisor \
+        --start-scale 1 \
+        --end-scale $max_multiplier \
+        --step 1 \
+        --warmup-duration $EXPWARMUP \
+        --warmup-scale 1 \
+        --max-scale 25
 
     mkdir -p data/out/$EXP
     go run experiment/khala_command.go --command=deploy
@@ -33,13 +37,16 @@ do
 
 
     ### logical sep
-    echo "Running Logical Sep with function multiplier: $multiplier"
-    EXP="logicalsep_m-${multiplier}_d-${divisor}"
-    python3 generate_trace.py \
-        --function-multiplier $multiplier \
-        --selection-divisor $divisor \
-        --mode synthetic \
-        --warmup $WARMUP --s3 --rpc
+    echo "Running Logical Sep with function multiplier: $max_multiplier"
+    EXP="logicalsep_m-${max_multiplier}_d-${divisor}"
+    python3 generate_scaled_trace.py \
+        --divisor $divisor \
+        --start-scale 1 \
+        --end-scale $max_multiplier \
+        --step 1 \
+        --warmup-duration $EXPWARMUP \
+        --warmup-scale 1 \
+        --max-scale 25 --s3 --rpc
     
     mkdir -p data/out/$EXP
     go run experiment/khala_command.go --command=deploy
@@ -52,13 +59,16 @@ do
 
 
     ### physical sep
-    echo "Running Physical Sep with function multiplier: $multiplier"
-    EXP="physicalsep_m-${multiplier}_d-${divisor}"
-    python3 generate_trace.py \
-        --function-multiplier $multiplier \
-        --selection-divisor $divisor \
-        --mode synthetic \
-        --warmup $WARMUP --s3 --rpc
+    echo "Running Physical Sep with function multiplier: $max_multiplier"
+    EXP="physicalsep_m-${max_multiplier}_d-${divisor}"
+    python3 generate_scaled_trace.py \
+        --divisor $divisor \
+        --start-scale 1 \
+        --end-scale $max_multiplier \
+        --step 1 \
+        --warmup-duration $EXPWARMUP \
+        --warmup-scale 3 \
+        --max-scale 25 --s3 --rpc
 
     mkdir -p data/out/$EXP
     go run experiment/khala_command.go --command=deploy --core-pool-policy corepool_freq_static
@@ -71,13 +81,16 @@ do
 
 
     ### dynamic frequency scaling
-    echo "Running Dynamic Frequency Scaling with function multiplier: $multiplier"
-    EXP="dynamicfreq_m-${multiplier}_d-${divisor}"
-    python3 generate_trace.py \
-        --function-multiplier $multiplier \
-        --selection-divisor $divisor \
-        --mode synthetic \
-        --warmup $WARMUP --s3 --rpc
+    echo "Running Dynamic Frequency Scaling with function multiplier: $max_multiplier"
+    EXP="dynamicfreq_m-${max_multiplier}_d-${divisor}"
+    python3 generate_scaled_trace.py \
+        --divisor $divisor \
+        --start-scale 1 \
+        --end-scale $max_multiplier \
+        --step 1 \
+        --warmup-duration $EXPWARMUP \
+        --warmup-scale 3 \
+        --max-scale 25 --s3 --rpc
 
     mkdir -p data/out/$EXP
     go run experiment/khala_command.go --command=deploy --core-pool-policy corepool_freq_dynamic
@@ -87,6 +100,5 @@ do
     go run experiment/khala_command.go --command=clean --remove-snapshots=false
 
     sleep 60
-
 
 done

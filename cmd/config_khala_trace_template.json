@@ -11,7 +11,7 @@
   "TracePath": "data/traces/nexus",
   "Granularity": "minute",
   "OutputPathPrefix": "data/out/$EXPERIMENT/experiment",
-  "IATDistribution": "exponential",
+  "IATDistribution": "equidistant",
   "CPULimit": "1vCPU",
   "ExperimentDuration": $EXP_DUR,
   "WarmupDuration": $WARMUP,
@@ -19,7 +19,7 @@
   "IsPartiallyPanic": false,
   "EnableZipkinTracing": false,
   "EnableMetricsScrapping": true,
-  "MetricScrapingPeriodSeconds": 15,
+  "MetricScrapingPeriodSeconds": 2,
   "AutoscalingMetric": "concurrency",
 
   "GRPCConnectionTimeoutSeconds": 60,
