@@ -26,6 +26,7 @@ package driver
 
 import (
 	"container/list"
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -192,6 +193,10 @@ func (d *Driver) functionsDriver(functionLinkedList *list.List, announceFunction
 
 	waitForInvocations := sync.WaitGroup{}
 
+	// Start perf collection in background
+	perfContext := context.Background()
+	perfCollectionCtx := StartPerfCollection(*d.Configuration, perfContext)
+
 	if d.Configuration.WithWarmup() {
 		currentPhase = common.WarmupPhase
 		log.Infof("Warmup phase has started.")
@@ -258,6 +263,9 @@ func (d *Driver) functionsDriver(functionLinkedList *list.List, announceFunction
 	}
 
 	waitForInvocations.Wait()
+
+	// Stop perf collection and rsync results back
+	StopPerfCollection(perfCollectionCtx)
 
 	log.Debugf("All the invocations for function %s have been completed.\n", function.Name)
 
@@ -407,6 +415,7 @@ func (d *Driver) internalRun() {
 			)
 		}
 	}
+
 	allIndividualDriversCompleted.Wait()
 	if atomic.LoadInt64(&successfulInvocations)+atomic.LoadInt64(&failedInvocations) != 0 {
 		log.Debugf("Waiting for all the invocations record to be written.\n")

@@ -23,8 +23,7 @@ do
         --end-scale $max_multiplier \
         --step 1 \
         --warmup-duration $EXPWARMUP \
-        --warmup-scale 1 \
-        --max-scale 25
+        --warmup-scale 1
 
     mkdir -p data/out/$EXP
     go run experiment/khala_command.go --command=deploy
@@ -45,8 +44,7 @@ do
         --end-scale $max_multiplier \
         --step 1 \
         --warmup-duration $EXPWARMUP \
-        --warmup-scale 1 \
-        --max-scale 25 --s3 --rpc
+        --warmup-scale 1 --s3 --rpc
     
     mkdir -p data/out/$EXP
     go run experiment/khala_command.go --command=deploy
@@ -67,8 +65,7 @@ do
         --end-scale $max_multiplier \
         --step 1 \
         --warmup-duration $EXPWARMUP \
-        --warmup-scale 3 \
-        --max-scale 25 --s3 --rpc
+        --warmup-scale 1 --s3 --rpc
 
     mkdir -p data/out/$EXP
     go run experiment/khala_command.go --command=deploy --core-pool-policy corepool_freq_static
@@ -89,8 +86,7 @@ do
         --end-scale $max_multiplier \
         --step 1 \
         --warmup-duration $EXPWARMUP \
-        --warmup-scale 3 \
-        --max-scale 25 --s3 --rpc
+        --warmup-scale 1 --s3 --rpc
 
     mkdir -p data/out/$EXP
     go run experiment/khala_command.go --command=deploy --core-pool-policy corepool_freq_dynamic
