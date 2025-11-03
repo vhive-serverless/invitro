@@ -4,6 +4,8 @@
 # kubectl set env deployment/activator -n knative-serving NO_SCALEDOWN=true
 # kubectl rollout restart -n knative-serving deployment/activator
 # sleep 10
+# go run experiment/khala_command.go --command=set-corepool --corepool-node="10.0.1.3" --corepool-size="IO:8@1.0,C:20@2.2"
+
 
 for max_multiplier in 20
 do

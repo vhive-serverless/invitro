@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -23,6 +25,8 @@ var (
 	CorePoolPolicy  = flag.String("core-pool-policy", "", "Core pool policy: baseline, l-sep, or l-shared")
 	Implementation  = flag.String("impl", "go", "Implementation to use: go or cpp")
 	RemoveSnapshots = flag.Bool("remove-snapshots", false, "Whether to remove existing snapshots before deploying Khala")
+	CorePoolNode    = flag.String("corepool-node", "", "Node to set manual core pool size when using 'set-corepool' command")
+	CorePool        = flag.String("corepool-size", "", "Manual core pool size to set when using 'set-corepool' command")
 	Debug           = flag.Bool("debug", false, "Enable debug mode")
 )
 
@@ -65,6 +69,12 @@ func main() {
 	case "create-snapshots":
 		log.Infof("Creating snapshots on worker nodes: %v", workerNodeSetup.WorkerNodes)
 		CreateSnapshots(workerNodeSetup)
+	case "set-corepool":
+		log.Infof("Setting manual core pool size to %s on worker nodes: %v", *CorePool, workerNodeSetup.WorkerNodes)
+		if *CorePoolNode == "" || *CorePool == "" {
+			log.Fatalf("Both --core-pool-node and --core-pool-size must be specified for 'set-corepool' command")
+		}
+		SetManualCorePool(*CorePoolNode, *CorePool, workerNodeSetup)
 	default:
 		log.Fatalf("Unknown command: %s", *Command)
 	}
@@ -257,8 +267,8 @@ func CleanKhala(workerNodeSetup WorkerNodeSetup, removeSnapshots bool) {
 }
 
 func CreateSnapshots(workerNodeSetup WorkerNodeSetup) {
-	workloadList := []string{"chameleonserve-0", "cnnserve-0", "imageresize-0", "lrserving-0", "mapper-0", "pyaesserve-0", "reducer-0", "rnnserve-0", "streducer-0", "sttrainer-0", 
-	"chameleonserve-s3-rpc-0", "cnnserve-s3-rpc-0", "imageresize-s3-rpc-0", "lrserving-s3-rpc-0", "mapper-s3-rpc-0", "pyaesserve-s3-rpc-0", "reducer-s3-rpc-0", "rnnserve-s3-rpc-0", "streducer-s3-rpc-0", "sttrainer-s3-rpc-0"}
+	workloadList := []string{"chameleonserve-0", "cnnserve-0", "imageresize-0", "lrserving-0", "mapper-0", "pyaesserve-0", "reducer-0", "rnnserve-0", "streducer-0", "sttrainer-0",
+		"chameleonserve-s3-rpc-0", "cnnserve-s3-rpc-0", "imageresize-s3-rpc-0", "lrserving-s3-rpc-0", "mapper-s3-rpc-0", "pyaesserve-s3-rpc-0", "reducer-s3-rpc-0", "rnnserve-s3-rpc-0", "streducer-s3-rpc-0", "sttrainer-s3-rpc-0"}
 
 	var wg sync.WaitGroup
 	for _, workerNode := range workerNodeSetup.WorkerNodes {
@@ -284,4 +294,105 @@ func CreateSnapshots(workerNodeSetup WorkerNodeSetup) {
 		wg.Add(1)
 	}
 	wg.Wait()
+}
+
+func SetManualCorePool(node string, corePoolSetting string, workerNodeSetup WorkerNodeSetup) {
+	// parse core pool setting
+	// 'C:18@2.1,IO:10@1.0'
+	// means set core pool for CPU-intensive functions to 18 with frequency scaling factor 2.1
+	// and for IO-intensive functions to 10 with frequency scaling factor 1.0
+
+	//parse corePoolSize
+	conn, err := grpc.NewClient(node+":8002", grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		log.Errorf("Failed to connect to hardware manager on node %s: %v", node, err)
+		return
+	}
+	defer conn.Close()
+	client := proto.NewHardwareManagerClient(conn)
+
+	// set core pool
+	corePoolList := corePoolParser(corePoolSetting)
+	for _, corePool := range corePoolList {
+		_, err = client.SetCorePool(context.Background(), &corePool)
+		if err != nil {
+			log.Errorf("Failed to set core pool on node %s: %v", node, err)
+		} else {
+			log.Infof("Set core pool %v on node %s", corePool, node)
+		}
+	}
+}
+
+func corePoolParser(corePoolSetting string) []proto.CorePool {
+	//C:18@2.1,IO:10@1.0
+	//corepoolname:coresize@corefreq
+	// C should be from 0 to 17 uint32[0,1,...,17]
+	// IO should be from 18 to 27 uint32[18,19,...,27]
+	// C freq should be [2100000,2100000,...,2100000] in kHz
+	// IO freq should be [1000000,1000000,...,1000000] in kHz
+
+	var computeCoreCount int
+	var ioCoreCount int
+	var computeCoreFreq int
+	var ioCoreFreq int
+
+	corePoolSettings := strings.Split(corePoolSetting, ",")
+
+	for _, setting := range corePoolSettings {
+		parts := strings.Split(setting, ":")
+		if len(parts) != 2 {
+			log.Fatalf("Invalid core pool setting: %s", setting)
+		}
+		poolName := parts[0]
+		sizeFreq := strings.Split(parts[1], "@")
+		if len(sizeFreq) != 2 {
+			log.Fatalf("Invalid core pool size and frequency: %s", parts[1])
+		}
+		size, err := strconv.Atoi(sizeFreq[0])
+		if err != nil {
+			log.Fatalf("Invalid core pool size: %s", sizeFreq[0])
+		}
+		freqFloat, err := strconv.ParseFloat(sizeFreq[1], 64)
+		if err != nil {
+			log.Fatalf("Invalid core pool frequency: %s", sizeFreq[1])
+		}
+		freq := uint32(freqFloat * 1e6) // convert GHz to kHz
+
+		switch poolName {
+		case "C":
+			computeCoreCount = size
+			computeCoreFreq = int(freq)
+		case "IO":
+			ioCoreCount = size
+			ioCoreFreq = int(freq)
+		default:
+			log.Fatalf("Unknown core pool name: %s", poolName)
+		}
+	}
+
+	corePoolList := []proto.CorePool{
+		getCorePool("nexus", ioCoreCount, 0, ioCoreFreq),
+		getCorePool("firecracker", computeCoreCount, ioCoreCount, computeCoreFreq),
+	}
+
+	return corePoolList
+}
+
+func getCorePool(name string, nCore int, fromCore int, coreFreq int) proto.CorePool {
+	if fromCore == 28 {
+		fromCore = 0
+	}
+	coreList := make([]uint32, nCore)
+	for i := 0; i < nCore; i++ {
+		coreList[i] = uint32(fromCore + i)
+	}
+	coreFreqList := make([]uint32, nCore)
+	for i := 0; i < nCore; i++ {
+		coreFreqList[i] = uint32(coreFreq)
+	}
+	return proto.CorePool{
+		Name:     name,
+		CoreList: coreList,
+		CoreFreq: coreFreqList,
+	}
 }

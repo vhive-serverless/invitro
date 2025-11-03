@@ -1,0 +1,72 @@
+syntax = "proto3";
+option go_package = "github.com/JooyoungPark73/khala/pkg/proto";
+package proto;
+
+service HardwareManager {
+  rpc SetCorePool(CorePool) returns (Response);
+  rpc UpdateCorePool(CorePool) returns (Response);
+  rpc DestroyCorePool(CorePoolName) returns (Response);
+  rpc GetNodeMetrics(Empty) returns (NodeStatus);
+  rpc AddPID(AddPIDReq) returns (Response);
+}
+
+message CorePool {
+    string name = 1;
+    repeated uint32 core_list = 2;
+    repeated uint32 core_freq = 3;
+    bool reuse_cgroup = 4;
+}
+
+message CorePoolName {  
+  string name = 1;
+}
+
+message Response {
+  string message = 1;
+}
+
+message AddPIDReq {
+  string name = 1;
+  repeated uint32 pid = 2;
+}
+
+message CoreUtilization {
+  double average_utilization = 1;
+  repeated double core_utilization = 2;
+}
+
+message PkgPower {
+  double total_power = 1;
+  repeated double pkg_power = 2;
+}
+
+message MemoryStatus {
+  double total_memory = 1;
+  double used_memory = 2;
+  double free_memory = 3;
+}
+
+message CoreFrequency {
+  double average_frequency = 1;
+  repeated double core_frequency = 2;
+}
+
+message CgroupCPUTime {
+  string name = 1;
+  double usage_total = 2; // Total CPU time used by the cgroup
+  double usage_user = 3;  // User CPU time used by the cgroup
+  double usage_system = 4; // System CPU time used by the cgroup
+  double pressure_some = 5;
+  double pressure_full = 6;
+}
+
+message NodeStatus {
+  CoreUtilization core_utilization = 1;
+  PkgPower pkg_power = 2;
+  MemoryStatus memory_status = 3;
+  CoreFrequency core_frequency = 4;
+  repeated CorePool core_pools = 5;
+  repeated CgroupCPUTime cgroup_cpu_times = 6;
+}
+
+message Empty {}

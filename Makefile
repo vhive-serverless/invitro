@@ -7,7 +7,7 @@ proto:
 		--go-grpc_out=. \
 		--go-grpc_opt=paths=source_relative \
 		pkg/workload/proto/faas.proto pkg/workload/proto/nexus_rpc.proto \
-		pkg/workload/proto/knative_integration.proto
+		pkg/workload/proto/knative_integration.proto pkg/workload/proto/hardware_manager.proto
 	/usr/bin/python3 -m grpc_tools.protoc -I=. \
 		--python_out=. \
 		--grpc_python_out=. \
