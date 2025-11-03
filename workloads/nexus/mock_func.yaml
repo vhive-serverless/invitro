@@ -16,6 +16,9 @@ spec:
         autoscaling.knative.dev/panic-threshold-percentage: $PANIC_THRESHOLD
         autoscaling.knative.dev/metric: $AUTOSCALING_METRIC
         autoscaling.knative.dev/target: $AUTOSCALING_TARGET
+        khala/initial-scale: "$INIT_SCALE"
+        khala/max-scale: "$MAX_SCALE"
+        khala/min-scale: "$MIN_SCALE"
     spec:
       containerConcurrency: 1
       affinity:

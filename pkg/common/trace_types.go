@@ -100,6 +100,7 @@ type Function struct {
 	// From the static trace profiler
 	InitialScale int
 	MaxScale     int
+	MinScale     int
 	// From the trace
 	InvocationStats  *FunctionInvocationStats
 	RuntimeStats     *FunctionRuntimeStats

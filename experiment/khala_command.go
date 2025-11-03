@@ -108,7 +108,7 @@ func DeployKhala(workerNodeSetup WorkerNodeSetup, corePoolPolicy string, impleme
 		return err
 	}
 
-	deploymentCmd := "cd ~/khala && sudo ./bin/kn-integration --pool-size=10"
+	deploymentCmd := "cd ~/khala && sudo ./bin/kn-integration --pool-size=20"
 	deploymentCmd += " --impl=" + implementation
 	if corePoolPolicy != "" {
 		deploymentCmd += " --corepool=" + corePoolPolicy
