@@ -3,7 +3,7 @@ serviceMonitor:
   enabled: true
   additionalLabels:
     release: prometheus
-  interval: "5s"
+  interval: "1s"
 affinity:
   nodeAffinity:
     requiredDuringSchedulingIgnoredDuringExecution:
