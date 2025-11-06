@@ -371,14 +371,15 @@ func corePoolParser(corePoolSetting string) []proto.CorePool {
 	}
 
 	corePoolList := []proto.CorePool{
-		getCorePool("nexus", ioCoreCount, 0, ioCoreFreq),
-		getCorePool("firecracker", computeCoreCount, ioCoreCount, computeCoreFreq),
+		getCorePool("empty", 0, 2, 2100000, false), // empty core pool to avoid errors
+		getCorePool("nexus", ioCoreCount, 2, ioCoreFreq, true),
+		getCorePool("firecracker", computeCoreCount, 2+ioCoreCount, computeCoreFreq, true),
 	}
 
 	return corePoolList
 }
 
-func getCorePool(name string, nCore int, fromCore int, coreFreq int) proto.CorePool {
+func getCorePool(name string, nCore int, fromCore int, coreFreq int, reuseCgroup bool) proto.CorePool {
 	if fromCore == 28 {
 		fromCore = 0
 	}
@@ -391,8 +392,9 @@ func getCorePool(name string, nCore int, fromCore int, coreFreq int) proto.CoreP
 		coreFreqList[i] = uint32(coreFreq)
 	}
 	return proto.CorePool{
-		Name:     name,
-		CoreList: coreList,
-		CoreFreq: coreFreqList,
+		Name:        name,
+		CoreList:    coreList,
+		CoreFreq:    coreFreqList,
+		ReuseCgroup: reuseCgroup,
 	}
 }
