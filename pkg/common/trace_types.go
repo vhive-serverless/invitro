@@ -83,6 +83,8 @@ type DirigentMetadata struct {
 	IOPercentage        int      `json:"IOPercentage"`
 	EnvVars             []string `json:"EnvVars"`
 	ProgramArgs         []string `json:"ProgramArgs"`
+	NodeAffinity        string   `json:"NodeAffinity"`
+	NodePort            int      `json:"NodePort"`
 
 	// dandelion only
 	NumArgs int `json:"NumArgs"`

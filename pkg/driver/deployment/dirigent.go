@@ -2,10 +2,6 @@ package deployment
 
 import (
 	"fmt"
-	log "github.com/sirupsen/logrus"
-	"github.com/vhive-serverless/loader/pkg/common"
-	"github.com/vhive-serverless/loader/pkg/config"
-	"github.com/vhive-serverless/loader/pkg/driver/clients"
 	"io"
 	"math/rand"
 	"net"
@@ -16,6 +12,11 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	log "github.com/sirupsen/logrus"
+	"github.com/vhive-serverless/loader/pkg/common"
+	"github.com/vhive-serverless/loader/pkg/config"
+	"github.com/vhive-serverless/loader/pkg/driver/clients"
 )
 
 type dirigentDeployer struct{}
@@ -172,6 +173,8 @@ func deployDirigentFunction(function *common.Function, imagePath string, control
 		"num_args":            {strconv.Itoa(metadata.NumArgs)},
 		"num_rets":            {strconv.Itoa(metadata.NumRets)},
 		"requested_gpu":       {strconv.Itoa(requestedGpu)},
+		"node_affinity":       {metadata.NodeAffinity},
+		"node_port":           {strconv.Itoa(metadata.NodePort)},
 	}
 
 	if busyLoopOnColdStart {
