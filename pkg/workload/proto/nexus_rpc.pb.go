@@ -22,11 +22,13 @@ const (
 )
 
 type NexusRPCRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Msg           string                 `protobuf:"bytes,1,opt,name=msg,proto3" json:"msg,omitempty"`
-	Payload       []byte                 `protobuf:"bytes,2,opt,name=payload,proto3" json:"payload,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	Msg            string                 `protobuf:"bytes,1,opt,name=msg,proto3" json:"msg,omitempty"`
+	Payload        []byte                 `protobuf:"bytes,2,opt,name=payload,proto3" json:"payload,omitempty"`
+	PrefetchBucket string                 `protobuf:"bytes,3,opt,name=prefetch_bucket,json=prefetchBucket,proto3" json:"prefetch_bucket,omitempty"`
+	PrefetchKey    []string               `protobuf:"bytes,4,rep,name=prefetch_key,json=prefetchKey,proto3" json:"prefetch_key,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *NexusRPCRequest) Reset() {
@@ -69,6 +71,20 @@ func (x *NexusRPCRequest) GetMsg() string {
 func (x *NexusRPCRequest) GetPayload() []byte {
 	if x != nil {
 		return x.Payload
+	}
+	return nil
+}
+
+func (x *NexusRPCRequest) GetPrefetchBucket() string {
+	if x != nil {
+		return x.PrefetchBucket
+	}
+	return ""
+}
+
+func (x *NexusRPCRequest) GetPrefetchKey() []string {
+	if x != nil {
+		return x.PrefetchKey
 	}
 	return nil
 }
@@ -129,10 +145,12 @@ var File_pkg_workload_proto_nexus_rpc_proto protoreflect.FileDescriptor
 
 const file_pkg_workload_proto_nexus_rpc_proto_rawDesc = "" +
 	"\n" +
-	"\"pkg/workload/proto/nexus_rpc.proto\x12\x05proto\"=\n" +
+	"\"pkg/workload/proto/nexus_rpc.proto\x12\x05proto\"\x89\x01\n" +
 	"\x0fNexusRPCRequest\x12\x10\n" +
 	"\x03msg\x18\x01 \x01(\tR\x03msg\x12\x18\n" +
-	"\apayload\x18\x02 \x01(\fR\apayload\">\n" +
+	"\apayload\x18\x02 \x01(\fR\apayload\x12'\n" +
+	"\x0fprefetch_bucket\x18\x03 \x01(\tR\x0eprefetchBucket\x12!\n" +
+	"\fprefetch_key\x18\x04 \x03(\tR\vprefetchKey\">\n" +
 	"\x10NexusRPCResponse\x12\x10\n" +
 	"\x03msg\x18\x01 \x01(\tR\x03msg\x12\x18\n" +
 	"\apayload\x18\x02 \x01(\fR\apayload2O\n" +

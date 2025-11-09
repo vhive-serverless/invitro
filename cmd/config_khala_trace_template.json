@@ -22,10 +22,12 @@
   "MetricScrapingPeriodSeconds": 1,
   "AutoscalingMetric": "concurrency",
 
-  "GRPCConnectionTimeoutSeconds": 60,
+  "GRPCConnectionTimeoutSeconds": 20,
   "GRPCFunctionTimeoutSeconds": 900,
   "DAGMode": false,
   "EnableDAGDataset": true,
   "Width": 2,
-  "Depth": 2
+  "Depth": 2,
+  
+  "EnablePrefetch": $PREFETCH
 }

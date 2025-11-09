@@ -171,7 +171,7 @@ class ScaledTraceBuilder:
         
         for workload in workloads_to_process.keys():
             workload_name = f"{workload}{self.config.name_suffix}"
-            duration_ms = DEFAULT_WORKLOAD_AVG_DURATION_MS.get(workload, 100.0)
+            duration_ms = DEFAULT_WORKLOAD_AVG_DURATION_MS.get(workload, 1000.0)
             duration_rows.append({
                 "FunctionName": workload_name,
                 "AvgDurationMs": duration_ms

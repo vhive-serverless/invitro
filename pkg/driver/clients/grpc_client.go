@@ -45,13 +45,38 @@ import (
 )
 
 type invoker interface {
-	Invoke(function *common.Function, runtimeSpec *common.RuntimeSpecification, conn *grpc.ClientConn, record *mc.ExecutionRecord, executionCxt context.Context) bool
+	Invoke(function *common.Function, runtimeSpec *common.RuntimeSpecification, conn *grpc.ClientConn, record *mc.ExecutionRecord, executionCxt context.Context, prefetchBucket string, prefetchKey []string) bool
 }
 
 type ExecutorRPC struct {
 }
 
-func (i ExecutorRPC) Invoke(function *common.Function, runtimeSpec *common.RuntimeSpecification, conn *grpc.ClientConn, record *mc.ExecutionRecord, executionCxt context.Context) bool {
+var FunctionTimeouts = map[string]float64{
+	"chameleonserve": 80.62, "cnnserve": 481.005, "imageresize": 2070.765,
+	"lrserving": 106.3495, "mapper": 809.065, "pyaesserve": 55.638,
+	"reducer": 4935.275, "rnnserve": 101.7505, "streducer": 312.2645,
+	"sttrainer": 213.7305,
+}
+
+var FunctionPayloads = map[string][]string{
+	"chameleonserve": {"input_payload/chameleon/chameleon_input.txt"},
+	"cnnserve":       {"input_payload/cnn_serving/cnn_input.jpg"},
+	"imageresize":    {"input_payload/image_resize/image_resize_input.jpg"},
+	"lrserving": {"input_payload/lr_serving/lr_serving_input.txt", "input_payload/lr_serving/lr_serving_tokenizer.pkl",
+		"input_payload/lr_serving/lr_serving_scaler.pkl", "input_payload/lr_serving/lr_serving_model.pkl"},
+	"mapper":     {"input_payload/mapper/part-00000.csv"},
+	"pyaesserve": {"input_payload/pyaes/pyaes_input.txt"},
+	"reducer": {"input_payload/reducer/part-00000.json", "input_payload/reducer/part-00001.json", "input_payload/reducer/part-00002.json",
+		"input_payload/reducer/part-00003.json", "input_payload/reducer/part-00004.json", "input_payload/reducer/part-00005.json",
+		"input_payload/reducer/part-00006.json", "input_payload/reducer/part-00007.json"},
+	"rnnserve": {"input_payload/rnn_serving/rnn_serving_input.txt"},
+	"streducer": {"input_payload/stack_training-reducer/KNeighborsRegressor.pkl", "input_payload/stack_training-reducer/Lasso.pkl",
+		"input_payload/stack_training-reducer/LinearRegression.pkl", "input_payload/stack_training-reducer/LinearSVR.pkl",
+		"input_payload/stack_training-reducer/RandomForestRegressor.pkl"},
+	"sttrainer": {"input_payload/stack_training-trainer/dataset"},
+}
+
+func (i ExecutorRPC) Invoke(function *common.Function, runtimeSpec *common.RuntimeSpecification, conn *grpc.ClientConn, record *mc.ExecutionRecord, executionCxt context.Context, prefetchBucket string, prefetchKey []string) bool {
 	grpcClient := proto.NewExecutorClient(conn)
 
 	response, err := grpcClient.Execute(executionCxt, &proto.FaasRequest{
@@ -87,7 +112,7 @@ func (i ExecutorRPC) Invoke(function *common.Function, runtimeSpec *common.Runti
 type SayHelloRPC struct {
 }
 
-func (i SayHelloRPC) Invoke(function *common.Function, runtimeSpec *common.RuntimeSpecification, conn *grpc.ClientConn, record *mc.ExecutionRecord, executionCxt context.Context) bool {
+func (i SayHelloRPC) Invoke(function *common.Function, runtimeSpec *common.RuntimeSpecification, conn *grpc.ClientConn, record *mc.ExecutionRecord, executionCxt context.Context, prefetchBucket string, prefetchKey []string) bool {
 	grpcClient := proto.NewNexusRPCServerClient(conn)
 	response, err := grpcClient.NexusRPC(executionCxt, &proto.NexusRPCRequest{
 		Msg:     "",
@@ -119,12 +144,20 @@ func NewNexusRPC(cfg *config.LoaderConfiguration, invoker invoker) *NexusRPC {
 	}
 }
 
-func (i NexusRPC) Invoke(function *common.Function, runtimeSpec *common.RuntimeSpecification, conn *grpc.ClientConn, record *mc.ExecutionRecord, executionCxt context.Context) bool {
+func (i NexusRPC) Invoke(function *common.Function, runtimeSpec *common.RuntimeSpecification, conn *grpc.ClientConn, record *mc.ExecutionRecord, executionCxt context.Context, prefetchBucket string, prefetchKey []string) bool {
 	grpcClient := proto.NewNexusRPCServerClient(conn)
 	response, err := grpcClient.NexusRPC(executionCxt, &proto.NexusRPCRequest{
-		Msg:     "",
-		Payload: []byte("Hello"),
+		Msg:            "",
+		Payload:        []byte("Hello"),
+		PrefetchBucket: prefetchBucket,
+		PrefetchKey:    prefetchKey,
 	})
+
+	// response, err := grpcClient.NexusRPC(executionCxt, &proto.NexusRPCRequest{
+	// 	Msg:     "",
+	// 	Payload: []byte("Hello"),
+	// })
+
 	if err != nil {
 		logrus.Debugf("gRPC timeout exceeded for function %s - %s", function.Name, err)
 		record.ConnectionTimeout = true
@@ -174,6 +207,12 @@ func (i *grpcInvoker) Invoke(function *common.Function, runtimeSpec *common.Runt
 	if i.cfg.EnableZipkinTracing {
 		dialOptions = append(dialOptions, grpc.WithStatsHandler(otelgrpc.NewClientHandler()))
 	}
+	var prefetchBucket string
+	var prefetchKeys []string
+	if i.cfg.EnablePrefetch {
+		log.Tracef("Prefetch enabled for function %s", function.Name)
+		prefetchBucket, prefetchKeys = perWorkloadPrefetchKeys(function)
+	}
 
 	grpcStart := time.Now()
 
@@ -191,7 +230,8 @@ func (i *grpcInvoker) Invoke(function *common.Function, runtimeSpec *common.Runt
 	record.GRPCConnectionEstablishTime = time.Since(grpcStart).Microseconds()
 	executionCxt, cancelExecution := context.WithTimeout(context.Background(), perFunctionTimeout(i.cfg, function))
 	defer cancelExecution()
-	success := i.invoker.Invoke(function, runtimeSpec, conn, record, executionCxt)
+
+	success := i.invoker.Invoke(function, runtimeSpec, conn, record, executionCxt, prefetchBucket, prefetchKeys)
 	record.ResponseTime = time.Since(start).Microseconds()
 	logrus.Tracef("(E2E Latency) %s: %.2f[ms]\n", function.Name, float64(record.ResponseTime)/1e3)
 	return success, record
@@ -201,15 +241,8 @@ func perFunctionTimeout(cfg *config.LoaderConfiguration, function *common.Functi
 	// map of function name to timeout values can be added here
 	// split function name by '-' and get the first part
 
-	functionTimeouts := map[string]float64{
-		"chameleonserve": 80.62, "cnnserve": 481.005, "imageresize": 2070.765,
-		"lrserving": 106.3495, "mapper": 809.065, "pyaesserve": 55.638,
-		"reducer": 4935.275, "rnnserve": 101.7505, "streducer": 312.2645,
-		"sttrainer": 213.7305,
-	}
-
 	parsedName := strings.Split(function.Name, "-")[0]
-	if timeout, ok := functionTimeouts[parsedName]; ok {
+	if timeout, ok := FunctionTimeouts[parsedName]; ok {
 		SLO := float64(10)
 		newTimeout := time.Duration(math.Min(timeout*SLO, 20*1000) * float64(time.Millisecond))
 		log.Tracef("Using custom timeout for function %s: %.2f seconds", function.Name, newTimeout.Seconds())
@@ -219,7 +252,17 @@ func perFunctionTimeout(cfg *config.LoaderConfiguration, function *common.Functi
 		log.Tracef("Using default timeout for function %s: %d seconds", function.Name, cfg.GRPCFunctionTimeoutSeconds)
 		return newTimeout
 	}
+}
 
+func perWorkloadPrefetchKeys(function *common.Function) (string, []string) {
+	parsedName := strings.Split(function.Name, "-")[0]
+	if payloads, ok := FunctionPayloads[parsedName]; ok {
+		log.Tracef("Using prefetch payloads for function %s: %v", function.Name, payloads)
+		return "nexus-benchmark-payload", payloads
+	} else {
+		log.Tracef("No prefetch payloads found for function %s", function.Name)
+		return "", []string{}
+	}
 }
 
 func extractInstanceName(data string) string {

@@ -10,6 +10,8 @@ service NexusRPCServer {
 message NexusRPCRequest{
     string msg = 1;
     bytes payload = 2;
+    string prefetch_bucket = 3;
+    repeated string prefetch_key = 4;
 }
 
 message NexusRPCResponse{

@@ -82,6 +82,9 @@ type LoaderConfiguration struct {
 
 	// used only if platform is dirigent
 	DirigentConfigPath string `json:"DirigentConfigPath"`
+
+	// used only if nexus
+	EnablePrefetch bool `json:"EnablePrefetch"`
 }
 
 type WorkflowFunction struct {

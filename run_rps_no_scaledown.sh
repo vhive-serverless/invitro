@@ -3,33 +3,38 @@
 
 # kubectl set env deployment/activator -n knative-serving NO_SCALEDOWN=true
 # kubectl rollout restart -n knative-serving deployment/activator
+# kubectl rollout restart -n knative-serving deployment/autoscaler
 # sleep 10
 # go run experiment/khala_command.go --command=set-corepool --corepool-node="10.0.1.3" --corepool-size="IO:8@1.0,C:20@2.2"
 
 
-for max_multiplier in 20
+for max_multiplier in 14
 do
     divisor=100
-    EXPWARMUP=1
+    EXPWARMUP=5
+    START_SCALE=1
+    END_SCALE=$max_multiplier
+    STEP=1
     EXP_DUR=$max_multiplier
+    PREFETCH=true
 
     # test baseline, logical sep, physical sep, dynamic core pool
 
     ### baseline
     echo "Running Baseline with function multiplier: $max_multiplier"
-    EXP="baseline_m-${max_multiplier}_d-${divisor}"
+    EXP="baseline_d-${divisor}_s-${START_SCALE}_e-${END_SCALE}_t-${STEP}_p-${PREFETCH}"
 
     python3 generate_scaled_trace.py \
         --divisor $divisor \
-        --start-scale 1 \
-        --end-scale $max_multiplier \
-        --step 1 \
+        --start-scale $START_SCALE \
+        --end-scale $END_SCALE \
+        --step $STEP \
         --warmup-duration $EXPWARMUP \
-        --warmup-scale 1
+        --warmup-scale 3
 
     mkdir -p data/out/$EXP
     go run experiment/khala_command.go --command=deploy
-    cat cmd/config_khala_trace_template.json | EXPERIMENT="$EXP" EXP_DUR="$EXP_DUR" WARMUP="$EXPWARMUP" envsubst > cmd/config_khala_trace.json
+    cat cmd/config_khala_trace_template.json | EXPERIMENT="$EXP" EXP_DUR="$EXP_DUR" WARMUP="$EXPWARMUP" PREFETCH="$PREFETCH" envsubst > cmd/config_khala_trace.json
     go run cmd/loader.go --config cmd/config_khala_trace.json | tee data/out/$EXP/loader.log
     kubectl logs deployment/activator -n knative-serving > data/out/$EXP/activator.log
     go run experiment/khala_command.go --command=clean --remove-snapshots=false
@@ -39,7 +44,7 @@ do
 
     ### logical sep
     echo "Running Logical Sep with function multiplier: $max_multiplier"
-    EXP="logicalsep_m-${max_multiplier}_d-${divisor}"
+    EXP="logicalsep_d-${divisor}_s-${START_SCALE}_e-${END_SCALE}_t-${STEP}_p-${PREFETCH}"
     python3 generate_scaled_trace.py \
         --divisor $divisor \
         --start-scale 1 \
@@ -50,7 +55,7 @@ do
     
     mkdir -p data/out/$EXP
     go run experiment/khala_command.go --command=deploy
-    cat cmd/config_khala_trace_template.json | EXPERIMENT="$EXP" EXP_DUR="$EXP_DUR" WARMUP="$EXPWARMUP" envsubst > cmd/config_khala_trace.json
+    cat cmd/config_khala_trace_template.json | EXPERIMENT="$EXP" EXP_DUR="$EXP_DUR" WARMUP="$EXPWARMUP" PREFETCH="$PREFETCH" envsubst > cmd/config_khala_trace.json
     go run cmd/loader.go --config cmd/config_khala_trace.json | tee data/out/$EXP/loader.log
     kubectl logs deployment/activator -n knative-serving > data/out/$EXP/activator.log
     go run experiment/khala_command.go --command=clean --remove-snapshots=false
@@ -60,7 +65,7 @@ do
 
     ### physical sep
     echo "Running Physical Sep with function multiplier: $max_multiplier"
-    EXP="physicalsep_m-${max_multiplier}_d-${divisor}"
+    EXP="physicalsep_d-${divisor}_s-${START_SCALE}_e-${END_SCALE}_t-${STEP}_p-${PREFETCH}"
     python3 generate_scaled_trace.py \
         --divisor $divisor \
         --start-scale 1 \
@@ -71,7 +76,7 @@ do
 
     mkdir -p data/out/$EXP
     go run experiment/khala_command.go --command=deploy --core-pool-policy corepool_freq_static
-    cat cmd/config_khala_trace_template.json | EXPERIMENT="$EXP" EXP_DUR="$EXP_DUR" WARMUP="$EXPWARMUP" envsubst > cmd/config_khala_trace.json
+    cat cmd/config_khala_trace_template.json | EXPERIMENT="$EXP" EXP_DUR="$EXP_DUR" WARMUP="$EXPWARMUP" PREFETCH="$PREFETCH" envsubst > cmd/config_khala_trace.json
     go run cmd/loader.go --config cmd/config_khala_trace.json | tee data/out/$EXP/loader.log
     kubectl logs deployment/activator -n knative-serving > data/out/$EXP/activator.log
     go run experiment/khala_command.go --command=clean --remove-snapshots=false
@@ -81,7 +86,7 @@ do
 
     ### dynamic frequency scaling
     echo "Running Dynamic Frequency Scaling with function multiplier: $max_multiplier"
-    EXP="dynamicfreq_m-${max_multiplier}_d-${divisor}"
+    EXP="dynamicfreq_d-${divisor}_s-${START_SCALE}_e-${END_SCALE}_t-${STEP}_p-${PREFETCH}"
     python3 generate_scaled_trace.py \
         --divisor $divisor \
         --start-scale 1 \
@@ -92,7 +97,7 @@ do
 
     mkdir -p data/out/$EXP
     go run experiment/khala_command.go --command=deploy --core-pool-policy corepool_freq_dynamic
-    cat cmd/config_khala_trace_template.json | EXPERIMENT="$EXP" EXP_DUR="$EXP_DUR" WARMUP="$EXPWARMUP" envsubst > cmd/config_khala_trace.json
+    cat cmd/config_khala_trace_template.json | EXPERIMENT="$EXP" EXP_DUR="$EXP_DUR" WARMUP="$EXPWARMUP" PREFETCH="$PREFETCH" envsubst > cmd/config_khala_trace.json
     go run cmd/loader.go --config cmd/config_khala_trace.json | tee data/out/$EXP/loader.log
     kubectl logs deployment/activator -n knative-serving > data/out/$EXP/activator.log
     go run experiment/khala_command.go --command=clean --remove-snapshots=false

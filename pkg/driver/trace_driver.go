@@ -26,7 +26,6 @@ package driver
 
 import (
 	"container/list"
-	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -193,9 +192,9 @@ func (d *Driver) functionsDriver(functionLinkedList *list.List, announceFunction
 
 	waitForInvocations := sync.WaitGroup{}
 
-	// Start perf collection in background
-	perfContext := context.Background()
-	perfCollectionCtx := StartPerfCollection(*d.Configuration, perfContext)
+	// // Start perf collection in background
+	// perfContext := context.Background()
+	// perfCollectionCtx := StartPerfCollection(*d.Configuration, perfContext)
 
 	if d.Configuration.WithWarmup() {
 		currentPhase = common.WarmupPhase
@@ -264,8 +263,8 @@ func (d *Driver) functionsDriver(functionLinkedList *list.List, announceFunction
 
 	waitForInvocations.Wait()
 
-	// Stop perf collection and rsync results back
-	StopPerfCollection(perfCollectionCtx)
+	// // Stop perf collection and rsync results back
+	// StopPerfCollection(perfCollectionCtx)
 
 	log.Debugf("All the invocations for function %s have been completed.\n", function.Name)
 
@@ -513,7 +512,7 @@ func (d *Driver) RunExperiment() {
 	go failure.ScheduleFailure(d.Configuration.LoaderConfiguration.Platform, d.Configuration.FailureConfiguration)
 
 	// wait for the system to stabilize
-	time.Sleep(30 * time.Second)
+	time.Sleep(60 * time.Second)
 	// Generate load
 	d.internalRun()
 
