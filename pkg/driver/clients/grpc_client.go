@@ -72,7 +72,8 @@ var FunctionPayloads = map[string][]string{
 	"rnnserve": {"input_payload/rnn_serving/rnn_serving_input.txt"},
 	"streducer": {"input_payload/stack_training-reducer/KNeighborsRegressor.pkl", "input_payload/stack_training-reducer/Lasso.pkl",
 		"input_payload/stack_training-reducer/LinearRegression.pkl", "input_payload/stack_training-reducer/LinearSVR.pkl",
-		"input_payload/stack_training-reducer/RandomForestRegressor.pkl"},
+		"input_payload/stack_training-reducer/RandomForestRegressor.pkl", "input_payload/stack_training-reducer/KNeighborsRegressor_y_pred.pkl", "input_payload/stack_training-reducer/Lasso_y_pred.pkl", 
+	"input_payload/stack_training-reducer/LinearRegression_y_pred.pkl", "input_payload/stack_training-reducer/LinearSVR_y_pred.pkl", "input_payload/stack_training-reducer/RandomForestRegressor_y_pred.pkl"},
 	"sttrainer": {"input_payload/stack_training-trainer/dataset"},
 }
 
