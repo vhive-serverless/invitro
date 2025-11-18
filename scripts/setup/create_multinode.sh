@@ -91,6 +91,13 @@ function setup_master() {
     server_exec "$MASTER_NODE" 'tmux new -s kwatch -d'
     server_exec "$MASTER_NODE" 'tmux new -s master -d'
 
+    #------- DEBUG - remove later------------------
+    # Wait for loader config files to be available
+    while ! server_exec "$MASTER_NODE" "[ -f ~/loader/config/kube.json ]"; do
+        echo "Waiting for loader config files..."
+        sleep 2
+    done
+    #-----------------------------------------------
     server_exec $MASTER_NODE '~/loader/scripts/setup/rewrite_yaml_files.sh'
 
     MN_CLUSTER="pushd ~/vhive/scripts > /dev/null && ./setup_tool create_multinode_cluster ${OPERATION_MODE} && popd > /dev/null"
