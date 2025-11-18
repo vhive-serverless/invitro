@@ -87,6 +87,13 @@ common_init() {
 function setup_master() {
     echo "Setting up master node: $MASTER_NODE"
 
+    #------- DEBUG - remove later------------------
+    # Kill existing tmux sessions if they exist
+    server_exec "$MASTER_NODE" 'tmux kill-session -t runner 2>/dev/null || true'
+    server_exec "$MASTER_NODE" 'tmux kill-session -t kwatch 2>/dev/null || true'
+    server_exec "$MASTER_NODE" 'tmux kill-session -t master 2>/dev/null || true'
+    #-----------------------------------------------
+    
     server_exec "$MASTER_NODE" 'tmux new -s runner -d'
     server_exec "$MASTER_NODE" 'tmux new -s kwatch -d'
     server_exec "$MASTER_NODE" 'tmux new -s master -d'
