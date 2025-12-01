@@ -6,7 +6,7 @@ set -e
 
 KUBELET_CONFIG="/var/lib/kubelet/config.yaml"
 RESERVED_CPUS='reservedSystemCPUs: "2-27"'
-CPU_POLICY='cpuManagerPolicy: "None"'
+CPU_POLICY='cpuManagerPolicy: "none"'
 
 # --- Safety Check ---
 if [ ! -f "$KUBELET_CONFIG" ]; then
