@@ -142,7 +142,7 @@ func DeployKhala(workerNodeSetup WorkerNodeSetup, corePoolPolicy string, impleme
 		wg.Add(1)
 	}
 	wg.Wait()
-	time.Sleep(30 * time.Second)
+	time.Sleep(10 * time.Second)
 
 	return nil
 }
@@ -154,12 +154,16 @@ func CleanKhala(workerNodeSetup WorkerNodeSetup, removeSnapshots bool) {
 		`tmux kill-session -t kn-integration 2>/dev/null || true`,
 		`sudo rm -rf ~/khala/runtime/overlayfs/*.overlay`,
 		`sudo rm -rf ~/khala/runtime/logs/*.log`,
+		`sudo rm -rf ~/khala/runtime/metrics/*.metrics`,
+		`sudo rm -rf ~/khala/runtime/uffd_sock/*.sock`,
 		`bash -c 'cd ~/khala && bash cleanup_worker.sh'`,
 	}
 	if removeSnapshots {
 		CommandList = append(CommandList,
 			`sudo rm -rf ~/khala/runtime/snapshots/*.snapshot`,
 			`sudo rm -rf ~/khala/runtime/snapshots/*.mem`,
+			`sudo rm -rf ~/khala/runtime/snapshots/*.trace`,
+			`sudo rm -rf ~/khala/runtime/snapshots/*.ws`,
 			`sudo rm -rf ~/khala/runtime/snapshots/*.overlay`,
 		)
 	}
@@ -269,6 +273,8 @@ func CleanKhala(workerNodeSetup WorkerNodeSetup, removeSnapshots bool) {
 func CreateSnapshots(workerNodeSetup WorkerNodeSetup) {
 	workloadList := []string{"chameleonserve-0", "cnnserve-0", "imageresize-0", "lrserving-0", "mapper-0", "pyaesserve-0", "reducer-0", "rnnserve-0", "streducer-0", "sttrainer-0",
 		"chameleonserve-s3-rpc-0", "cnnserve-s3-rpc-0", "imageresize-s3-rpc-0", "lrserving-s3-rpc-0", "mapper-s3-rpc-0", "pyaesserve-s3-rpc-0", "reducer-s3-rpc-0", "rnnserve-s3-rpc-0", "streducer-s3-rpc-0", "sttrainer-s3-rpc-0"}
+
+	// workloadList := []string{"streducer-s3-rpc-0", "streducer-0"}
 
 	var wg sync.WaitGroup
 	for _, workerNode := range workerNodeSetup.WorkerNodes {
