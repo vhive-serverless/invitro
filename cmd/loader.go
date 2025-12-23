@@ -149,6 +149,8 @@ func parseYAMLSpecification(cfg *config.LoaderConfiguration) string {
 		return "workloads/container/trace_func_go.yaml"
 	case "firecracker":
 		return "workloads/firecracker/trace_func_go.yaml"
+	case "kwok":
+		return "workloads/container/kwok_fake_pod.yaml"
 	default:
 		if cfg.Platform != common.PlatformDirigent && cfg.Platform != common.PlatformAzureFunctions {
 			log.Fatal("Invalid 'YAMLSelector' parameter.")
