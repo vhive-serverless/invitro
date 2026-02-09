@@ -262,30 +262,9 @@ function create_test_services() {
         
         echo "Creating services $((created+1)) to $batch_end..."
         
-        server_exec $MASTER_NODE "for i in \$(seq $((created+1)) $batch_end); do kubectl apply -f - <<'EOFINNER' >/dev/null 2>&1
-apiVersion: v1
-kind: Service
-metadata:
-  name: test-svc-\$i
-  namespace: default
-  labels:
-    app: kube-proxy-test
-    service-index: \"\$i\"
-spec:
-  type: ClusterIP
-  selector:
-    app: nonexistent-\$i
-  ports:
-  - name: http
-    port: 80
-    targetPort: 8080
-    protocol: TCP
-  - name: https
-    port: 443
-    targetPort: 8443
-    protocol: TCP
-EOFINNER
-done"
+        for i in $(seq $((created+1)) $batch_end); do
+            server_exec $MASTER_NODE "kubectl create service clusterip test-svc-$i --tcp=80:8080,443:8443 --dry-run=client -o yaml | kubectl label -f - --local --dry-run=none -o yaml app=kube-proxy-test service-index=$i | kubectl apply -f - >/dev/null 2>&1"
+        done
         
         created=$batch_end
         sleep 2
