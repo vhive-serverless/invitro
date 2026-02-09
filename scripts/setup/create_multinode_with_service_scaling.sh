@@ -262,9 +262,7 @@ function create_test_services() {
         
         echo "Creating services $((created+1)) to $batch_end..."
         
-        server_exec $MASTER_NODE "bash -c '
-        for i in \$(seq $((created+1)) $batch_end); do
-            cat <<EOF | kubectl apply -f - > /dev/null 2>&1
+        server_exec $MASTER_NODE "for i in \$(seq $((created+1)) $batch_end); do kubectl apply -f - <<'EOFINNER' >/dev/null 2>&1
 apiVersion: v1
 kind: Service
 metadata:
@@ -286,9 +284,8 @@ spec:
     port: 443
     targetPort: 8443
     protocol: TCP
-EOF
-        done
-        '"
+EOFINNER
+done"
         
         created=$batch_end
         sleep 2

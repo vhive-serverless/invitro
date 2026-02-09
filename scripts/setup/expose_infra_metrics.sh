@@ -57,7 +57,7 @@ server_exec() {
 	server_exec "curl -sL $commit_version/config/configmap-serving-dashboard.json | sed 's/"namespace": "knative-serving"/"namespace": "monitoring"/g' | kubectl apply -f -"
 
 	#* Bind addresses of the control manager and scheduler to "0.0.0.0" so that prometheus can scrape them from any domains.
-	server_exec 'cd loader; sudo kubeadm upgrade apply --config config/kubeadm_init.yaml --ignore-preflight-errors all --force --v=7'
+	server_exec 'cd loader; sudo kubeadm upgrade apply --config config/kubeadm_init.yaml --ignore-preflight-errors all --yes --v=7'
 
 	#* Restart the kube-proxy to apply the changes.
 	server_exec 'kubectl delete pod -l k8s-app=kube-proxy -n kube-system'
