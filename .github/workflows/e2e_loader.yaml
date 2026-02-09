@@ -17,8 +17,8 @@ jobs:
   test-knative:
     name: Test Knative Deployment
     env:
-      KIND_VERSION: v0.22.0
-      K8S_VERSION: v1.29
+      KIND_VERSION: v0.30.0
+      K8S_VERSION: v1.34.3
       YAML_DIR: workloads/container
     runs-on: ubuntu-24.04
     strategy:
