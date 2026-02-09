@@ -93,7 +93,7 @@ cat ../calico/calico.yaml | \
         (
             .spec.template.spec.containers[].name == "calico-node"
         ) | .spec.template.spec.containers[0].env 
-    ) |= . + [ {"name": "CALICO_IPV4POOL_CIDR", "value": "10.168.0.0/16"}, {"name": "FELIX_IPTABLESBACKEND", "value": "NFT"} ]' | 
+    ) |= . + [ {"name": "CALICO_IPV4POOL_CIDR", "value": "10.168.0.0/16"} ]' | 
     yq '
     (
         select
