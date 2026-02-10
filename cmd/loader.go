@@ -195,6 +195,10 @@ func runTraceMode(cfg *config.LoaderConfiguration, readIATFromFile bool, writeIA
 	}
 
 	iatType, shiftIAT := parseIATDistribution(cfg)
+	traceGranularity := parseTraceGranularity(cfg)
+	functions = driver.GenerateAzure2019Specification(functions, cfg, iatType, shiftIAT, traceGranularity)
+
+	driver.ReadOrWriteSpecificationToFile(functions, writeIATsToFile, readIATFromFile)
 
 	experimentDriver := driver.NewDriver(&config.Configuration{
 		LoaderConfiguration:  cfg,
@@ -203,10 +207,11 @@ func runTraceMode(cfg *config.LoaderConfiguration, readIATFromFile bool, writeIA
 		// loads dirigent config only if the platform is 'dirigent'
 		DirigentConfiguration: config.ReadDirigentConfig(cfg),
 
-		IATDistribution:  iatType,
-		ShiftIAT:         shiftIAT,
-		TraceGranularity: parseTraceGranularity(cfg),
-		TraceDuration:    durationToParse,
+		// IATDistribution:  iatType,
+		// ShiftIAT:         shiftIAT,
+		// TraceGranularity: traceGranularity,
+
+		TraceDuration: durationToParse,
 
 		TestMode: false,
 
@@ -220,8 +225,8 @@ func runTraceMode(cfg *config.LoaderConfiguration, readIATFromFile bool, writeIA
 
 	log.Infof("Using %s as a service YAML specification file.\n", yamlPath)
 
-	experimentDriver.GenerateSpecification()
-	experimentDriver.ReadOrWriteFileSpecification(writeIATsToFile, readIATFromFile)
+	//experimentDriver.GenerateSpecification()
+	//experimentDriver.ReadOrWriteFileSpecification(writeIATsToFile, readIATFromFile)
 	experimentDriver.RunExperiment()
 }
 
@@ -241,13 +246,17 @@ func runRPSMode(cfg *config.LoaderConfiguration, readIATFromFile bool, writeIATs
 	// loads dirigent config only if the platform is 'dirigent'
 	dirigentConfig := config.ReadDirigentConfig(cfg)
 
+	functions := generator.CreateRPSFunctions(cfg, dirigentConfig, warmFunction, warmStartCount, coldFunctions, coldStartCount, yamlPath)
+
+	driver.ReadOrWriteSpecificationToFile(functions, writeIATsToFile, readIATFromFile)
+
 	experimentDriver := driver.NewDriver(&config.Configuration{
 		LoaderConfiguration: cfg,
 		TraceDuration:       experimentDuration,
 
 		DirigentConfiguration: dirigentConfig,
 
-		Functions: generator.CreateRPSFunctions(cfg, dirigentConfig, warmFunction, warmStartCount, coldFunctions, coldStartCount, yamlPath),
+		Functions: functions,
 	})
 
 	// Skip experiments execution during dry run mode
@@ -255,6 +264,6 @@ func runRPSMode(cfg *config.LoaderConfiguration, readIATFromFile bool, writeIATs
 		return
 	}
 
-	experimentDriver.ReadOrWriteFileSpecification(writeIATsToFile, readIATFromFile)
+	//experimentDriver.ReadOrWriteFileSpecification(writeIATsToFile, readIATFromFile)
 	experimentDriver.RunExperiment()
 }
