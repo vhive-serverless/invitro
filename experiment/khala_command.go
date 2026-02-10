@@ -27,7 +27,11 @@ var (
 	RemoveSnapshots = flag.Bool("remove-snapshots", false, "Whether to remove existing snapshots before deploying Khala")
 	CorePoolNode    = flag.String("corepool-node", "", "Node to set manual core pool size when using 'set-corepool' command")
 	CorePool        = flag.String("corepool-size", "", "Manual core pool size to set when using 'set-corepool' command")
+	SetNexusSDK     = flag.Bool("set-nexus-sdk", false, "Whether to set Nexus SDK environment variable for worker nodes")
+	SetNexusRPC     = flag.Bool("set-nexus-rpc", false, "Whether to set Nexus RPC environment variable for worker nodes")
 	Debug           = flag.Bool("debug", false, "Enable debug mode")
+
+	WorkloadList = []string{"chameleonserve", "cnnserve", "imageresize", "lrserving", "mapper", "pyaesserve", "reducer", "rnnserve", "streducer", "sttrainer"}
 )
 
 func main() {
@@ -112,6 +116,14 @@ func DeployKhala(workerNodeSetup WorkerNodeSetup, corePoolPolicy string, impleme
 	deploymentCmd += " --impl=" + implementation
 	if corePoolPolicy != "" {
 		deploymentCmd += " --corepool=" + corePoolPolicy
+	}
+
+	if *SetNexusSDK {
+		deploymentCmd += " --set-nexus-sdk"
+	}
+
+	if *SetNexusRPC {
+		deploymentCmd += " --set-nexus-rpc"
 	}
 
 	if debug {
@@ -271,10 +283,19 @@ func CleanKhala(workerNodeSetup WorkerNodeSetup, removeSnapshots bool) {
 }
 
 func CreateSnapshots(workerNodeSetup WorkerNodeSetup) {
-	workloadList := []string{"chameleonserve-0", "cnnserve-0", "imageresize-0", "lrserving-0", "mapper-0", "pyaesserve-0", "reducer-0", "rnnserve-0", "streducer-0", "sttrainer-0",
-		"chameleonserve-s3-rpc-0", "cnnserve-s3-rpc-0", "imageresize-s3-rpc-0", "lrserving-s3-rpc-0", "mapper-s3-rpc-0", "pyaesserve-s3-rpc-0", "reducer-s3-rpc-0", "rnnserve-s3-rpc-0", "streducer-s3-rpc-0", "sttrainer-s3-rpc-0"}
-
 	// workloadList := []string{"streducer-s3-rpc-0", "streducer-0"}
+	var workloadList []string
+
+	for _, workload := range WorkloadList {
+		if *SetNexusSDK {
+			workload += "-s3"
+		}
+		if *SetNexusRPC {
+			workload += "-rpc"
+		}
+		workload += "-0"
+		workloadList = append(workloadList, workload)
+	}
 
 	var wg sync.WaitGroup
 	for _, workerNode := range workerNodeSetup.WorkerNodes {
