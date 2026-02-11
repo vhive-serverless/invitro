@@ -105,11 +105,12 @@ func main() {
 		common.CheckCPULimit(cfg.CPULimit)
 	}
 
-	if cfg.TracePath == "RPS" {
-		runRPSMode(&cfg, *iatFromFile, *iatGeneration)
-	} else {
-		runTraceMode(&cfg, *iatFromFile, *iatGeneration)
-	}
+	runMode(&cfg, *iatFromFile, *iatGeneration)
+	// if cfg.TracePath == "RPS" {
+	// 	runRPSMode(&cfg, *iatFromFile, *iatGeneration)
+	// } else {
+	// 	runTraceMode(&cfg, *iatFromFile, *iatGeneration)
+	// }
 }
 
 func determineDurationToParse(runtimeDuration int, warmupDuration int) int {
@@ -266,4 +267,103 @@ func runRPSMode(cfg *config.LoaderConfiguration, readIATFromFile bool, writeIATs
 
 	//experimentDriver.ReadOrWriteFileSpecification(writeIATsToFile, readIATFromFile)
 	experimentDriver.RunExperiment()
+}
+
+func runMode(cfg *config.LoaderConfiguration, readIATFromFile bool, writeIATsToFile bool) {
+	var traceInputType string
+	if cfg.TracePath == "RPS" {
+		traceInputType = "RPS"
+	} else if cfg.TracePath != "RPS" {
+		traceInputType = "Azure2019"
+	} else { // Reduant, for future input types.
+		log.Fatal("Unsupported Trace Input Type", traceInputType)
+	}
+
+	//
+	// Generate common.Functions
+	//
+	var functions []*common.Function
+	switch traceInputType {
+	case "RPS":
+		functions = RPSGenerateFunctions(cfg)
+	case "Azure2019":
+		functions = Azure2019GenerateFunctions(cfg)
+	default:
+		log.Fatal("Unsupported Trace Input Type:", traceInputType)
+	}
+
+	log.Infof("Traces contain the following %d functions:\n", len(functions))
+	for _, function := range functions {
+		fmt.Printf("\t%s\n", function.Name)
+	}
+
+	driver.ReadOrWriteSpecificationToFile(functions, writeIATsToFile, readIATFromFile)
+
+	experimentDuration := determineDurationToParse(cfg.ExperimentDuration, cfg.WarmupDuration)
+	dirigentConfig := config.ReadDirigentConfig(cfg)
+
+	experimentDriver := driver.NewDriver(&config.Configuration{
+		LoaderConfiguration:   cfg,
+		TraceDuration:         experimentDuration,
+		DirigentConfiguration: dirigentConfig,
+		Functions:             functions,
+	})
+
+	// Skip experiments execution during dry run mode
+	if *dryRun {
+		return
+	}
+
+	experimentDriver.RunExperiment()
+}
+
+func RPSGenerateFunctions(cfg *config.LoaderConfiguration) []*common.Function {
+	experimentDuration := determineDurationToParse(cfg.ExperimentDuration, cfg.WarmupDuration)
+	yamlPath := parseYAMLSpecification(cfg)
+
+	rpsTarget := cfg.RpsTarget
+	coldStartPercentage := cfg.RpsColdStartRatioPercentage
+
+	warmStartRPS := rpsTarget * (100 - coldStartPercentage) / 100
+	coldStartRPS := rpsTarget * coldStartPercentage / 100
+
+	warmFunction, warmStartCount := generator.GenerateWarmStartFunction(experimentDuration, warmStartRPS)
+	coldFunctions, coldStartCount := generator.GenerateColdStartFunctions(experimentDuration, coldStartRPS, cfg.RpsCooldownSeconds)
+
+	// loads dirigent config only if the platform is 'dirigent'
+	dirigentConfig := config.ReadDirigentConfig(cfg)
+
+	functions := generator.CreateRPSFunctions(cfg, dirigentConfig, warmFunction, warmStartCount, coldFunctions, coldStartCount, yamlPath)
+
+	return functions
+}
+
+func Azure2019GenerateFunctions(cfg *config.LoaderConfiguration) []*common.Function {
+	durationToParse := determineDurationToParse(cfg.ExperimentDuration, cfg.WarmupDuration)
+	yamlPath := parseYAMLSpecification(cfg)
+	var functions []*common.Function
+	var traceParser trace.Parser
+
+	// Azure trace parsing
+	if !cfg.VSwarm {
+		traceParser = trace.NewAzureParser(cfg.TracePath, durationToParse, yamlPath)
+	} else {
+		traceParser = trace.NewMapperParser(cfg.TracePath, durationToParse)
+	}
+
+	functions = traceParser.Parse()
+	// Dirigent metadata parsing
+	dirigentMetadataParser := trace.NewDirigentMetadataParser(cfg.TracePath, functions, yamlPath, cfg.Platform)
+	dirigentMetadataParser.Parse()
+
+	log.Infof("Traces contain the following %d functions:\n", len(functions))
+	for _, function := range functions {
+		fmt.Printf("\t%s\n", function.Name)
+	}
+
+	iatType, shiftIAT := parseIATDistribution(cfg)
+	traceGranularity := parseTraceGranularity(cfg)
+	functions = driver.GenerateAzure2019Specification(functions, cfg, iatType, shiftIAT, traceGranularity)
+
+	return functions
 }
