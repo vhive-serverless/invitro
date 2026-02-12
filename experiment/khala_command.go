@@ -31,7 +31,8 @@ var (
 	SetNexusRPC     = flag.Bool("set-nexus-rpc", false, "Whether to set Nexus RPC environment variable for worker nodes")
 	Debug           = flag.Bool("debug", false, "Enable debug mode")
 
-	WorkloadList = []string{"chameleonserve", "cnnserve", "imageresize", "lrserving", "mapper", "pyaesserve", "reducer", "rnnserve", "streducer", "sttrainer"}
+	// WorkloadList = []string{"helloworld", "chameleonserve", "cnnserve", "imageresize", "lrserving", "mapper", "pyaesserve", "reducer", "rnnserve", "streducer", "sttrainer"}
+	WorkloadList = []string{"helloworld"}
 )
 
 func main() {
@@ -119,11 +120,15 @@ func DeployKhala(workerNodeSetup WorkerNodeSetup, corePoolPolicy string, impleme
 	}
 
 	if *SetNexusSDK {
-		deploymentCmd += " --set-nexus-sdk"
+		deploymentCmd += " --set-nexus-sdk=true"
+	} else {
+		deploymentCmd += " --set-nexus-sdk=false"
 	}
 
 	if *SetNexusRPC {
-		deploymentCmd += " --set-nexus-rpc"
+		deploymentCmd += " --set-nexus-rpc=true"
+	} else {
+		deploymentCmd += " --set-nexus-rpc=false"
 	}
 
 	if debug {
@@ -193,7 +198,9 @@ func CleanKhala(workerNodeSetup WorkerNodeSetup, removeSnapshots bool) {
 			defer conn.Close()
 			client := proto.NewKhalaKnativeIntegrationClient(conn)
 
-			_, err = client.DestroyAll(context.Background(), &proto.DestroyAllRequest{DestroyAll: true})
+			destroy_all_ctx, cancel := context.WithTimeout(context.Background(), 180*time.Second)
+			defer cancel()
+			_, err = client.DestroyAll(destroy_all_ctx, &proto.DestroyAllRequest{DestroyAll: true})
 			if err != nil {
 				log.Errorf("Failed to destroy all on nexus endpoint %s: %v", node, err)
 				khalaDied.Store(true)
