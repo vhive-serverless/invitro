@@ -31,8 +31,8 @@ var (
 	SetNexusRPC     = flag.Bool("set-nexus-rpc", false, "Whether to set Nexus RPC environment variable for worker nodes")
 	Debug           = flag.Bool("debug", false, "Enable debug mode")
 
-	// WorkloadList = []string{"helloworld", "chameleonserve", "cnnserve", "imageresize", "lrserving", "mapper", "pyaesserve", "reducer", "rnnserve", "streducer", "sttrainer"}
-	WorkloadList = []string{"helloworld"}
+	WorkloadList = []string{"helloworld", "chameleonserve", "cnnserve", "imageresize", "lrserving", "mapper", "pyaesserve", "reducer", "rnnserve", "streducer", "sttrainer"}
+	// WorkloadList = []string{"helloworld"}
 )
 
 func main() {
@@ -405,9 +405,9 @@ func corePoolParser(corePoolSetting string) []proto.CorePool {
 	}
 
 	corePoolList := []proto.CorePool{
-		getCorePool("empty", 0, 2, 2100000, false), // empty core pool to avoid errors
-		getCorePool("nexus", ioCoreCount, 2, ioCoreFreq, true),
-		getCorePool("firecracker", computeCoreCount, 2+ioCoreCount, computeCoreFreq, true),
+		getCorePool("empty", 0, 28, 2100000, false), // empty core pool to avoid errors
+		getCorePool("nexus", ioCoreCount, 0, ioCoreFreq, true),
+		getCorePool("firecracker", computeCoreCount, ioCoreCount, computeCoreFreq, true),
 	}
 
 	return corePoolList

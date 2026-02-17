@@ -1,4 +1,4 @@
-worker_list=("10.0.1.2" "10.0.1.3" "10.0.1.4" "10.0.1.5" "10.0.1.6")
+worker_list=("10.0.1.2")
 
 for i in "${worker_list[@]}"; do
     echo "Cloning repo to $i"
