@@ -16,8 +16,10 @@ sudo service snmpd stop
 MY_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
 echo Set CPU frequency if bios supports it
-#sudo apt-get install linux-tools-$(uname -r)
-#sudo cpupower frequency-set -f 2500000
+sudo apt-get install linux-tools-$(uname -r)
+sudo cpupower frequency-set -g performance
+sudo cpupower frequency-set -d 2400000
+sudo cpupower frequency-set -u 2400000
 
 echo Disabled THP
 sudo sh -c "echo never > /sys/kernel/mm/transparent_hugepage/enabled"
@@ -52,3 +54,14 @@ sudo modprobe kvm_intel
 
 #sudo sysctl -w kernel.pid_max=4194303
 #sudo sysctl -w kernel.threads-max=999999999
+
+echo "=== Disabling C-States (Sleep Modes) ==="
+# Iterate through every core and every sleep state, writing '1' to 'disable'
+# This forces the CPU to stay in C0 state (Active)
+for file in /sys/devices/system/cpu/cpu*/cpuidle/state*/disable; do
+    if [ -f "$file" ]; then
+        echo "1" | sudo tee "$file" > /dev/null
+    fi
+done
+
+echo "C-States disabled. CPU should now hold constant frequency."
