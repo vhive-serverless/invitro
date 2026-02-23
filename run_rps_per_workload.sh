@@ -7,17 +7,18 @@
 # sleep 10
 # go run experiment/khala_command.go --command=set-corepool --corepool-node="10.0.1.3" --corepool-size="IO:8@1.0,C:20@2.2"
 
-workload_list=(helloworld chameleonserve cnnserve imageresize lrserving mapper pyaesserve reducer rnnserve streducer sttrainer)
-# workload_list=(pyaesserve)
+workload_list=(chameleonserve cnnserve imageresize lrserving mapper pyaesserve reducer rnnserve streducer sttrainer)
+# workload_list=(cnnserve)
 
 for workload in ${workload_list[@]}; do
-    for max_multiplier in 15
+    for max_multiplier in 16
     do
         divisor=10
+        WARMUP_SCALE=2
         EXPWARMUP=2
-        START_SCALE=1
+        START_SCALE=2
         END_SCALE=$max_multiplier
-        STEP=1
+        STEP=2
         EXP_DUR=$max_multiplier
         PREFETCH=false
 
@@ -31,7 +32,7 @@ for workload in ${workload_list[@]}; do
             --end-scale $END_SCALE \
             --step $STEP \
             --warmup-duration $EXPWARMUP \
-            --warmup-scale 1 \
+            --warmup-scale $WARMUP_SCALE \
             --single-workload $workload
 
         mkdir -p data/out/$EXP
@@ -53,7 +54,7 @@ for workload in ${workload_list[@]}; do
             --end-scale $END_SCALE \
             --step $STEP \
             --warmup-duration $EXPWARMUP \
-            --warmup-scale 1 --s3 --rpc \
+            --warmup-scale $WARMUP_SCALE --s3 --rpc \
             --single-workload $workload
         
         mkdir -p data/out/$EXP

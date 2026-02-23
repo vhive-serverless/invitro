@@ -254,6 +254,7 @@ func perFunctionTimeout(cfg *config.LoaderConfiguration, function *common.Functi
 		log.Tracef("Using default timeout for function %s: %d seconds", function.Name, cfg.GRPCFunctionTimeoutSeconds)
 		return newTimeout
 	}
+	// return time.Duration(cfg.GRPCFunctionTimeoutSeconds) * time.Second
 }
 
 func perWorkloadPrefetchKeys(function *common.Function) (string, []string) {
