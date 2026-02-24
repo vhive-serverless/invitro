@@ -2,11 +2,14 @@ package generator
 
 import (
 	"fmt"
+	"log"
+	"math"
+	"math/rand"
+	"strings"
+
 	"github.com/sirupsen/logrus"
 	"github.com/vhive-serverless/loader/pkg/common"
 	"github.com/vhive-serverless/loader/pkg/config"
-	"math"
-	"math/rand"
 )
 
 func generateFunctionByRPS(experimentDuration int, rpsTarget float64) common.IATArray {
@@ -105,33 +108,20 @@ func GenerateColdStartFunctions(experimentDuration int, rpsTarget float64, coold
 	return functions, countResult
 }
 
-func CreateRPSFunctions(cfg *config.LoaderConfiguration, dcfg *config.DirigentConfig, warmFunction common.IATArray, warmFunctionCount []int,
+// Generates []*common.Function based on intended warm/cold functionality, does not generate dirigent metadata.
+func CreateRPSFunctions(cfg *config.LoaderConfiguration, warmFunction common.IATArray, warmFunctionCount []int,
 	coldFunctions []common.IATArray, coldFunctionCount [][]int, yamlPath string) []*common.Function {
 	var result []*common.Function
 
 	busyLoopFor := ComputeBusyLoopPeriod(cfg.RpsMemoryMB)
 
 	if warmFunction != nil || warmFunctionCount != nil {
-		var dirigentMetadataWarm *common.DirigentMetadata
-		if dcfg != nil {
-			dirigentMetadataWarm = &common.DirigentMetadata{
-				Image:               dcfg.RpsImage,
-				Port:                80,
-				Protocol:            "tcp",
-				ScalingUpperBound:   1024,
-				ScalingLowerBound:   1,
-				IterationMultiplier: cfg.RpsIterationMultiplier,
-				IOPercentage:        0,
-			}
-		}
-
 		result = append(result, &common.Function{
 			Name: fmt.Sprintf("warm-function-%d", rand.Int()),
 
 			InvocationStats:  &common.FunctionInvocationStats{Invocations: warmFunctionCount},
 			RuntimeStats:     &common.FunctionRuntimeStats{Average: float64(cfg.RpsRuntimeMs)},
 			MemoryStats:      &common.FunctionMemoryStats{Percentile100: float64(cfg.RpsMemoryMB)},
-			DirigentMetadata: dirigentMetadataWarm,
 
 			Specification: &common.FunctionSpecification{
 				IAT:                  warmFunction,
@@ -145,25 +135,11 @@ func CreateRPSFunctions(cfg *config.LoaderConfiguration, dcfg *config.DirigentCo
 	}
 
 	for i := 0; i < len(coldFunctions); i++ {
-		var dirigentMetadataCold *common.DirigentMetadata
-		if dcfg != nil {
-			dirigentMetadataCold = &common.DirigentMetadata{
-				Image:               dcfg.RpsImage,
-				Port:                80,
-				Protocol:            "tcp",
-				ScalingUpperBound:   1,
-				ScalingLowerBound:   0,
-				IterationMultiplier: cfg.RpsIterationMultiplier,
-				IOPercentage:        0,
-			}
-		}
-
 		result = append(result, &common.Function{
 			Name: fmt.Sprintf("cold-function-%d-%d", i, rand.Int()),
 
 			InvocationStats:  &common.FunctionInvocationStats{Invocations: coldFunctionCount[i]},
 			MemoryStats:      &common.FunctionMemoryStats{Percentile100: float64(cfg.RpsMemoryMB)},
-			DirigentMetadata: dirigentMetadataCold,
 
 			Specification: &common.FunctionSpecification{
 				IAT:                  coldFunctions[i],
@@ -178,6 +154,52 @@ func CreateRPSFunctions(cfg *config.LoaderConfiguration, dcfg *config.DirigentCo
 
 	return result
 }
+
+// TODO consider pointer receiver for []*functions
+
+// Attaches 2 possible DirigentMetadata property, depending if function is cold or warm (based on function name) for RPS function.
+func AppendDirigentMetadata(cfg *config.LoaderConfiguration, dcfg *config.DirigentConfig, functions []*common.Function) []*common.Function {
+
+	var dirigentMetadataWarm *common.DirigentMetadata
+	if dcfg != nil {
+		dirigentMetadataWarm = &common.DirigentMetadata{
+			Image:               dcfg.RpsImage,
+			Port:                80,
+			Protocol:            "tcp",
+			ScalingUpperBound:   1024,
+			ScalingLowerBound:   1,
+			IterationMultiplier: cfg.RpsIterationMultiplier,
+			IOPercentage:        0,
+		}
+	}
+
+	var dirigentMetadataCold *common.DirigentMetadata
+	if dcfg != nil {
+		dirigentMetadataCold = &common.DirigentMetadata{
+			Image:               dcfg.RpsImage,
+			Port:                80,
+			Protocol:            "tcp",
+			ScalingUpperBound:   1,
+			ScalingLowerBound:   0,
+			IterationMultiplier: cfg.RpsIterationMultiplier,
+			IOPercentage:        0,
+		}
+	}
+
+	// Appends cold/warm metadata based on function's name.
+	for _, function := range functions {
+		if strings.Contains(function.Name, "warm-function"){
+			function.DirigentMetadata = dirigentMetadataWarm
+		} else if strings.Contains(function.Name, "cold-function") {
+			function.DirigentMetadata = dirigentMetadataCold
+		} else {
+			log.Fatal("When adding dirigent meta-data for RPS trace input, unable to determine DirigentMetaData to add.")
+		}
+	}
+
+	return functions
+}
+
 
 func createRuntimeSpecification(count int, runtime, memory int) common.RuntimeSpecificationArray {
 	var result common.RuntimeSpecificationArray

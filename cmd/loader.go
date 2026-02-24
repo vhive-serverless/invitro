@@ -144,6 +144,7 @@ func parseIATDistribution(cfg *config.LoaderConfiguration) (common.IatDistributi
 	return common.Exponential, false
 }
 
+// Return YAML for "container" or "firecracker microVM"
 func parseYAMLSpecification(cfg *config.LoaderConfiguration) string {
 	switch cfg.YAMLSelector {
 	case "container":
@@ -270,6 +271,9 @@ func runRPSMode(cfg *config.LoaderConfiguration, readIATFromFile bool, writeIATs
 }
 
 func runMode(cfg *config.LoaderConfiguration, readIATFromFile bool, writeIATsToFile bool) {
+	//
+	// Determine type of input.
+	//
 	var traceInputType string
 	if cfg.TracePath == "RPS" {
 		traceInputType = "RPS"
@@ -278,9 +282,11 @@ func runMode(cfg *config.LoaderConfiguration, readIATFromFile bool, writeIATsToF
 	} else { // Reduant, for future input types.
 		log.Fatal("Unsupported Trace Input Type", traceInputType)
 	}
+	log.Info("Detected Trace Input Type", traceInputType)
+
 
 	//
-	// Generate common.Functions
+	// Generate common.Functions + FunctionSpecification (Function's deployment and invocation info)
 	//
 	var functions []*common.Function
 	switch traceInputType {
@@ -288,8 +294,23 @@ func runMode(cfg *config.LoaderConfiguration, readIATFromFile bool, writeIATsToF
 		functions = RPSGenerateFunctions(cfg)
 	case "Azure2019":
 		functions = Azure2019GenerateFunctions(cfg)
-	default:
-		log.Fatal("Unsupported Trace Input Type:", traceInputType)
+	}
+
+	//
+	// Handle Dirgient (Container orchestrator)
+	//
+	dirigentConfig := config.ReadDirigentConfig(cfg)
+	switch traceInputType {
+	case "RPS":
+		// Handle dirigent metadata, handle warm and cold function differently.
+		functions = generator.AppendDirigentMetadata(cfg, dirigentConfig, functions)
+	case "Azure2019":
+		// Reads Dirigent trace meta-data, and places into *common.Function as property "dirigentMetadata"
+		// Or if Knative yaml is provided, converts it to dirigent configurations. 
+		// Dirigent metadata parsing
+		yamlPath := parseYAMLSpecification(cfg)
+		dirigentMetadataParser := trace.NewDirigentMetadataParser(cfg.TracePath, functions, yamlPath, cfg.Platform)
+		dirigentMetadataParser.Parse()
 	}
 
 	log.Infof("Traces contain the following %d functions:\n", len(functions))
@@ -299,9 +320,8 @@ func runMode(cfg *config.LoaderConfiguration, readIATFromFile bool, writeIATsToF
 
 	driver.ReadOrWriteSpecificationToFile(functions, writeIATsToFile, readIATFromFile)
 
-	experimentDuration := determineDurationToParse(cfg.ExperimentDuration, cfg.WarmupDuration)
-	dirigentConfig := config.ReadDirigentConfig(cfg)
 
+	experimentDuration := determineDurationToParse(cfg.ExperimentDuration, cfg.WarmupDuration)
 	experimentDriver := driver.NewDriver(&config.Configuration{
 		LoaderConfiguration:   cfg,
 		TraceDuration:         experimentDuration,
@@ -330,10 +350,11 @@ func RPSGenerateFunctions(cfg *config.LoaderConfiguration) []*common.Function {
 	warmFunction, warmStartCount := generator.GenerateWarmStartFunction(experimentDuration, warmStartRPS)
 	coldFunctions, coldStartCount := generator.GenerateColdStartFunctions(experimentDuration, coldStartRPS, cfg.RpsCooldownSeconds)
 
-	// loads dirigent config only if the platform is 'dirigent'
-	dirigentConfig := config.ReadDirigentConfig(cfg)
+	functions := generator.CreateRPSFunctions(cfg, warmFunction, warmStartCount, coldFunctions, coldStartCount, yamlPath)
 
-	functions := generator.CreateRPSFunctions(cfg, dirigentConfig, warmFunction, warmStartCount, coldFunctions, coldStartCount, yamlPath)
+	// Handle dirigent metadata, handle warm and cold function differently.
+	// dirigentConfig := config.ReadDirigentConfig(cfg)
+	// functions = generator.AppendDirigentMetadata(cfg, dirigentConfig, functions)
 
 	return functions
 }
@@ -350,16 +371,7 @@ func Azure2019GenerateFunctions(cfg *config.LoaderConfiguration) []*common.Funct
 	} else {
 		traceParser = trace.NewMapperParser(cfg.TracePath, durationToParse)
 	}
-
 	functions = traceParser.Parse()
-	// Dirigent metadata parsing
-	dirigentMetadataParser := trace.NewDirigentMetadataParser(cfg.TracePath, functions, yamlPath, cfg.Platform)
-	dirigentMetadataParser.Parse()
-
-	log.Infof("Traces contain the following %d functions:\n", len(functions))
-	for _, function := range functions {
-		fmt.Printf("\t%s\n", function.Name)
-	}
 
 	iatType, shiftIAT := parseIATDistribution(cfg)
 	traceGranularity := parseTraceGranularity(cfg)
