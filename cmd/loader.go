@@ -248,7 +248,7 @@ func runRPSMode(cfg *config.LoaderConfiguration, readIATFromFile bool, writeIATs
 	// loads dirigent config only if the platform is 'dirigent'
 	dirigentConfig := config.ReadDirigentConfig(cfg)
 
-	functions := generator.CreateRPSFunctions(cfg, dirigentConfig, warmFunction, warmStartCount, coldFunctions, coldStartCount, yamlPath)
+	functions := generator.CreateRPSFunctions(cfg, warmFunction, warmStartCount, coldFunctions, coldStartCount, yamlPath)
 
 	driver.ReadOrWriteSpecificationToFile(functions, writeIATsToFile, readIATFromFile)
 
@@ -277,13 +277,17 @@ func runMode(cfg *config.LoaderConfiguration, readIATFromFile bool, writeIATsToF
 	var traceInputType string
 	if cfg.TracePath == "RPS" {
 		traceInputType = "RPS"
-	} else if cfg.TracePath != "RPS" {
-		traceInputType = "Azure2019"
-	} else { // Reduant, for future input types.
-		log.Fatal("Unsupported Trace Input Type", traceInputType)
+	} else { 
+		if cfg.VSwarm {
+			traceInputType = "vSwarm"
+		} else if !cfg.VSwarm {
+			traceInputType = "Azure2019"
+		}
+		// else { // Reduant, for future input types.
+		// 	log.Fatal("Unsupported Trace Input Type", traceInputType)
+		// }
 	}
 	log.Info("Detected Trace Input Type", traceInputType)
-
 
 	//
 	// Generate common.Functions + FunctionSpecification (Function's deployment and invocation info)
@@ -292,7 +296,7 @@ func runMode(cfg *config.LoaderConfiguration, readIATFromFile bool, writeIATsToF
 	switch traceInputType {
 	case "RPS":
 		functions = RPSGenerateFunctions(cfg)
-	case "Azure2019":
+	case "Azure2019", "vSwarm":
 		functions = Azure2019GenerateFunctions(cfg)
 	}
 
@@ -304,7 +308,7 @@ func runMode(cfg *config.LoaderConfiguration, readIATFromFile bool, writeIATsToF
 	case "RPS":
 		// Handle dirigent metadata, handle warm and cold function differently.
 		functions = generator.AppendDirigentMetadata(cfg, dirigentConfig, functions)
-	case "Azure2019":
+	case "Azure2019", "vSwarm":
 		// Reads Dirigent trace meta-data, and places into *common.Function as property "dirigentMetadata"
 		// Or if Knative yaml is provided, converts it to dirigent configurations. 
 		// Dirigent metadata parsing
@@ -352,13 +356,10 @@ func RPSGenerateFunctions(cfg *config.LoaderConfiguration) []*common.Function {
 
 	functions := generator.CreateRPSFunctions(cfg, warmFunction, warmStartCount, coldFunctions, coldStartCount, yamlPath)
 
-	// Handle dirigent metadata, handle warm and cold function differently.
-	// dirigentConfig := config.ReadDirigentConfig(cfg)
-	// functions = generator.AppendDirigentMetadata(cfg, dirigentConfig, functions)
-
 	return functions
 }
 
+// TODO: Future development to add Azure2021 trace support.
 func Azure2019GenerateFunctions(cfg *config.LoaderConfiguration) []*common.Function {
 	durationToParse := determineDurationToParse(cfg.ExperimentDuration, cfg.WarmupDuration)
 	yamlPath := parseYAMLSpecification(cfg)
