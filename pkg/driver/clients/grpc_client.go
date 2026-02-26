@@ -52,10 +52,10 @@ type ExecutorRPC struct {
 }
 
 var FunctionTimeouts = map[string]float64{
-	"chameleonserve": 80.62, "cnnserve": 481.005, "imageresize": 2070.765,
-	"lrserving": 106.3495, "mapper": 809.065, "pyaesserve": 55.638,
-	"reducer": 4935.275, "rnnserve": 101.7505, "streducer": 312.2645,
-	"sttrainer": 213.7305,
+	"chameleonserve": 44.22, "cnnserve": 585.589, "imageresize": 2113.782,
+	"lrserving": 47.26, "mapper": 775.300, "pyaesserve": 28.542,
+	"reducer": 4037.270, "rnnserve": 197.117, "streducer": 154.807,
+	"sttrainer": 244.291,
 }
 
 var FunctionPayloads = map[string][]string{
@@ -245,8 +245,8 @@ func perFunctionTimeout(cfg *config.LoaderConfiguration, function *common.Functi
 
 	parsedName := strings.Split(function.Name, "-")[0]
 	if timeout, ok := FunctionTimeouts[parsedName]; ok {
-		SLO := float64(10)
-		newTimeout := time.Duration(math.Min(timeout*SLO, 20*1000) * float64(time.Millisecond))
+		SLO := float64(20)
+		newTimeout := time.Duration(math.Min(math.Max(2*1000, timeout*SLO), 20*1000) * float64(time.Millisecond))
 		log.Tracef("Using custom timeout for function %s: %.2f seconds", function.Name, newTimeout.Seconds())
 		return newTimeout
 	} else {

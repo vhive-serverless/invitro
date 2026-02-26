@@ -22,18 +22,19 @@ import pandas as pd
 
 # --- Default Configuration ---
 
-DEFAULT_INPUT_RPS = {
-    "chameleonserve": 1000, "cnnserve": 120, "imageresize": 24, "lrserving": 950,
-    "mapper": 75, "pyaesserve": 1400, "reducer": 16, "rnnserve": 600,
-    "streducer": 320, "sttrainer": 275, "helloworld": 2000,
+DEFAULT_INPUT_RPS: Dict[str, float] = {
+    "chameleonserve": 850, "cnnserve": 100, "imageresize": 30, "lrserving": 675,
+    "mapper": 75, "pyaesserve": 1250, "reducer": 15, "rnnserve": 250,
+    "streducer": 250, "sttrainer": 200
 }
 
-DEFAULT_WORKLOAD_AVG_DURATION_MS = {
-    "chameleonserve": 80.62, "cnnserve": 481.005, "imageresize": 2070.765,
-    "lrserving": 106.3495, "mapper": 809.065, "pyaesserve": 55.638,
-    "reducer": 4935.275, "rnnserve": 101.7505, "streducer": 312.2645,
-    "sttrainer": 213.7305, "helloworld": 10.0,
+DEFAULT_WORKLOAD_AVG_DURATION_MS: Dict[str, float] = {
+    "chameleonserve": 44.22, "cnnserve": 585.589, "imageresize": 2113.782,
+	"lrserving": 47.26, "mapper": 775.300, "pyaesserve": 28.542,
+	"reducer": 4037.270, "rnnserve": 197.117, "streducer": 154.807,
+	"sttrainer": 244.291,
 }
+
 
 DEFAULT_OUTPUT_DIR = "data/traces/nexus"
 

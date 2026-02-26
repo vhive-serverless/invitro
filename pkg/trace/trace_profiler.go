@@ -35,8 +35,8 @@ func DoStaticTraceProfiling(functions []*common.Function) {
 	for i := 0; i < len(functions); i++ {
 		f := functions[i]
 
-		f.InitialScale = int(math.Ceil(1 * profileConcurrency(functions[i])))
-		f.MaxScale = 1000
+		f.InitialScale = int(math.Ceil(1 * profileFirstConcurrency(functions[i])))
+		f.MaxScale = int(math.Ceil(10 * profileMaxConcurrency(functions[i])))
 
 		// f.InitialScale = int(math.Min(math.Max(math.Ceil(1*profileConcurrency(functions[i])), 10), 1000))
 		// f.MaxScale = int(math.Min(math.Max(math.Ceil(2.5*profileConcurrency(functions[i])), 10), 1000))
@@ -86,7 +86,7 @@ func ConvertMemoryToCpu(memoryRequest int) int {
 	return int(cpuRequest * 1000)
 }
 
-func profileConcurrency(function *common.Function) float64 {
+func profileMaxConcurrency(function *common.Function) float64 {
 	// Max Invocations Per Minute
 	IPM := 0
 	for _, inv := range function.InvocationStats.Invocations {
@@ -94,6 +94,19 @@ func profileConcurrency(function *common.Function) float64 {
 			IPM = inv
 		}
 	}
+
+	// Arrival rate - unit 1 s
+	rps := float64(IPM) / 60.0
+	// Processing rate = runtime_in_milli / 1000, assuming it can be process right away upon arrival.
+	processingRate := float64(function.RuntimeStats.Average) / 1000.0
+	// Expected concurrency == the inventory (total #jobs in the system) of Little's law.
+	concurrency := rps * processingRate
+
+	return concurrency
+}
+
+func profileFirstConcurrency(function *common.Function) float64 {
+	IPM := function.InvocationStats.Invocations[0]
 
 	// Arrival rate - unit 1 s
 	rps := float64(IPM) / 60.0
