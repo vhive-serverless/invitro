@@ -433,26 +433,6 @@ func (d *Driver) internalRun() {
 	log.Infof("Failure rate: \t\t\t%.2f%%", float64(statFailed)*100.0/float64(statSuccess+statFailed))
 }
 
-// DEPRECATED: Use func GenerateAzure2019Specification() in generator package, in specification.go instead
-func (d *Driver) GenerateSpecification() {
-	log.Info("Generating IAT and runtime specifications for all the functions")
-
-	for i, function := range d.Configuration.Functions {
-		// Equalising all the InvocationStats to the first function
-		if d.Configuration.LoaderConfiguration.DAGMode {
-			function.InvocationStats.Invocations = d.Configuration.Functions[0].InvocationStats.Invocations
-		}
-		spec := d.SpecificationGenerator.GenerateInvocationData(
-			function,
-			d.Configuration.IATDistribution,
-			d.Configuration.ShiftIAT,
-			d.Configuration.TraceGranularity,
-		)
-
-		d.Configuration.Functions[i].Specification = spec
-	}
-}
-
 // Generates IATs and runtime specifications for Azure2019 trace type, returns completed `functions` with Specification filled.
 func GenerateAzure2019Specification(functions []*common.Function, loaderCfg *config.LoaderConfiguration, IATDistribution common.IatDistribution, shiftIAT bool, traceGranularity common.TraceGranularity) []*common.Function {
 	log.Info("Generating IAT and runtime specifications for all the functions")
@@ -474,45 +454,6 @@ func GenerateAzure2019Specification(functions []*common.Function, loaderCfg *con
 		functions[i].Specification = spec
 	}
 	return functions
-}
-
-// DEPRECATED, use ReadOrWriteSpecificationToFile()
-func (d *Driver) outputIATsToFile() {
-	for i, function := range d.Configuration.Functions {
-		file, _ := json.MarshalIndent(function.Specification, "", " ")
-		err := os.WriteFile("iat"+strconv.Itoa(i)+".json", file, 0644)
-		if err != nil {
-			log.Fatalf("Writing the loader config file failed: %s", err)
-		}
-	}
-}
-
-// DEPRECATED, use ReadOrWriteSpecificationToFile()
-func (d *Driver) ReadOrWriteFileSpecification(writeIATsToFile bool, readIATsFromFile bool) {
-	if writeIATsToFile && readIATsFromFile {
-		log.Fatal("Invalid loader configuration. No point to read and write IATs within the same run.")
-	}
-
-	if writeIATsToFile {
-		d.outputIATsToFile()
-
-		log.Info("IATs have been generated. The program has exited.")
-		os.Exit(0)
-	}
-
-	if readIATsFromFile {
-		for i := range d.Configuration.Functions {
-			var spec common.FunctionSpecification
-
-			iatFile, _ := os.ReadFile("iat" + strconv.Itoa(i) + ".json")
-			err := json.Unmarshal(iatFile, &spec)
-			if err != nil {
-				log.Fatalf("Failed to unmarshal IAT file: %s", err)
-			}
-
-			d.Configuration.Functions[i].Specification = &spec
-		}
-	}
 }
 
 // Writes OR Reads IATs to/from .json files.

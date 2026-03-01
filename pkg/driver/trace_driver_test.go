@@ -578,7 +578,11 @@ func TestDriverCompletely(t *testing.T) {
 			driver.Configuration.TraceDuration = test.experimentDurationMin
 			driver.Configuration.TraceGranularity = test.traceGranularity
 
-			driver.GenerateSpecification()
+			// Deprecating driver.GenerateSpecification()
+			driver.Configuration.Functions = GenerateAzure2019Specification(
+				driver.Configuration.Functions, driver.Configuration.LoaderConfiguration,
+				driver.Configuration.IATDistribution, driver.Configuration.ShiftIAT, driver.Configuration.TraceGranularity)
+
 			driver.RunExperiment()
 
 			f, err := os.Open(driver.outputFilename("duration"))
@@ -674,7 +678,11 @@ func TestVSwarmDriverCompletely(t *testing.T) {
 			driver.Configuration.TraceDuration = test.experimentDurationMin
 			driver.Configuration.TraceGranularity = test.traceGranularity
 
-			driver.GenerateSpecification()
+			// Deprecating driver.GenerateSpecification()
+			driver.Configuration.Functions = GenerateAzure2019Specification(
+				driver.Configuration.Functions, driver.Configuration.LoaderConfiguration,
+				driver.Configuration.IATDistribution, driver.Configuration.ShiftIAT, driver.Configuration.TraceGranularity)
+
 			driver.RunExperiment()
 
 			f, err := os.Open(driver.outputFilename("duration"))

@@ -173,103 +173,6 @@ func parseTraceGranularity(cfg *config.LoaderConfiguration) common.TraceGranular
 	return common.MinuteGranularity
 }
 
-func runTraceMode(cfg *config.LoaderConfiguration, readIATFromFile bool, writeIATsToFile bool) {
-	durationToParse := determineDurationToParse(cfg.ExperimentDuration, cfg.WarmupDuration)
-	yamlPath := parseYAMLSpecification(cfg)
-	var functions []*common.Function
-	var traceParser trace.Parser
-
-	// Azure trace parsing
-	if !cfg.VSwarm {
-		traceParser = trace.NewAzureParser(cfg.TracePath, durationToParse, yamlPath)
-	} else {
-		traceParser = trace.NewMapperParser(cfg.TracePath, durationToParse)
-	}
-
-	functions = traceParser.Parse()
-	// Dirigent metadata parsing
-	dirigentMetadataParser := trace.NewDirigentMetadataParser(cfg.TracePath, functions, yamlPath, cfg.Platform)
-	dirigentMetadataParser.Parse()
-
-	log.Infof("Traces contain the following %d functions:\n", len(functions))
-	for _, function := range functions {
-		fmt.Printf("\t%s\n", function.Name)
-	}
-
-	iatType, shiftIAT := parseIATDistribution(cfg)
-	traceGranularity := parseTraceGranularity(cfg)
-	functions = driver.GenerateAzure2019Specification(functions, cfg, iatType, shiftIAT, traceGranularity)
-
-	driver.ReadOrWriteSpecificationToFile(functions, writeIATsToFile, readIATFromFile)
-
-	experimentDriver := driver.NewDriver(&config.Configuration{
-		LoaderConfiguration:  cfg,
-		FailureConfiguration: config.ReadFailureConfiguration(*failurePath),
-
-		// loads dirigent config only if the platform is 'dirigent'
-		DirigentConfiguration: config.ReadDirigentConfig(cfg),
-
-		// IATDistribution:  iatType,
-		// ShiftIAT:         shiftIAT,
-		// TraceGranularity: traceGranularity,
-
-		TraceDuration: durationToParse,
-
-		TestMode: false,
-
-		Functions: functions,
-	})
-
-	// Skip experiments execution during dry run mode
-	if *dryRun {
-		return
-	}
-
-	log.Infof("Using %s as a service YAML specification file.\n", yamlPath)
-
-	//experimentDriver.GenerateSpecification()
-	//experimentDriver.ReadOrWriteFileSpecification(writeIATsToFile, readIATFromFile)
-	experimentDriver.RunExperiment()
-}
-
-func runRPSMode(cfg *config.LoaderConfiguration, readIATFromFile bool, writeIATsToFile bool) {
-	experimentDuration := determineDurationToParse(cfg.ExperimentDuration, cfg.WarmupDuration)
-	yamlPath := parseYAMLSpecification(cfg)
-
-	rpsTarget := cfg.RpsTarget
-	coldStartPercentage := cfg.RpsColdStartRatioPercentage
-
-	warmStartRPS := rpsTarget * (100 - coldStartPercentage) / 100
-	coldStartRPS := rpsTarget * coldStartPercentage / 100
-
-	warmFunction, warmStartCount := generator.GenerateWarmStartFunction(experimentDuration, warmStartRPS)
-	coldFunctions, coldStartCount := generator.GenerateColdStartFunctions(experimentDuration, coldStartRPS, cfg.RpsCooldownSeconds)
-
-	// loads dirigent config only if the platform is 'dirigent'
-	dirigentConfig := config.ReadDirigentConfig(cfg)
-
-	functions := generator.CreateRPSFunctions(cfg, warmFunction, warmStartCount, coldFunctions, coldStartCount, yamlPath)
-
-	driver.ReadOrWriteSpecificationToFile(functions, writeIATsToFile, readIATFromFile)
-
-	experimentDriver := driver.NewDriver(&config.Configuration{
-		LoaderConfiguration: cfg,
-		TraceDuration:       experimentDuration,
-
-		DirigentConfiguration: dirigentConfig,
-
-		Functions: functions,
-	})
-
-	// Skip experiments execution during dry run mode
-	if *dryRun {
-		return
-	}
-
-	//experimentDriver.ReadOrWriteFileSpecification(writeIATsToFile, readIATFromFile)
-	experimentDriver.RunExperiment()
-}
-
 func runMode(cfg *config.LoaderConfiguration, readIATFromFile bool, writeIATsToFile bool) {
 	//
 	// Determine type of input.
@@ -328,6 +231,7 @@ func runMode(cfg *config.LoaderConfiguration, readIATFromFile bool, writeIATsToF
 	experimentDuration := determineDurationToParse(cfg.ExperimentDuration, cfg.WarmupDuration)
 	experimentDriver := driver.NewDriver(&config.Configuration{
 		LoaderConfiguration:   cfg,
+		FailureConfiguration: config.ReadFailureConfiguration(*failurePath),
 		TraceDuration:         experimentDuration,
 		DirigentConfiguration: dirigentConfig,
 		Functions:             functions,
