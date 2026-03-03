@@ -246,7 +246,7 @@ func perFunctionTimeout(cfg *config.LoaderConfiguration, function *common.Functi
 	parsedName := strings.Split(function.Name, "-")[0]
 	if timeout, ok := FunctionTimeouts[parsedName]; ok {
 		SLO := float64(20)
-		newTimeout := time.Duration(math.Min(math.Max(2*1000, timeout*SLO), 20*1000) * float64(time.Millisecond))
+		newTimeout := time.Duration(math.Min(math.Max(5*1000, timeout*SLO), 20*1000) * float64(time.Millisecond))
 		log.Tracef("Using custom timeout for function %s: %.2f seconds", function.Name, newTimeout.Seconds())
 		return newTimeout
 	} else {

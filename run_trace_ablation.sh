@@ -16,9 +16,9 @@ do
     END_SCALE=$max_multiplier
     STEP=1
     EXP_DUR=$max_multiplier
-    PREFETCH=true
+    PREFETCH=false
 
-    # test baseline, logical sep, physical sep, dynamic core pool
+    # test baseline, sdk only, nexus only, nexus + prefetch
 
     ### baseline
     echo "Running Baseline with function multiplier: $max_multiplier"
@@ -43,9 +43,53 @@ do
     sleep 60
 
 
-    ### logical sep
-    echo "Running Logical Sep with function multiplier: $max_multiplier"
-    EXP="logicalsep_d-${divisor}_s-${START_SCALE}_e-${END_SCALE}_t-${STEP}_p-${PREFETCH}"
+    ### sdk only
+    echo "Running SDK Only with function multiplier: $max_multiplier"
+    EXP="sdkonly_d-${divisor}_s-${START_SCALE}_e-${END_SCALE}_t-${STEP}_p-${PREFETCH}"
+    python3 generate_trace_sweep.py \
+        --divisor $divisor \
+        --start-scale $START_SCALE \
+        --end-scale $END_SCALE \
+        --step $STEP \
+        --shift-step 10 \
+        --warmup-duration $EXPWARMUP \
+        --warmup-scale 1 --s3
+    
+    mkdir -p data/out/$EXP
+    go run experiment/khala_command.go --command=deploy --set-nexus-sdk=true
+    cat cmd/config_khala_trace_template.json | EXPERIMENT="$EXP" EXP_DUR="$EXP_DUR" WARMUP="$EXPWARMUP" PREFETCH="$PREFETCH" envsubst > cmd/config_khala_trace.json
+    go run cmd/loader.go --config cmd/config_khala_trace.json | tee data/out/$EXP/loader.log
+    kubectl logs deployment/activator -n knative-serving > data/out/$EXP/activator.log
+    go run experiment/khala_command.go --command=clean --remove-snapshots=false
+
+    sleep 60
+
+    ### Nexus only
+    echo "Running Nexus with function multiplier: $max_multiplier"
+    EXP="nexus_d-${divisor}_s-${START_SCALE}_e-${END_SCALE}_t-${STEP}_p-${PREFETCH}"
+    python3 generate_trace_sweep.py \
+        --divisor $divisor \
+        --start-scale $START_SCALE \
+        --end-scale $END_SCALE \
+        --step $STEP \
+        --shift-step 10 \
+        --warmup-duration $EXPWARMUP \
+        --warmup-scale 1 --s3 --rpc
+    
+    mkdir -p data/out/$EXP
+    go run experiment/khala_command.go --command=deploy --set-nexus-sdk=true --set-nexus-rpc=true
+    cat cmd/config_khala_trace_template.json | EXPERIMENT="$EXP" EXP_DUR="$EXP_DUR" WARMUP="$EXPWARMUP" PREFETCH="$PREFETCH" envsubst > cmd/config_khala_trace.json
+    go run cmd/loader.go --config cmd/config_khala_trace.json | tee data/out/$EXP/loader.log
+    kubectl logs deployment/activator -n knative-serving > data/out/$EXP/activator.log
+    go run experiment/khala_command.go --command=clean --remove-snapshots=false
+
+    sleep 60
+    
+
+    ### Nexus + Prefetch
+    echo "Running Nexus + Prefetch with function multiplier: $max_multiplier"
+    PREFETCH=true
+    EXP="nexusprefetch_d-${divisor}_s-${START_SCALE}_e-${END_SCALE}_t-${STEP}_p-${PREFETCH}"
     python3 generate_trace_sweep.py \
         --divisor $divisor \
         --start-scale $START_SCALE \
