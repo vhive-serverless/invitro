@@ -33,7 +33,7 @@ grafana:
 
 kubeApiServer:
   serviceMonitor:
-    interval: "5s"  # Reduced for control plane latency experiment
+    interval: "15s"
     metricRelabelings: []
 
 kubelet:
@@ -67,7 +67,7 @@ kubeScheduler:
 
 kubeProxy:
   serviceMonitor:
-    interval: "5s"  # Reduced for control plane latency experiment
+    interval: "15s"
 
 kube-state-metrics:
   affinity:
@@ -85,7 +85,7 @@ kube-state-metrics:
     - deployments=[app.kubernetes.io/name,app.kubernetes.io/component,app.kubernetes.io/instance]
   prometheus:
     monitor:
-      interval: "5s"  # Reduced for control plane latency experiment
+      interval: "15s"
 
 prometheus-node-exporter:
   service:
@@ -159,7 +159,7 @@ prometheus:
 
   prometheusSpec:
     maximumStartupDurationSeconds: 60
-    scrapeInterval: "5s"  # Reduced for control plane latency experiment
+    scrapeInterval: "15s"
     affinity:
       nodeAffinity:
         requiredDuringSchedulingIgnoredDuringExecution:
@@ -175,8 +175,8 @@ prometheus:
     walCompression: false
     resources:
       limits:
-        cpu: 4
-        memory: 16Gi  # Increased for higher scrape frequency
+        cpu: 3
+        memory: 10Gi
       requests:
-        memory: 500Mi  # Increased for higher scrape frequency
+        memory: 150Mi
     enableAdminAPI: true
