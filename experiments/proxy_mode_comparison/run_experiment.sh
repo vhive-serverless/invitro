@@ -88,8 +88,13 @@ verify_proxy_mode() {
     echo -e "\n[$(date +%T)] Verifying kube-proxy mode..."
     # Disable exit-on-error temporarily for this check
     set +e
-    local actual_mode=$(kubectl -n kube-system get cm kube-proxy -o yaml 2>/dev/null | grep "mode:" | awk '{print $2}' | tr -d '"' || echo "unknown")
+    local actual_mode=$(kubectl -n kube-system get cm kube-proxy -o jsonpath='{.data.config\.conf}' 2>/dev/null | grep -E '^\s*mode:' | awk '{print $2}' | tr -d '"' || echo "")
     set -e
+    
+    # If mode is empty or not set, kube-proxy defaults to iptables
+    if [[ -z "$actual_mode" ]]; then
+        actual_mode="iptables"
+    fi
 
     echo "Expected mode: $MODE"
     echo "Actual mode:   $actual_mode"
@@ -158,8 +163,12 @@ monitor_deployment() {
     local interval=10
     
     while [[ $(date +%s) -lt $end_time ]]; do
-        local pods_ready=$(kubectl get deployment massive-scale-deployment -o jsonpath='{.status.readyReplicas}' 2>/dev/null || echo "0")
-        local pods_total=$(kubectl get deployment massive-scale-deployment -o jsonpath='{.status.replicas}' 2>/dev/null || echo "0")
+        local pods_ready=$(kubectl get deployment massive-scale-deployment -o jsonpath='{.status.readyReplicas}' 2>/dev/null)
+        local pods_total=$(kubectl get deployment massive-scale-deployment -o jsonpath='{.status.replicas}' 2>/dev/null)
+        
+        # Handle empty responses properly
+        pods_ready=${pods_ready:-0}
+        pods_total=${pods_total:-0}
         local endpoints=$(kubectl get endpointslices -l kubernetes.io/service-name=massive-scale-service -o jsonpath='{.items[*].endpoints[*].addresses[*]}' 2>/dev/null | wc -w || echo "0")
         
         echo "[$(date +%T)] Pods: ${pods_ready}/${pods_total} | Endpoints: ${endpoints}"
