@@ -1,0 +1,48 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: massive-scale-deployment
+  namespace: default
+spec:
+  replicas: 5000  # Instantly request 5000 pods
+  selector:
+    matchLabels:
+      app: fake-workload
+  template:
+    metadata:
+      labels:
+        app: fake-workload
+    spec:
+      # 1. AFFINITY: Force the scheduler to ONLY place these on your fake nodes
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: kwok.x-k8s.io/node
+                operator: In
+                values:
+                - fake
+      # 2. TOLERATIONS: Allow the pods to bypass the fake node taints
+      tolerations:
+      - key: "kwok.x-k8s.io/node"
+        operator: "Exists"
+        effect: "NoSchedule"
+      containers:
+      - name: web
+        image: nginx:alpine # KWOK won't actually pull this; it just fakes the "Running" status
+        ports:
+        - containerPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: massive-scale-service
+  namespace: default
+spec:
+  selector:
+    app: fake-workload
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 80
