@@ -112,24 +112,33 @@ verify_proxy_mode() {
 
 cleanup_deployment() {
     local wait_time="$1"
-    echo -e "\n[$(date +%T)] Cleaning up deployment..."
     
-    kubectl delete deployment massive-scale-deployment --ignore-not-found=true
-    kubectl delete service massive-scale-service --ignore-not-found=true
+    # Call the external cleanup script to keep logic DRY and modular
+    local cleanup_script="${SCRIPT_DIR}/cleanup.sh"
     
-    echo "[$(date +%T)] Waiting for pods to terminate..."
-    kubectl wait --for=delete pod -l app=fake-workload --timeout=120s 2>/dev/null || true
-    
-    # Check for stuck pods and force delete
-    local remaining_pods=$(kubectl get pods -l app=fake-workload --no-headers 2>/dev/null | wc -l || echo "0")
-    if [[ "$remaining_pods" -gt 0 ]]; then
-        echo "WARNING: $remaining_pods pods still exist. Forcing deletion..."
-        kubectl delete pods -l app=fake-workload --force --grace-period=0 2>/dev/null || true
-        sleep 10
-    fi
+    if [[ -f "$cleanup_script" ]]; then
+        bash "$cleanup_script" "$wait_time"
+    else
+        echo "WARNING: cleanup.sh not found at $cleanup_script, performing inline cleanup..."
+        echo -e "\n[$(date +%T)] Cleaning up deployment..."
+        
+        kubectl delete deployment massive-scale-deployment --ignore-not-found=true
+        kubectl delete service massive-scale-service --ignore-not-found=true
+        
+        echo "[$(date +%T)] Waiting for pods to terminate..."
+        kubectl wait --for=delete pod -l app=fake-workload --timeout=120s 2>/dev/null || true
+        
+        # Check for stuck pods and force delete
+        local remaining_pods=$(kubectl get pods -l app=fake-workload --no-headers 2>/dev/null | wc -l || echo "0")
+        if [[ "$remaining_pods" -gt 0 ]]; then
+            echo "WARNING: $remaining_pods pods still exist. Forcing deletion..."
+            kubectl delete pods -l app=fake-workload --force --grace-period=0 2>/dev/null || true
+            sleep 10
+        fi
 
-    echo "[$(date +%T)] Waiting ${wait_time}s for network rules to settle..."
-    sleep "$wait_time"
+        echo "[$(date +%T)] Waiting ${wait_time}s for network rules to settle..."
+        sleep "$wait_time"
+    fi
 }
 
 collect_baseline_metrics() {
