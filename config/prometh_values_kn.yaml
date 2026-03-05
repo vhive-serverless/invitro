@@ -179,5 +179,5 @@ prometheus:
         memory: 8Gi  # Increased for higher scrape frequency
       requests:
         cpu: 200m
-        memory: 500Mi  # Increased for higher scrape frequency
+        memory: 250Mi  # Increased for higher scrape frequency
     enableAdminAPI: true

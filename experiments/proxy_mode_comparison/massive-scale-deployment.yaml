@@ -19,10 +19,10 @@ spec:
           requiredDuringSchedulingIgnoredDuringExecution:
             nodeSelectorTerms:
             - matchExpressions:
-              - key: kwok.x-k8s.io/node
+              - key: type
                 operator: In
                 values:
-                - fake
+                - kwok
       # 2. TOLERATIONS: Allow the pods to bypass the fake node taints
       tolerations:
       - key: "kwok.x-k8s.io/node"
