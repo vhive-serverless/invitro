@@ -106,11 +106,6 @@ func main() {
 	}
 
 	runMode(&cfg, *iatFromFile, *iatGeneration)
-	// if cfg.TracePath == "RPS" {
-	// 	runRPSMode(&cfg, *iatFromFile, *iatGeneration)
-	// } else {
-	// 	runTraceMode(&cfg, *iatFromFile, *iatGeneration)
-	// }
 }
 
 func determineDurationToParse(runtimeDuration int, warmupDuration int) int {
@@ -210,7 +205,7 @@ func runMode(cfg *config.LoaderConfiguration, readIATFromFile bool, writeIATsToF
 	switch traceInputType {
 	case "RPS":
 		// Handle dirigent metadata, handle warm and cold function differently.
-		functions = generator.AppendDirigentMetadata(cfg, dirigentConfig, functions)
+		generator.AppendDirigentMetadata(functions, cfg, dirigentConfig)
 	case "Azure2019", "vSwarm":
 		// Reads Dirigent trace meta-data, and places into *common.Function as property "dirigentMetadata"
 		// Or if Knative yaml is provided, converts it to dirigent configurations. 
@@ -280,7 +275,7 @@ func Azure2019GenerateFunctions(cfg *config.LoaderConfiguration) []*common.Funct
 
 	iatType, shiftIAT := parseIATDistribution(cfg)
 	traceGranularity := parseTraceGranularity(cfg)
-	functions = driver.GenerateAzure2019Specification(functions, cfg, iatType, shiftIAT, traceGranularity)
+	generator.GenerateAzure2019Specification(functions, cfg, iatType, shiftIAT, traceGranularity)
 
 	return functions
 }

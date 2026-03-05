@@ -34,6 +34,7 @@ import (
 	"time"
 
 	"github.com/vhive-serverless/loader/pkg/config"
+	"github.com/vhive-serverless/loader/pkg/generator"
 
 	"github.com/gocarina/gocsv"
 	"github.com/sirupsen/logrus"
@@ -579,7 +580,7 @@ func TestDriverCompletely(t *testing.T) {
 			driver.Configuration.TraceGranularity = test.traceGranularity
 
 			// Deprecating driver.GenerateSpecification()
-			driver.Configuration.Functions = GenerateAzure2019Specification(
+			generator.GenerateAzure2019Specification(
 				driver.Configuration.Functions, driver.Configuration.LoaderConfiguration,
 				driver.Configuration.IATDistribution, driver.Configuration.ShiftIAT, driver.Configuration.TraceGranularity)
 
@@ -679,7 +680,7 @@ func TestVSwarmDriverCompletely(t *testing.T) {
 			driver.Configuration.TraceGranularity = test.traceGranularity
 
 			// Deprecating driver.GenerateSpecification()
-			driver.Configuration.Functions = GenerateAzure2019Specification(
+			generator.GenerateAzure2019Specification(
 				driver.Configuration.Functions, driver.Configuration.LoaderConfiguration,
 				driver.Configuration.IATDistribution, driver.Configuration.ShiftIAT, driver.Configuration.TraceGranularity)
 

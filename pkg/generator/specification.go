@@ -29,6 +29,8 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"github.com/vhive-serverless/loader/pkg/common"
+
+	"github.com/vhive-serverless/loader/pkg/config"
 )
 
 type SpecificationGenerator struct {
@@ -181,6 +183,33 @@ func (s *SpecificationGenerator) GenerateInvocationData(function *common.Functio
 		PerMinuteCount:       perMinuteCount,
 		RawDuration:          rawDuration,
 		RuntimeSpecification: runtimeArray,
+	}
+}
+
+//////////////////////////////////////////////////
+// TOP LEVEL INTERFACE
+//////////////////////////////////////////////////
+
+// Generates IATs and runtime specifications for Azure2019 trace type,
+// Updates `functions` with Specification filled.
+func GenerateAzure2019Specification(functions []*common.Function, loaderCfg *config.LoaderConfiguration, IATDistribution common.IatDistribution, shiftIAT bool, traceGranularity common.TraceGranularity) {
+	log.Info("Generating IAT and runtime specifications for all the functions")
+
+	azure2019Generator := NewSpecificationGenerator(loaderCfg.Seed)
+
+	for i, function := range functions {
+		// Equalising all the InvocationStats to the first function
+		if loaderCfg.DAGMode {
+			function.InvocationStats.Invocations = functions[0].InvocationStats.Invocations
+		}
+		spec := azure2019Generator.GenerateInvocationData(
+			function,
+			IATDistribution,
+			shiftIAT,
+			traceGranularity,
+		)
+
+		functions[i].Specification = spec
 	}
 }
 

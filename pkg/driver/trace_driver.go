@@ -433,29 +433,6 @@ func (d *Driver) internalRun() {
 	log.Infof("Failure rate: \t\t\t%.2f%%", float64(statFailed)*100.0/float64(statSuccess+statFailed))
 }
 
-// Generates IATs and runtime specifications for Azure2019 trace type, returns completed `functions` with Specification filled.
-func GenerateAzure2019Specification(functions []*common.Function, loaderCfg *config.LoaderConfiguration, IATDistribution common.IatDistribution, shiftIAT bool, traceGranularity common.TraceGranularity) []*common.Function {
-	log.Info("Generating IAT and runtime specifications for all the functions")
-
-	azure2019Generator := generator.NewSpecificationGenerator(loaderCfg.Seed)
-
-	for i, function := range functions {
-		// Equalising all the InvocationStats to the first function
-		if loaderCfg.DAGMode {
-			function.InvocationStats.Invocations = functions[0].InvocationStats.Invocations
-		}
-		spec := azure2019Generator.GenerateInvocationData(
-			function,
-			IATDistribution,
-			shiftIAT,
-			traceGranularity,
-		)
-
-		functions[i].Specification = spec
-	}
-	return functions
-}
-
 // Writes OR Reads IATs to/from .json files.
 // Performs read or write only if flag set.
 func ReadOrWriteSpecificationToFile(functions []*common.Function, writeIATsToFile bool, readIATsFromFile bool) {

@@ -158,7 +158,7 @@ func CreateRPSFunctions(cfg *config.LoaderConfiguration, warmFunction common.IAT
 // TODO consider pointer receiver for []*functions
 
 // Attaches 2 possible DirigentMetadata property, depending if function is cold or warm (based on function name) for RPS function.
-func AppendDirigentMetadata(cfg *config.LoaderConfiguration, dcfg *config.DirigentConfig, functions []*common.Function) []*common.Function {
+func AppendDirigentMetadata(functions []*common.Function, cfg *config.LoaderConfiguration, dcfg *config.DirigentConfig) {
 
 	var dirigentMetadataWarm *common.DirigentMetadata
 	if dcfg != nil {
@@ -196,8 +196,6 @@ func AppendDirigentMetadata(cfg *config.LoaderConfiguration, dcfg *config.Dirige
 			log.Fatal("When adding dirigent meta-data for RPS trace input, unable to determine DirigentMetaData to add.")
 		}
 	}
-
-	return functions
 }
 
 
