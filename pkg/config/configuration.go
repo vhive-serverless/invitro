@@ -9,8 +9,6 @@ type Configuration struct {
 	FailureConfiguration  *FailureConfiguration
 	DirigentConfiguration *DirigentConfig
 
-	IATDistribution  common.IatDistribution
-	ShiftIAT         bool // shift the invocations inside minute
 	TraceGranularity common.TraceGranularity
 	// TraceDuration In minutes.
 	TraceDuration int

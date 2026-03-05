@@ -61,7 +61,6 @@ func createTestDriver(invocationStats []int, vSwarm bool) *Driver {
 
 	driver := NewDriver(&config.Configuration{
 		LoaderConfiguration: cfg,
-		IATDistribution:     common.Equidistant,
 		TraceDuration:       1,
 
 		Functions: []*common.Function{
@@ -580,9 +579,11 @@ func TestDriverCompletely(t *testing.T) {
 			driver.Configuration.TraceGranularity = test.traceGranularity
 
 			// Deprecating driver.GenerateSpecification()
+			iatDistribution := common.Equidistant
+			shiftIAT := false
 			generator.GenerateAzure2019Specification(
 				driver.Configuration.Functions, driver.Configuration.LoaderConfiguration,
-				driver.Configuration.IATDistribution, driver.Configuration.ShiftIAT, driver.Configuration.TraceGranularity)
+				iatDistribution, shiftIAT, driver.Configuration.TraceGranularity)
 
 			driver.RunExperiment()
 
@@ -680,9 +681,11 @@ func TestVSwarmDriverCompletely(t *testing.T) {
 			driver.Configuration.TraceGranularity = test.traceGranularity
 
 			// Deprecating driver.GenerateSpecification()
+			iatDistribution := common.Equidistant
+			shiftIAT := false
 			generator.GenerateAzure2019Specification(
 				driver.Configuration.Functions, driver.Configuration.LoaderConfiguration,
-				driver.Configuration.IATDistribution, driver.Configuration.ShiftIAT, driver.Configuration.TraceGranularity)
+				iatDistribution, shiftIAT, driver.Configuration.TraceGranularity)
 
 			driver.RunExperiment()
 

@@ -227,8 +227,12 @@ func runMode(cfg *config.LoaderConfiguration, readIATFromFile bool, writeIATsToF
 	experimentDriver := driver.NewDriver(&config.Configuration{
 		LoaderConfiguration:   cfg,
 		FailureConfiguration: config.ReadFailureConfiguration(*failurePath),
-		TraceDuration:         experimentDuration,
 		DirigentConfiguration: dirigentConfig,
+
+		TraceGranularity: parseTraceGranularity(cfg),
+		TestMode: false,
+
+		TraceDuration:         experimentDuration,
 		Functions:             functions,
 	})
 
