@@ -183,6 +183,9 @@ function setup_fakes() {
     # Deploy timer service
     server_exec $MASTER_NODE 'kubectl create namespace kwok-system'
     server_exec $MASTER_NODE 'cd loader; kubectl apply -f config/deploy_timer.yaml'
+
+    # Patch kube-proxy to ignore kwok nodes to prevent Prometheus scraping connection refused errors
+    server_exec $MASTER_NODE "kubectl patch daemonset kube-proxy -n kube-system -p '{\"spec\": {\"template\": {\"spec\": {\"affinity\": {\"nodeAffinity\": {\"requiredDuringSchedulingIgnoredDuringExecution\": {\"nodeSelectorTerms\": [{\"matchExpressions\": [{\"key\": \"type\", \"operator\": \"NotIn\", \"values\": [\"kwok\"]}]}]}}}}}}}'"
 }
 
 function extend_CIDR() {
@@ -308,6 +311,9 @@ function distribute_loader_ssh_key() {
 
     server_exec $MASTER_NODE "kubectl patch configmap -n knative-serving config-features -p '{\"data\": {\"kubernetes.podspec-affinity\": \"enabled\"}}'"
 
+    # Patch kube-proxy ConfigMap to bind metrics to 0.0.0.0 instead of default/127.0.0.1
+    server_exec $MASTER_NODE "kubectl get configmap kube-proxy -n kube-system -o yaml | sed 's/metricsBindAddress: .*/metricsBindAddress: 0.0.0.0:10249/' | kubectl apply -f -"
+    server_exec $MASTER_NODE "kubectl rollout restart daemonset kube-proxy -n kube-system"
 
     if [[ "$DEPLOY_PROMETHEUS" == true ]]; then
         $DIR/expose_infra_metrics.sh $MASTER_NODE
