@@ -163,11 +163,12 @@ prepare_and_apply_deployment() {
 
 monitor_deployment() {
     local result_dir="$1"
-    local duration="$2"
+    local target_replicas="$2"
     
-    echo -e "\n[$(date +%T)] Monitoring deployment for ${duration} seconds..."
+    local timeout=2400 # 40 mins hard safety timeout entirely dynamically waits otherwise
+    echo -e "\n[$(date +%T)] Monitoring deployment until ${target_replicas} pods are ready (Timeout: ${timeout}s)..."
     
-    local end_time=$(($(date +%s) + duration))
+    local end_time=$(($(date +%s) + timeout))
     local interval=10
     
     while [[ $(date +%s) -lt $end_time ]]; do
@@ -178,9 +179,18 @@ monitor_deployment() {
         pods_total=${pods_total:-0}
         local endpoints=$(kubectl get endpointslices -l kubernetes.io/service-name=massive-scale-service -o jsonpath='{.items[*].endpoints[*].addresses[*]}' 2>/dev/null | wc -w || echo "0")
         
-        echo "[$(date +%T)] Pods: ${pods_ready}/${pods_total} | Endpoints: ${endpoints}"
+        echo "[$(date +%T)] Pods: ${pods_ready}/${target_replicas} | Endpoints: ${endpoints}"
+        
+        if [[ "$pods_ready" -ge "$target_replicas" ]]; then
+            echo "[$(date +%T)] All ${target_replicas} pods are ready!"
+            break
+        fi
+        
         sleep $interval
     done
+    
+    echo "[$(date +%T)] Waiting an additional 30 seconds for trailing metric collection..."
+    sleep 30
     
     date +%s > "${result_dir}/deploy_end_timestamp.txt"
 }
@@ -224,7 +234,6 @@ collect_cluster_state() {
 generate_summary() {
     local result_dir="$1"
     local replicas="$2"
-    local duration="$3"
     echo "[$(date +%T)] Generating summary..."
     
     cat > "${result_dir}/SUMMARY.md" <<EOF
@@ -233,14 +242,14 @@ generate_summary() {
 ## Experiment Configuration
 - **Mode**: $MODE
 - **Replicas**: $replicas
-- **Duration**: ${duration}s
+- **Duration**: Dynamic (until target pods are ready + 30s buffer)
 - **Start Time**: $(date -d @$(cat ${result_dir}/deploy_start_timestamp.txt 2>/dev/null || echo 0) 2>/dev/null || echo "N/A")
 - **End Time**: $(date -d @$(cat ${result_dir}/deploy_end_timestamp.txt 2>/dev/null || echo 0) 2>/dev/null || echo "N/A")
 
 ## Collected Metrics
 Check the JSON files in this directory for timeseries data regarding:
-- Sync Duration (p99, p50)
-- Network Programming Latency (p99)
+- Sync Duration (p99, p95, p50)
+- Network Programming Latency (p99, p95, p50)
 - CPU and Memory Consumption
 - API Server Latency
 EOF
@@ -256,10 +265,10 @@ main() {
     
     collect_baseline_metrics "$RESULT_DIR"
     prepare_and_apply_deployment "$REPLICAS" "$RESULT_DIR"
-    monitor_deployment "$RESULT_DIR" "$DURATION"
+    monitor_deployment "$RESULT_DIR" "$REPLICAS"
     collect_deployment_metrics "$RESULT_DIR"
     collect_cluster_state "$RESULT_DIR"
-    generate_summary "$RESULT_DIR" "$REPLICAS" "$DURATION"
+    generate_summary "$RESULT_DIR" "$REPLICAS"
     
     echo -e "\n[$(date +%T)] Performing final cleanup..."
     cleanup_deployment 10

@@ -166,11 +166,12 @@ prepare_and_apply_deployment() {
 
 monitor_deployment() {
     local result_dir="$1"
-    local duration="$2"
+    local target_replicas="$2"
     
-    echo -e "\n[$(date +%T)] Monitoring deployment for ${duration} seconds..."
+    local timeout=2400 # 40 mins hard safety timeout entirely dynamically waits otherwise
+    echo -e "\n[$(date +%T)] Monitoring deployment until ${target_replicas} pods are ready (Timeout: ${timeout}s)..."
     
-    local end_time=$(($(date +%s) + duration))
+    local end_time=$(($(date +%s) + timeout))
     local interval=10
     
     while [[ $(date +%s) -lt $end_time ]]; do
@@ -182,9 +183,18 @@ monitor_deployment() {
         pods_total=${pods_total:-0}
         local endpoints=$(kubectl get endpointslices -l kubernetes.io/service-name=massive-scale-service -o jsonpath='{.items[*].endpoints[*].addresses[*]}' 2>/dev/null | wc -w || echo "0")
         
-        echo "[$(date +%T)] Pods: ${pods_ready}/${pods_total} | Endpoints: ${endpoints}"
+        echo "[$(date +%T)] Pods: ${pods_ready}/${target_replicas} | Endpoints: ${endpoints}"
+        
+        if [[ "$pods_ready" -ge "$target_replicas" ]]; then
+            echo "[$(date +%T)] All ${target_replicas} pods are ready!"
+            break
+        fi
+        
         sleep $interval
     done
+    
+    echo "[$(date +%T)] Waiting an additional 30 seconds for trailing metric collection..."
+    sleep 30
     
     date +%s > "${result_dir}/deploy_end_timestamp.txt"
 }
@@ -228,7 +238,8 @@ collect_cluster_state() {
 }
 
 generate_iteration_summary() {
-    local duration="$3"
+    local result_dir="$1"
+    local replicas="$2"
     echo "[$(date +%T)] Generating iteration summary..."
     
     cat > "${result_dir}/SUMMARY.md" <<EOF
@@ -237,16 +248,14 @@ generate_iteration_summary() {
 ## Experiment Configuration
 - **Mode**: $MODE
 - **Replicas**: $replicas
-- **Duration**: ${duration
-- **Replicas**: $replicas
-- **Duration**: ${DURATION}s
+- **Duration**: Dynamic (until target pods are ready + 30s buffer)
 - **Start Time**: $(date -d @$(cat ${result_dir}/deploy_start_timestamp.txt 2>/dev/null || echo 0) 2>/dev/null || echo "N/A")
 - **End Time**: $(date -d @$(cat ${result_dir}/deploy_end_timestamp.txt 2>/dev/null || echo 0) 2>/dev/null || echo "N/A")
 
 ## Collected Metrics
 Check the JSON files in this directory for timeseries data regarding:
-- Sync Duration (p99, p50)
-- Network Programming Latency (p99)
+- Sync Duration (p99, p95, p50)
+- Network Programming Latency (p99, p95, p50)
 - CPU and Memory Consumption
 - API Server Latency
 EOF
@@ -259,12 +268,10 @@ generate_overall_summary() {
     cat > "$summary_file" <<EOF
 # Overall Experiment Summary: $MODE Mode
 
-## Ilocal i=0
+## Iterations Run
+EOF
+
     for replicas in "${REPLICA_ITERATIONS[@]}"; do
-        if [[ -d "${BASE_RESULT_DIR}/replicas_${replicas}" ]]; then
-            echo "- [${replicas} Replicas (Duration: ${DURATION_ITERATIONS[$i]}s)](replicas_${replicas}/SUMMARY.md)" >> "$summary_file"
-        fi
-        i=$((i + 1))plicas in "${REPLICA_ITERATIONS[@]}"; do
         if [[ -d "${BASE_RESULT_DIR}/replicas_${replicas}" ]]; then
             echo "- [${replicas} Replicas](replicas_${replicas}/SUMMARY.md)" >> "$summary_file"
         fi
@@ -282,10 +289,12 @@ EOF
 }
 
 run_iteration() {
-    local duration="$4"
+    local replicas="$1"
+    local iter_num="$2"
+    local total_iters="$3"
     
     echo -e "\n========================================"
-    echo "Iteration ${iter_num}/${total_iters}: ${replicas} replicas (Duration: ${duration}s)"
+    echo "Iteration ${iter_num}/${total_iters}: ${replicas} replicas (Dynamic Wait)"
     echo "========================================"
     
     local iter_dir="${BASE_RESULT_DIR}/replicas_${replicas}"
@@ -298,10 +307,10 @@ run_iteration() {
     
     collect_baseline_metrics "$iter_dir"
     prepare_and_apply_deployment "$replicas" "$iter_dir"
-    monitor_deployment "$iter_dir" "$duration"
+    monitor_deployment "$iter_dir" "$replicas"
     collect_deployment_metrics "$iter_dir"
     collect_cluster_state "$iter_dir"
-    generate_iteration_summary "$iter_dir" "$replicas" "$duration"
+    generate_iteration_summary "$iter_dir" "$replicas"
     
     echo "[$(date +%T)] Iteration ${iter_num}/${total_iters} complete"
 }
@@ -313,11 +322,6 @@ main() {
     
     local total_iters=${#REPLICA_ITERATIONS[@]}
     local iter_num=1
-    
-    for i in "${!REPLICA_ITERATIONS[@]}"; do
-        local replicas="${REPLICA_ITERATIONS[$i]}"
-        local duration="${DURATION_ITERATIONS[$i]}"
-        run_iteration "$replicas" "$iter_num" "$total_iters" "$duration
     
     for replicas in "${REPLICA_ITERATIONS[@]}"; do
         run_iteration "$replicas" "$iter_num" "$total_iters"
