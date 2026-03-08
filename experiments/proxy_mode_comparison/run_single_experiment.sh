@@ -11,7 +11,6 @@ set -euo pipefail
 # Default values
 MODE=""
 REPLICAS=""
-DURATION=60
 PROMETHEUS_URL="http://localhost:9090"
 OUTPUT_DIR="./results"
 CLEANUP_WAIT=60
@@ -23,7 +22,6 @@ while [[ $# -gt 0 ]]; do
     case $1 in
         --mode) MODE="$2"; shift 2 ;;
         --replicas) REPLICAS="$2"; shift 2 ;;
-        --duration) DURATION="$2"; shift 2 ;;
         --prometheus-url) PROMETHEUS_URL="$2"; shift 2 ;;
         --output-dir) OUTPUT_DIR="$2"; shift 2 ;;
         --cleanup-wait) CLEANUP_WAIT="$2"; shift 2 ;;
@@ -59,7 +57,7 @@ echo "Single Kube-Proxy Mode Experiment"
 echo "========================================"
 echo "Mode:            $MODE"
 echo "Replicas:        $REPLICAS"
-echo "Duration:        ${DURATION}s"
+echo "Duration:        Dynamic (Until ready + 30s buffer)"
 echo "Cleanup wait:    ${CLEANUP_WAIT}s"
 echo "Prometheus URL:  $PROMETHEUS_URL"
 echo "Output Dir:      $RESULT_DIR"

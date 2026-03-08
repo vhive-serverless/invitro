@@ -12,9 +12,7 @@ set -euo pipefail
 MODE=""
 PROMETHEUS_URL="http://localhost:9090"
 OUTPUT_DIR="./results"
-REPLICA_ITERATIONS=(100 500 1000 5000 10000 20000 50000)
-# Array of durations corresponding to each replica iteration
-DURATION_ITERATIONS=(20 40 60 120 180 240 300)
+REPLICA_ITERATIONS=(100 500 1000 5000 10000 20000 30000)
 CLEANUP_WAIT=60
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DEPLOYMENT_YAML="${SCRIPT_DIR}/massive-scale-deployment.yaml"
@@ -52,7 +50,7 @@ echo "Kube-Proxy Mode Comparison Experiment"
 echo "========================================"
 echo "Mode:            $MODE"
 echo "Iterations:      ${REPLICA_ITERATIONS[*]}"
-echo "Durations:       ${DURATION_ITERATIONS[*]}s"
+echo "Duration:        Dynamic (Until ready + 30s buffer)"
 echo "Cleanup wait:    ${CLEANUP_WAIT}s"
 echo "Prometheus URL:  $PROMETHEUS_URL"
 echo "Output Dir:      $BASE_RESULT_DIR"
