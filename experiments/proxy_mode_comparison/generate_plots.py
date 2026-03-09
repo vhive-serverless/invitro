@@ -63,8 +63,11 @@ def plot_metric_comparison(folders, metric_filename, title, ylabel, output_file,
         data = load_timeseries_data(filepath)
         
         if data:
-            # Time in seconds (each step is 5 seconds based on prometheus query)
-            time_x = [i * 5 for i in range(len(data))]
+            # Use a stable 10s step size
+            step_size = 10
+            
+            # Time in seconds
+            time_x = [i * step_size for i in range(len(data))]
             label = f"{mode.capitalize()} ({replicas})"
             plt.plot(time_x, data, label=label, color=replica_colors[replicas], linestyle=line_styles.get(mode, '-'), linewidth=2, alpha=0.8)
             plotted_any = True
@@ -84,7 +87,7 @@ def plot_metric_comparison(folders, metric_filename, title, ylabel, output_file,
     plt.close()
     print(f"Generated {output_file}")
 
-def plot_bar_comparison(folders, metric_filename, title, ylabel, output_file, is_memory=False, is_average=False):
+def plot_bar_comparison(folders, metric_filename, title, ylabel, output_file, is_memory=False, is_average=False, is_integral=False):
     """Plot a grouped bar chart comparing the metric value across different pod counts."""
     data_map = {}
     
@@ -94,8 +97,15 @@ def plot_bar_comparison(folders, metric_filename, title, ylabel, output_file, is
         data = load_timeseries_data(filepath)
         
         if data:
-            if is_average:
-                # Calculate the overall average across the entire timeseries
+            # Use a stable 10s step size
+            step_size = 10
+            
+            if is_integral:
+                # Calculate absolute total energy expended (Area under the curve)
+                # Multiply each rate by the step_size.
+                metric_value = sum([val * step_size for val in data])
+            elif is_average:
+                # Calculate the overall average across the entire timeseries (Flawed for CPU, kept for Memory)
                 metric_value = sum(data) / len(data)
             else:
                 # Take the average of the last 3 points to represent final stable state avoiding 1-sec spikes
@@ -312,6 +322,68 @@ def plot_duration_line_trend(folders, output_file):
     print(f"Generated {output_file}")
 
 
+def plot_throughput_efficiency(folders, output_file):
+    """Plot CPU Cost per Sync (CPU Cores / Syncs per second) acting as an efficiency metric."""
+    data_map = {}
+    
+    for folder in folders:
+        mode, replicas = get_metadata(folder)
+        cpu_file = os.path.join(folder, 'cpu_usage_timeseries.json')
+        sync_count_file = os.path.join(folder, 'sync_count_timeseries.json')
+        
+        cpu_data = load_timeseries_data(cpu_file)
+        sync_data = load_timeseries_data(sync_count_file)
+        
+        # Only process if both metrics exist and have data
+        if cpu_data and sync_data:
+            # Match lengths in case arrays slightly differ
+            min_len = min(len(cpu_data), len(sync_data))
+            
+            efficiencies = []
+            for i in range(min_len):
+                cpu = cpu_data[i]
+                syncs = sync_data[i]
+                # Avoid division by zero when proxy is completely idle
+                if syncs > 0:
+                    efficiencies.append(cpu / syncs)
+                    
+            if efficiencies:
+                # Average the efficiency over the active period
+                avg_efficiency = sum(efficiencies) / len(efficiencies)
+                
+                if replicas not in data_map:
+                    data_map[replicas] = {}
+                data_map[replicas][mode] = avg_efficiency
+                
+    if not data_map:
+        print("Skipping Throughput Efficiency - missing CPU or Sync Count json files.")
+        return
+
+    sorted_replicas = sorted(list(data_map.keys()))
+    iptables_vals = [data_map[r].get('iptables', 0) for r in sorted_replicas]
+    nftables_vals = [data_map[r].get('nftables', 0) for r in sorted_replicas]
+
+    x = range(len(sorted_replicas))
+    width = 0.35
+
+    fig, ax = plt.subplots(figsize=(10, 6))
+    ax.bar([i - width/2 for i in x], iptables_vals, width, label='Iptables', color=COLORS.get('iptables'), alpha=0.9)
+    ax.bar([i + width/2 for i in x], nftables_vals, width, label='Nftables', color=COLORS.get('nftables'), alpha=0.9)
+
+    ax.set_xlabel('Number of Pods', fontsize=12)
+    ax.set_ylabel('CPU Cores per 1 Sync/sec', fontsize=12)
+    ax.set_title('CPU Cost per Sync (Throughput Efficiency)', fontsize=14, pad=15)
+    ax.set_xticks(list(x))
+    ax.set_xticklabels(sorted_replicas)
+    ax.legend()
+    ax.grid(True, axis='y', linestyle='--', alpha=0.7)
+
+    plt.tight_layout()
+    plt.savefig(output_file, dpi=300)
+    plt.close()
+    print(f"Generated {output_file}")
+
+
 def main():
     parser = argparse.ArgumentParser(description='Generate plots for Kube-Proxy experiment results')
     parser.add_argument('--results-dir', required=True, help='Directory containing the result folders (e.g., iptables_15000pods_...)')
@@ -360,10 +432,10 @@ def main():
     )
     plot_bar_comparison(
         folders, 'cpu_usage_timeseries.json',
-        'Average CPU Consumption Rate by Pod Count', 
-        'CPU Cores', 
+        'Total CPU Seconds Consumed by Pod Count (Absolute Cost)', 
+        'Total CPU-Seconds Expended', 
         os.path.join(args.output_dir, 'bar_cpu_usage.png'),
-        is_average=True
+        is_integral=True
     )
 
     # 3. Memory Usage
@@ -381,9 +453,12 @@ def main():
         filepath = os.path.join(folder, 'memory_usage_timeseries.json')
         data = load_timeseries_data(filepath)
         if data:
+            # Use a stable 10s step size
+            step_size = 10
+            
             # Convert bytes to MB
             data_mb = [v / (1024 * 1024) for v in data]
-            time_x = [i * 5 for i in range(len(data_mb))]
+            time_x = [i * step_size for i in range(len(data_mb))]
             label = f"{mode.capitalize()} ({replicas})"
             plt.plot(time_x, data_mb, label=label, color=replica_colors[replicas], linestyle=line_styles.get(mode, '-'), linewidth=2)
             plotted_mem = True
@@ -403,11 +478,10 @@ def main():
         
     plot_bar_comparison(
         folders, 'memory_usage_timeseries.json',
-        'Average Memory Consumption by Pod Count', 
+        'Final Stable Memory Consumption by Pod Count', 
         'Memory (MB)', 
         os.path.join(args.output_dir, 'bar_memory_usage.png'),
-        is_memory=True,
-        is_average=True
+        is_memory=True
     )
 
     # 4. Network Programming Latency
@@ -435,6 +509,12 @@ def main():
     plot_duration_line_trend(
         folders, 
         os.path.join(args.output_dir, 'line_experiment_duration_trend.png')
+    )
+
+    # 7. CPU Cost per Sync (Throughput Efficiency)
+    plot_throughput_efficiency(
+        folders,
+        os.path.join(args.output_dir, 'bar_throughput_efficiency.png')
     )
 
 if __name__ == "__main__":

@@ -217,12 +217,8 @@ collect_deployment_metrics() {
     local start_time=$(cat "${result_dir}/deploy_start_timestamp.txt")
     local end_time=$(cat "${result_dir}/deploy_end_timestamp.txt")
     
-    # Dynamically lower query resolution for extremely large iterations to prevent Prometheus OOM/Timeouts
-    local step="5"
-    if [[ "$replicas_count" -ge 10000 ]]; then
-        echo "[$(date +%T)] >=10k replicas detected. Using 15s query step to protect Prometheus memory."
-        step="15"
-    fi
+    # Use a stable 10s query resolution for all iterations
+    local step="10"
     
     query_prometheus_range 'histogram_quantile(0.99, sum by (le) (rate(kubeproxy_sync_proxy_rules_duration_seconds_bucket[1m])))' "${result_dir}/sync_duration_p99_timeseries.json" "$start_time" "$end_time" "$step"
     query_prometheus_range 'histogram_quantile(0.95, sum by (le) (rate(kubeproxy_sync_proxy_rules_duration_seconds_bucket[1m])))' "${result_dir}/sync_duration_p95_timeseries.json" "$start_time" "$end_time" "$step"
