@@ -120,8 +120,21 @@ cleanup_deployment() {
         echo "WARNING: cleanup.sh not found at $cleanup_script, performing inline cleanup..."
         echo -e "\n[$(date +%T)] Cleaning up deployment..."
         
-        kubectl delete deployment massive-scale-deployment --ignore-not-found=true
-        kubectl delete service massive-scale-service --ignore-not-found=true
+        # GENTLE SCALE DOWN TO PREVENT HANGS
+        local current_replicas=$(kubectl get deployment massive-scale-deployment -o jsonpath='{.spec.replicas}' 2>/dev/null || echo "0")
+        if [[ "$current_replicas" =~ ^[0-9]+$ ]] && [[ "$current_replicas" -gt 3000 ]]; then
+            echo "[$(date +%T)] Gently throttling scale-down from $current_replicas pods to avoid API/iptables freeze..."
+            while [[ "$current_replicas" -gt 0 ]]; do
+                current_replicas=$((current_replicas - 2500))
+                if [[ "$current_replicas" -lt 0 ]]; then current_replicas=0; fi
+                kubectl scale deployment massive-scale-deployment --replicas=$current_replicas 2>/dev/null || true
+                echo "[$(date +%T)] Scaled down to $current_replicas..."
+                sleep 5
+            done
+        fi
+        
+        kubectl delete deployment massive-scale-deployment --ignore-not-found=true --wait=false
+        kubectl delete service massive-scale-service --ignore-not-found=true --wait=false
         
         echo "[$(date +%T)] Waiting for pods to terminate..."
         kubectl wait --for=delete pod -l app=fake-workload --timeout=120s 2>/dev/null || true
