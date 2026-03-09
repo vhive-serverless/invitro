@@ -175,9 +175,8 @@ prometheus:
     walCompression: false
     resources:
       limits:
-        cpu: 2
-        memory: 8Gi  # Increased for higher scrape frequency
+        cpu: 3
+        memory: 10Gi  # Increased for higher scrape frequency
       requests:
-        cpu: 200m
         memory: 250Mi  # Increased for higher scrape frequency
     enableAdminAPI: true
