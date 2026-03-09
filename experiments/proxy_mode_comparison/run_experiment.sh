@@ -185,18 +185,44 @@ monitor_deployment() {
     local interval=10
     
     while [[ $(date +%s) -lt $end_time ]]; do
-        local pods_ready=$(kubectl get deployment massive-scale-deployment -o jsonpath='{.status.readyReplicas}' 2>/dev/null)
-        local pods_total=$(kubectl get deployment massive-scale-deployment -o jsonpath='{.status.replicas}' 2>/dev/null)
+        local pods_ready=$(kubectl get deployment massive-scale-deployment -o jsonpath='{.status.readyReplicas}' 2>/dev/null || echo "0")
+        local pods_total=$(kubectl get deployment massive-scale-deployment -o jsonpath='{.status.replicas}' 2>/dev/null || echo "0")
         
         # Handle empty responses properly
         pods_ready=${pods_ready:-0}
         pods_total=${pods_total:-0}
         local endpoints=$(kubectl get endpointslices -l kubernetes.io/service-name=massive-scale-service -o jsonpath='{.items[*].endpoints[*].addresses[*]}' 2>/dev/null | wc -w || echo "0")
         
-        echo "[$(date +%T)] Pods: ${pods_ready}/${target_replicas} | Endpoints: ${endpoints}"
+        echo "[$(date +%T)] Pods Ready: ${pods_ready}/${target_replicas} | IP Endpoints Generated: ${endpoints}"
         
-        if [[ "$pods_ready" -ge "$target_replicas" ]]; then
-            echo "[$(date +%T)] All ${target_replicas} pods are ready!"
+        # Phase 1: Wait for K8s API to finish generating all pods AND all endpoint slices
+        if [[ "$pods_ready" -ge "$target_replicas" ]] && [[ "$endpoints" -ge "$target_replicas" ]]; then
+            echo "[$(date +%T)] K8s Control Plane finished. All ${target_replicas} endpoints generated."
+            
+            # Phase 2: Poll Prometheus directly to ensure kube-proxy has finished syncing the rules
+            echo "[$(date +%T)] Waiting for kube-proxy to finish writing rules to the Data Plane..."
+            
+            local max_proxy_wait=120 # 10 minutes max just for proxy catch-up
+            local proxy_wait=0
+            
+            while [ $proxy_wait -lt $max_proxy_wait ]; do
+                # Get the current sync latency. If it drops down to near-zero, it means it finished the massive backlog
+                # We expect the 1-minute rate to eventually drop to 0 or very close to it when idle.
+                local sync_rate=$(curl -s -G "${PROMETHEUS_URL}/api/v1/query" \
+                    --data-urlencode 'query=sum(rate(kubeproxy_sync_proxy_rules_duration_seconds_count[1m]))' | \
+                    grep -oP '"value":\[[^,]+,"([^"]+)"\]' | grep -oP ',"([^"]+)"' | tr -d ',"' || echo "1.0")
+                
+                # Bash can't easily do float comparison, so we check if it starts with 0.0
+                if [[ "$sync_rate" == 0.0* ]]; then
+                    echo "[$(date +%T)] Data Plane Sync complete! (kube-proxy sync rate normalized: $sync_rate)"
+                    break
+                fi
+                
+                echo "[$(date +%T)] kube-proxy is still furiously syncing rules (Current event rate: $sync_rate syncs/sec)..."
+                sleep 5
+                proxy_wait=$((proxy_wait + 1))
+            done
+            
             break
         fi
         
