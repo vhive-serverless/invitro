@@ -206,10 +206,10 @@ monitor_deployment() {
             local proxy_wait=0
             
             while [ $proxy_wait -lt $max_proxy_wait ]; do
-                # Get the current sync latency. If it drops down to near-zero, it means it finished the massive backlog
-                # We expect the 1-minute rate to eventually drop to 0 or very close to it when idle.
+                # Use a simple counter increment check over a short interval (10s) instead of a 1w rate
+                # This drops to 0 instantly when kube-proxy stops writing, avoiding the sliding window lag.
                 local sync_rate=$(curl -s -G "${PROMETHEUS_URL}/api/v1/query" \
-                    --data-urlencode 'query=sum(rate(kubeproxy_sync_proxy_rules_duration_seconds_count[1m]))' | \
+                    --data-urlencode 'query=sum(increase(kubeproxy_sync_proxy_rules_duration_seconds_count[15s]))' | \
                     grep -oP '"value":\[[^,]+,"([^"]+)"\]' | grep -oP ',"([^"]+)"' | tr -d ',"' || echo "1.0")
                 
                 # Bash can't easily do float comparison, so we check if it starts with 0.0 or is exactly 0
