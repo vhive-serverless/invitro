@@ -14,20 +14,29 @@ echo "========================================"
 echo "Cleaning up experiment resources..."
 echo "========================================"
 
-echo "[$(date +%T)] Deleting deployment and service..."
-kubectl delete deployment massive-scale-deployment --ignore-not-found=true
-kubectl delete service massive-scale-service --ignore-not-found=true
+echo "[$(date +%T)] Deleting deployment and service (Async Mode)..."
+kubectl delete deployment massive-scale-deployment --ignore-not-found=true --wait=false 2>/dev/null || true
+kubectl delete service massive-scale-service --ignore-not-found=true --wait=false 2>/dev/null || true
 
-echo "[$(date +%T)] Waiting for pods to terminate gracefully (up to 60s)..."
-kubectl wait --for=delete pod -l app=fake-workload --timeout=60s 2>/dev/null || true
+echo "[$(date +%T)] Polling for pod termination status..."
+max_checks=30 # 150 seconds max wait (30 * 5s)
+i=0
+while [ $i -lt $max_checks ]; do
+    remaining_pods=$(kubectl get pods -l app=fake-workload -o name 2>/dev/null | wc -l || echo "0")
+    if [ "$remaining_pods" -eq 0 ]; then
+        break
+    fi
+    echo "[$(date +%T)] $remaining_pods pods still terminating..."
+    sleep 5
+    i=$((i + 1))
+done
 
 # Check for stuck pods and force delete
-remaining_pods=$(kubectl get pods -l app=fake-workload --no-headers 2>/dev/null | wc -l || echo "0")
 if [[ "$remaining_pods" -gt 0 ]]; then
-    echo "WARNING: $remaining_pods pods still exist. Forcing deletion..."
-    kubectl delete pods -l app=fake-workload --force --grace-period=0 2>/dev/null || true
+    echo "WARNING: $remaining_pods pods still stuck. Forcing deletion in background..."
+    nohup kubectl delete pods -l app=fake-workload --force --grace-period=0 >/dev/null 2>&1 &
     
-    echo "[$(date +%T)] Waiting for forced deletion to complete..."
+    echo "[$(date +%T)] Waiting briefly for background forced deletion to initiate..."
     sleep 5
 fi
 

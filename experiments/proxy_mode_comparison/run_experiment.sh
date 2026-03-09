@@ -118,32 +118,31 @@ cleanup_deployment() {
         bash "$cleanup_script" "$wait_time"
     else
         echo "WARNING: cleanup.sh not found at $cleanup_script, performing inline cleanup..."
-        echo -e "\n[$(date +%T)] Cleaning up deployment..."
+        echo -e "\n[$(date +%T)] Cleaning up deployment (Async Mode)..."
         
-        # GENTLE SCALE DOWN TO PREVENT HANGS
-        local current_replicas=$(kubectl get deployment massive-scale-deployment -o jsonpath='{.spec.replicas}' 2>/dev/null || echo "0")
-        if [[ "$current_replicas" =~ ^[0-9]+$ ]] && [[ "$current_replicas" -gt 3000 ]]; then
-            echo "[$(date +%T)] Gently throttling scale-down from $current_replicas pods to avoid API/iptables freeze..."
-            while [[ "$current_replicas" -gt 0 ]]; do
-                current_replicas=$((current_replicas - 2500))
-                if [[ "$current_replicas" -lt 0 ]]; then current_replicas=0; fi
-                kubectl scale deployment massive-scale-deployment --replicas=$current_replicas 2>/dev/null || true
-                echo "[$(date +%T)] Scaled down to $current_replicas..."
-                sleep 5
-            done
-        fi
+        # 1. Use --wait=false to avoid the API server hanging your terminal
+        kubectl delete deployment massive-scale-deployment --ignore-not-found=true --wait=false 2>/dev/null || true
+        kubectl delete service massive-scale-service --ignore-not-found=true --wait=false 2>/dev/null || true
         
-        kubectl delete deployment massive-scale-deployment --ignore-not-found=true --wait=false
-        kubectl delete service massive-scale-service --ignore-not-found=true --wait=false
+        # 2. Polling loop instead of kubectl wait
+        echo "[$(date +%T)] Polling for pod termination status..."
+        local max_checks=30 # 150 seconds max wait (30 * 5s)
+        local i=0
+        while [ $i -lt $max_checks ]; do
+            local remaining_pods=$(kubectl get pods -l app=fake-workload -o name 2>/dev/null | wc -l || echo "0")
+            if [ "$remaining_pods" -eq 0 ]; then
+                break
+            fi
+            echo "[$(date +%T)] $remaining_pods pods still terminating..."
+            sleep 5
+            i=$((i + 1))
+        done
         
-        echo "[$(date +%T)] Waiting for pods to terminate..."
-        kubectl wait --for=delete pod -l app=fake-workload --timeout=120s 2>/dev/null || true
-        
-        # Check for stuck pods and force delete
-        local remaining_pods=$(kubectl get pods -l app=fake-workload --no-headers 2>/dev/null | wc -l || echo "0")
-        if [[ "$remaining_pods" -gt 0 ]]; then
-            echo "WARNING: $remaining_pods pods still exist. Forcing deletion..."
-            kubectl delete pods -l app=fake-workload --force --grace-period=0 2>/dev/null || true
+        # 3. Non-blocking force delete prevents script lockup
+        local final_pods=$(kubectl get pods -l app=fake-workload -o name 2>/dev/null | wc -l || echo "0")
+        if [ "$final_pods" -gt 0 ]; then
+            echo "WARNING: $final_pods pods stuck. Force-deleting in the background..."
+            nohup kubectl delete pods -l app=fake-workload --force --grace-period=0 >/dev/null 2>&1 &
             sleep 10
         fi
 
