@@ -211,21 +211,29 @@ monitor_deployment() {
 
 collect_deployment_metrics() {
     local result_dir="$1"
+    local replicas_count="$2"
     echo -e "\n[$(date +%T)] Collecting deployment metrics..."
     
     local start_time=$(cat "${result_dir}/deploy_start_timestamp.txt")
     local end_time=$(cat "${result_dir}/deploy_end_timestamp.txt")
     
-    query_prometheus_range 'histogram_quantile(0.99, sum by (le) (rate(kubeproxy_sync_proxy_rules_duration_seconds_bucket[1m])))' "${result_dir}/sync_duration_p99_timeseries.json" "$start_time" "$end_time" "5"
-    query_prometheus_range 'histogram_quantile(0.95, sum by (le) (rate(kubeproxy_sync_proxy_rules_duration_seconds_bucket[1m])))' "${result_dir}/sync_duration_p95_timeseries.json" "$start_time" "$end_time" "5"
-    query_prometheus_range 'histogram_quantile(0.50, sum by (le) (rate(kubeproxy_sync_proxy_rules_duration_seconds_bucket[1m])))' "${result_dir}/sync_duration_p50_timeseries.json" "$start_time" "$end_time" "5"
-    query_prometheus_range 'histogram_quantile(0.99, sum by (le) (rate(kubeproxy_network_programming_duration_seconds_bucket[1m])))' "${result_dir}/network_programming_p99_timeseries.json" "$start_time" "$end_time" "5"
-    query_prometheus_range 'histogram_quantile(0.95, sum by (le) (rate(kubeproxy_network_programming_duration_seconds_bucket[1m])))' "${result_dir}/network_programming_p95_timeseries.json" "$start_time" "$end_time" "5"
-    query_prometheus_range 'histogram_quantile(0.50, sum by (le) (rate(kubeproxy_network_programming_duration_seconds_bucket[1m])))' "${result_dir}/network_programming_p50_timeseries.json" "$start_time" "$end_time" "5"
-    query_prometheus_range 'sum(rate(process_cpu_seconds_total{job="kube-proxy"}[1m]))' "${result_dir}/cpu_usage_timeseries.json" "$start_time" "$end_time" "5"
-    query_prometheus_range 'sum(process_resident_memory_bytes{job="kube-proxy"})' "${result_dir}/memory_usage_timeseries.json" "$start_time" "$end_time" "5"
-    query_prometheus_range 'histogram_quantile(0.99, sum by (le) (rate(apiserver_request_duration_seconds_bucket{verb="PATCH",resource=~"endpoints|endpointslices"}[1m])))' "${result_dir}/apiserver_latency_p99_timeseries.json" "$start_time" "$end_time" "5"
-    query_prometheus_range 'sum(rate(kubeproxy_sync_proxy_rules_duration_seconds_count[1m]))' "${result_dir}/sync_count_timeseries.json" "$start_time" "$end_time" "5"
+    # Dynamically lower query resolution for extremely large iterations to prevent Prometheus OOM/Timeouts
+    local step="5"
+    if [[ "$replicas_count" -ge 10000 ]]; then
+        echo "[$(date +%T)] >=10k replicas detected. Using 15s query step to protect Prometheus memory."
+        step="15"
+    fi
+    
+    query_prometheus_range 'histogram_quantile(0.99, sum by (le) (rate(kubeproxy_sync_proxy_rules_duration_seconds_bucket[1m])))' "${result_dir}/sync_duration_p99_timeseries.json" "$start_time" "$end_time" "$step"
+    query_prometheus_range 'histogram_quantile(0.95, sum by (le) (rate(kubeproxy_sync_proxy_rules_duration_seconds_bucket[1m])))' "${result_dir}/sync_duration_p95_timeseries.json" "$start_time" "$end_time" "$step"
+    query_prometheus_range 'histogram_quantile(0.50, sum by (le) (rate(kubeproxy_sync_proxy_rules_duration_seconds_bucket[1m])))' "${result_dir}/sync_duration_p50_timeseries.json" "$start_time" "$end_time" "$step"
+    query_prometheus_range 'histogram_quantile(0.99, sum by (le) (rate(kubeproxy_network_programming_duration_seconds_bucket[1m])))' "${result_dir}/network_programming_p99_timeseries.json" "$start_time" "$end_time" "$step"
+    query_prometheus_range 'histogram_quantile(0.95, sum by (le) (rate(kubeproxy_network_programming_duration_seconds_bucket[1m])))' "${result_dir}/network_programming_p95_timeseries.json" "$start_time" "$end_time" "$step"
+    query_prometheus_range 'histogram_quantile(0.50, sum by (le) (rate(kubeproxy_network_programming_duration_seconds_bucket[1m])))' "${result_dir}/network_programming_p50_timeseries.json" "$start_time" "$end_time" "$step"
+    query_prometheus_range 'sum(rate(process_cpu_seconds_total{job="kube-proxy"}[1m]))' "${result_dir}/cpu_usage_timeseries.json" "$start_time" "$end_time" "$step"
+    query_prometheus_range 'sum(process_resident_memory_bytes{job="kube-proxy"})' "${result_dir}/memory_usage_timeseries.json" "$start_time" "$end_time" "$step"
+    query_prometheus_range 'histogram_quantile(0.99, sum by (le) (rate(apiserver_request_duration_seconds_bucket{verb="PATCH",resource=~"endpoints|endpointslices"}[1m])))' "${result_dir}/apiserver_latency_p99_timeseries.json" "$start_time" "$end_time" "$step"
+    query_prometheus_range 'sum(rate(kubeproxy_sync_proxy_rules_duration_seconds_count[1m]))' "${result_dir}/sync_count_timeseries.json" "$start_time" "$end_time" "$step"
     
     # Final state metrics
     query_prometheus 'count(kube_pod_info{pod=~"massive-scale-deployment.*"})' "${result_dir}/final_pod_count.json"
@@ -318,7 +326,7 @@ run_iteration() {
     collect_baseline_metrics "$iter_dir"
     prepare_and_apply_deployment "$replicas" "$iter_dir"
     monitor_deployment "$iter_dir" "$replicas"
-    collect_deployment_metrics "$iter_dir"
+    collect_deployment_metrics "$iter_dir" "$replicas"
     collect_cluster_state "$iter_dir"
     generate_iteration_summary "$iter_dir" "$replicas"
     
