@@ -212,8 +212,8 @@ monitor_deployment() {
                     --data-urlencode 'query=sum(rate(kubeproxy_sync_proxy_rules_duration_seconds_count[1m]))' | \
                     grep -oP '"value":\[[^,]+,"([^"]+)"\]' | grep -oP ',"([^"]+)"' | tr -d ',"' || echo "1.0")
                 
-                # Bash can't easily do float comparison, so we check if it starts with 0.0
-                if [[ "$sync_rate" == 0.0* ]]; then
+                # Bash can't easily do float comparison, so we check if it starts with 0.0 or is exactly 0
+                if [[ "$sync_rate" == 0.0* ]] || [[ "$sync_rate" == "0" ]]; then
                     echo "[$(date +%T)] Data Plane Sync complete! (kube-proxy sync rate normalized: $sync_rate)"
                     break
                 fi
