@@ -192,6 +192,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: massive-delta-${iter_num}
+  namespace: default
 spec:
   replicas: $delta
   selector:
@@ -212,9 +213,15 @@ $(echo -e "$dynamic_labels" | sed '/^$/d')
                 operator: In
                 values:
                 - kwok
+      tolerations:
+      - key: "kwok.x-k8s.io/node"
+        operator: "Exists"
+        effect: "NoSchedule"
       containers:
-      - name: fake-container
-        image: fake-image:latest
+      - name: web
+        image: nginx:alpine
+        ports:
+        - containerPort: 80
 EOF
         kubectl apply -f "${result_dir}/delta-deployment.yaml"
         
