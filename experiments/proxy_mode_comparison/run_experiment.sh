@@ -242,8 +242,8 @@ EOF
     # Ensure service exists, if not, create it pointing to nowhere
     if ! kubectl get service massive-scale-service >/dev/null 2>&1; then
         kubectl apply -f "${SERVICE_YAML}"
-        # Set to dummy selector to prevent initialization trickle
-        kubectl patch service massive-scale-service -p '{"spec":{"selector":{"match-0":"yes"}}}' 2>/dev/null || true
+        # Set to dummy selector to prevent initialization trickle by completely replacing the selector via JSON patch
+        kubectl patch service massive-scale-service --type=json -p='[{"op": "replace", "path": "/spec/selector", "value": {"match-0":"yes"}}]' 2>/dev/null || true
     fi
     
     # Start the clock EXACTLY before the selector switch
@@ -251,8 +251,8 @@ EOF
     echo "$deploy_start" > "${result_dir}/deploy_start_timestamp.txt"
     
     echo "[$(date +%T)] Instantly patching Service selector to 'match-${iter_num}: yes'..."
-    # A single, instantaneous API call
-    kubectl patch service massive-scale-service -p "{\"spec\":{\"selector\":{\"match-${iter_num}\":\"yes\"}}}"
+    # A single, instantaneous API call replacing the entire selector
+    kubectl patch service massive-scale-service --type=json -p="[{\"op\": \"replace\", \"path\": \"/spec/selector\", \"value\": {\"match-${iter_num}\":\"yes\"}}]"
     
     local timeout=3600 # 60 mins hard safety
     local end_time=$(($(date +%s) + timeout))
