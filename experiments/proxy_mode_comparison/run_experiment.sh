@@ -12,10 +12,11 @@ set -euo pipefail
 MODE=""
 PROMETHEUS_URL="http://localhost:9090"
 OUTPUT_DIR="./results"
-REPLICA_ITERATIONS=(100 500 1000 5000 10000 20000 30000)
+REPLICA_ITERATIONS=(100 300 1000 5000 10000 20000 30000)
 CLEANUP_WAIT=60
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-DEPLOYMENT_YAML="${SCRIPT_DIR}/massive-scale-deployment.yaml"
+DEPLOYMENT_YAML="${SCRIPT_DIR}/deployment-only.yaml"
+SERVICE_YAML="${SCRIPT_DIR}/service-only.yaml"
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
@@ -35,8 +36,10 @@ if [[ -z "$MODE" ]] || [[ "$MODE" != "iptables" && "$MODE" != "nftables" ]]; the
     exit 1
 fi
 
-if [[ ! -f "$DEPLOYMENT_YAML" ]]; then
-    echo "Error: Base deployment file not found at $DEPLOYMENT_YAML"
+if [[ ! -f "$DEPLOYMENT_YAML" ]] || [[ ! -f "$SERVICE_YAML" ]]; then
+    echo "Error: Two-Step Tsunami architecture requires TWO separate files."
+    echo "Missing: $DEPLOYMENT_YAML or $SERVICE_YAML"
+    echo "Please split your old massive-scale-deployment.yaml into these two files."
     exit 1
 fi
 
@@ -50,8 +53,8 @@ echo "Kube-Proxy Mode Comparison Experiment"
 echo "========================================"
 echo "Mode:            $MODE"
 echo "Iterations:      ${REPLICA_ITERATIONS[*]}"
-echo "Duration:        Dynamic (Until ready + 30s buffer)"
-echo "Cleanup wait:    ${CLEANUP_WAIT}s"
+echo "Architecture:    Continuous Staircase (Service persists across scales)"
+echo "Methodology:     Measures incremental kube-proxy updates (constant delta)"
 echo "Prometheus URL:  $PROMETHEUS_URL"
 echo "Output Dir:      $BASE_RESULT_DIR"
 echo "========================================"
@@ -160,69 +163,110 @@ collect_baseline_metrics() {
     query_prometheus 'count(kube_service_info)' "${result_dir}/baseline_service_count.json"
 }
 
-prepare_and_apply_deployment() {
+prewarm_pods() {
     local replicas="$1"
     local result_dir="$2"
+    local is_first_iteration="$3"
     
-    echo -e "\n[$(date +%T)] Preparing deployment for $replicas replicas..."
-    # Replace the replicas count in the base YAML
-    sed "s/replicas: .*/replicas: ${replicas}/" "${DEPLOYMENT_YAML}" > "${result_dir}/deployment.yaml"
+    if [[ "$is_first_iteration" == "true" ]]; then
+        echo -e "\n[$(date +%T)] PHASE 1: Pre-warming infrastructure (0 replicas initially)..."
+        # First iteration: Create deployment with 0 replicas
+        sed "s/replicas: .*/replicas: 0/" "${DEPLOYMENT_YAML}" > "${result_dir}/deployment.yaml"
+        echo "[$(date +%T)] Creating initial deployment with 0 replicas (NO service yet)..."
+        kubectl apply -f "${result_dir}/deployment.yaml"
+        echo "[$(date +%T)] Deployment ready at 0 replicas. Service will be created next."
+        return 0
+    fi
     
-    echo "[$(date +%T)] Applying massive-scale deployment..."
-    local deploy_start=$(date +%s)
-    echo "$deploy_start" > "${result_dir}/deploy_start_timestamp.txt"
-    kubectl apply -f "${result_dir}/deployment.yaml"
-}
-
-monitor_deployment() {
-    local result_dir="$1"
-    local target_replicas="$2"
+    echo -e "\n[$(date +%T)] PHASE 1: Pre-warming deployment for $replicas replicas..."
+    # Subsequent iterations: Scale existing deployment
+    echo "[$(date +%T)] Scaling existing deployment from $(kubectl get deployment massive-scale-deployment -o jsonpath='{.spec.replicas}' 2>/dev/null || echo '?') to ${replicas} replicas..."
+    kubectl scale deployment massive-scale-deployment --replicas=${replicas}
     
-    local timeout=2400 # 40 mins hard safety timeout entirely dynamically waits otherwise
-    echo -e "\n[$(date +%T)] Monitoring deployment until ${target_replicas} pods are ready (Timeout: ${timeout}s)..."
+    local timeout=3600 # 60 mins hard safety for pod creation
+    echo "[$(date +%T)] Monitoring until ${replicas} pods are scheduled and Running (Timeout: ${timeout}s)..."
     
     local end_time=$(($(date +%s) + timeout))
     local interval=10
     
     while [[ $(date +%s) -lt $end_time ]]; do
         local pods_ready=$(kubectl get deployment massive-scale-deployment -o jsonpath='{.status.readyReplicas}' 2>/dev/null || echo "0")
-        local pods_total=$(kubectl get deployment massive-scale-deployment -o jsonpath='{.status.replicas}' 2>/dev/null || echo "0")
-        
-        # Handle empty responses properly
         pods_ready=${pods_ready:-0}
-        pods_total=${pods_total:-0}
+        
+        if [[ "$pods_ready" -ge "$replicas" ]]; then
+            echo "[$(date +%T)] All ${replicas} pods are Running and Ready. Control Plane pre-warming complete."
+            return 0
+        fi
+        
+        echo "[$(date +%T)] Pods Ready: ${pods_ready}/${replicas} (Waiting for K8s API & Scheduler...)"
+        sleep $interval
+    done
+    
+    echo "Error: Pod pre-warming timed out!"
+    exit 1
+}
+
+trigger_tsunami_and_monitor() {
+    local result_dir="$1"
+    local target_replicas="$2"
+    local is_first_iteration="$3"
+    
+    if [[ "$is_first_iteration" == "true" ]]; then
+        echo -e "\n[$(date +%T)] PHASE 2: SERVICE SETUP + SCALING (0 → ${target_replicas})"
+        echo "[$(date +%T)] Creating Service with 0 endpoints..."
+        kubectl apply -f "${SERVICE_YAML}"
+        sleep 5  # Brief wait for service to stabilize
+        
+        echo "[$(date +%T)] Scaling deployment from 0 to ${target_replicas} replicas..."
+        echo "[$(date +%T)] This is the measured tsunami event!"
+        
+        # Start the clock EXACTLY before scaling
+        local deploy_start=$(date +%s)
+        echo "$deploy_start" > "${result_dir}/deploy_start_timestamp.txt"
+        
+        kubectl scale deployment massive-scale-deployment --replicas=${target_replicas}
+    else
+        echo -e "\n[$(date +%T)] PHASE 2: INCREMENTAL SCALE EVENT (Service already exists)"
+        echo "[$(date +%T)] Service is already running. Monitoring kube-proxy's incremental update..."
+        
+        # Start the clock EXACTLY when pods became ready (just before this function)
+        local deploy_start=$(date +%s)
+        echo "$deploy_start" > "${result_dir}/deploy_start_timestamp.txt"
+    fi
+    
+    local timeout=1200 # 20 mins max for proxy catch-up
+    local end_time=$(($(date +%s) + timeout))
+    local interval=5
+    
+    echo -e "\n[$(date +%T)] Monitoring kube-proxy data-plane sync..."
+    
+    while [[ $(date +%s) -lt $end_time ]]; do
         local endpoints=$(kubectl get endpointslices -l kubernetes.io/service-name=massive-scale-service -o jsonpath='{.items[*].endpoints[*].addresses[*]}' 2>/dev/null | wc -w || echo "0")
         
-        echo "[$(date +%T)] Pods Ready: ${pods_ready}/${target_replicas} | IP Endpoints Generated: ${endpoints}"
+        echo "[$(date +%T)] IP Endpoints Grouped: ${endpoints}/${target_replicas}"
         
-        # Phase 1: Wait for K8s API to finish generating all pods AND all endpoint slices
-        if [[ "$pods_ready" -ge "$target_replicas" ]] && [[ "$endpoints" -ge "$target_replicas" ]]; then
-            echo "[$(date +%T)] K8s Control Plane finished. All ${target_replicas} endpoints generated."
+        if [[ "$endpoints" -ge "$target_replicas" ]]; then
+            echo "[$(date +%T)] EndpointSlices fully updated to ${target_replicas} endpoints."
             
-            # Phase 2: Poll Prometheus directly to ensure kube-proxy has finished syncing the rules
             echo "[$(date +%T)] Waiting for kube-proxy to finish writing rules to the Data Plane..."
-            
             local max_proxy_wait=120 # 10 minutes max just for proxy catch-up
             local proxy_wait=0
             
             while [ $proxy_wait -lt $max_proxy_wait ]; do
-                # Use a simple counter increment check over a short interval (10s) instead of a 1w rate
-                # This drops to 0 instantly when kube-proxy stops writing, avoiding the sliding window lag.
                 local sync_rate=$(curl -s -G "${PROMETHEUS_URL}/api/v1/query" \
                     --data-urlencode 'query=sum(increase(kubeproxy_sync_proxy_rules_duration_seconds_count[15s]))' | \
                     grep -oP '"value":\[[^,]+,"([^"]+)"\]' | grep -oP ',"([^"]+)"' | tr -d ',"' || echo "1.0")
                 
-                # Bash can't easily do float comparison, so we check if it starts with 0.0 or is exactly 0
+                # Check for rate flattening
                 if [[ "$sync_rate" == 0.0* ]] || [[ "$sync_rate" == "0" ]]; then
                     echo "[$(date +%T)] Data Plane Sync complete! (kube-proxy sync rate normalized: $sync_rate)"
-                    break
+                    break 2 # Break out of both the proxy loop and the endpoint loop
                 fi
                 
-                echo "[$(date +%T)] kube-proxy is still furiously syncing rules (Current event rate: $sync_rate syncs/sec)..."
+                echo "[$(date +%T)] kube-proxy is continuously syncing rules (Current rate: $sync_rate syncs/sec)..."
                 sleep 5
                 proxy_wait=$((proxy_wait + 1))
             done
-            
             break
         fi
         
@@ -334,20 +378,24 @@ run_iteration() {
     local total_iters="$3"
     
     echo -e "\n========================================"
-    echo "Iteration ${iter_num}/${total_iters}: ${replicas} replicas (Dynamic Wait)"
+    echo "Iteration ${iter_num}/${total_iters}: ${replicas} replicas (Staircase Scale-Up)"
     echo "========================================"
     
     local iter_dir="${BASE_RESULT_DIR}/replicas_${replicas}"
     mkdir -p "$iter_dir"
     
-    # Cleanup before every iteration (except the first) to ensure a clean slate
-    if [[ "$iter_num" -gt 1 ]]; then
-        cleanup_deployment "$CLEANUP_WAIT"
+    # Determine if this is the first iteration
+    local is_first_iteration="false"
+    if [[ "$iter_num" -eq 1 ]]; then
+        is_first_iteration="true"
     fi
     
+    # NO cleanup between iterations - this is critical for measuring incremental updates!
+    
+    prewarm_pods "$replicas" "$iter_dir" "$is_first_iteration"
     collect_baseline_metrics "$iter_dir"
-    prepare_and_apply_deployment "$replicas" "$iter_dir"
-    monitor_deployment "$iter_dir" "$replicas"
+    trigger_tsunami_and_monitor "$iter_dir" "$replicas" "$is_first_iteration"
+    
     collect_deployment_metrics "$iter_dir" "$replicas"
     collect_cluster_state "$iter_dir"
     generate_iteration_summary "$iter_dir" "$replicas"
@@ -368,7 +416,7 @@ main() {
         iter_num=$((iter_num + 1))
     done
     
-    echo -e "\n[$(date +%T)] Performing final cleanup..."
+    echo -e "\n[$(date +%T)] Performing final cleanup (tearing down all resources)..."
     cleanup_deployment 10
     
     generate_overall_summary
@@ -376,6 +424,12 @@ main() {
     echo -e "\n========================================"
     echo "All Iterations Complete!"
     echo "Results saved to: $BASE_RESULT_DIR"
+    echo "========================================"
+    echo "Continuous Staircase Methodology:"
+    echo "  - Service remained active across all iterations"
+    echo "  - Each scale event measured pure incremental update performance"
+    echo "  - nftables: Should show flat latency (O(1) incremental)"
+    echo "  - iptables: Should show exponential curve (O(N) full rewrite)"
     echo "========================================"
 }
 

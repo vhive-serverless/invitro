@@ -33,16 +33,3 @@ spec:
         image: nginx:alpine # KWOK won't actually pull this; it just fakes the "Running" status
         ports:
         - containerPort: 80
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: massive-scale-service
-  namespace: default
-spec:
-  selector:
-    app: fake-workload
-  ports:
-    - protocol: TCP
-      port: 80
-      targetPort: 80

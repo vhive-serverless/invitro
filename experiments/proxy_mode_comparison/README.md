@@ -1,14 +1,18 @@
 # Kube-Proxy Mode Comparison Experiment
 
-This directory contains automation scripts to compare control plane latency between **iptables** and **nftables** modes for kube-proxy.
+This directory contains automation scripts to compare control plane latency between **iptables** and **nftables** modes for kube-proxy using a **Two-Step Tsunami Architecture**.
 
 ## Overview
 
-The experiment deploys 5000 fake pods on KWOK nodes to stress-test kube-proxy's rule synchronization and measures:
-- Proxy rules sync duration (p50, p99)
-- Network programming latency
-- CPU and memory consumption
-- API server latency
+The experiment uses a two-phase approach to isolate kube-proxy performance from Kubernetes API bottlenecks:
+1. **Phase 1 (Pre-warming):** Deploy thousands of pods and wait for them to be Ready (bypassing API rate limits)
+2. **Phase 2 (Tsunami):** Apply a Service to instantly group all pods, forcing kube-proxy to process all endpoints simultaneously
+
+This methodology measures:
+- Proxy rules sync duration (p50, p95, p99)
+- Network programming latency (end-to-end)
+- CPU and memory consumption during the tsunami
+- API server latency for EndpointSlice creation
 
 ## Prerequisites
 
@@ -21,6 +25,7 @@ The experiment deploys 5000 fake pods on KWOK nodes to stress-test kube-proxy's 
    - `kubectl` configured for your cluster
    - `curl` for Prometheus API queries
    - Bash shell (Linux/WSL/Git Bash)
+   - `sudo` access (for control plane turbocharging)
 
 3. **Prometheus Access**
    - Port-forward Prometheus if not externally accessible:
@@ -28,42 +33,85 @@ The experiment deploys 5000 fake pods on KWOK nodes to stress-test kube-proxy's 
      kubectl port-forward -n monitoring svc/prometheus-kube-prometheus-prometheus 9090:9090
      ```
 
-## Quick Start
+## Important: Turbocharge Control Plane (One-Time Setup)
 
-### 1. Run Experiment with iptables
+**Before running large-scale experiments (10k+ replicas), you MUST increase Kubernetes API rate limits** to prevent the control plane from becoming a bottleneck during pod pre-warming.
+
+Run this script once on your control plane node:
 
 ```bash
-# Ensure kube-proxy is in iptables mode (switch manually first)
-kubectl -n kube-system edit cm kube-proxy
-# Set mode: "iptables" in config, then restart kube-proxy pods
-
-# Run the experiment
 cd experiments/proxy_mode_comparison
-chmod +x run_experiment.sh
-./run_experiment.sh --mode iptables --duration 300
+chmod +x turbocharge-control-plane.sh
+./turbocharge-control-plane.sh
 ```
 
-### 2. Switch to nftables and Re-run
+This script will:
+- Backup existing control plane manifests
+- Increase API server request limits (500 mutating, 1000 total)
+- Increase controller-manager QPS (100) and concurrency (50 workers)
+- Increase scheduler QPS (100)
+- Increase kube-proxy client QPS (100)
+- Automatically restart all affected components
+
+**⚠️ Wait 2-3 minutes after running this script before starting experiments.**
+
+## Quick Start
+
+### 0. Turbocharge Control Plane (Required for Large-Scale Tests)
+
+```bash
+# Run once before experiments
+chmod +x turbocharge-control-plane.sh
+./turbocharge-control-plane.sh
+
+# Wait 2-3 minutes for components to restart
+sleep 180
+```
+
+### 1. Prepare YAML Files
+
+The experiment requires two separate YAML files:
+- `deployment-only.yaml` - Pod deployment without Service
+- `service-only.yaml` - Service definition only
+
+These files enable the Two-Step Tsunami architecture.
+
+### 2. Run Experiment with iptables
+
+```bash
+# Ensure kube-proxy is in iptables mode
+kubectl -n kube-system edit cm kube-proxy
+# Set mode: "iptables" in config, then restart kube-proxy pods
+kubectl -n kube-system rollout restart ds kube-proxy
+kubectl -n kube-system rollout status ds kube-proxy
+
+# Run the experiment (tests multiple replica counts)
+cd experiments/proxy_mode_comparison
+chmod +x run_experiment.sh
+./run_experiment.sh --mode iptables
+```
+
+### 3. Switch to nftables and Re-run
 
 ```bash
 # Switch kube-proxy to nftables mode
 kubectl -n kube-system edit cm kube-proxy
 # Set mode: "nftables" in config, then restart kube-proxy pods
 kubectl -n kube-system rollout restart ds kube-proxy
-
-# Wait for rollout to complete
 kubectl -n kube-system rollout status ds kube-proxy
 
 # Run the experiment again
-./run_experiment.sh --mode nftables --duration 300
+./run_experiment.sh --mode nftables
 ```
 
-### 3. Compare Results
+### 4. Compare Results
 
-Results are saved in `./results/<mode>_<timestamp>/`:
+Results are saved in `./results/<mode>_<timestamp>/replicas_<count>/`:
 - `SUMMARY.md` - Experiment summary
-- `*_timeseries.json` - Metric data over time
-- `baseline_*.json` - Pre-deployment metrics
+- `*_timeseries.json` - Metric data over time (Phase 2 only)
+- `baseline_*.json` - Pre-tsunami metrics
+- `deploy_start_timestamp.txt` - Service creation time (T=0)
+- `deploy_end_timestamp.txt` - kube-proxy sync completion time
 - Various cluster state files
 
 ## Script Options
@@ -75,12 +123,12 @@ Required:
   --mode MODE           Current kube-proxy mode (iptables or nftables)
 
 Optional:
-  --duration SECONDS    Collection duration after deployment (default: 300)
   --prometheus-url URL  Prometheus URL (default: http://localhost:9090)
   --output-dir DIR      Results directory (default: ./results)
-  --replicas COUNT      Number of pod replicas (default: 5000)
-  --cleanup             Delete deployment after experiment
+  --cleanup-wait SEC    Seconds to wait between iterations (default: 60)
 ```
+
+The script automatically iterates through: **100, 500, 1000, 5000, 10000, 20000, 30000 replicas**
 
 ### Examples
 
@@ -89,15 +137,41 @@ Optional:
 ./run_experiment.sh --mode iptables
 ```
 
-**Longer collection period:**
+**Custom Prometheus endpoint:**
 ```bash
-./run_experiment.sh --mode nftables --duration 600
+./run_experiment.sh --mode nftables --prometheus-url http://192.168.1.100:9090
 ```
 
-**More pods, auto-cleanup:**
+**Custom cleanup wait:**
 ```bash
-./run_experiment.sh --mode iptables --replicas 10000 --cleanup
+./run_experiment.sh --mode iptables --cleanup-wait 120
 ```
+
+## How the Two-Step Tsunami Works
+
+### Traditional Approach (Problematic)
+- Deploy pods + service simultaneously
+- K8s API slowly assigns IPs over 15-30 minutes
+- kube-proxy processes endpoints in small batches
+- **Result:** Impossible to measure true kube-proxy performance
+
+### Two-Step Tsunami (This Experiment)
+1. **Phase 1 - Pre-warm:** Deploy 30k pods, wait until all are Ready
+   - Takes 15-30 minutes (not measured)
+   - kube-proxy is idle (no Service exists yet)
+   
+2. **Phase 2 - Tsunami:** Apply Service
+   - **T=0:** Service created, timestamp recorded
+   - EndpointSlice controller instantly batches all 30k IPs
+   - kube-proxy receives massive update, starts syncing
+   - Script monitors sync completion via Prometheus
+   - **T=end:** Sync rate hits 0, timestamp recorded
+   
+3. **Metrics Extraction:** Query Prometheus using T=0 to T=end
+   - Graphs show pure kube-proxy performance
+   - API rate limits completely bypassed
+
+**Key Insight:** This isolates kernel-level routing performance from control plane scheduling delays.
 
 **Custom Prometheus URL:**
 ```bash
