@@ -125,6 +125,7 @@ cleanup_deployment() {
         
         # 1. Use --wait=false to avoid the API server hanging your terminal
         kubectl delete deployment massive-scale-deployment --ignore-not-found=true --wait=false 2>/dev/null || true
+        kubectl get deployments -o name | grep massive-delta | xargs -r kubectl delete --ignore-not-found=true --wait=false 2>/dev/null || true
         kubectl delete service massive-scale-service --ignore-not-found=true --wait=false 2>/dev/null || true
         
         # 2. Polling loop instead of kubectl wait
@@ -132,19 +133,22 @@ cleanup_deployment() {
         local max_checks=30 # 150 seconds max wait (30 * 5s)
         local i=0
         while [ $i -lt $max_checks ]; do
-            local remaining_pods=$(kubectl get pods -l app=fake-workload -o name 2>/dev/null | wc -l || echo "0")
-            if [ "$remaining_pods" -eq 0 ]; then
+            local remaining_pods=$(kubectl get pods -l 'delta-id' -o name 2>/dev/null | wc -l || echo "0")
+            local remaining_pods_old=$(kubectl get pods -l app=fake-workload -o name 2>/dev/null | wc -l || echo "0")
+            local total_rem=$((remaining_pods + remaining_pods_old))
+            if [ "$total_rem" -eq 0 ]; then
                 break
             fi
-            echo "[$(date +%T)] $remaining_pods pods still terminating..."
+            echo "[$(date +%T)] $total_rem pods still terminating..."
             sleep 5
             i=$((i + 1))
         done
         
         # 3. Non-blocking force delete prevents script lockup
-        local final_pods=$(kubectl get pods -l app=fake-workload -o name 2>/dev/null | wc -l || echo "0")
+        local final_pods=$(kubectl get pods -l 'delta-id' -o name 2>/dev/null | wc -l || echo "0")
         if [ "$final_pods" -gt 0 ]; then
             echo "WARNING: $final_pods pods stuck. Force-deleting in the background..."
+            nohup kubectl delete pods -l 'delta-id' --force --grace-period=0 >/dev/null 2>&1 &
             nohup kubectl delete pods -l app=fake-workload --force --grace-period=0 >/dev/null 2>&1 &
             sleep 10
         fi
@@ -163,50 +167,87 @@ collect_baseline_metrics() {
     query_prometheus 'count(kube_service_info)' "${result_dir}/baseline_service_count.json"
 }
 
-prewarm_pods() {
-    local replicas="$1"
-    local result_dir="$2"
-    local is_first_iteration="$3"
+delta_tsunami_and_monitor() {
+    local target_replicas="$1"
+    local prev_replicas="$2"
+    local iter_num="$3"
+    local total_iters="$4"
+    local result_dir="$5"
     
-    if [[ "$is_first_iteration" == "true" ]]; then
-        echo -e "\n[$(date +%T)] PHASE 1: Pre-warming infrastructure (0 replicas initially)..."
-        # First iteration: Create deployment with 0 replicas
-        sed "s/replicas: .*/replicas: 0/" "${DEPLOYMENT_YAML}" > "${result_dir}/deployment.yaml"
-        echo "[$(date +%T)] Creating initial deployment with 0 replicas (NO service yet)..."
-        kubectl apply -f "${result_dir}/deployment.yaml"
-        echo "[$(date +%T)] Deployment ready at 0 replicas. Service will be created next."
-    else
-        echo -e "\n[$(date +%T)] PHASE 1: Skipped pre-warming for Continuous Staircase."
-        echo "[$(date +%T)] Service already active. The scaling scale-out is the measured tsunami."
-    fi
-    return 0
-}
+    local delta=$(( target_replicas - prev_replicas ))
+    
+    echo -e "\n[$(date +%T)] PHASE 1: PRE-WARMING DELTA PODS ($delta pods)"
+    
+    if [[ "$delta" -gt 0 ]]; then
+        echo "[$(date +%T)] Attempting to pre-warm $delta pods invisibly using boolean iteration matching..."
+        
+        # Dynamically generate labels so this delta pod matches this iteration and ALL future iterations
+        local dynamic_labels=""
+        for (( i=$iter_num; i<=$total_iters; i++ )); do
+            dynamic_labels+="        match-${i}: \"yes\"\n"
+        done
 
-trigger_tsunami_and_monitor() {
-    local result_dir="$1"
-    local target_replicas="$2"
-    local is_first_iteration="$3"
+        cat <<EOF > "${result_dir}/delta-deployment.yaml"
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: massive-delta-${iter_num}
+spec:
+  replicas: $delta
+  selector:
+    matchLabels:
+      delta-id: "${iter_num}"
+  template:
+    metadata:
+      labels:
+        delta-id: "${iter_num}"
+$(echo -e "$dynamic_labels" | sed '/^$/d')
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: type
+                operator: In
+                values:
+                - kwok
+      containers:
+      - name: fake-container
+        image: fake-image:latest
+EOF
+        kubectl apply -f "${result_dir}/delta-deployment.yaml"
+        
+        # 2. Wait for these specific delta pods to be Ready before unleashing them
+        local timeout=3600
+        local end_time=$(($(date +%s) + timeout))
+        while [[ $(date +%s) -lt $end_time ]]; do
+            local ready=$(kubectl get deploy massive-delta-${iter_num} -o jsonpath='{.status.readyReplicas}' 2>/dev/null || echo 0)
+            ready=${ready:-0}
+            echo "[$(date +%T)] Delta Pods Ready: $ready / $delta"
+            if [[ "$ready" -ge "$delta" ]]; then break; fi
+            sleep 5
+        done
+    fi
+
+    echo -e "\n[$(date +%T)] PHASE 2: TRIGGERING DELTA TSUNAMI"
     
-    if [[ "$is_first_iteration" == "true" ]]; then
-        echo -e "\n[$(date +%T)] PHASE 2: SERVICE SETUP + SCALING (0 → ${target_replicas})"
-        echo "[$(date +%T)] Creating Service with 0 endpoints..."
+    # Ensure service exists, if not, create it pointing to nowhere
+    if ! kubectl get service massive-scale-service >/dev/null 2>&1; then
         kubectl apply -f "${SERVICE_YAML}"
-        sleep 5  # Brief wait for service to stabilize
-    else
-        local current_replicas=$(kubectl get deployment massive-scale-deployment -o jsonpath='{.spec.replicas}' 2>/dev/null || echo '0')
-        echo -e "\n[$(date +%T)] PHASE 2: INCREMENTAL SCALE EVENT (${current_replicas} → ${target_replicas})"
-        echo "[$(date +%T)] Service already active."
+        # Set to dummy selector to prevent initialization trickle
+        kubectl patch service massive-scale-service -p '{"spec":{"selector":{"match-0":"yes"}}}' 2>/dev/null || true
     fi
     
-    echo "[$(date +%T)] Starting stopwatch and triggering massive scale-up to ${target_replicas} replicas..."
-    
-    # Start the clock EXACTLY before scaling
+    # Start the clock EXACTLY before the selector switch
     local deploy_start=$(date +%s)
     echo "$deploy_start" > "${result_dir}/deploy_start_timestamp.txt"
     
-    kubectl scale deployment massive-scale-deployment --replicas=${target_replicas}
+    echo "[$(date +%T)] Instantly patching Service selector to 'match-${iter_num}: yes'..."
+    # A single, instantaneous API call
+    kubectl patch service massive-scale-service -p "{\"spec\":{\"selector\":{\"match-${iter_num}\":\"yes\"}}}"
     
-    local timeout=1200 # 20 mins max for proxy catch-up
+    local timeout=3600 # 60 mins hard safety
     local end_time=$(($(date +%s) + timeout))
     local interval=5
     
@@ -215,30 +256,11 @@ trigger_tsunami_and_monitor() {
     while [[ $(date +%s) -lt $end_time ]]; do
         local endpoints=$(kubectl get endpointslices -l kubernetes.io/service-name=massive-scale-service -o jsonpath='{.items[*].endpoints[*].addresses[*]}' 2>/dev/null | wc -w || echo "0")
         
-        echo "[$(date +%T)] IP Endpoints Grouped: ${endpoints}/${target_replicas}"
+        echo "[$(date +%T)] Endpoints Sync'd: ${endpoints}/${target_replicas}"
         
         if [[ "$endpoints" -ge "$target_replicas" ]]; then
-            echo "[$(date +%T)] EndpointSlices fully updated to ${target_replicas} endpoints."
-            
-            echo "[$(date +%T)] Waiting for kube-proxy to finish writing rules to the Data Plane..."
-            local max_proxy_wait=120 # 10 minutes max just for proxy catch-up
-            local proxy_wait=0
-            
-            while [ $proxy_wait -lt $max_proxy_wait ]; do
-                local sync_rate=$(curl -s -G "${PROMETHEUS_URL}/api/v1/query" \
-                    --data-urlencode 'query=sum(increase(kubeproxy_sync_proxy_rules_duration_seconds_count[5s]))' | \
-                    grep -oP '"value":\[[^,]+,"([^"]+)"\]' | grep -oP ',"([^"]+)"' | tr -d ',"' || echo "0")
-                
-                # Check for rate flattening (often drops below 1.5, or sometimes Prometheus returns empty when zero)
-                if [[ "$sync_rate" == 0.* ]] || [[ "$sync_rate" == "0" ]] || [[ "$sync_rate" == "" ]]; then
-                    echo "[$(date +%T)] Data Plane Sync complete! (kube-proxy sync rate normalized: $sync_rate)"
-                    break 2 # Break out of both the proxy loop and the endpoint loop
-                fi
-                
-                echo "[$(date +%T)] kube-proxy is continuously syncing rules (Current rate: $sync_rate syncs/sec)..."
-                sleep 5
-                proxy_wait=$((proxy_wait + 1))
-            done
+            echo "[$(date +%T)] Target reached! Waiting 20 seconds for kube-proxy to finish writing rules and Prometheus to scrape..."
+            sleep 20
             break
         fi
         
@@ -274,7 +296,7 @@ collect_deployment_metrics() {
     query_prometheus_range 'sum(rate(kubeproxy_sync_proxy_rules_duration_seconds_count[15s]))' "${result_dir}/sync_count_timeseries.json" "$start_time" "$end_time" "$step"
     
     # Final state metrics
-    query_prometheus 'count(kube_pod_info{pod=~"massive-scale-deployment.*"})' "${result_dir}/final_pod_count.json"
+    query_prometheus 'count(kube_pod_info{pod=~"massive-delta-.*"})' "${result_dir}/final_pod_count.json"
 }
 
 collect_cluster_state() {
@@ -288,7 +310,7 @@ collect_cluster_state() {
         [[ -n "$node" ]] && kubectl get pods --all-namespaces --field-selector spec.nodeName=$node --no-headers 2>/dev/null | wc -l || echo "0"
     done | awk '{sum+=$1} END {print sum}' > "${result_dir}/kwok_pods_count.txt"
     
-    kubectl get deployment massive-scale-deployment -o yaml > "${result_dir}/deployment_state.yaml" 2>/dev/null || true
+    kubectl get deployments -l 'delta-id' -o yaml > "${result_dir}/deployment_state.yaml" 2>/dev/null || true
     kubectl get service massive-scale-service -o yaml > "${result_dir}/service_state.yaml" 2>/dev/null || true
     kubectl get endpointslices -l kubernetes.io/service-name=massive-scale-service -o yaml > "${result_dir}/endpointslices_state.yaml" 2>/dev/null || true
 }
@@ -346,27 +368,19 @@ EOF
 
 run_iteration() {
     local replicas="$1"
-    local iter_num="$2"
-    local total_iters="$3"
+    local prev_replicas="$2"
+    local iter_num="$3"
+    local total_iters="$4"
     
     echo -e "\n========================================"
-    echo "Iteration ${iter_num}/${total_iters}: ${replicas} replicas (Staircase Scale-Up)"
+    echo "Iteration ${iter_num}/${total_iters}: Scaling from ${prev_replicas} to ${replicas} (Cumulative Service Patch)"
     echo "========================================"
     
     local iter_dir="${BASE_RESULT_DIR}/replicas_${replicas}"
     mkdir -p "$iter_dir"
     
-    # Determine if this is the first iteration
-    local is_first_iteration="false"
-    if [[ "$iter_num" -eq 1 ]]; then
-        is_first_iteration="true"
-    fi
-    
-    # NO cleanup between iterations - this is critical for measuring incremental updates!
-    
     collect_baseline_metrics "$iter_dir"
-    prewarm_pods "$replicas" "$iter_dir" "$is_first_iteration"
-    trigger_tsunami_and_monitor "$iter_dir" "$replicas" "$is_first_iteration"
+    delta_tsunami_and_monitor "$replicas" "$prev_replicas" "$iter_num" "$total_iters" "$iter_dir"
     
     collect_deployment_metrics "$iter_dir" "$replicas"
     collect_cluster_state "$iter_dir"
@@ -382,9 +396,11 @@ main() {
     
     local total_iters=${#REPLICA_ITERATIONS[@]}
     local iter_num=1
+    local prev_replicas=0
     
     for replicas in "${REPLICA_ITERATIONS[@]}"; do
-        run_iteration "$replicas" "$iter_num" "$total_iters"
+        run_iteration "$replicas" "$prev_replicas" "$iter_num" "$total_iters"
+        prev_replicas=$replicas
         iter_num=$((iter_num + 1))
     done
     
@@ -397,11 +413,11 @@ main() {
     echo "All Iterations Complete!"
     echo "Results saved to: $BASE_RESULT_DIR"
     echo "========================================"
-    echo "Continuous Staircase Methodology:"
-    echo "  - Service remained active across all iterations"
-    echo "  - Each scale event measured pure incremental update performance"
-    echo "  - nftables: Should show flat latency (O(1) incremental)"
-    echo "  - iptables: Should show exponential curve (O(N) full rewrite)"
+    echo "Cumulative Service Patch Methodology:"
+    echo "  - Uses boolean label logic to group old and new pods."
+    echo "  - Delta pods are deployed and pre-warmed invisibly."
+    echo "  - A single O(1) instantaneous kubectl patch is executed."
+    echo "  - Captures exact delta load spikes on top of existing rules."
     echo "========================================"
 }
 

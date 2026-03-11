@@ -16,13 +16,16 @@ echo "========================================"
 
 echo "[$(date +%T)] Deleting deployment and service (Async Mode)..."
 kubectl delete deployment massive-scale-deployment --ignore-not-found=true --wait=false 2>/dev/null || true
+kubectl get deployments -o name | grep massive-delta | xargs -r kubectl delete --ignore-not-found=true --wait=false 2>/dev/null || true
 kubectl delete service massive-scale-service --ignore-not-found=true --wait=false 2>/dev/null || true
 
 echo "[$(date +%T)] Polling for pod termination status..."
 max_checks=30 # 150 seconds max wait (30 * 5s)
 i=0
 while [ $i -lt $max_checks ]; do
-    remaining_pods=$(kubectl get pods -l app=fake-workload -o name 2>/dev/null | wc -l || echo "0")
+    remaining_pods_old=$(kubectl get pods -l app=fake-workload -o name 2>/dev/null | wc -l || echo "0")
+    remaining_pods_new=$(kubectl get pods -l 'delta-id' -o name 2>/dev/null | wc -l || echo "0")
+    remaining_pods=$((remaining_pods_old + remaining_pods_new))
     if [ "$remaining_pods" -eq 0 ]; then
         break
     fi
@@ -35,13 +38,16 @@ done
 if [[ "$remaining_pods" -gt 0 ]]; then
     echo "WARNING: $remaining_pods pods still stuck. Forcing deletion in background..."
     nohup kubectl delete pods -l app=fake-workload --force --grace-period=0 >/dev/null 2>&1 &
+    nohup kubectl delete pods -l 'delta-id' --force --grace-period=0 >/dev/null 2>&1 &
     
     echo "[$(date +%T)] Waiting briefly for background forced deletion to initiate..."
     sleep 5
 fi
 
 # Final verification
-final_pods=$(kubectl get pods -l app=fake-workload --no-headers 2>/dev/null | wc -l || echo "0")
+final_pods_old=$(kubectl get pods -l app=fake-workload --no-headers 2>/dev/null | wc -l || echo "0")
+final_pods_new=$(kubectl get pods -l 'delta-id' --no-headers 2>/dev/null | wc -l || echo "0")
+final_pods=$((final_pods_old + final_pods_new))
 if [[ "$final_pods" -gt 0 ]]; then
     echo "❌ ERROR: $final_pods pods still remain! You may need to investigate manually."
 else
