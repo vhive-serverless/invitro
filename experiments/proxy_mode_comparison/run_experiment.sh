@@ -175,35 +175,11 @@ prewarm_pods() {
         echo "[$(date +%T)] Creating initial deployment with 0 replicas (NO service yet)..."
         kubectl apply -f "${result_dir}/deployment.yaml"
         echo "[$(date +%T)] Deployment ready at 0 replicas. Service will be created next."
-        return 0
+    else
+        echo -e "\n[$(date +%T)] PHASE 1: Skipped pre-warming for Continuous Staircase."
+        echo "[$(date +%T)] Service already active. The scaling scale-out is the measured tsunami."
     fi
-    
-    echo -e "\n[$(date +%T)] PHASE 1: Pre-warming deployment for $replicas replicas..."
-    # Subsequent iterations: Scale existing deployment
-    echo "[$(date +%T)] Scaling existing deployment from $(kubectl get deployment massive-scale-deployment -o jsonpath='{.spec.replicas}' 2>/dev/null || echo '?') to ${replicas} replicas..."
-    kubectl scale deployment massive-scale-deployment --replicas=${replicas}
-    
-    local timeout=3600 # 60 mins hard safety for pod creation
-    echo "[$(date +%T)] Monitoring until ${replicas} pods are scheduled and Running (Timeout: ${timeout}s)..."
-    
-    local end_time=$(($(date +%s) + timeout))
-    local interval=10
-    
-    while [[ $(date +%s) -lt $end_time ]]; do
-        local pods_ready=$(kubectl get deployment massive-scale-deployment -o jsonpath='{.status.readyReplicas}' 2>/dev/null || echo "0")
-        pods_ready=${pods_ready:-0}
-        
-        if [[ "$pods_ready" -ge "$replicas" ]]; then
-            echo "[$(date +%T)] All ${replicas} pods are Running and Ready. Control Plane pre-warming complete."
-            return 0
-        fi
-        
-        echo "[$(date +%T)] Pods Ready: ${pods_ready}/${replicas} (Waiting for K8s API & Scheduler...)"
-        sleep $interval
-    done
-    
-    echo "Error: Pod pre-warming timed out!"
-    exit 1
+    return 0
 }
 
 trigger_tsunami_and_monitor() {
@@ -216,23 +192,19 @@ trigger_tsunami_and_monitor() {
         echo "[$(date +%T)] Creating Service with 0 endpoints..."
         kubectl apply -f "${SERVICE_YAML}"
         sleep 5  # Brief wait for service to stabilize
-        
-        echo "[$(date +%T)] Scaling deployment from 0 to ${target_replicas} replicas..."
-        echo "[$(date +%T)] This is the measured tsunami event!"
-        
-        # Start the clock EXACTLY before scaling
-        local deploy_start=$(date +%s)
-        echo "$deploy_start" > "${result_dir}/deploy_start_timestamp.txt"
-        
-        kubectl scale deployment massive-scale-deployment --replicas=${target_replicas}
     else
-        echo -e "\n[$(date +%T)] PHASE 2: INCREMENTAL SCALE EVENT (Service already exists)"
-        echo "[$(date +%T)] Service is already running. Monitoring kube-proxy's incremental update..."
-        
-        # Start the clock EXACTLY when pods became ready (just before this function)
-        local deploy_start=$(date +%s)
-        echo "$deploy_start" > "${result_dir}/deploy_start_timestamp.txt"
+        local current_replicas=$(kubectl get deployment massive-scale-deployment -o jsonpath='{.spec.replicas}' 2>/dev/null || echo '0')
+        echo -e "\n[$(date +%T)] PHASE 2: INCREMENTAL SCALE EVENT (${current_replicas} → ${target_replicas})"
+        echo "[$(date +%T)] Service already active."
     fi
+    
+    echo "[$(date +%T)] Starting stopwatch and triggering massive scale-up to ${target_replicas} replicas..."
+    
+    # Start the clock EXACTLY before scaling
+    local deploy_start=$(date +%s)
+    echo "$deploy_start" > "${result_dir}/deploy_start_timestamp.txt"
+    
+    kubectl scale deployment massive-scale-deployment --replicas=${target_replicas}
     
     local timeout=1200 # 20 mins max for proxy catch-up
     local end_time=$(($(date +%s) + timeout))
@@ -254,7 +226,7 @@ trigger_tsunami_and_monitor() {
             
             while [ $proxy_wait -lt $max_proxy_wait ]; do
                 local sync_rate=$(curl -s -G "${PROMETHEUS_URL}/api/v1/query" \
-                    --data-urlencode 'query=sum(increase(kubeproxy_sync_proxy_rules_duration_seconds_count[15s]))' | \
+                    --data-urlencode 'query=sum(increase(kubeproxy_sync_proxy_rules_duration_seconds_count[5s]))' | \
                     grep -oP '"value":\[[^,]+,"([^"]+)"\]' | grep -oP ',"([^"]+)"' | tr -d ',"' || echo "1.0")
                 
                 # Check for rate flattening
@@ -273,8 +245,8 @@ trigger_tsunami_and_monitor() {
         sleep $interval
     done
     
-    echo "[$(date +%T)] Waiting an additional 30 seconds for trailing metric collection..."
-    sleep 30
+    echo "[$(date +%T)] Waiting an additional 10 seconds for trailing metric collection..."
+    sleep 10
     
     date +%s > "${result_dir}/deploy_end_timestamp.txt"
 }
@@ -290,16 +262,16 @@ collect_deployment_metrics() {
     # Use a stable 10s query resolution for all iterations
     local step="10"
     
-    query_prometheus_range 'histogram_quantile(0.99, sum by (le) (rate(kubeproxy_sync_proxy_rules_duration_seconds_bucket[1m])))' "${result_dir}/sync_duration_p99_timeseries.json" "$start_time" "$end_time" "$step"
-    query_prometheus_range 'histogram_quantile(0.95, sum by (le) (rate(kubeproxy_sync_proxy_rules_duration_seconds_bucket[1m])))' "${result_dir}/sync_duration_p95_timeseries.json" "$start_time" "$end_time" "$step"
-    query_prometheus_range 'histogram_quantile(0.50, sum by (le) (rate(kubeproxy_sync_proxy_rules_duration_seconds_bucket[1m])))' "${result_dir}/sync_duration_p50_timeseries.json" "$start_time" "$end_time" "$step"
-    query_prometheus_range 'histogram_quantile(0.99, sum by (le) (rate(kubeproxy_network_programming_duration_seconds_bucket[1m])))' "${result_dir}/network_programming_p99_timeseries.json" "$start_time" "$end_time" "$step"
-    query_prometheus_range 'histogram_quantile(0.95, sum by (le) (rate(kubeproxy_network_programming_duration_seconds_bucket[1m])))' "${result_dir}/network_programming_p95_timeseries.json" "$start_time" "$end_time" "$step"
-    query_prometheus_range 'histogram_quantile(0.50, sum by (le) (rate(kubeproxy_network_programming_duration_seconds_bucket[1m])))' "${result_dir}/network_programming_p50_timeseries.json" "$start_time" "$end_time" "$step"
-    query_prometheus_range 'sum(rate(process_cpu_seconds_total{job="kube-proxy"}[1m]))' "${result_dir}/cpu_usage_timeseries.json" "$start_time" "$end_time" "$step"
+    query_prometheus_range 'histogram_quantile(0.99, sum by (le) (rate(kubeproxy_sync_proxy_rules_duration_seconds_bucket[15s])))' "${result_dir}/sync_duration_p99_timeseries.json" "$start_time" "$end_time" "$step"
+    query_prometheus_range 'histogram_quantile(0.95, sum by (le) (rate(kubeproxy_sync_proxy_rules_duration_seconds_bucket[15s])))' "${result_dir}/sync_duration_p95_timeseries.json" "$start_time" "$end_time" "$step"
+    query_prometheus_range 'histogram_quantile(0.50, sum by (le) (rate(kubeproxy_sync_proxy_rules_duration_seconds_bucket[15s])))' "${result_dir}/sync_duration_p50_timeseries.json" "$start_time" "$end_time" "$step"
+    query_prometheus_range 'histogram_quantile(0.99, sum by (le) (rate(kubeproxy_network_programming_duration_seconds_bucket[15s])))' "${result_dir}/network_programming_p99_timeseries.json" "$start_time" "$end_time" "$step"
+    query_prometheus_range 'histogram_quantile(0.95, sum by (le) (rate(kubeproxy_network_programming_duration_seconds_bucket[15s])))' "${result_dir}/network_programming_p95_timeseries.json" "$start_time" "$end_time" "$step"
+    query_prometheus_range 'histogram_quantile(0.50, sum by (le) (rate(kubeproxy_network_programming_duration_seconds_bucket[15s])))' "${result_dir}/network_programming_p50_timeseries.json" "$start_time" "$end_time" "$step"
+    query_prometheus_range 'sum(rate(process_cpu_seconds_total{job="kube-proxy"}[15s]))' "${result_dir}/cpu_usage_timeseries.json" "$start_time" "$end_time" "$step"
     query_prometheus_range 'sum(process_resident_memory_bytes{job="kube-proxy"})' "${result_dir}/memory_usage_timeseries.json" "$start_time" "$end_time" "$step"
-    query_prometheus_range 'histogram_quantile(0.99, sum by (le) (rate(apiserver_request_duration_seconds_bucket{verb=~"POST|PUT|PATCH",resource=~"endpoints.*"}[1m])))' "${result_dir}/apiserver_latency_p99_timeseries.json" "$start_time" "$end_time" "$step"
-    query_prometheus_range 'sum(rate(kubeproxy_sync_proxy_rules_duration_seconds_count[1m]))' "${result_dir}/sync_count_timeseries.json" "$start_time" "$end_time" "$step"
+    query_prometheus_range 'histogram_quantile(0.99, sum by (le) (rate(apiserver_request_duration_seconds_bucket{verb=~"POST|PUT|PATCH",resource=~"endpoints.*"}[15s])))' "${result_dir}/apiserver_latency_p99_timeseries.json" "$start_time" "$end_time" "$step"
+    query_prometheus_range 'sum(rate(kubeproxy_sync_proxy_rules_duration_seconds_count[15s]))' "${result_dir}/sync_count_timeseries.json" "$start_time" "$end_time" "$step"
     
     # Final state metrics
     query_prometheus 'count(kube_pod_info{pod=~"massive-scale-deployment.*"})' "${result_dir}/final_pod_count.json"
@@ -392,8 +364,8 @@ run_iteration() {
     
     # NO cleanup between iterations - this is critical for measuring incremental updates!
     
-    prewarm_pods "$replicas" "$iter_dir" "$is_first_iteration"
     collect_baseline_metrics "$iter_dir"
+    prewarm_pods "$replicas" "$iter_dir" "$is_first_iteration"
     trigger_tsunami_and_monitor "$iter_dir" "$replicas" "$is_first_iteration"
     
     collect_deployment_metrics "$iter_dir" "$replicas"
