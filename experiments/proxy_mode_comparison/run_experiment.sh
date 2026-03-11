@@ -203,9 +203,9 @@ scale_and_monitor() {
                 settling_phase="true"
             fi
             
-            # Query Prometheus for proxy sync count using a 15s rate window
+            # Query Prometheus for proxy sync count using a 5s rate window
             # If the rate is > 0, it means kube-proxy is actively flushing sync cycles
-            local sync_query='sum(rate(kubeproxy_sync_proxy_rules_duration_seconds_count[15s]))'
+            local sync_query='sum(rate(kubeproxy_sync_proxy_rules_duration_seconds_count[5s]))'
             local response=$(curl -s -G "${PROMETHEUS_URL}/api/v1/query" --data-urlencode "query=${sync_query}" 2>/dev/null || echo "")
             
             # Parse the float value safely using inline python
@@ -222,10 +222,10 @@ scale_and_monitor() {
                 settle_count=0
             else
                 settle_count=$((settle_count + 1))
-                echo "[$(date +%T)] kube-proxy sync rate dropping (Sync Rate: ${current_sync_rate} syncs/sec). Settling... (${settle_count}/3)"
-                if [[ "$settle_count" -ge 3 ]]; then
+                echo "[$(date +%T)] kube-proxy sync rate dropping (Sync Rate: ${current_sync_rate} syncs/sec). Settling... (${settle_count}/2)"
+                if [[ "$settle_count" -ge 2 ]]; then
                     echo "[$(date +%T)] kube-proxy has fully settled! Data plane sync complete."
-                    sleep 15 # Final buffer to ensure Prometheus scraped the final drop
+                    sleep 5 # Brief buffer to ensure Prometheus scraped the final drop
                     break
                 fi
             fi
