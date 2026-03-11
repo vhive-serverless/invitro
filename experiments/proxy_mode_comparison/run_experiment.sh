@@ -15,8 +15,7 @@ OUTPUT_DIR="./results"
 REPLICA_ITERATIONS=(100 300 1000 5000 10000 20000 30000)
 CLEANUP_WAIT=60
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-DEPLOYMENT_YAML="${SCRIPT_DIR}/deployment-only.yaml"
-SERVICE_YAML="${SCRIPT_DIR}/service-only.yaml"
+COMBINED_YAML="${SCRIPT_DIR}/massive-scale.yaml"
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
@@ -36,10 +35,9 @@ if [[ -z "$MODE" ]] || [[ "$MODE" != "iptables" && "$MODE" != "nftables" ]]; the
     exit 1
 fi
 
-if [[ ! -f "$DEPLOYMENT_YAML" ]] || [[ ! -f "$SERVICE_YAML" ]]; then
-    echo "Error: Two-Step Tsunami architecture requires TWO separate files."
-    echo "Missing: $DEPLOYMENT_YAML or $SERVICE_YAML"
-    echo "Please split your old massive-scale-deployment.yaml into these two files."
+if [[ ! -f "$COMBINED_YAML" ]]; then
+    echo "Error: Missing combined YAML file."
+    echo "Missing: $COMBINED_YAML"
     exit 1
 fi
 
@@ -167,115 +165,74 @@ collect_baseline_metrics() {
     query_prometheus 'count(kube_service_info)' "${result_dir}/baseline_service_count.json"
 }
 
-delta_tsunami_and_monitor() {
+scale_and_monitor() {
     local target_replicas="$1"
-    local prev_replicas="$2"
-    local iter_num="$3"
-    local total_iters="$4"
-    local result_dir="$5"
+    local result_dir="$2"
     
-    local delta=$(( target_replicas - prev_replicas ))
+    echo -e "\n[$(date +%T)] PHASE: DATA-PLANE SCALING (RELATIVE BASELINE)"
     
-    echo -e "\n[$(date +%T)] PHASE 1: PRE-WARMING DELTA PODS ($delta pods)"
-    
-    if [[ "$delta" -gt 0 ]]; then
-        echo "[$(date +%T)] Attempting to pre-warm $delta pods invisibly using boolean iteration matching..."
-        
-        # Dynamically generate labels so this delta pod matches this iteration and ALL future iterations
-        local dynamic_labels=""
-        for (( i=$iter_num; i<=$total_iters; i++ )); do
-            dynamic_labels+="        match-${i}: \"yes\"\n"
-        done
-
-        cat <<EOF > "${result_dir}/delta-deployment.yaml"
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: massive-delta-${iter_num}
-  namespace: default
-spec:
-  replicas: $delta
-  selector:
-    matchLabels:
-      delta-id: "${iter_num}"
-  template:
-    metadata:
-      labels:
-        delta-id: "${iter_num}"
-$(echo -e "$dynamic_labels" | sed '/^$/d')
-    spec:
-      affinity:
-        nodeAffinity:
-          requiredDuringSchedulingIgnoredDuringExecution:
-            nodeSelectorTerms:
-            - matchExpressions:
-              - key: type
-                operator: In
-                values:
-                - kwok
-      tolerations:
-      - key: "kwok.x-k8s.io/node"
-        operator: "Exists"
-        effect: "NoSchedule"
-      containers:
-      - name: web
-        image: nginx:alpine
-        ports:
-        - containerPort: 80
-EOF
-        kubectl apply -f "${result_dir}/delta-deployment.yaml"
-        
-        # 2. Wait for these specific delta pods to be Ready before unleashing them
-        local timeout=3600
-        local end_time=$(($(date +%s) + timeout))
-        while [[ $(date +%s) -lt $end_time ]]; do
-            local ready=$(kubectl get deploy massive-delta-${iter_num} -o jsonpath='{.status.readyReplicas}' 2>/dev/null || echo 0)
-            ready=${ready:-0}
-            echo "[$(date +%T)] Delta Pods Ready: $ready / $delta"
-            if [[ "$ready" -ge "$delta" ]]; then break; fi
-            sleep 5
-        done
-    fi
-
-    echo -e "\n[$(date +%T)] PHASE 2: TRIGGERING DELTA TSUNAMI"
-    
-    # Ensure service exists, if not, create it pointing to nowhere
-    if ! kubectl get service massive-scale-service >/dev/null 2>&1; then
-        kubectl apply -f "${SERVICE_YAML}"
-        # Set to dummy selector to prevent initialization trickle by completely replacing the selector via JSON patch
-        kubectl patch service massive-scale-service --type=json -p='[{"op": "replace", "path": "/spec/selector", "value": {"match-0":"yes"}}]' 2>/dev/null || true
-    fi
-    
-    # Start the clock EXACTLY before the selector switch
+    # Start the clock EXACTLY before applying the components
     local deploy_start=$(date +%s)
     echo "$deploy_start" > "${result_dir}/deploy_start_timestamp.txt"
     
-    echo "[$(date +%T)] Instantly patching Service selector to 'match-${iter_num}: yes'..."
-    # A single, instantaneous API call replacing the entire selector
-    kubectl patch service massive-scale-service --type=json -p="[{\"op\": \"replace\", \"path\": \"/spec/selector\", \"value\": {\"match-${iter_num}\":\"yes\"}}]"
+    echo "[$(date +%T)] Applying Combined YAML to update replicas: ${target_replicas}..."
+    sed "s/replicas: .*/replicas: ${target_replicas}/" "${COMBINED_YAML}" > "${result_dir}/massive-scale.yaml"
+    kubectl apply -f "${result_dir}/massive-scale.yaml"
     
     local timeout=3600 # 60 mins hard safety
     local end_time=$(($(date +%s) + timeout))
     local interval=5
+    local settle_count=0
+    local settling_phase="false"
     
-    echo -e "\n[$(date +%T)] Monitoring kube-proxy data-plane sync..."
+    echo -e "\n[$(date +%T)] Monitoring pod creation and kube-proxy data-plane sync simultaneously..."
     
     while [[ $(date +%s) -lt $end_time ]]; do
+        local pods_ready=$(kubectl get deployment massive-scale-deployment -o jsonpath='{.status.readyReplicas}' 2>/dev/null || echo "0")
+        pods_ready=${pods_ready:-0}
+        
         local endpoints=$(kubectl get endpointslices -l kubernetes.io/service-name=massive-scale-service -o jsonpath='{.items[*].endpoints[*].addresses[*]}' 2>/dev/null | wc -w || echo "0")
         
-        echo "[$(date +%T)] Endpoints Sync'd: ${endpoints}/${target_replicas}"
+        if [[ "$settling_phase" == "false" ]]; then
+            echo "[$(date +%T)] Pods: ${pods_ready}/${target_replicas} | Endpoints: ${endpoints}/${target_replicas}"
+        fi
         
-        if [[ "$endpoints" -ge "$target_replicas" ]]; then
-            echo "[$(date +%T)] Target reached! Waiting 20 seconds for kube-proxy to finish writing rules and Prometheus to scrape..."
-            sleep 20
-            break
+        if [[ "$pods_ready" -ge "$target_replicas" ]] && [[ "$endpoints" -ge "$target_replicas" ]]; then
+            if [[ "$settling_phase" == "false" ]]; then
+                echo "[$(date +%T)] Target rules submitted to API! Dynamically monitoring kube-proxy CPU to detect sync completion..."
+                settling_phase="true"
+            fi
+            
+            # Query Prometheus for proxy sync count using a 15s rate window
+            # If the rate is > 0, it means kube-proxy is actively flushing sync cycles
+            local sync_query='sum(rate(kubeproxy_sync_proxy_rules_duration_seconds_count[15s]))'
+            local response=$(curl -s -G "${PROMETHEUS_URL}/api/v1/query" --data-urlencode "query=${sync_query}" 2>/dev/null || echo "")
+            
+            # Parse the float value safely using inline python
+            local current_sync_rate="0.0"
+            if [[ -n "$response" ]]; then
+                current_sync_rate=$(echo "$response" | python -c "import sys, json; res=json.load(sys.stdin).get('data',{}).get('result',[]); print(float(res[0]['value'][1]) if res else 0.0)" 2>/dev/null || echo "0.0")
+            fi
+            
+            # Float comparison via awk (check if sync rate > 0.05 syncs per second)
+            local is_syncing=$(awk -v rate="$current_sync_rate" 'BEGIN { if (rate > 0.05) print "1"; else print "0" }')
+            
+            if [[ "$is_syncing" == "1" ]]; then
+                echo "[$(date +%T)] kube-proxy still syncing rules (Sync Rate: ${current_sync_rate} syncs/sec). Waiting..."
+                settle_count=0
+            else
+                settle_count=$((settle_count + 1))
+                echo "[$(date +%T)] kube-proxy sync rate dropping (Sync Rate: ${current_sync_rate} syncs/sec). Settling... (${settle_count}/3)"
+                if [[ "$settle_count" -ge 3 ]]; then
+                    echo "[$(date +%T)] kube-proxy has fully settled! Data plane sync complete."
+                    sleep 15 # Final buffer to ensure Prometheus scraped the final drop
+                    break
+                fi
+            fi
         fi
         
         sleep $interval
     done
-    
-    echo "[$(date +%T)] Waiting an additional 10 seconds for trailing metric collection..."
-    sleep 10
     
     date +%s > "${result_dir}/deploy_end_timestamp.txt"
 }
@@ -291,19 +248,19 @@ collect_deployment_metrics() {
     # Use a stable 10s query resolution for all iterations
     local step="10"
     
-    query_prometheus_range 'histogram_quantile(0.99, sum by (le) (rate(kubeproxy_sync_proxy_rules_duration_seconds_bucket[15s])))' "${result_dir}/sync_duration_p99_timeseries.json" "$start_time" "$end_time" "$step"
-    query_prometheus_range 'histogram_quantile(0.95, sum by (le) (rate(kubeproxy_sync_proxy_rules_duration_seconds_bucket[15s])))' "${result_dir}/sync_duration_p95_timeseries.json" "$start_time" "$end_time" "$step"
-    query_prometheus_range 'histogram_quantile(0.50, sum by (le) (rate(kubeproxy_sync_proxy_rules_duration_seconds_bucket[15s])))' "${result_dir}/sync_duration_p50_timeseries.json" "$start_time" "$end_time" "$step"
-    query_prometheus_range 'histogram_quantile(0.99, sum by (le) (rate(kubeproxy_network_programming_duration_seconds_bucket[15s])))' "${result_dir}/network_programming_p99_timeseries.json" "$start_time" "$end_time" "$step"
-    query_prometheus_range 'histogram_quantile(0.95, sum by (le) (rate(kubeproxy_network_programming_duration_seconds_bucket[15s])))' "${result_dir}/network_programming_p95_timeseries.json" "$start_time" "$end_time" "$step"
-    query_prometheus_range 'histogram_quantile(0.50, sum by (le) (rate(kubeproxy_network_programming_duration_seconds_bucket[15s])))' "${result_dir}/network_programming_p50_timeseries.json" "$start_time" "$end_time" "$step"
-    query_prometheus_range 'sum(rate(process_cpu_seconds_total{job="kube-proxy"}[15s]))' "${result_dir}/cpu_usage_timeseries.json" "$start_time" "$end_time" "$step"
+    query_prometheus_range 'histogram_quantile(0.99, sum by (le) (rate(kubeproxy_sync_proxy_rules_duration_seconds_bucket[1m])))' "${result_dir}/sync_duration_p99_timeseries.json" "$start_time" "$end_time" "$step"
+    query_prometheus_range 'histogram_quantile(0.95, sum by (le) (rate(kubeproxy_sync_proxy_rules_duration_seconds_bucket[1m])))' "${result_dir}/sync_duration_p95_timeseries.json" "$start_time" "$end_time" "$step"
+    query_prometheus_range 'histogram_quantile(0.50, sum by (le) (rate(kubeproxy_sync_proxy_rules_duration_seconds_bucket[1m])))' "${result_dir}/sync_duration_p50_timeseries.json" "$start_time" "$end_time" "$step"
+    query_prometheus_range 'histogram_quantile(0.99, sum by (le) (rate(kubeproxy_network_programming_duration_seconds_bucket[1m])))' "${result_dir}/network_programming_p99_timeseries.json" "$start_time" "$end_time" "$step"
+    query_prometheus_range 'histogram_quantile(0.95, sum by (le) (rate(kubeproxy_network_programming_duration_seconds_bucket[1m])))' "${result_dir}/network_programming_p95_timeseries.json" "$start_time" "$end_time" "$step"
+    query_prometheus_range 'histogram_quantile(0.50, sum by (le) (rate(kubeproxy_network_programming_duration_seconds_bucket[1m])))' "${result_dir}/network_programming_p50_timeseries.json" "$start_time" "$end_time" "$step"
+    query_prometheus_range 'sum(rate(process_cpu_seconds_total{job="kube-proxy"}[1m]))' "${result_dir}/cpu_usage_timeseries.json" "$start_time" "$end_time" "$step"
     query_prometheus_range 'sum(process_resident_memory_bytes{job="kube-proxy"})' "${result_dir}/memory_usage_timeseries.json" "$start_time" "$end_time" "$step"
-    query_prometheus_range 'histogram_quantile(0.99, sum by (le) (rate(apiserver_request_duration_seconds_bucket{verb=~"POST|PUT|PATCH",resource=~"endpoints.*"}[15s])))' "${result_dir}/apiserver_latency_p99_timeseries.json" "$start_time" "$end_time" "$step"
-    query_prometheus_range 'sum(rate(kubeproxy_sync_proxy_rules_duration_seconds_count[15s]))' "${result_dir}/sync_count_timeseries.json" "$start_time" "$end_time" "$step"
+    query_prometheus_range 'histogram_quantile(0.99, sum by (le) (rate(apiserver_request_duration_seconds_bucket{verb=~"POST|PUT|PATCH",resource=~"endpoints.*"}[1m])))' "${result_dir}/apiserver_latency_p99_timeseries.json" "$start_time" "$end_time" "$step"
+    query_prometheus_range 'sum(rate(kubeproxy_sync_proxy_rules_duration_seconds_count[1m]))' "${result_dir}/sync_count_timeseries.json" "$start_time" "$end_time" "$step"
     
     # Final state metrics
-    query_prometheus 'count(kube_pod_info{pod=~"massive-delta-.*"})' "${result_dir}/final_pod_count.json"
+    query_prometheus 'count(kube_pod_info{pod=~"massive-scale-deployment.*"})' "${result_dir}/final_pod_count.json"
 }
 
 collect_cluster_state() {
@@ -317,7 +274,7 @@ collect_cluster_state() {
         [[ -n "$node" ]] && kubectl get pods --all-namespaces --field-selector spec.nodeName=$node --no-headers 2>/dev/null | wc -l || echo "0"
     done | awk '{sum+=$1} END {print sum}' > "${result_dir}/kwok_pods_count.txt"
     
-    kubectl get deployments -l 'delta-id' -o yaml > "${result_dir}/deployment_state.yaml" 2>/dev/null || true
+    kubectl get deployment massive-scale-deployment -o yaml > "${result_dir}/deployment_state.yaml" 2>/dev/null || true
     kubectl get service massive-scale-service -o yaml > "${result_dir}/service_state.yaml" 2>/dev/null || true
     kubectl get endpointslices -l kubernetes.io/service-name=massive-scale-service -o yaml > "${result_dir}/endpointslices_state.yaml" 2>/dev/null || true
 }
@@ -380,20 +337,20 @@ run_iteration() {
     local total_iters="$4"
     
     echo -e "\n========================================"
-    echo "Iteration ${iter_num}/${total_iters}: Scaling from ${prev_replicas} to ${replicas} (Cumulative Service Patch)"
+    echo "Iteration ${iter_num}/${total_iters}: Scaling from ${prev_replicas} to ${replicas} (Relative Baseline)"
     echo "========================================"
     
     local iter_dir="${BASE_RESULT_DIR}/replicas_${replicas}"
     mkdir -p "$iter_dir"
     
     collect_baseline_metrics "$iter_dir"
-    delta_tsunami_and_monitor "$replicas" "$prev_replicas" "$iter_num" "$total_iters" "$iter_dir"
+    scale_and_monitor "$replicas" "$iter_dir"
     
     collect_deployment_metrics "$iter_dir" "$replicas"
     collect_cluster_state "$iter_dir"
     generate_iteration_summary "$iter_dir" "$replicas"
     
-    echo "[$(date +%T)] Iteration ${iter_num}/${total_iters} complete"
+    echo "[$(date +%T)] Iteration ${iter_num}/${total_iters} complete. Keeping resources active for next phase."
 }
 
 # --- Main Execution Flow ---
@@ -420,11 +377,11 @@ main() {
     echo "All Iterations Complete!"
     echo "Results saved to: $BASE_RESULT_DIR"
     echo "========================================"
-    echo "Cumulative Service Patch Methodology:"
-    echo "  - Uses boolean label logic to group old and new pods."
-    echo "  - Delta pods are deployed and pre-warmed invisibly."
-    echo "  - A single O(1) instantaneous kubectl patch is executed."
-    echo "  - Captures exact delta load spikes on top of existing rules."
+    echo "Organic Bundled Methodology:"
+    echo "  - Service and Deployment are actively paired."
+    echo "  - Replicas are scaled up normally using kubectl apply."
+    echo "  - Endpoints trickle in organically, simulating real autoscaling."
+    echo "  - Accurately captures iptables CPU thrashing and rule-cycle duration."
     echo "========================================"
 }
 

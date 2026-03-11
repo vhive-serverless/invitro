@@ -10,7 +10,7 @@
 set -e
 
 # Target speed limits (Moderate bump to protect etcd)
-QPS=100
+QPS=200
 API_MUTATING_INFLIGHT=500
 API_MAX_INFLIGHT=1000
 
@@ -71,8 +71,8 @@ inject_or_update_flag "$API_FILE" "kube-apiserver" "--max-requests-inflight=${AP
 echo "[4/5] Patching kube-controller-manager..."
 CM_FILE="${MANIFEST_DIR}/kube-controller-manager.yaml"
 inject_or_update_flag "$CM_FILE" "kube-controller-manager" "--kube-api-qps=${QPS}"
-inject_or_update_flag "$CM_FILE" "kube-controller-manager" "--concurrent-deployment-syncs=20"
-inject_or_update_flag "$CM_FILE" "kube-controller-manager" "--concurrent-replicaset-syncs=20"
+inject_or_update_flag "$CM_FILE" "kube-controller-manager" "--concurrent-deployment-syncs=50"
+inject_or_update_flag "$CM_FILE" "kube-controller-manager" "--concurrent-replicaset-syncs=50"
 inject_or_update_flag "$CM_FILE" "kube-controller-manager" "--concurrent-service-endpoint-syncs=2"
 
 # 5. Modify Kube-Scheduler
