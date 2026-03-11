@@ -227,10 +227,10 @@ trigger_tsunami_and_monitor() {
             while [ $proxy_wait -lt $max_proxy_wait ]; do
                 local sync_rate=$(curl -s -G "${PROMETHEUS_URL}/api/v1/query" \
                     --data-urlencode 'query=sum(increase(kubeproxy_sync_proxy_rules_duration_seconds_count[5s]))' | \
-                    grep -oP '"value":\[[^,]+,"([^"]+)"\]' | grep -oP ',"([^"]+)"' | tr -d ',"' || echo "1.0")
+                    grep -oP '"value":\[[^,]+,"([^"]+)"\]' | grep -oP ',"([^"]+)"' | tr -d ',"' || echo "0")
                 
-                # Check for rate flattening
-                if [[ "$sync_rate" == 0.0* ]] || [[ "$sync_rate" == "0" ]]; then
+                # Check for rate flattening (often drops below 1.5, or sometimes Prometheus returns empty when zero)
+                if [[ "$sync_rate" == 0.* ]] || [[ "$sync_rate" == "0" ]] || [[ "$sync_rate" == "" ]]; then
                     echo "[$(date +%T)] Data Plane Sync complete! (kube-proxy sync rate normalized: $sync_rate)"
                     break 2 # Break out of both the proxy loop and the endpoint loop
                 fi
