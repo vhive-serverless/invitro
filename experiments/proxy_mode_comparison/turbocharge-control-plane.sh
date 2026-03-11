@@ -73,7 +73,7 @@ CM_FILE="${MANIFEST_DIR}/kube-controller-manager.yaml"
 inject_or_update_flag "$CM_FILE" "kube-controller-manager" "--kube-api-qps=${QPS}"
 inject_or_update_flag "$CM_FILE" "kube-controller-manager" "--concurrent-deployment-syncs=20"
 inject_or_update_flag "$CM_FILE" "kube-controller-manager" "--concurrent-replicaset-syncs=20"
-inject_or_update_flag "$CM_FILE" "kube-controller-manager" "--concurrent-endpointslice-syncs=50"
+inject_or_update_flag "$CM_FILE" "kube-controller-manager" "--concurrent-service-endpoint-syncs=50"
 
 # 5. Modify Kube-Scheduler
 echo "[5/5] Patching kube-scheduler..."
