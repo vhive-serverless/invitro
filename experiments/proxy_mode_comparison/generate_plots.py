@@ -63,8 +63,8 @@ def plot_metric_comparison(folders, metric_filename, title, ylabel, output_file,
         data = load_timeseries_data(filepath)
         
         if data:
-            # Use a stable 10s step size
-            step_size = 10
+            # Use a stable 1s step size over raw json data dumps
+            step_size = 1
             
             # Time in seconds
             time_x = [i * step_size for i in range(len(data))]
@@ -97,8 +97,8 @@ def plot_bar_comparison(folders, metric_filename, title, ylabel, output_file, is
         data = load_timeseries_data(filepath)
         
         if data:
-            # Use a stable 10s step size
-            step_size = 10
+            # Use a stable 1s step size over raw json data dumps
+            step_size = 1
             
             if is_integral:
                 # Calculate absolute total energy expended (Area under the curve)
@@ -468,8 +468,8 @@ def main():
         filepath = os.path.join(folder, 'memory_usage_timeseries.json')
         data = load_timeseries_data(filepath)
         if data:
-            # Use a stable 10s step size
-            step_size = 10
+            # Use a stable 1s step size over raw json data dumps
+            step_size = 1
             
             # Convert bytes to MB
             data_mb = [v / (1024 * 1024) for v in data]
