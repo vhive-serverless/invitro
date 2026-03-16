@@ -22,7 +22,8 @@ def load_timeseries_data(filepath):
                 # Return list of float values from the first result series
                 values = data['data']['result'][0]['values']
                 # values is a list of [timestamp, "value_string"]
-                return [float(v[1]) for v in values if v[1] != "NaN"]
+                parsed = [float(v[1]) for v in values if v[1] != "NaN"]
+                return parsed
         except (json.JSONDecodeError, KeyError, IndexError):
             pass
     return []
@@ -87,7 +88,7 @@ def plot_metric_comparison(folders, metric_filename, title, ylabel, output_file,
     plt.close()
     print(f"Generated {output_file}")
 
-def plot_bar_comparison(folders, metric_filename, title, ylabel, output_file, is_memory=False, is_average=False, is_integral=False):
+def plot_bar_comparison(folders, metric_filename, title, ylabel, output_file, is_memory=False, is_average=False, is_integral=False, is_peak=False):
     """Plot a grouped bar chart comparing the metric value across different pod counts."""
     data_map = {}
     
@@ -107,6 +108,9 @@ def plot_bar_comparison(folders, metric_filename, title, ylabel, output_file, is
             elif is_average:
                 # Calculate the overall average across the entire timeseries (Flawed for CPU, kept for Memory)
                 metric_value = sum(data) / len(data)
+            elif is_peak:
+                # Get the absolute maximum value recorded (ideal for latencies and percentiles)
+                metric_value = max(data)
             else:
                 # Take the average of the last 3 points to represent final stable state avoiding 1-sec spikes
                 metric_value = sum(data[-3:]) / len(data[-3:]) if len(data) >= 3 else data[-1]
@@ -155,7 +159,7 @@ def plot_bar_comparison(folders, metric_filename, title, ylabel, output_file, is
 
 
 def plot_total_duration_comparison(folders, output_file):
-    """Plot a grouped bar chart comparing the total scale-up time (excluding 30s buffer)."""
+    """Plot a grouped bar chart comparing the total scale-up time."""
     data_map = {}
     
     for folder in folders:
@@ -169,8 +173,8 @@ def plot_total_duration_comparison(folders, output_file):
                     start_time = int(sf.read().strip())
                     end_time = int(ef.read().strip())
                     
-                    # Subtract 30 seconds to exclude the trailing metric collection buffer
-                    duration = max(0, end_time - start_time - 30)
+                    # Calculate total duration directly
+                    duration = max(0, end_time - start_time)
                     
                     if replicas not in data_map:
                         data_map[replicas] = {}
@@ -194,7 +198,7 @@ def plot_total_duration_comparison(folders, output_file):
 
     ax.set_xlabel('Number of Pods', fontsize=12)
     ax.set_ylabel('Total Scale-up Duration (Seconds)', fontsize=12)
-    ax.set_title('Total Experiment Run Time (Excluding 30s Stabilization Buffer)', fontsize=14, pad=15)
+    ax.set_title('Total Experiment Run Time', fontsize=14, pad=15)
     ax.set_xticks(list(x))
     ax.set_xticklabels(sorted_replicas)
     ax.legend()
@@ -228,61 +232,7 @@ def plot_duration_line_trend(folders, output_file):
                 with open(start_file, 'r') as sf, open(end_file, 'r') as ef:
                     start_time = int(sf.read().strip())
                     end_time = int(ef.read().strip())
-                    duration = max(0, end_time - start_time - 30)
-                    
-                    if replicas not in data_map:
-                        data_map[replicas] = {}
-                    data_map[replicas][mode] = duration
-            except (ValueError, IOError):
-                pass
-            
-    if not data_map:
-        return
-
-    sorted_replicas = sorted(list(data_map.keys()))
-    iptables_vals = [data_map[r].get('iptables', None) for r in sorted_replicas]
-    nftables_vals = [data_map[r].get('nftables', None) for r in sorted_replicas]
-
-    plt.figure(figsize=(10, 6))
-    
-    ip_x = [r for r, v in zip(sorted_replicas, iptables_vals) if v is not None]
-    ip_y = [v for v in iptables_vals if v is not None]
-    nf_x = [r for r, v in zip(sorted_replicas, nftables_vals) if v is not None]
-    nf_y = [v for v in nftables_vals if v is not None]
-
-    if ip_x:
-        plt.plot(ip_x, ip_y, label='Iptables', color=COLORS.get('iptables'), marker='o', linestyle='--', linewidth=2, markersize=8)
-    if nf_x:
-        plt.plot(nf_x, nf_y, label='Nftables', color=COLORS.get('nftables'), marker='s', linestyle='-', linewidth=2, markersize=8)
-
-    plt.xlabel('Number of Pods', fontsize=12)
-    plt.ylabel('Total Scale-up Duration (Seconds)', fontsize=12)
-    plt.title('Scale-up Time vs Pod Count (Trend)', fontsize=14, pad=15)
-    plt.grid(True, linestyle='--', alpha=0.7)
-    plt.legend()
-    plt.xticks(sorted_replicas)
-    
-    plt.tight_layout()
-    plt.savefig(output_file, dpi=300)
-    plt.close()
-    print(f"Generated {output_file}")
-
-
-def plot_duration_line_trend(folders, output_file):
-    """Plot a line graph showing scaling trend of total duration vs pod count."""
-    data_map = {}
-    
-    for folder in folders:
-        mode, replicas = get_metadata(folder)
-        start_file = os.path.join(folder, 'deploy_start_timestamp.txt')
-        end_file = os.path.join(folder, 'deploy_end_timestamp.txt')
-        
-        if os.path.exists(start_file) and os.path.exists(end_file):
-            try:
-                with open(start_file, 'r') as sf, open(end_file, 'r') as ef:
-                    start_time = int(sf.read().strip())
-                    end_time = int(ef.read().strip())
-                    duration = max(0, end_time - start_time - 30)
+                    duration = max(0, end_time - start_time)
                     
                     if replicas not in data_map:
                         data_map[replicas] = {}
@@ -423,9 +373,10 @@ def main():
         )
         plot_bar_comparison(
             folders, f'sync_duration_{p_level}_timeseries.json',
-            f'Final Sync Duration by Pod Count ({title_suffix})', 
+            f'Maximum Sync Duration by Pod Count ({title_suffix})', 
             'Duration (Seconds)', 
-            os.path.join(args.output_dir, f'bar_sync_duration_{p_level}.png')
+            os.path.join(args.output_dir, f'bar_sync_duration_{p_level}.png'),
+            is_peak=True
         )
 
     # 2. CPU Usage (kube-proxy only)
@@ -519,9 +470,10 @@ def main():
         )
         plot_bar_comparison(
             folders, f'network_programming_{p_level}_timeseries.json',
-            f'Final Network Latency by Pod Count ({title_suffix})', 
+            f'Maximum Network Latency by Pod Count ({title_suffix})', 
             'Latency (Seconds)', 
-            os.path.join(args.output_dir, f'bar_network_programming_{p_level}.png')
+            os.path.join(args.output_dir, f'bar_network_programming_{p_level}.png'),
+            is_peak=True
         )
         
     # 4.5 KWOK Pod Spawning Latency
@@ -539,9 +491,10 @@ def main():
         )
         plot_bar_comparison(
             folders, f'kwok_pod_duration_{p_level}_timeseries.json',
-            f'Final KWOK Pod Spawning Duration by Pod Count ({title_suffix})', 
+            f'Maximum KWOK Pod Spawning Duration by Pod Count ({title_suffix})', 
             'Duration (Seconds)', 
-            os.path.join(args.output_dir, f'bar_kwok_pod_duration_{p_level}.png')
+            os.path.join(args.output_dir, f'bar_kwok_pod_duration_{p_level}.png'),
+            is_peak=True
         )
 
     # 5. Total Experiment Duration

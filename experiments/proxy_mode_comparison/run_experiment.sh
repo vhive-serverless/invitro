@@ -266,12 +266,6 @@ trickle_and_monitor() {
     echo -e "\n[$(date +%T)] Monitoring pod trickling and ultimate kube-proxy data-plane sync..."
     wait_for_settle "$target_replicas"
     
-    # We must add a grace period. Even though the proxy has FINISHED syncing in real-time,
-    # Prometheus TSDB evaluation needs to write this final state to its database before we query it.
-    # Without this, the query captures the start of the drop but cuts off exactly at the zero-point line!
-    echo "[$(date +%T)] Sleeping 30s as a concluding buffer to ensure Prometheus digests all trailing metrics..."
-    sleep 30
-    
     date +%s > "${result_dir}/deploy_end_timestamp.txt"
 }
 
@@ -296,11 +290,11 @@ collect_deployment_metrics() {
     query_prometheus_range 'histogram_quantile(0.50, sum by (le) (rate(kubeproxy_network_programming_duration_seconds_bucket[10s])))' "${result_dir}/network_programming_p50_timeseries.json" "$start_time" "$end_time" "$step"
     query_prometheus_range 'sum(rate(kubeproxy_network_programming_duration_seconds_sum[10s])) / sum(rate(kubeproxy_network_programming_duration_seconds_count[10s]) > 0)' "${result_dir}/network_programming_avg_timeseries.json" "$start_time" "$end_time" "$step"
 
-    # KWOK Pod Spawning metrics
-    query_prometheus_range 'histogram_quantile(0.99, sum by (le) (rate(workqueue_work_duration_seconds_bucket{name="pod"}[10s])))' "${result_dir}/kwok_pod_duration_p99_timeseries.json" "$start_time" "$end_time" "$step"
-    query_prometheus_range 'histogram_quantile(0.95, sum by (le) (rate(workqueue_work_duration_seconds_bucket{name="pod"}[10s])))' "${result_dir}/kwok_pod_duration_p95_timeseries.json" "$start_time" "$end_time" "$step"
-    query_prometheus_range 'histogram_quantile(0.50, sum by (le) (rate(workqueue_work_duration_seconds_bucket{name="pod"}[10s])))' "${result_dir}/kwok_pod_duration_p50_timeseries.json" "$start_time" "$end_time" "$step"
-    query_prometheus_range 'sum(rate(workqueue_work_duration_seconds_sum{name="pod"}[10s])) / sum(rate(workqueue_work_duration_seconds_count{name="pod"}[10s]) > 0)' "${result_dir}/kwok_pod_duration_avg_timeseries.json" "$start_time" "$end_time" "$step"
+    # KWOK Pod Spawning metrics (Using fuzzy match since workqueue name might be 'pods', 'pod_controller', etc.)
+    query_prometheus_range 'histogram_quantile(0.99, sum by (le) (rate(workqueue_work_duration_seconds_bucket{name=~".*pod.*"}[10s])))' "${result_dir}/kwok_pod_duration_p99_timeseries.json" "$start_time" "$end_time" "$step"
+    query_prometheus_range 'histogram_quantile(0.95, sum by (le) (rate(workqueue_work_duration_seconds_bucket{name=~".*pod.*"}[10s])))' "${result_dir}/kwok_pod_duration_p95_timeseries.json" "$start_time" "$end_time" "$step"
+    query_prometheus_range 'histogram_quantile(0.50, sum by (le) (rate(workqueue_work_duration_seconds_bucket{name=~".*pod.*"}[10s])))' "${result_dir}/kwok_pod_duration_p50_timeseries.json" "$start_time" "$end_time" "$step"
+    query_prometheus_range 'sum(rate(workqueue_work_duration_seconds_sum{name=~".*pod.*"}[10s])) / sum(rate(workqueue_work_duration_seconds_count{name=~".*pod.*"}[10s]) > 0)' "${result_dir}/kwok_pod_duration_avg_timeseries.json" "$start_time" "$end_time" "$step"
 
     query_prometheus_range 'sum(rate(process_cpu_seconds_total{job="kube-proxy"}[10s]))' "${result_dir}/cpu_usage_timeseries.json" "$start_time" "$end_time" "$step"
     
