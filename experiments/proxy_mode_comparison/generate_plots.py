@@ -423,32 +423,32 @@ def main():
             os.path.join(args.output_dir, f'bar_sync_duration_{p_level}.png')
         )
 
-    # 2. CPU Usage
+    # 2. CPU Usage (kube-proxy only)
     plot_metric_comparison(
         folders, 'cpu_usage_timeseries.json',
-        'Kube-Proxy CPU Consumption Rate', 
-        'CPU Cores', 
+        'Kube-Proxy Only - CPU Consumption Rate', 
+        'CPU Cores Consumed by Kube-Proxy', 
         os.path.join(args.output_dir, 'plot_cpu_usage.png')
     )
     plot_bar_comparison(
         folders, 'cpu_usage_timeseries.json',
-        'Total CPU Seconds Consumed by Pod Count (Absolute Cost)', 
-        'Total CPU-Seconds Expended', 
+        'Kube-Proxy Only - Total CPU Seconds Consumed', 
+        'Total CPU-Seconds Expended by Kube-Proxy', 
         os.path.join(args.output_dir, 'bar_cpu_usage.png'),
         is_integral=True
     )
     
-    # 2.5 Overall System CPU Usage
+    # 2.5 Overall System CPU Usage (Node Level)
     plot_metric_comparison(
         folders, 'overall_cpu_usage_timeseries.json',
-        'Overall System CPU Utilization', 
-        'CPU Utilization (%)', 
+        'System Wide - Overall Node CPU Utilization', 
+        'Total Node CPU Utilization (%)', 
         os.path.join(args.output_dir, 'plot_overall_cpu_usage.png')
     )
     plot_bar_comparison(
         folders, 'overall_cpu_usage_timeseries.json',
-        'Average Overall CPU Utilization by Pod Count', 
-        'Average CPU Utilization (%)', 
+        'System Wide - Average Node CPU Utilization by Pod Count', 
+        'Average Total Node CPU Utilization (%)', 
         os.path.join(args.output_dir, 'bar_overall_cpu_usage.png'),
         is_average=True
     )
