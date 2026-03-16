@@ -409,16 +409,21 @@ def main():
     os.makedirs(args.output_dir, exist_ok=True)
 
     # 1. Sync Duration (The core metric)
-    for p_level in ['p99', 'p95', 'p50']:
+    for p_level in ['p99', 'p95', 'p50', 'avg']:
+        if p_level == 'avg':
+            title_suffix = 'Average'
+        else:
+            title_suffix = f'{p_level.replace("p","")}th Percentile'
+            
         plot_metric_comparison(
             folders, f'sync_duration_{p_level}_timeseries.json',
-            f'Kube-Proxy Rule Sync Duration Per Cycle ({p_level.replace("p","")}th Percentile)', 
+            f'Kube-Proxy Rule Sync Duration Per Cycle ({title_suffix})', 
             'Duration (Seconds)', 
             os.path.join(args.output_dir, f'plot_sync_duration_{p_level}.png')
         )
         plot_bar_comparison(
             folders, f'sync_duration_{p_level}_timeseries.json',
-            f'Final Sync Duration by Pod Count ({p_level.replace("p","")}th Percentile)', 
+            f'Final Sync Duration by Pod Count ({title_suffix})', 
             'Duration (Seconds)', 
             os.path.join(args.output_dir, f'bar_sync_duration_{p_level}.png')
         )
@@ -500,31 +505,41 @@ def main():
     )
 
     # 4. Network Programming Latency
-    for p_level in ['p99', 'p95', 'p50']:
+    for p_level in ['p99', 'p95', 'p50', 'avg']:
+        if p_level == 'avg':
+            title_suffix = 'Average'
+        else:
+            title_suffix = f'{p_level.replace("p","")}th Percentile'
+            
         plot_metric_comparison(
             folders, f'network_programming_{p_level}_timeseries.json',
-            f'End-to-End Network Programming Latency ({p_level.replace("p","")}th Percentile)', 
+            f'End-to-End Network Programming Latency ({title_suffix})', 
             'Latency (Seconds)', 
             os.path.join(args.output_dir, f'plot_network_programming_{p_level}.png')
         )
         plot_bar_comparison(
             folders, f'network_programming_{p_level}_timeseries.json',
-            f'Final Network Latency by Pod Count ({p_level.replace("p","")}th Percentile)', 
+            f'Final Network Latency by Pod Count ({title_suffix})', 
             'Latency (Seconds)', 
             os.path.join(args.output_dir, f'bar_network_programming_{p_level}.png')
         )
         
     # 4.5 KWOK Pod Spawning Latency
-    for p_level in ['p99', 'p95', 'p50']:
+    for p_level in ['p99', 'p95', 'p50', 'avg']:
+        if p_level == 'avg':
+            title_suffix = 'Average'
+        else:
+            title_suffix = f'{p_level.replace("p","")}th Percentile'
+            
         plot_metric_comparison(
             folders, f'kwok_pod_duration_{p_level}_timeseries.json',
-            f'KWOK Pod Spawning Duration ({p_level.replace("p","")}th Percentile)', 
+            f'KWOK Pod Spawning Duration ({title_suffix})', 
             'Duration (Seconds)', 
             os.path.join(args.output_dir, f'plot_kwok_pod_duration_{p_level}.png')
         )
         plot_bar_comparison(
             folders, f'kwok_pod_duration_{p_level}_timeseries.json',
-            f'Final KWOK Pod Spawning Duration by Pod Count ({p_level.replace("p","")}th Percentile)', 
+            f'Final KWOK Pod Spawning Duration by Pod Count ({title_suffix})', 
             'Duration (Seconds)', 
             os.path.join(args.output_dir, f'bar_kwok_pod_duration_{p_level}.png')
         )
