@@ -254,8 +254,13 @@ trickle_and_monitor() {
     
     for (( i=1; i<=trickle_count; i++ )); do
         local current=$((base_replicas + i))
-        echo "[$(date +%T)]   Trickling pod ${i}/${trickle_count} (Scale target: ${current})..."
-        kubectl scale deployment massive-scale-deployment --replicas="${current}"
+        
+        # Batch the logging to print only every 10 pods, the first, and the last pod
+        if (( i == 1 || i == trickle_count || i % 10 == 0 )); then
+            echo "[$(date +%T)]   Trickling pod ${i}/${trickle_count} (Scale target: ${current})..."
+        fi
+        
+        kubectl scale deployment massive-scale-deployment --replicas="${current}" >/dev/null 2>&1
         sleep "${trickle_delay}"
     done
     
@@ -320,6 +325,11 @@ generate_iteration_summary() {
     local trickle_count="$3"
     echo "[$(date +%T)] Generating iteration summary..."
     
+    local start_ts=$(cat "${result_dir}/deploy_start_timestamp.txt" 2>/dev/null || echo 0)
+    local end_ts=$(cat "${result_dir}/deploy_end_timestamp.txt" 2>/dev/null || echo 0)
+    local start_time_fmt=$(date -d "@${start_ts}" 2>/dev/null || echo "N/A")
+    local end_time_fmt=$(date -d "@${end_ts}" 2>/dev/null || echo "N/A")
+
     cat > "${result_dir}/SUMMARY.md" <<EOF
 # Kube-Proxy Mode Comparison - Baseline ${base_replicas} + Trickle ${trickle_count}
 
@@ -329,8 +339,8 @@ generate_iteration_summary() {
 - **Trickle Pods Added**: ${trickle_count}
 - **Final Replicas**: $((base_replicas + trickle_count))
 - **Duration**: Dynamic (until pods ready + settle buffer)
-- **Start Time**: $(date -d @\$(cat ${result_dir}/deploy_start_timestamp.txt 2>/dev/null || echo 0) 2>/dev/null || echo "N/A")
-- **End Time**: \$(date -d @\$(cat ${result_dir}/deploy_end_timestamp.txt 2>/dev/null || echo 0) 2>/dev/null || echo "N/A")
+- **Start Time**: ${start_time_fmt}
+- **End Time**: ${end_time_fmt}
 
 ## Collected Metrics
 Check the JSON files in this directory for timeseries data regarding:
