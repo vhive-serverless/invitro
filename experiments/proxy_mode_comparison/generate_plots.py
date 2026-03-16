@@ -437,6 +437,21 @@ def main():
         os.path.join(args.output_dir, 'bar_cpu_usage.png'),
         is_integral=True
     )
+    
+    # 2.5 Overall System CPU Usage
+    plot_metric_comparison(
+        folders, 'overall_cpu_usage_timeseries.json',
+        'Overall System CPU Utilization', 
+        'CPU Utilization (%)', 
+        os.path.join(args.output_dir, 'plot_overall_cpu_usage.png')
+    )
+    plot_bar_comparison(
+        folders, 'overall_cpu_usage_timeseries.json',
+        'Average Overall CPU Utilization by Pod Count', 
+        'Average CPU Utilization (%)', 
+        os.path.join(args.output_dir, 'bar_overall_cpu_usage.png'),
+        is_average=True
+    )
 
     # 3. Memory Usage
     # For memory, we convert Bytes to Megabytes
@@ -499,6 +514,21 @@ def main():
             os.path.join(args.output_dir, f'bar_network_programming_{p_level}.png')
         )
         
+    # 4.5 KWOK Pod Spawning Latency
+    for p_level in ['p99', 'p95', 'p50']:
+        plot_metric_comparison(
+            folders, f'kwok_pod_duration_{p_level}_timeseries.json',
+            f'KWOK Pod Spawning Duration ({p_level.replace("p","")}th Percentile)', 
+            'Duration (Seconds)', 
+            os.path.join(args.output_dir, f'plot_kwok_pod_duration_{p_level}.png')
+        )
+        plot_bar_comparison(
+            folders, f'kwok_pod_duration_{p_level}_timeseries.json',
+            f'Final KWOK Pod Spawning Duration by Pod Count ({p_level.replace("p","")}th Percentile)', 
+            'Duration (Seconds)', 
+            os.path.join(args.output_dir, f'bar_kwok_pod_duration_{p_level}.png')
+        )
+
     # 5. Total Experiment Duration
     plot_total_duration_comparison(
         folders, 

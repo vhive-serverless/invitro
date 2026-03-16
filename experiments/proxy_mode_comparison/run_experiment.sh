@@ -12,8 +12,10 @@ set -euo pipefail
 MODE=""
 PROMETHEUS_URL="http://localhost:9090"
 OUTPUT_DIR="./results"
-REPLICA_ITERATIONS=(100 300 1000 5000 10000 20000 30000)
+REPLICA_ITERATIONS=(0 100 1000 5000 10000 20000 30000)
 CLEANUP_WAIT=60
+TRICKLE_COUNT=60
+TRICKLE_DELAY=1
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 COMBINED_YAML="${SCRIPT_DIR}/massive-scale.yaml"
 
@@ -24,6 +26,8 @@ while [[ $# -gt 0 ]]; do
         --prometheus-url) PROMETHEUS_URL="$2"; shift 2 ;;
         --output-dir) OUTPUT_DIR="$2"; shift 2 ;;
         --cleanup-wait) CLEANUP_WAIT="$2"; shift 2 ;;
+        --trickle-count) TRICKLE_COUNT="$2"; shift 2 ;;
+        --trickle-delay) TRICKLE_DELAY="$2"; shift 2 ;;
         *) echo "Unknown option: $1"; exit 1 ;;
     esac
 done
@@ -51,8 +55,9 @@ echo "Kube-Proxy Mode Comparison Experiment"
 echo "========================================"
 echo "Mode:            $MODE"
 echo "Iterations:      ${REPLICA_ITERATIONS[*]}"
-echo "Architecture:    Continuous Staircase (Service persists across scales)"
-echo "Methodology:     Measures incremental kube-proxy updates (constant delta)"
+echo "Architecture:    Incremental Trickle (Baseline + Trickle Scale)"
+echo "Methodology:     Isolates rule update latency at massive scale sizes"
+echo "Trickle Info:    Adds ${TRICKLE_COUNT} pods, 1 pod every ${TRICKLE_DELAY}s"
 echo "Prometheus URL:  $PROMETHEUS_URL"
 echo "Output Dir:      $BASE_RESULT_DIR"
 echo "========================================"
@@ -160,32 +165,19 @@ collect_baseline_metrics() {
     local result_dir="$1"
     echo -e "\n[$(date +%T)] Collecting baseline metrics..."
     query_prometheus 'sum(rate(process_cpu_seconds_total{job="kube-proxy"}[1m]))' "${result_dir}/baseline_cpu.json"
+    query_prometheus '(sum(rate(node_cpu_seconds_total{mode!="idle"}[1m])) / sum(rate(node_cpu_seconds_total[1m]))) * 100' "${result_dir}/baseline_overall_cpu.json"
     query_prometheus 'sum(process_resident_memory_bytes{job="kube-proxy"})' "${result_dir}/baseline_memory.json"
     query_prometheus 'count(kube_pod_info)' "${result_dir}/baseline_pod_count.json"
     query_prometheus 'count(kube_service_info)' "${result_dir}/baseline_service_count.json"
 }
 
-scale_and_monitor() {
+wait_for_settle() {
     local target_replicas="$1"
-    local result_dir="$2"
-    
-    echo -e "\n[$(date +%T)] PHASE: DATA-PLANE SCALING (RELATIVE BASELINE)"
-    
-    # Start the clock EXACTLY before applying the components
-    local deploy_start=$(date +%s)
-    echo "$deploy_start" > "${result_dir}/deploy_start_timestamp.txt"
-    
-    echo "[$(date +%T)] Applying Combined YAML to update replicas: ${target_replicas}..."
-    sed "s/replicas: .*/replicas: ${target_replicas}/" "${COMBINED_YAML}" > "${result_dir}/massive-scale.yaml"
-    kubectl apply -f "${result_dir}/massive-scale.yaml"
-    
     local timeout=3600 # 60 mins hard safety
     local end_time=$(($(date +%s) + timeout))
     local interval=5
     local settle_count=0
     local settling_phase="false"
-    
-    echo -e "\n[$(date +%T)] Monitoring pod creation and kube-proxy data-plane sync simultaneously..."
     
     while [[ $(date +%s) -lt $end_time ]]; do
         local pods_ready=$(kubectl get deployment massive-scale-deployment -o jsonpath='{.status.readyReplicas}' 2>/dev/null || echo "0")
@@ -194,17 +186,16 @@ scale_and_monitor() {
         local endpoints=$(kubectl get endpointslices -l kubernetes.io/service-name=massive-scale-service -o jsonpath='{.items[*].endpoints[*].addresses[*]}' 2>/dev/null | wc -w || echo "0")
         
         if [[ "$settling_phase" == "false" ]]; then
-            echo "[$(date +%T)] Pods: ${pods_ready}/${target_replicas} | Endpoints: ${endpoints}/${target_replicas}"
+            echo "[$(date +%T)]   Pods: ${pods_ready}/${target_replicas} | Endpoints: ${endpoints}/${target_replicas}"
         fi
         
         if [[ "$pods_ready" -ge "$target_replicas" ]] && [[ "$endpoints" -ge "$target_replicas" ]]; then
             if [[ "$settling_phase" == "false" ]]; then
-                echo "[$(date +%T)] Target rules submitted to API! Dynamically monitoring kube-proxy CPU to detect sync completion..."
+                echo "[$(date +%T)]   Target rules submitted! Dynamically monitoring kube-proxy CPU to detect sync completion..."
                 settling_phase="true"
             fi
             
             # Query Prometheus for proxy sync count using a 5s rate window
-            # If the rate is > 0, it means kube-proxy is actively flushing sync cycles
             local sync_query='sum(rate(kubeproxy_sync_proxy_rules_duration_seconds_count[5s]))'
             local response=$(curl -s -G "${PROMETHEUS_URL}/api/v1/query" --data-urlencode "query=${sync_query}" 2>/dev/null || echo "")
             
@@ -218,13 +209,13 @@ scale_and_monitor() {
             local is_syncing=$(awk -v rate="$current_sync_rate" 'BEGIN { if (rate > 0.05) print "1"; else print "0" }')
             
             if [[ "$is_syncing" == "1" ]]; then
-                echo "[$(date +%T)] kube-proxy still syncing rules (Sync Rate: ${current_sync_rate} syncs/sec). Waiting..."
+                echo "[$(date +%T)]   kube-proxy still syncing rules (Sync Rate: ${current_sync_rate} syncs/sec). Waiting..."
                 settle_count=0
             else
                 settle_count=$((settle_count + 1))
-                echo "[$(date +%T)] kube-proxy sync rate dropping (Sync Rate: ${current_sync_rate} syncs/sec). Settling... (${settle_count}/2)"
+                echo "[$(date +%T)]   kube-proxy sync rate dropping (Sync Rate: ${current_sync_rate} syncs/sec). Settling... (${settle_count}/2)"
                 if [[ "$settle_count" -ge 2 ]]; then
-                    echo "[$(date +%T)] kube-proxy has fully settled! Data plane sync complete."
+                    echo "[$(date +%T)]   kube-proxy has fully settled! Data plane sync complete."
                     sleep 5 # Brief buffer to ensure Prometheus scraped the final drop
                     break
                 fi
@@ -233,6 +224,43 @@ scale_and_monitor() {
         
         sleep $interval
     done
+}
+
+preload_baseline() {
+    local target_replicas="$1"
+    
+    echo -e "\n[$(date +%T)] PHASE 1: PRE-LOADING BASELINE (${target_replicas} REPLICAS)"
+    
+    sed "s/replicas: .*/replicas: ${target_replicas}/" "${COMBINED_YAML}" > "/tmp/massive-scale-preload.yaml"
+    kubectl apply -f "/tmp/massive-scale-preload.yaml"
+    
+    echo "[$(date +%T)] Waiting for baseline pods and endpoints to settle..."
+    wait_for_settle "$target_replicas"
+    
+    echo "[$(date +%T)] Baseline of ${target_replicas} pods successfully established and settled."
+}
+
+trickle_and_monitor() {
+    local base_replicas="$1"
+    local trickle_count="$2"
+    local trickle_delay="$3"
+    local result_dir="$4"
+    local target_replicas=$((base_replicas + trickle_count))
+    
+    echo -e "\n[$(date +%T)] PHASE 2: DATA-PLANE TRICKLE (Adding ${trickle_count} pods at 1 per ${trickle_delay}s)"
+    
+    local deploy_start=$(date +%s)
+    echo "$deploy_start" > "${result_dir}/deploy_start_timestamp.txt"
+    
+    for (( i=1; i<=trickle_count; i++ )); do
+        local current=$((base_replicas + i))
+        echo "[$(date +%T)]   Trickling pod ${i}/${trickle_count} (Scale target: ${current})..."
+        kubectl scale deployment massive-scale-deployment --replicas="${current}"
+        sleep "${trickle_delay}"
+    done
+    
+    echo -e "\n[$(date +%T)] Monitoring pod trickling and ultimate kube-proxy data-plane sync..."
+    wait_for_settle "$target_replicas"
     
     date +%s > "${result_dir}/deploy_end_timestamp.txt"
 }
@@ -254,7 +282,14 @@ collect_deployment_metrics() {
     query_prometheus_range 'histogram_quantile(0.99, sum by (le) (rate(kubeproxy_network_programming_duration_seconds_bucket[1m])))' "${result_dir}/network_programming_p99_timeseries.json" "$start_time" "$end_time" "$step"
     query_prometheus_range 'histogram_quantile(0.95, sum by (le) (rate(kubeproxy_network_programming_duration_seconds_bucket[1m])))' "${result_dir}/network_programming_p95_timeseries.json" "$start_time" "$end_time" "$step"
     query_prometheus_range 'histogram_quantile(0.50, sum by (le) (rate(kubeproxy_network_programming_duration_seconds_bucket[1m])))' "${result_dir}/network_programming_p50_timeseries.json" "$start_time" "$end_time" "$step"
+
+    # KWOK Pod Spawning metrics
+    query_prometheus_range 'histogram_quantile(0.99, sum by (le) (rate(workqueue_work_duration_seconds_bucket{name="pod"}[1m])))' "${result_dir}/kwok_pod_duration_p99_timeseries.json" "$start_time" "$end_time" "$step"
+    query_prometheus_range 'histogram_quantile(0.95, sum by (le) (rate(workqueue_work_duration_seconds_bucket{name="pod"}[1m])))' "${result_dir}/kwok_pod_duration_p95_timeseries.json" "$start_time" "$end_time" "$step"
+    query_prometheus_range 'histogram_quantile(0.50, sum by (le) (rate(workqueue_work_duration_seconds_bucket{name="pod"}[1m])))' "${result_dir}/kwok_pod_duration_p50_timeseries.json" "$start_time" "$end_time" "$step"
+
     query_prometheus_range 'sum(rate(process_cpu_seconds_total{job="kube-proxy"}[1m]))' "${result_dir}/cpu_usage_timeseries.json" "$start_time" "$end_time" "$step"
+    query_prometheus_range '(sum(rate(node_cpu_seconds_total{mode!="idle"}[1m])) / sum(rate(node_cpu_seconds_total[1m]))) * 100' "${result_dir}/overall_cpu_usage_timeseries.json" "$start_time" "$end_time" "$step"
     query_prometheus_range 'sum(process_resident_memory_bytes{job="kube-proxy"})' "${result_dir}/memory_usage_timeseries.json" "$start_time" "$end_time" "$step"
     query_prometheus_range 'histogram_quantile(0.99, sum by (le) (rate(apiserver_request_duration_seconds_bucket{verb=~"POST|PUT|PATCH",resource=~"endpoints.*"}[1m])))' "${result_dir}/apiserver_latency_p99_timeseries.json" "$start_time" "$end_time" "$step"
     query_prometheus_range 'sum(rate(kubeproxy_sync_proxy_rules_duration_seconds_count[1m]))' "${result_dir}/sync_count_timeseries.json" "$start_time" "$end_time" "$step"
@@ -281,24 +316,29 @@ collect_cluster_state() {
 
 generate_iteration_summary() {
     local result_dir="$1"
-    local replicas="$2"
+    local base_replicas="$2"
+    local trickle_count="$3"
     echo "[$(date +%T)] Generating iteration summary..."
     
     cat > "${result_dir}/SUMMARY.md" <<EOF
-# Kube-Proxy Mode Comparison - ${replicas} Replicas
+# Kube-Proxy Mode Comparison - Baseline ${base_replicas} + Trickle ${trickle_count}
 
 ## Experiment Configuration
 - **Mode**: $MODE
-- **Replicas**: $replicas
-- **Duration**: Dynamic (until target pods are ready + 30s buffer)
-- **Start Time**: $(date -d @$(cat ${result_dir}/deploy_start_timestamp.txt 2>/dev/null || echo 0) 2>/dev/null || echo "N/A")
-- **End Time**: $(date -d @$(cat ${result_dir}/deploy_end_timestamp.txt 2>/dev/null || echo 0) 2>/dev/null || echo "N/A")
+- **Baseline Replicas**: ${base_replicas}
+- **Trickle Pods Added**: ${trickle_count}
+- **Final Replicas**: $((base_replicas + trickle_count))
+- **Duration**: Dynamic (until pods ready + settle buffer)
+- **Start Time**: $(date -d @\$(cat ${result_dir}/deploy_start_timestamp.txt 2>/dev/null || echo 0) 2>/dev/null || echo "N/A")
+- **End Time**: \$(date -d @\$(cat ${result_dir}/deploy_end_timestamp.txt 2>/dev/null || echo 0) 2>/dev/null || echo "N/A")
 
 ## Collected Metrics
 Check the JSON files in this directory for timeseries data regarding:
 - Sync Duration (p99, p95, p50)
 - Network Programming Latency (p99, p95, p50)
-- CPU and Memory Consumption
+- KWOK Pod Spawning Duration (p99, p95, p50)
+- Kube-Proxy CPU & Overall CPU Consumption
+- Memory Consumption
 - API Server Latency
 EOF
 }
@@ -331,24 +371,27 @@ EOF
 }
 
 run_iteration() {
-    local replicas="$1"
+    local base_replicas="$1"
     local prev_replicas="$2"
     local iter_num="$3"
     local total_iters="$4"
     
     echo -e "\n========================================"
-    echo "Iteration ${iter_num}/${total_iters}: Scaling from ${prev_replicas} to ${replicas} (Relative Baseline)"
+    echo "Iteration ${iter_num}/${total_iters}: Baseline ${base_replicas} (Trickling ${TRICKLE_COUNT} pods at 1 per ${TRICKLE_DELAY}s)"
     echo "========================================"
     
-    local iter_dir="${BASE_RESULT_DIR}/replicas_${replicas}"
+    local iter_dir="${BASE_RESULT_DIR}/replicas_${base_replicas}"
     mkdir -p "$iter_dir"
     
+    preload_baseline "$base_replicas"
     collect_baseline_metrics "$iter_dir"
-    scale_and_monitor "$replicas" "$iter_dir"
     
-    collect_deployment_metrics "$iter_dir" "$replicas"
+    trickle_and_monitor "$base_replicas" "$TRICKLE_COUNT" "$TRICKLE_DELAY" "$iter_dir"
+    
+    local final_replicas=$((base_replicas + TRICKLE_COUNT))
+    collect_deployment_metrics "$iter_dir" "$final_replicas"
     collect_cluster_state "$iter_dir"
-    generate_iteration_summary "$iter_dir" "$replicas"
+    generate_iteration_summary "$iter_dir" "$base_replicas" "$TRICKLE_COUNT"
     
     echo "[$(date +%T)] Iteration ${iter_num}/${total_iters} complete. Keeping resources active for next phase."
 }
@@ -377,11 +420,11 @@ main() {
     echo "All Iterations Complete!"
     echo "Results saved to: $BASE_RESULT_DIR"
     echo "========================================"
-    echo "Organic Bundled Methodology:"
+    echo "Incremental Trickle Methodology:"
     echo "  - Service and Deployment are actively paired."
-    echo "  - Replicas are scaled up normally using kubectl apply."
-    echo "  - Endpoints trickle in organically, simulating real autoscaling."
-    echo "  - Accurately captures iptables CPU thrashing and rule-cycle duration."
+    echo "  - Baseline pods are pre-loaded to establish scale."
+    echo "  - Additional trickle pods are slowly added (1 per ${TRICKLE_DELAY}s)."
+    echo "  - Exactly captures isolated incremental cost at massive scale sizes."
     echo "========================================"
 }
 
