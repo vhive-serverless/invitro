@@ -256,6 +256,9 @@ trickle_and_monitor() {
     for (( i=1; i<=trickle_count; i++ )); do
         local current=$((base_replicas + i))
         
+        # Incrementally scale the deployment by 1
+        kubectl scale deployment massive-scale-deployment --replicas="${current}" > /dev/null
+        
         # Wait long enough to guarantee PromQL captures the trickle before moving to next point
         sleep "${trickle_delay}"
     done
