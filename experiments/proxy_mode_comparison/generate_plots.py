@@ -45,7 +45,7 @@ def get_metadata(folder_path):
         
     return mode, int(replicas) if replicas.isdigit() else 0
 
-def plot_metric_comparison(folders, metric_filename, title, ylabel, output_file, is_timeseries=True):
+def plot_metric_comparison(folders, metric_filename, title, ylabel, output_file, is_timeseries=True, multiplier=1.0):
     """Plot timeseries data comparing iptables vs nftables for a specific metric"""
     plt.figure(figsize=(12, 7))
     
@@ -64,6 +64,10 @@ def plot_metric_comparison(folders, metric_filename, title, ylabel, output_file,
         data = load_timeseries_data(filepath)
         
         if data:
+            # Apply optional multiplier (e.g. converting core counts into percentages)
+            if multiplier != 1.0:
+                data = [v * multiplier for v in data]
+                
             # Use a stable 1s step size over raw json data dumps
             step_size = 1
             
@@ -88,7 +92,7 @@ def plot_metric_comparison(folders, metric_filename, title, ylabel, output_file,
     plt.close()
     print(f"Generated {output_file}")
 
-def plot_bar_comparison(folders, metric_filename, title, ylabel, output_file, is_memory=False, is_average=False, is_integral=False, is_peak=False):
+def plot_bar_comparison(folders, metric_filename, title, ylabel, output_file, is_memory=False, is_average=False, is_integral=False, is_peak=False, multiplier=1.0):
     """Plot a grouped bar chart comparing the metric value across different pod counts."""
     data_map = {}
     
@@ -98,6 +102,10 @@ def plot_bar_comparison(folders, metric_filename, title, ylabel, output_file, is
         data = load_timeseries_data(filepath)
         
         if data:
+            # Apply optional multiplier (e.g. converting core counts into percentages for total system usage)
+            if multiplier != 1.0:
+                data = [v * multiplier for v in data]
+                
             # Use a stable 1s step size over raw json data dumps
             step_size = 1
             
@@ -198,7 +206,7 @@ def plot_total_duration_comparison(folders, output_file):
 
     ax.set_xlabel('Number of Pods', fontsize=12)
     ax.set_ylabel('Total Scale-up Duration (Seconds)', fontsize=12)
-    ax.set_title('Total Experiment Run Time', fontsize=14, pad=15)
+    ax.set_title('Total Experiment Scale-up Duration vs Pod Count', fontsize=14, pad=15)
     ax.set_xticks(list(x))
     ax.set_xticklabels(sorted_replicas)
     ax.legend()
@@ -261,73 +269,11 @@ def plot_duration_line_trend(folders, output_file):
 
     plt.xlabel('Number of Pods', fontsize=12)
     plt.ylabel('Total Scale-up Duration (Seconds)', fontsize=12)
-    plt.title('Scale-up Time vs Pod Count (Trend)', fontsize=14, pad=15)
+    plt.title('Scale-up Phase Total Duration vs Pod Count (Trend)', fontsize=14, pad=15)
     plt.grid(True, linestyle='--', alpha=0.7)
     plt.legend()
     plt.xticks(sorted_replicas)
     
-    plt.tight_layout()
-    plt.savefig(output_file, dpi=300)
-    plt.close()
-    print(f"Generated {output_file}")
-
-
-def plot_throughput_efficiency(folders, output_file):
-    """Plot CPU Cost per Sync (CPU Cores / Syncs per second) acting as an efficiency metric."""
-    data_map = {}
-    
-    for folder in folders:
-        mode, replicas = get_metadata(folder)
-        cpu_file = os.path.join(folder, 'cpu_usage_timeseries.json')
-        sync_count_file = os.path.join(folder, 'sync_count_timeseries.json')
-        
-        cpu_data = load_timeseries_data(cpu_file)
-        sync_data = load_timeseries_data(sync_count_file)
-        
-        # Only process if both metrics exist and have data
-        if cpu_data and sync_data:
-            # Match lengths in case arrays slightly differ
-            min_len = min(len(cpu_data), len(sync_data))
-            
-            efficiencies = []
-            for i in range(min_len):
-                cpu = cpu_data[i]
-                syncs = sync_data[i]
-                # Avoid division by zero when proxy is completely idle
-                if syncs > 0:
-                    efficiencies.append(cpu / syncs)
-                    
-            if efficiencies:
-                # Average the efficiency over the active period
-                avg_efficiency = sum(efficiencies) / len(efficiencies)
-                
-                if replicas not in data_map:
-                    data_map[replicas] = {}
-                data_map[replicas][mode] = avg_efficiency
-                
-    if not data_map:
-        print("Skipping Throughput Efficiency - missing CPU or Sync Count json files.")
-        return
-
-    sorted_replicas = sorted(list(data_map.keys()))
-    iptables_vals = [data_map[r].get('iptables', 0) for r in sorted_replicas]
-    nftables_vals = [data_map[r].get('nftables', 0) for r in sorted_replicas]
-
-    x = range(len(sorted_replicas))
-    width = 0.35
-
-    fig, ax = plt.subplots(figsize=(10, 6))
-    ax.bar([i - width/2 for i in x], iptables_vals, width, label='Iptables', color=COLORS.get('iptables'), alpha=0.9)
-    ax.bar([i + width/2 for i in x], nftables_vals, width, label='Nftables', color=COLORS.get('nftables'), alpha=0.9)
-
-    ax.set_xlabel('Number of Pods', fontsize=12)
-    ax.set_ylabel('CPU Cores per 1 Sync/sec', fontsize=12)
-    ax.set_title('CPU Cost per Sync (Throughput Efficiency)', fontsize=14, pad=15)
-    ax.set_xticks(list(x))
-    ax.set_xticklabels(sorted_replicas)
-    ax.legend()
-    ax.grid(True, axis='y', linestyle='--', alpha=0.7)
-
     plt.tight_layout()
     plt.savefig(output_file, dpi=300)
     plt.close()
@@ -367,28 +313,28 @@ def main():
             
         plot_metric_comparison(
             folders, f'sync_duration_{p_level}_timeseries.json',
-            f'Kube-Proxy Rule Sync Duration Per Cycle ({title_suffix})', 
+            f'Kube-Proxy Rule Sync Duration ({title_suffix}, 10s Sliding Window)', 
             'Duration (Seconds)', 
             os.path.join(args.output_dir, f'plot_sync_duration_{p_level}.png')
         )
         plot_bar_comparison(
             folders, f'sync_duration_{p_level}_timeseries.json',
-            f'Maximum Sync Duration by Pod Count ({title_suffix})', 
+            f'Kube-Proxy Average Rule Sync Duration vs Pod Count ({title_suffix})', 
             'Duration (Seconds)', 
             os.path.join(args.output_dir, f'bar_sync_duration_{p_level}.png'),
-            is_peak=True
+            is_average=True
         )
 
     # 2. CPU Usage (kube-proxy only)
     plot_metric_comparison(
         folders, 'cpu_usage_timeseries.json',
-        'Kube-Proxy Only - CPU Consumption Rate', 
+        'Kube-Proxy CPU Core Usage Rate (10s Sliding Window)', 
         'CPU Cores Consumed by Kube-Proxy', 
         os.path.join(args.output_dir, 'plot_cpu_usage.png')
     )
     plot_bar_comparison(
         folders, 'cpu_usage_timeseries.json',
-        'Kube-Proxy Only - Total CPU Seconds Consumed', 
+        'Kube-Proxy Total CPU-Seconds Consumed vs Pod Count', 
         'Total CPU-Seconds Expended by Kube-Proxy', 
         os.path.join(args.output_dir, 'bar_cpu_usage.png'),
         is_integral=True
@@ -397,16 +343,18 @@ def main():
     # 2.5 Overall System CPU Usage (Node Level)
     plot_metric_comparison(
         folders, 'overall_cpu_usage_timeseries.json',
-        'System Wide - Overall Node CPU Utilization', 
-        'Total Node CPU Utilization (%)', 
-        os.path.join(args.output_dir, 'plot_overall_cpu_usage.png')
+        'System-Wide Active Node CPU Cores (30s Sliding Window)', 
+        'Total Active Node CPU Cores', 
+        os.path.join(args.output_dir, 'plot_overall_cpu_usage.png'),
+        multiplier=1.0 # The bash script returns raw cores natively, do not multiply to fake a percentage. 17 cores = 17 raw cores.
     )
     plot_bar_comparison(
         folders, 'overall_cpu_usage_timeseries.json',
-        'System Wide - Average Node CPU Utilization by Pod Count', 
-        'Average Total Node CPU Utilization (%)', 
+        'System-Wide Average Active Node CPU Cores vs Pod Count', 
+        'Average Active Node CPU Cores', 
         os.path.join(args.output_dir, 'bar_overall_cpu_usage.png'),
-        is_average=True
+        is_average=True,
+        multiplier=1.0
     )
 
     # 3. Memory Usage
@@ -435,7 +383,7 @@ def main():
             plotted_mem = True
             
     if plotted_mem:
-        plt.title('Kube-Proxy Memory Consumption', fontsize=14, pad=15)
+        plt.title('Kube-Proxy Resident Memory Consumption', fontsize=14, pad=15)
         plt.xlabel('Time (seconds since start)', fontsize=12)
         plt.ylabel('Memory (MB)', fontsize=12)
         plt.legend(loc='best')
@@ -449,7 +397,7 @@ def main():
         
     plot_bar_comparison(
         folders, 'memory_usage_timeseries.json',
-        'Final Stable Memory Consumption by Pod Count', 
+        'Kube-Proxy Final Stable Resident Memory vs Pod Count', 
         'Memory (MB)', 
         os.path.join(args.output_dir, 'bar_memory_usage.png'),
         is_memory=True
@@ -464,16 +412,16 @@ def main():
             
         plot_metric_comparison(
             folders, f'network_programming_{p_level}_timeseries.json',
-            f'End-to-End Network Programming Latency ({title_suffix})', 
+            f'Kube-Proxy End-to-End Network Programming Latency ({title_suffix}, 10s Sliding Window)', 
             'Latency (Seconds)', 
             os.path.join(args.output_dir, f'plot_network_programming_{p_level}.png')
         )
         plot_bar_comparison(
             folders, f'network_programming_{p_level}_timeseries.json',
-            f'Maximum Network Latency by Pod Count ({title_suffix})', 
-            'Latency (Seconds)', 
+            f'Kube-Proxy Average Network Latency vs Pod Count ({title_suffix})', 
+            'Duration (Seconds)', 
             os.path.join(args.output_dir, f'bar_network_programming_{p_level}.png'),
-            is_peak=True
+            is_average=True
         )
         
     # 4.5 KWOK Pod Spawning Latency
@@ -485,16 +433,16 @@ def main():
             
         plot_metric_comparison(
             folders, f'kwok_pod_duration_{p_level}_timeseries.json',
-            f'KWOK Pod Spawning Duration ({title_suffix})', 
+            f'KWOK Controller Pod Spawning Duration ({title_suffix}, 10s Sliding Window)', 
             'Duration (Seconds)', 
             os.path.join(args.output_dir, f'plot_kwok_pod_duration_{p_level}.png')
         )
         plot_bar_comparison(
             folders, f'kwok_pod_duration_{p_level}_timeseries.json',
-            f'Maximum KWOK Pod Spawning Duration by Pod Count ({title_suffix})', 
+            f'KWOK Average Pod Spawning Duration vs Pod Count ({title_suffix})', 
             'Duration (Seconds)', 
             os.path.join(args.output_dir, f'bar_kwok_pod_duration_{p_level}.png'),
-            is_peak=True
+            is_average=True
         )
 
     # 5. Total Experiment Duration
@@ -507,12 +455,6 @@ def main():
     plot_duration_line_trend(
         folders, 
         os.path.join(args.output_dir, 'line_experiment_duration_trend.png')
-    )
-
-    # 7. CPU Cost per Sync (Throughput Efficiency)
-    plot_throughput_efficiency(
-        folders,
-        os.path.join(args.output_dir, 'bar_throughput_efficiency.png')
     )
 
 if __name__ == "__main__":

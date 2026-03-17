@@ -35,7 +35,7 @@ done
 # Validate required arguments
 if [[ -z "$MODE" ]] || [[ "$MODE" != "iptables" && "$MODE" != "nftables" ]]; then
     echo "Error: --mode is required and must be either 'iptables' or 'nftables'"
-    echo "Usage: $0 --mode [iptables|nftables] [OPTIONS]"
+    echo "Usage: $0 --mode [iptables|nftables] [--trickle-count N] [--trickle-delay S] [OPTIONS]"
     exit 1
 fi
 
@@ -165,7 +165,7 @@ collect_baseline_metrics() {
     local result_dir="$1"
     echo -e "\n[$(date +%T)] Collecting baseline metrics..."
     query_prometheus 'sum(rate(process_cpu_seconds_total{job="kube-proxy"}[1m]))' "${result_dir}/baseline_cpu.json"
-    query_prometheus '(sum(rate(node_cpu_seconds_total{mode!="idle"}[1m])) / sum(rate(node_cpu_seconds_total[1m]))) * 100' "${result_dir}/baseline_overall_cpu.json"
+    query_prometheus 'sum(rate(node_cpu_seconds_total{mode!="idle"}[1m]))' "${result_dir}/baseline_overall_cpu.json"
     query_prometheus 'sum(process_resident_memory_bytes{job="kube-proxy"})' "${result_dir}/baseline_memory.json"
     query_prometheus 'count(kube_pod_info)' "${result_dir}/baseline_pod_count.json"
     query_prometheus 'count(kube_service_info)' "${result_dir}/baseline_service_count.json"
@@ -298,8 +298,8 @@ collect_deployment_metrics() {
 
     query_prometheus_range 'sum(rate(process_cpu_seconds_total{job="kube-proxy"}[10s]))' "${result_dir}/cpu_usage_timeseries.json" "$start_time" "$end_time" "$step"
     
-    # Use [30s] for node metrics since prometheus-node-exporter scrapes every 15s (requires 2x interval)
-    query_prometheus_range '(sum(rate(node_cpu_seconds_total{mode!="idle"}[30s])) / sum(rate(node_cpu_seconds_total[30s]))) * 100' "${result_dir}/overall_cpu_usage_timeseries.json" "$start_time" "$end_time" "$step"
+    # CPU usage metrics calculation. Note: node_cpu is tracked as fractional cores natively.
+    query_prometheus_range 'sum(rate(node_cpu_seconds_total{mode!="idle"}[30s]))' "${result_dir}/overall_cpu_usage_timeseries.json" "$start_time" "$end_time" "$step"
     
     query_prometheus_range 'sum(process_resident_memory_bytes{job="kube-proxy"})' "${result_dir}/memory_usage_timeseries.json" "$start_time" "$end_time" "$step"
     query_prometheus_range 'histogram_quantile(0.99, sum by (le) (rate(apiserver_request_duration_seconds_bucket{verb=~"POST|PUT|PATCH",resource=~"endpoints.*"}[10s])))' "${result_dir}/apiserver_latency_p99_timeseries.json" "$start_time" "$end_time" "$step"
