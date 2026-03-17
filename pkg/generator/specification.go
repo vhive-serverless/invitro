@@ -164,13 +164,14 @@ func (s *SpecificationGenerator) generateIAT(invocationsPerMinute []int, iatDist
 	return IAT[:len(IAT)-1], perMinuteCount, nonScaledDuration
 }
 
+// Generates the specification on how to invoke deployed function. (IAT, runtime duration, memory usage)
 func (s *SpecificationGenerator) GenerateInvocationData(function *common.Function, iatDistribution common.IatDistribution, shiftIAT bool, granularity common.TraceGranularity) *common.FunctionSpecification {
 	invocationsPerMinute := function.InvocationStats.Invocations
 
 	// Generating IAT
 	iat, perMinuteCount, rawDuration := s.generateIAT(invocationsPerMinute, iatDistribution, shiftIAT, granularity)
 
-	// Generating runtime specifications
+	// Array of memory usage and runtime duration for each invocation
 	var runtimeArray common.RuntimeSpecificationArray
 	for i := range perMinuteCount {
 		for j := 0; j < perMinuteCount[i]; j++ {
@@ -232,7 +233,8 @@ func randIntBetween(gen *rand.Rand, min, max float64) int {
 	}
 }
 
-// Should be called only when specRand is locked with its mutex
+// Should be called only when specRand is locked with its mutex.
+// Returns random quartile in [0,1) for runtime and memory.
 func (s *SpecificationGenerator) determineExecutionSpecSeedQuantiles() (float64, float64) {
 	//* Generate uniform quantiles in [0, 1).
 	runQtl := s.specRand.Float64()
@@ -241,7 +243,8 @@ func (s *SpecificationGenerator) determineExecutionSpecSeedQuantiles() (float64,
 	return runQtl, memQtl
 }
 
-// GenerateExecuteSpec is not thread safe as it could cause non-repeatable spec generation
+// GenerateExecuteSpec is not thread safe as it could cause non-repeatable spec generation.
+// Estimates the value for a specific quartile
 func GenerateExecuteSpec(gen *rand.Rand, runQtl float64, runStats *common.FunctionRuntimeStats) (runtime int) {
 	switch {
 	case runQtl == 0:
@@ -287,6 +290,7 @@ func GenerateMemorySpec(gen *rand.Rand, memQtl float64, memStats *common.Functio
 	return memory
 }
 
+// Estimate the runtime duration & memory usage for a function, given its summary statistics. 
 func (s *SpecificationGenerator) generateExecutionSpecs(function *common.Function) common.RuntimeSpecification {
 	runStats, memStats := function.RuntimeStats, function.MemoryStats
 	if runStats.Count <= 0 || memStats.Count <= 0 {

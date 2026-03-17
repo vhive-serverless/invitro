@@ -56,6 +56,7 @@ const (
 	Equidistant
 )
 
+// Invocations for each (sec/minute) range
 type TraceGranularity int
 
 const (

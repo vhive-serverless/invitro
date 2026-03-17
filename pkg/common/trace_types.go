@@ -26,15 +26,17 @@ package common
 
 import "container/list"
 
+// Function's meta-data and invocations for each minute
 type FunctionInvocationStats struct {
 	HashOwner    string
 	HashApp      string
 	HashFunction string
 	Trigger      string
 
-	Invocations []int
+	Invocations []int // Number of function invocations for each minute range
 }
 
+// Function's duration summary statistics
 type FunctionRuntimeStats struct {
 	HashOwner    string `csv:"HashOwner"`
 	HashApp      string `csv:"HashApp"`
@@ -54,6 +56,7 @@ type FunctionRuntimeStats struct {
 	Percentile100 float64 `csv:"percentile_Average_100"`
 }
 
+// Function's memory usage summary statistics
 type FunctionMemoryStats struct {
 	HashOwner    string `csv:"HashOwner"`
 	HashApp      string `csv:"HashApp"`
@@ -112,7 +115,7 @@ type Function struct {
 	CPURequestsMilli  int
 	MemoryRequestsMiB int
 	CPULimitsMilli    int
-	YAMLPath          string
+	YAMLPath          string // "container" vs "firecracker" -> workloads/xxx/trace_func_go.yml (For Knative config path)
 	PredeploymentPath []string
 	Specification     *FunctionSpecification
 

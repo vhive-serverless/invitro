@@ -39,9 +39,11 @@ type RuntimeSpecification struct {
 
 type RuntimeSpecificationArray []RuntimeSpecification
 
+// Specification on how driver invokes deployed function (IAT, Memory usage, runtime duration)
 type FunctionSpecification struct {
-	IAT                  IATArray                  `json:"IAT"`
+	IAT                  IATArray                  `json:"IAT"` // Inter-Arrival-Time between function invocations used by driver
 	PerMinuteCount       []int                     `json:"PerMinuteCount"`
 	RawDuration          ProbabilisticDuration     `json:"RawDuration"`
-	RuntimeSpecification RuntimeSpecificationArray `json:"RuntimeSpecification"`
+	RuntimeSpecification RuntimeSpecificationArray `json:"RuntimeSpecification"` // Slice of memory usage and runtime duration for each invocation
+
 }
