@@ -334,7 +334,7 @@ def main():
             
         plot_metric_comparison(
             folders, f'sync_duration_{p_level}_timeseries.json',
-            f'Kube-Proxy Rule Sync Duration ({title_suffix}, 10s Sliding Window)', 
+            f'Kube-Proxy Rule Sync Duration ({title_suffix}, 20s Sliding Window)', 
             'Duration (Seconds)', 
             os.path.join(args.output_dir, f'plot_sync_duration_{p_level}.png')
         )
@@ -349,7 +349,7 @@ def main():
     # 2. CPU Usage (kube-proxy only)
     plot_metric_comparison(
         folders, 'cpu_usage_timeseries.json',
-        'Kube-Proxy CPU Core Usage Rate (10s Sliding Window)', 
+        'Kube-Proxy CPU Core Usage Rate (20s Sliding Window)', 
         'CPU Cores Consumed by Kube-Proxy', 
         os.path.join(args.output_dir, 'plot_cpu_usage.png')
     )
@@ -433,7 +433,7 @@ def main():
             
         plot_metric_comparison(
             folders, f'network_programming_{p_level}_timeseries.json',
-            f'Kube-Proxy End-to-End Network Programming Latency ({title_suffix}, 10s Sliding Window)', 
+            f'Kube-Proxy End-to-End Network Programming Latency ({title_suffix}, 20s Sliding Window)', 
             'Latency (Seconds)', 
             os.path.join(args.output_dir, f'plot_network_programming_{p_level}.png')
         )
@@ -454,7 +454,7 @@ def main():
             
         plot_metric_comparison(
             folders, f'kwok_pod_duration_{p_level}_timeseries.json',
-            f'KWOK Controller Pod Spawning Duration ({title_suffix}, 10s Sliding Window)', 
+            f'KWOK Controller Pod Spawning Duration ({title_suffix}, 20s Sliding Window)', 
             'Duration (Seconds)', 
             os.path.join(args.output_dir, f'plot_kwok_pod_duration_{p_level}.png')
         )
