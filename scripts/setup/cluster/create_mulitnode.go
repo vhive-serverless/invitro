@@ -76,6 +76,14 @@ func CreateMultiNodeSetup(configDir string, configName string) {
 	}
 	utils.InfoPrintf("Node labeling completed.\n")
 
+	if cfg.SetupCfg.DeployMinio {
+		utils.InfoPrintf("Setting up MinIO...\n")
+		if err := setupMinio(cfg.MasterNode, cfg.MinioOperatorNodes, cfg.MinioTenantNodes, cfg.MinioConfig); err != nil {
+			utils.FatalPrintf("Failed to setup MinIO: %v\n", err)
+		}
+		utils.InfoPrintf("MinIO setup completed.\n")
+	}
+
 	// Deploy Prometheus if enabled
 	if cfg.SetupCfg.DeployPrometheus {
 		utils.InfoPrintf("Setting up Prometheus components...\n")
@@ -83,14 +91,6 @@ func CreateMultiNodeSetup(configDir string, configName string) {
 			utils.FatalPrintf("Failed to setup Prometheus components: %v\n", err)
 		}
 		utils.InfoPrintf("Prometheus components setup completed.\n")
-	}
-
-	if cfg.SetupCfg.DeployMinio {
-		utils.InfoPrintf("Setting up MinIO...\n")
-		if err := setupMinio(cfg.MasterNode, cfg.MinioOperatorNodes, cfg.MinioTenantNodes, cfg.MinioConfig); err != nil {
-			utils.FatalPrintf("Failed to setup MinIO: %v\n", err)
-		}
-		utils.InfoPrintf("MinIO setup completed.\n")
 	}
 
 	// Post-Setup Configuration

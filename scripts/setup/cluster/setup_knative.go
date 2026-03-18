@@ -104,6 +104,13 @@ func commonInit(nodes []string, cfg *configs.SetupConfig, operationMode string) 
 			// 	errChan <- err
 			// 	return
 			// }
+
+			utils.WaitPrintf("Disabling networkd-dispatcher on node %s...\n", node)
+			_, err = loaderUtils.ServerExec(node, `sudo systemctl stop networkd-dispatcher && sudo systemctl disable networkd-dispatcher`)
+			if !utils.CheckErrorWithMsg(err, "Failed to disable networkd-dispatcher on node %s: %v \n", node, err) {
+				errChan <- err
+				return
+			}
 		}(node)
 	}
 

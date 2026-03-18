@@ -44,8 +44,10 @@ func setupPrometheus(masterNode string, allNode []string, promConfig *configs.Pr
 	utils.WaitPrintf("Installing Helm on master node %s...\n", masterNode)
 	_, err = loaderUtils.ServerExec(masterNode, "curl https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3 | bash")
 	if !utils.CheckErrorWithMsg(err, "Failed to install Helm on master node %s: %v\n", masterNode, err) {
-		return err
+
 	}
+
+	time.Sleep(1 * time.Second)
 
 	// Add Prometheus Helm repository
 	utils.WaitPrintf("Adding Prometheus Helm repository on master node %s...\n", masterNode)
