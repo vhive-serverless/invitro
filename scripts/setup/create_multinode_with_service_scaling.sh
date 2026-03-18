@@ -2,19 +2,16 @@
 # ============================================================================
 # MODIFICATION FOR KUBE-PROXY EXPERIMENT
 # ============================================================================
-# This script is modified to support nftables vs iptables latency experiments
-# by allowing configuration of dummy services count.
+# This script is modified to support nftables vs iptables latency experiments.
 #
 # The USE_NFTABLES flag is passed to setup_tool during cluster creation via
-# the --nftable flag, which configures kube-proxy mode at initialization time.
+# the --nftables flag, which configures kube-proxy mode at initialization time.
 #
 # Usage:
-#   export NUM_TEST_SERVICES=1000  # Number of dummy services to create
 #   export USE_NFTABLES=true       # Set to true for nftables, false/unset for iptables
 #   ./setup_multinode_with_service_scaling.sh <master_node> <worker_nodes...>
 #
 # Example:
-#   export NUM_TEST_SERVICES=5000
 #   export USE_NFTABLES=false
 #   ./setup_multinode_with_service_scaling.sh node1 node2 node3
 # ============================================================================
@@ -22,11 +19,9 @@
 MASTER_NODE=$1
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" > /dev/null 2>&1 && pwd)"
 
-source "$DIR/../setup.cfg"
+source "$DIR/setup.cfg"
 
-# Configuration for service scaling experiment
-NUM_TEST_SERVICES=${NUM_TEST_SERVICES:-100}  # Default: 100 (no dummy services)
-USE_NFTABLES=${USE_NFTABLES:-true}        # Default: true (use nftables)
+USE_NFTABLES=${USE_NFTABLES:-true}            # Default: true (use nftables)
 
 if [ "$CLUSTER_MODE" = "container" ]
 then
@@ -59,23 +54,18 @@ common_init() {
     internal_init() {
         server_exec $1 "git clone --branch=$VHIVE_BRANCH $VHIVE_REPO"
 
-        # Add --nftable flag if using nftables mode
-        local nftables_flag=""
-        if [ "$USE_NFTABLES" = "true" ]; then
-            nftables_flag="--nftable"
-        fi
-        
-        server_exec $1 "pushd ~/vhive/scripts > /dev/null && ./install_go.sh && source /etc/profile && go build -o setup_tool && ./setup_tool setup_node ${nftables_flag} ${OPERATION_MODE} && popd > /dev/null"
+        server_exec $1 "pushd ~/vhive/scripts > /dev/null && ./install_go.sh && source /etc/profile && go build -o setup_tool && ./setup_tool setup_node ${OPERATION_MODE} && popd > /dev/null"
         
         server_exec $1 'tmux new -s containerd -d'
         server_exec $1 'tmux send -t containerd "sudo containerd 2>&1 | tee ~/containerd_log.txt" ENTER'
         # install precise NTP clock synchronizer
-        server_exec $1 'sudo apt-get update && sudo apt-get install -y chrony htop sysstat'
+        server_exec $1 'sudo apt-get update && sudo apt-get install -y chrony htop sysstat' 
         # synchronize clock across nodes
         server_exec $1 "echo \"server ops.emulab.net iburst prefer\" > >(sudo tee -a /etc/chrony/chrony.conf >/dev/null)"
         server_exec $1 'sudo systemctl restart chronyd'
         # dump clock info
-        server_exec $1 'sudo chronyc tracking'
+        server_exec $1 'sudo chronyc tracking'y
+        
 
         clone_loader $1
         server_exec $1 '~/loader/scripts/setup/stabilize.sh'
@@ -98,7 +88,13 @@ function setup_master() {
 
     server_exec $MASTER_NODE '~/loader/scripts/setup/rewrite_yaml_files.sh'
 
-    MN_CLUSTER="pushd ~/vhive/scripts > /dev/null && ./setup_tool create_multinode_cluster ${OPERATION_MODE} && popd > /dev/null"
+    # Add --nftable flag if using nftables mode
+    local nftables_flag=""
+    if [ "$USE_NFTABLES" = "true" ]; then
+        nftables_flag="--nftables"
+    fi
+
+    MN_CLUSTER="pushd ~/vhive/scripts > /dev/null && ./setup_tool create_multinode_cluster ${nftables_flag} ${OPERATION_MODE} && popd > /dev/null"
     server_exec "$MASTER_NODE" "tmux send -t master \"$MN_CLUSTER\" ENTER"
 
     # Get the join token from k8s.
@@ -239,86 +235,6 @@ function distribute_loader_ssh_key() {
     rm ./loader_sshpub
 }
 
-# Create dummy services for kube-proxy latency testing
-function create_test_services() {
-    local num_services=$1
-    
-    if [ "$num_services" -le 0 ]; then
-        echo "Skipping test service creation (NUM_TEST_SERVICES=$num_services)"
-        return
-    fi
-    
-    echo "Creating $num_services dummy services for kube-proxy testing..."
-    
-    # Create services in batches to avoid overwhelming kubectl
-    local batch_size=100
-    local created=0
-    
-    while [ $created -lt $num_services ]; do
-        local batch_end=$((created + batch_size))
-        if [ $batch_end -gt $num_services ]; then
-            batch_end=$num_services
-        fi
-        
-        echo "Creating services $((created+1)) to $batch_end..."
-        
-        server_exec $MASTER_NODE "bash -c '
-        for i in \$(seq $((created+1)) $batch_end); do
-            cat <<EOF | kubectl apply -f - > /dev/null 2>&1
-apiVersion: v1
-kind: Service
-metadata:
-  name: test-svc-\$i
-  namespace: default
-  labels:
-    app: kube-proxy-test
-    service-index: \"\$i\"
-spec:
-  type: ClusterIP
-  selector:
-    app: nonexistent-\$i
-  ports:
-  - name: http
-    port: 80
-    targetPort: 8080
-    protocol: TCP
-  - name: https
-    port: 443
-    targetPort: 8443
-    protocol: TCP
-EOF
-        done
-        '"
-        
-        created=$batch_end
-        sleep 2
-    done
-    
-    echo "Successfully created $num_services test services."
-    
-    # Verify service count
-    local actual_count=$(server_exec $MASTER_NODE "kubectl get svc -n default -l app=kube-proxy-test --no-headers | wc -l")
-    echo "Verification: Found $actual_count test services in default namespace"
-}
-
-
-
-# Display experiment configuration summary
-function display_experiment_config() {
-    echo ""
-    echo "=============================================="
-    echo "  KUBE-PROXY LATENCY EXPERIMENT CONFIGURATION"
-    echo "=============================================="
-    echo "Proxy Mode:         $([ "$USE_NFTABLES" = "true" ] && echo "NFTABLES" || echo "IPTABLES")"
-    echo "Test Services:      $NUM_TEST_SERVICES"
-    echo "Master Node:        $MASTER_NODE"
-    echo "Cluster Mode:       $CLUSTER_MODE"
-    echo "Operation Mode:     $OPERATION_MODE"
-    echo "Pods Per Node:      $PODS_PER_NODE"
-    echo "=============================================="
-    echo ""
-}
-
 # Verify and report final state
 function verify_experiment_setup() {
     echo ""
@@ -335,10 +251,6 @@ function verify_experiment_setup() {
     echo -n "Counting Kubernetes services... "
     local total_services=$(server_exec $MASTER_NODE "kubectl get svc --all-namespaces --no-headers | wc -l")
     echo "$total_services total"
-    
-    echo -n "Counting test services... "
-    local test_services=$(server_exec $MASTER_NODE "kubectl get svc -n default -l app=kube-proxy-test --no-headers | wc -l")
-    echo "$test_services"
     
     # Check rule count based on mode
     if [ "$USE_NFTABLES" = "true" ]; then
@@ -368,9 +280,6 @@ function verify_experiment_setup() {
 ###############################################
 
 {
-    # Display configuration at start
-    display_experiment_config
-    
     # Set up all nodes including the master
     common_init "$@"
 
@@ -405,7 +314,7 @@ function verify_experiment_setup() {
 
     server_exec $MASTER_NODE 'cd loader; bash scripts/setup/patch_init_scale.sh'
 
-    source $DIR/../label.sh
+    source $DIR/label.sh
 
     # Force placement of metrics collectors and instrumentation on the loader node and control plane on master
     label_nodes $MASTER_NODE $1 # loader node is second on the list, becoming first after arg shift
@@ -413,7 +322,7 @@ function verify_experiment_setup() {
     server_exec $MASTER_NODE "kubectl patch configmap -n knative-serving config-features -p '{\"data\": {\"kubernetes.podspec-affinity\": \"enabled\"}}'"
 
     if [[ "$DEPLOY_PROMETHEUS" == true ]]; then
-        $DIR/../expose_infra_metrics.sh $MASTER_NODE
+        $DIR/expose_infra_metrics.sh $MASTER_NODE
     fi
     
     # ============================================================================
@@ -422,15 +331,6 @@ function verify_experiment_setup() {
     
     # Wait for cluster to stabilize
     echo "Waiting 20 seconds for cluster to fully stabilize..."
-    sleep 20
-    
-    # Create test services if specified
-    if [ "$NUM_TEST_SERVICES" -gt 0 ]; then
-        create_test_services "$NUM_TEST_SERVICES"
-    fi
-    
-    # Wait for services to be fully processed by kube-proxy
-    echo "Waiting 20 seconds for services to be processed by kube-proxy..."
     sleep 20
     
     # Verify and display final configuration
