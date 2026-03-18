@@ -170,16 +170,28 @@ def plot_bar_comparison(folders, metric_filename, title, ylabel, output_file, is
     ax.set_title(title, fontsize=14, pad=15)
     ax.set_xticks(list(x))
     ax.set_xticklabels(sorted_replicas)
-    ax.legend()
+    
+    handles, labels = ax.get_legend_handles_labels()
+    if iptables_yerr is not None or nftables_yerr is not None:
+        import matplotlib.lines as mlines
+        error_proxy = mlines.Line2D([], [], color='black', marker='|', linestyle='None', markersize=8, markeredgewidth=1.5)
+        handles.append(error_proxy)
+        labels.append('5th|95th Percentile')
+    ax.legend(handles=handles, labels=labels)
+    
     ax.grid(True, axis='y', linestyle='--', alpha=0.7)
     
-    # Add value labels on top of bars and above error caps
+    # Add value labels directly on top of the bars (with a background box so the error line doesn't hide them)
     for i, (v, err_upper) in enumerate(zip(iptables_vals, iptables_errs_upper)):
         if v > 0:
-            ax.text(i - width/2, v + err_upper + (max(max(iptables_vals), max(nftables_vals)) * 0.01), f'{v:.2f}', ha='center', va='bottom', fontsize=9, rotation=90)
+            ax.text(i - width/2, v + (max(max(iptables_vals), max(nftables_vals)) * 0.02), f'{v:.2f}', 
+                    ha='center', va='bottom', fontsize=9, rotation=0,
+                    bbox=dict(facecolor='white', alpha=0.8, edgecolor='none', pad=1))
     for i, (v, err_upper) in enumerate(zip(nftables_vals, nftables_errs_upper)):
         if v > 0:
-            ax.text(i + width/2, v + err_upper + (max(max(iptables_vals), max(nftables_vals)) * 0.01), f'{v:.2f}', ha='center', va='bottom', fontsize=9, rotation=90)
+            ax.text(i + width/2, v + (max(max(iptables_vals), max(nftables_vals)) * 0.02), f'{v:.2f}', 
+                    ha='center', va='bottom', fontsize=9, rotation=0,
+                    bbox=dict(facecolor='white', alpha=0.8, edgecolor='none', pad=1))
 
     plt.tight_layout()
     plt.savefig(output_file, dpi=300)
@@ -236,10 +248,10 @@ def plot_total_duration_comparison(folders, output_file):
     # Add value labels on top of bars
     for i, v in enumerate(iptables_vals):
         if v > 0:
-            ax.text(i - width/2, v + (max(max(iptables_vals), max(nftables_vals)) * 0.01), f'{v}s', ha='center', va='bottom', fontsize=9, rotation=90)
+            ax.text(i - width/2, v + (max(max(iptables_vals), max(nftables_vals)) * 0.01), f'{v}s', ha='center', va='bottom', fontsize=9, rotation=0)
     for i, v in enumerate(nftables_vals):
         if v > 0:
-            ax.text(i + width/2, v + (max(max(iptables_vals), max(nftables_vals)) * 0.01), f'{v}s', ha='center', va='bottom', fontsize=9, rotation=90)
+            ax.text(i + width/2, v + (max(max(iptables_vals), max(nftables_vals)) * 0.01), f'{v}s', ha='center', va='bottom', fontsize=9, rotation=0)
 
     plt.tight_layout()
     plt.savefig(output_file, dpi=300)
@@ -355,10 +367,10 @@ def main():
     )
     plot_bar_comparison(
         folders, 'cpu_usage_timeseries.json',
-        'Kube-Proxy Total CPU-Seconds Consumed vs Pod Count', 
-        'Total CPU-Seconds Expended by Kube-Proxy', 
+        'Kube-Proxy Average CPU Cores Consumed vs Pod Count', 
+        'Average CPU Cores Consumed by Kube-Proxy', 
         os.path.join(args.output_dir, 'bar_cpu_usage.png'),
-        is_integral=True
+        is_average=True
     )
     
     # 2.5 Overall System CPU Usage (Node Level)
@@ -439,7 +451,7 @@ def main():
         )
         plot_bar_comparison(
             folders, f'network_programming_{p_level}_timeseries.json',
-            f'Kube-Proxy Average Network Latency vs Pod Count ({title_suffix})', 
+            f'Kube-Proxy Average Network Programming Latency vs Pod Count ({title_suffix})', 
             'Duration (Seconds)', 
             os.path.join(args.output_dir, f'bar_network_programming_{p_level}.png'),
             is_average=True
