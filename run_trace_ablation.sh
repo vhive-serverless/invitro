@@ -8,21 +8,23 @@
 # go run experiment/khala_command.go --command=set-corepool --corepool-node="10.0.1.3" --corepool-size="IO:8@1.0,C:20@2.2"
 
 
-for max_multiplier in 30
+# for max_multiplier in 29
+for max_multiplier in 35
 do
     divisor=200
     EXPWARMUP=2
     START_SCALE=1
     END_SCALE=$max_multiplier
     STEP=1
-    EXP_DUR=$max_multiplier
+    EXP_DUR=$(((END_SCALE - START_SCALE) / STEP + 1))
     PREFETCH=false
 
     # test baseline, sdk only, nexus only, nexus + prefetch
 
     ### baseline
-    echo "Running Baseline with function multiplier: $max_multiplier"
+    echo "Running Baseline with function multiplier: $max_multiplier, durations: $EXP_DUR"
     EXP="baseline_d-${divisor}_s-${START_SCALE}_e-${END_SCALE}_t-${STEP}_p-${PREFETCH}"
+    echo "Experiment: $EXP"
 
     python3 generate_trace_sweep.py \
         --divisor $divisor \

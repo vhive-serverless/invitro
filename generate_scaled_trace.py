@@ -21,20 +21,40 @@ from typing import Dict, List
 import pandas as pd
 
 # --- Default Configuration ---
-
-
-# 50% of max RPS the system can handle
-# DEFAULT_INPUT_RPS: Dict[str, float] = {
-#     "chameleonserve": 796, "cnnserve": 85, "imageresize": 24, "lrserving": 755,
-#     "mapper": 59, "pyaesserve": 1119, "reducer": 12, "rnnserve": 199, 
-#     "streducer": 231, "sttrainer": 215
-# }
+# Data below is measured with fixed VM scale at 320, effectively removing control plane ovehead.
+# Experiment: baseline, Workload: chameleonserve, interpolated_cpu_50%: 794.208980649154
+# Workload: chameleonserve, half of max rps: 510.1130331693075
+# Experiment: baseline, Workload: cnnserve, interpolated_cpu_50%: 98.50977075980629
+# Workload: cnnserve, half of max rps: 73.77754980418474
+# Experiment: baseline, Workload: imageresize, interpolated_cpu_50%: 29.165104779391093
+# Workload: imageresize, half of max rps: 26.25288767365064
+# Experiment: baseline, Workload: lrserving, interpolated_cpu_50%: 682.0362429717659
+# Workload: lrserving, half of max rps: 473.1911782701717
+# Experiment: baseline, Workload: mapper, interpolated_cpu_50%: 66.17061197172778
+# Workload: mapper, half of max rps: 60.56107732911952
+# Experiment: baseline, Workload: pyaesserve, interpolated_cpu_50%: 1155.7815579080993
+# Workload: pyaesserve, half of max rps: 498.26441366365714
+# Experiment: baseline, Workload: reducer, interpolated_cpu_50%: 14.113463475493615
+# Workload: reducer, half of max rps: 12.00999359289477
+# Experiment: baseline, Workload: rnnserve, interpolated_cpu_50%: 238.1260685804099
+# Workload: rnnserve, half of max rps: 149.69988899183645
+# Experiment: baseline, Workload: streducer, interpolated_cpu_50%: 227.98705106890299
+# Workload: streducer, half of max rps: 160.38296265131862
+# Experiment: baseline, Workload: sttrainer, interpolated_cpu_50%: 187.75085688193084
+# Workload: sttrainer, half of max rps: 130.20560678256757
 
 # RPS that drives load to 50% CPU utilization
+# DEFAULT_INPUT_RPS: Dict[str, float] = {
+#     "chameleonserve": 795, "cnnserve": 100, "imageresize": 30, "lrserving": 680,
+#     "mapper": 65, "pyaesserve": 1155, "reducer": 15, "rnnserve": 240,
+#     "streducer": 225, "sttrainer": 180
+# }
+
+# 50% of max RPS the system can handle
 DEFAULT_INPUT_RPS: Dict[str, float] = {
-    "chameleonserve": 850, "cnnserve": 100, "imageresize": 30, "lrserving": 675,
-    "mapper": 75, "pyaesserve": 1250, "reducer": 15, "rnnserve": 250,
-    "streducer": 250, "sttrainer": 200
+    "chameleonserve": 510, "cnnserve": 75, "imageresize": 26, "lrserving": 475,
+    "mapper": 60, "pyaesserve": 500, "reducer": 12, "rnnserve": 150, 
+    "streducer": 160, "sttrainer": 130
 }
 
 DEFAULT_WORKLOAD_AVG_DURATION_MS: Dict[str, float] = {

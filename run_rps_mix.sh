@@ -15,7 +15,7 @@ do
     START_SCALE=1
     END_SCALE=$max_multiplier
     STEP=1
-    EXP_DUR=$max_multiplier
+    EXP_DUR=$(((END_SCALE - START_SCALE) / STEP + 1))
     PREFETCH=true
 
     # test baseline, logical sep, physical sep, dynamic core pool

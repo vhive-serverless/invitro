@@ -1,16 +1,31 @@
 #!/usr/bin/env python3
 """
-Generate staggered (sweep) function invocation traces from a reference CSV.
+Generate sweep-style function invocation traces from a reference CSV.
 
 For each workload, one representative function is selected from the reference
-trace at the base load `(rps / divisor)`.  Then `num_steps` staggered rows are
-created — row i has its first i time-columns forced to zero while the remaining
-columns carry the real trace values.  Summing the rows at any time-column gives
-a staircase aggregate load that sweeps up as more instances "come online".
+trace at the scaled-down per-function load `(rps / divisor)`.
 
-  num_steps = int(round((end_scale - start_scale) / step)) + 1
+The scale arguments describe how many function rows should be active over time:
 
-The CLI is intentionally compatible with generate_scaled_trace.py so it can
+  - `start_scale`: number of functions active at the first timestamp
+  - `end_scale`: total number of function rows to emit per workload
+  - `step`: number of additional functions activated at each later timestamp
+
+Examples:
+
+  - `--start-scale 1 --end-scale 5 --step 1` activates functions as
+    `1, 2, 3, 4, 5, 5, ...`
+  - `--start-scale 1 --end-scale 5 --step 2` activates functions as
+    `1, 3, 5, 5, ...`
+  - `--start-scale 10 --end-scale 10 --step 1` emits 10 concurrent functions
+    that all start at the first timestamp
+
+Each function row may also be rotated by `shift_step` to vary the selected
+trace. Functions that are not yet active receive zero requests before their
+activation timestamp. Warmup ramps are generated only for rows that are already
+active when the experiment begins.
+
+The CLI remains compatible with generate_scaled_trace.py so it can
 drop-in replace that call in shell scripts:
 
   python3 generate_trace_sweep.py \\
@@ -39,18 +54,18 @@ DEFAULT_INPUT = "data/traces/reference/preprocessed_150/invocations.csv"
 DEFAULT_OUTPUT_DIR = "data/traces/nexus"
 
 
-# 50% of max RPS the system can handle
+# # RPS that drives load to 50% CPU utilization
 # DEFAULT_WORKLOAD_RPS: Dict[str, float] = {
-#     "chameleonserve": 796, "cnnserve": 85, "imageresize": 24, "lrserving": 755,
-#     "mapper": 59, "pyaesserve": 1119, "reducer": 12, "rnnserve": 199, 
-#     "streducer": 231, "sttrainer": 215
+#     "chameleonserve": 795, "cnnserve": 100, "imageresize": 30, "lrserving": 680,
+#     "mapper": 65, "pyaesserve": 1155, "reducer": 15, "rnnserve": 240,
+#     "streducer": 225, "sttrainer": 180
 # }
 
-# RPS that drives load to 50% CPU utilization
+# 50% of max RPS the system can handle
 DEFAULT_WORKLOAD_RPS: Dict[str, float] = {
-    "chameleonserve": 850, "cnnserve": 100, "imageresize": 30, "lrserving": 675,
-    "mapper": 75, "pyaesserve": 1250, "reducer": 15, "rnnserve": 250,
-    "streducer": 250, "sttrainer": 200
+    "chameleonserve": 510, "cnnserve": 75, "imageresize": 26, "lrserving": 475,
+    "mapper": 60, "pyaesserve": 500, "reducer": 12, "rnnserve": 150, 
+    "streducer": 160, "sttrainer": 130
 }
 
 DEFAULT_WORKLOAD_AVG_DURATION_MS: Dict[str, float] = {
@@ -84,11 +99,7 @@ class Config:
 # --- Core Logic Class ---
 
 class SweepTraceBuilder:
-    """
-    Builds staggered invocation traces by creating num_steps copies of a base
-    function per workload, each starting one time-column later to form a
-    staircase load sweep.
-    """
+    """Build invocation traces from per-workload activation schedules."""
 
     def __init__(self, config: Config):
         self.config = config
@@ -100,25 +111,46 @@ class SweepTraceBuilder:
 
     def run(self) -> tuple[pd.DataFrame, pd.DataFrame]:
         """Execute the sweep trace building pipeline."""
-        num_steps = self._compute_num_steps()
-        print(f"[INFO] Building sweep trace: {num_steps} staggered rows per workload "
-              f"over {len(self.time_cols)} time columns.")
+        function_count = self._compute_function_count()
+        start_count, _, step_count = self._get_scale_counts()
+        max_activation_offset = self._compute_max_activation_offset(function_count)
 
-        if num_steps > len(self.time_cols):
+        print(
+            f"[INFO] Building sweep trace: {function_count} rows per workload "
+            f"({start_count} active at start, +{step_count} per step) over "
+            f"{len(self.time_cols)} time columns."
+        )
+
+        if max_activation_offset >= len(self.time_cols):
             raise ValueError(
-                f"num_steps ({num_steps}) exceeds the number of time columns in the "
-                f"reference trace ({len(self.time_cols)}). "
-                "Reduce --end-scale or increase --step."
+                f"Activation offset ({max_activation_offset}) exceeds the usable range of the "
+                f"reference trace ({len(self.time_cols)} time columns). "
+                "Reduce --end-scale, increase --step, or increase --start-scale."
             )
 
-        invocations_df = self._build_invocations(num_steps)
+        invocations_df = self._build_invocations(function_count)
         durations_df = self._build_durations(invocations_df)
         return invocations_df, durations_df
 
     # --- Internal helpers ---
 
-    def _compute_num_steps(self) -> int:
-        return int(round((self.config.end_scale - self.config.start_scale) / self.config.step)) + 1
+    def _get_scale_counts(self) -> tuple[int, int, int]:
+        return int(self.config.start_scale), int(self.config.end_scale), int(self.config.step)
+
+    def _compute_function_count(self) -> int:
+        _, end_count, _ = self._get_scale_counts()
+        return end_count
+
+    def _compute_activation_offset(self, function_index: int) -> int:
+        start_count, _, step_count = self._get_scale_counts()
+        if function_index < start_count:
+            return 0
+        return ((function_index - start_count) // step_count) + 1
+
+    def _compute_max_activation_offset(self, function_count: int) -> int:
+        if function_count <= 0:
+            return 0
+        return self._compute_activation_offset(function_count - 1)
 
     def _load_base_trace(self) -> pd.DataFrame:
         """Load and pre-filter the base invocation trace CSV."""
@@ -177,16 +209,16 @@ class SweepTraceBuilder:
         diff = (candidates["invocation_count_avg"] - target_rpm).abs()
         return candidates.loc[diff.idxmin()].copy()
 
-    def _build_invocations(self, num_steps: int) -> pd.DataFrame:
+    def _build_invocations(self, function_count: int) -> pd.DataFrame:
         """
         Build the full invocations dataframe.
 
         For each workload:
           - Select one representative function from the reference trace.
-          - Produce `num_steps` rows. Row i has its first i time-columns set to
-            zero; remaining columns carry the real selected trace values.
-          - Warmup columns (if any) ramp linearly to the first active value for
-            row 0; all other rows get zero in warmup columns.
+          - Emit `end_scale` rows in total.
+          - Rows 0..start_scale-1 are active at the first timestamp.
+          - Remaining rows activate in batches of `step` at later timestamps.
+          - Only rows active at timestamp 0 receive a warmup ramp.
         """
         warmup_cols = (
             [str(i) for i in range(-self.config.warmup_duration, 0)]
@@ -200,7 +232,7 @@ class SweepTraceBuilder:
         for workload, rps in self.config.workload_rps.items():
             target_rps = rps / self.config.divisor
             print(
-                f"[INFO] {workload}: RPS={rps}, selection target="
+                f"[INFO] {workload}: RPS={rps}, per-function selection target="
                 f"{target_rps:.2f} RPS ({target_rps * 60:.1f} RPM)"
             )
 
@@ -209,8 +241,9 @@ class SweepTraceBuilder:
             trace_length = len(base_values)
             workload_name = f"{workload}{self.config.name_suffix}"
 
-            for i in range(num_steps):
+            for i in range(function_count):
                 row: dict = {"FunctionName": workload_name}
+                activation_offset = self._compute_activation_offset(i)
 
                 # Rotate the trace by shift_step * i so each row has independent fluctuation
                 shift = (self.config.shift_step * i) % trace_length if trace_length > 0 else 0
@@ -218,19 +251,19 @@ class SweepTraceBuilder:
 
                 # Warmup columns
                 if warmup_cols:
-                    if i == 0:
-                        # First row: linearly ramp up to (first_col_value * warmup_scale)
+                    if activation_offset == 0:
+                        # Warm each row that is active at experiment start.
                         first_val = float(shifted_values[0]) * self.config.warmup_scale
                         for k, col in enumerate(warmup_cols, start=1):
                             row[col] = int(first_val * k / self.config.warmup_duration)
                     else:
-                        # Staggered rows: not yet active during warmup
+                        # Rows activated later should stay idle during warmup.
                         for col in warmup_cols:
                             row[col] = 0
 
-                # Time-series columns: zero for the first i columns, shifted values after
-                staggered = [0] * i + shifted_values[i:]
-                for col, val in zip(self.time_cols, staggered):
+                # Rows become active according to the start/end/step schedule.
+                emitted_values = [0] * activation_offset + shifted_values[activation_offset:]
+                for col, val in zip(self.time_cols, emitted_values):
                     row[col] = val
 
                 all_rows.append(row)
@@ -268,12 +301,16 @@ def build_arg_parser() -> argparse.ArgumentParser:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Basic sweep: 15 staggered rows per workload, 2-min warmup
+  # Start with 1 active function and add 1 per step until there are 15
   %(prog)s --divisor 100 --start-scale 1 --end-scale 15 --step 1 \\
            --warmup-duration 2 --warmup-scale 1
 
-  # Dry-run to inspect the staircase shape (3-step sweep)
-  %(prog)s --divisor 100 --start-scale 1 --end-scale 3 --step 1 \\
+  # Emit 10 concurrent functions that all start at timestamp 0
+  %(prog)s --divisor 100 --start-scale 10 --end-scale 10 --step 1 \\
+           --warmup-duration 2 --warmup-scale 1
+
+  # Dry-run a schedule with 1 active function at start and +2 per step
+  %(prog)s --divisor 100 --start-scale 1 --end-scale 5 --step 2 \\
            --warmup-duration 2 --warmup-scale 1 --dry-run
 
   # With naming suffixes
@@ -286,11 +323,11 @@ Examples:
     parser.add_argument("--divisor", type=float, required=True,
                         help="Divide workload RPS by this to get per-instance target for function selection.")
     parser.add_argument("--start-scale", type=float, required=True,
-                        help="Starting scale — used with end-scale and step to compute num_steps.")
+                        help="Number of functions active at the first timestamp.")
     parser.add_argument("--end-scale", type=float, required=True,
-                        help="Ending scale — used with start-scale and step to compute num_steps.")
+                        help="Total number of function rows to emit per workload.")
     parser.add_argument("--step", type=float, required=True,
-                        help="Step size for scale progression — determines num_steps.")
+                        help="Number of additional functions activated at each later timestamp.")
     parser.add_argument("--shift-step", type=int, default=1,
                         help="Column offset between consecutive staggered rows. Default: 1")
 
@@ -330,16 +367,33 @@ def main(argv: List[str] | None = None) -> int:
         print(f"[ERROR] Input file not found: {args.input}", file=sys.stderr)
         return 1
 
+    if args.divisor <= 0:
+        print("[ERROR] --divisor must be > 0", file=sys.stderr)
+        return 1
+
+    for flag, value in (
+        ("--start-scale", args.start_scale),
+        ("--end-scale", args.end_scale),
+        ("--step", args.step),
+    ):
+        if not value.is_integer():
+            print(f"[ERROR] {flag} must be an integer function count", file=sys.stderr)
+            return 1
+
+    if args.start_scale < 0:
+        print("[ERROR] --start-scale must be >= 0", file=sys.stderr)
+        return 1
+
+    if args.end_scale <= 0:
+        print("[ERROR] --end-scale must be > 0", file=sys.stderr)
+        return 1
+
     if args.start_scale > args.end_scale:
         print("[ERROR] --start-scale must be <= --end-scale", file=sys.stderr)
         return 1
 
     if args.step <= 0:
         print("[ERROR] --step must be > 0", file=sys.stderr)
-        return 1
-
-    if args.divisor <= 0:
-        print("[ERROR] --divisor must be > 0", file=sys.stderr)
         return 1
 
     # Build name suffix (order: -s3 before -rpc)

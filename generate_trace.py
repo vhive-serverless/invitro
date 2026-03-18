@@ -23,10 +23,18 @@ import pandas as pd
 DEFAULT_INPUT = "data/traces/reference/preprocessed_150/invocations.csv"
 DEFAULT_OUTPUT_DIR = "data/traces/nexus"
 
+# # RPS that drives load to 50% CPU utilization
+# DEFAULT_WORKLOAD_RPS: Dict[str, float] = {
+#     "chameleonserve": 795, "cnnserve": 100, "imageresize": 30, "lrserving": 680,
+#     "mapper": 65, "pyaesserve": 1155, "reducer": 15, "rnnserve": 240,
+#     "streducer": 225, "sttrainer": 180
+# }
+
+# 50% of max RPS the system can handle
 DEFAULT_WORKLOAD_RPS: Dict[str, float] = {
-    "chameleonserve": 850, "cnnserve": 100, "imageresize": 30, "lrserving": 675,
-    "mapper": 75, "pyaesserve": 1250, "reducer": 15, "rnnserve": 250,
-    "streducer": 250, "sttrainer": 200
+    "chameleonserve": 510, "cnnserve": 75, "imageresize": 26, "lrserving": 475,
+    "mapper": 60, "pyaesserve": 500, "reducer": 12, "rnnserve": 150, 
+    "streducer": 160, "sttrainer": 130
 }
 
 DEFAULT_WORKLOAD_AVG_DURATION_MS: Dict[str, float] = {

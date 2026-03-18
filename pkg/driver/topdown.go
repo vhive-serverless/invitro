@@ -64,23 +64,23 @@ func StartPerfCollection(cfg config.Configuration, ctx context.Context) *PerfCol
 	TLB_MISSES_H := addModifiers(TLB_EVENTS, "H")
 	TLB_MISSES_G := addModifiers(TLB_EVENTS, "G")
 
-	// BASELINE_Hk := addModifiers(BASELINE, "Hk")
-	// BASELINE_Gk := addModifiers(BASELINE, "Gk")
-	// BASELINE_Hu := addModifiers(BASELINE, "Hu")
-	// BASELINE_Gu := addModifiers(BASELINE, "Gu")
-
-	// commandList := []string{
-	// 	fmt.Sprintf("-e %s,%s,%s,%s", BASELINE_H, TMA_H, CACHE_EVENTS_H, TLB_MISSES_H),                 // Multiplexing 36%
-	// 	fmt.Sprintf("-e %s,%s,%s,%s,%s", BASELINE_G, TMA_G, CACHE_EVENTS_G, TLB_MISSES_G, MISC_EVENTS), // Multiplexing 36%
-	// }
+	BASELINE_Hk := addModifiers(BASELINE, "Hk")
+	BASELINE_Gk := addModifiers(BASELINE, "Gk")
+	BASELINE_Hu := addModifiers(BASELINE, "Hu")
+	BASELINE_Gu := addModifiers(BASELINE, "Gu")
 
 	commandList := []string{
 		fmt.Sprintf("-e %s,%s,%s,%s", BASELINE_H, TMA_H, CACHE_EVENTS_H, TLB_MISSES_H),                 // Multiplexing 36%
 		fmt.Sprintf("-e %s,%s,%s,%s,%s", BASELINE_G, TMA_G, CACHE_EVENTS_G, TLB_MISSES_G, MISC_EVENTS), // Multiplexing 36%
 	}
 
-	perPerfTime := int((float64(perfStatTimeInMs) * 0.8) / float64(len(commandList)+1))
-	waitTime += int(perPerfTime / 1000)
+	// WARN: This overrides above List
+	commandList = []string{
+		fmt.Sprintf("-e %s,%s,%s,%s", BASELINE_Hk, BASELINE_Gk, BASELINE_Hu, BASELINE_Gu),
+	}
+
+	perPerfTime := int((float64(perfStatTimeInMs) * 0.8) / float64(len(commandList)+1)) // 1 for wait, and one for recording
+	// waitTime += int(perPerfTime / 1000)
 
 	perfCtx := &PerfCollectionContext{
 		cfg:            cfg,
@@ -121,6 +121,15 @@ func StartPerfCollection(cfg config.Configuration, ctx context.Context) *PerfCol
 				}
 			}
 
+			// Perf record
+
+			perfRecordCommand := fmt.Sprintf("sudo perf kvm --host --guest record -e cycles,faults -F 199 -ag -o ~/perf.data sleep %d", perPerfTime/1000)
+			log.Debugf("Running perf record command on node %s: %s", node, perfRecordCommand)
+			_, err := utils.ServerExec(node, perfRecordCommand)
+			if err != nil {
+				log.Errorf("Failed to run perf record command on node %s: %v", node, err)
+			}
+
 			log.Debugf("Perf collection completed on node %s (index %d)", node, nodeIdx)
 		}(node, nodeIndex, perfCtx.cancelChannels[nodeIndex])
 	}
@@ -159,6 +168,49 @@ func StopPerfCollection(perfCtx *PerfCollectionContext) {
 			if err != nil {
 				log.Errorf("Failed to rsync perf results from node %s: %v", node, err)
 			}
+			// Fix file permissions so the standard user can rsync it
+			chownCommand := "sudo chown $USER:$(id -gn) ~/perf.data" //need to change user to group
+			log.Debugf("Fixing permissions on node %s: %s", node, chownCommand)
+			_, err = utils.ServerExec(node, chownCommand)
+			if err != nil {
+				log.Errorf("Failed to chown perf.data on node %s: %v", node, err)
+			}
+			// Rsync the perf.data file back to loader node
+			rsyncCommand = fmt.Sprintf("rsync -avz -e ssh ~/perf.data %s:~/loader/%s_perf_%d.data",
+				perfCtx.loaderNodeIp, perfCtx.cfg.LoaderConfiguration.OutputPathPrefix, nodeIdx)
+			log.Debugf("Collecting perf results from node %s: %s", node, rsyncCommand)
+			_, err = utils.ServerExec(node, rsyncCommand)
+			if err != nil {
+				log.Errorf("Failed to rsync perf results from node %s: %v", node, err)
+			}
+
+			guestVmlinuxPath := "/users/$USER/khala/assets/vmlinux-shmem/vmlinux"
+			perfSCriptCmd := fmt.Sprintf("sudo perf script --kallsyms=/proc/kallsyms --guestvmlinux=%s -i ~/perf.data -f | ~/FlameGraph/stackcollapse-perf.pl --event-filter=cycles | sed -E 's/^:[0-9]+/fc_kvm_exec/' > data.folded-base && ~/FlameGraph/flamegraph.pl data.folded-base > ~/perf.svg", guestVmlinuxPath)
+			log.Debugf("Collecting perf stacks from node %s: %s", node, perfSCriptCmd)
+			_, err = utils.ServerExec(node, perfSCriptCmd)
+			if err != nil {
+				log.Errorf("Failed to collect perf stacks from node %s: %v", node, err)
+			}
+			rsyncCommand = fmt.Sprintf("rsync -avz -e ssh ~/perf.svg %s:~/loader/%s_perf_%d.svg",
+				perfCtx.loaderNodeIp, perfCtx.cfg.LoaderConfiguration.OutputPathPrefix, nodeIdx)
+			log.Debugf("Collecting perf stacks from node %s: %s", node, rsyncCommand)
+			_, err = utils.ServerExec(node, rsyncCommand)
+			if err != nil {
+				log.Errorf("Failed to rsync perf stacks from node %s: %v", node, err)
+			}
+			perfSCriptFilteredCmd := fmt.Sprintf("sudo perf script --kallsyms=/proc/kallsyms --guestvmlinux=%s -i ~/perf.data -f | ~/FlameGraph/stackcollapse-perf.pl --event-filter=cycles | sed -E 's/^:[0-9]+/fc_kvm_exec/' > data.folded-base && grep -e \"firecracker\" -e \"nexus-backend\" -e \"fc_vcpu\" -e \"fc_kvm_exec\" data.folded-base | ~/FlameGraph/flamegraph.pl > ~/perf.svg", guestVmlinuxPath)
+			log.Debugf("Collecting perf stacks from node %s: %s", node, perfSCriptFilteredCmd)
+			_, err = utils.ServerExec(node, perfSCriptFilteredCmd)
+			if err != nil {
+				log.Errorf("Failed to collect filtered perf stacks from node %s: %v", node, err)
+			}
+			rsyncCommand = fmt.Sprintf("rsync -avz -e ssh ~/perf.svg %s:~/loader/%s_perf_filtered_%d.svg",
+				perfCtx.loaderNodeIp, perfCtx.cfg.LoaderConfiguration.OutputPathPrefix, nodeIdx)
+			log.Debugf("Collecting perf stacks from node %s: %s", node, rsyncCommand)
+			_, err = utils.ServerExec(node, rsyncCommand)
+			if err != nil {
+				log.Errorf("Failed to rsync filtered perf stacks from node %s: %v", node, err)
+			}
 
 			// Clean up the remote perf.csv file
 			cleanupCommand := "sudo rm ~/perf.csv"
@@ -167,6 +219,13 @@ func StopPerfCollection(perfCtx *PerfCollectionContext) {
 			if err != nil {
 				log.Errorf("Failed to cleanup perf.csv on node %s: %v", node, err)
 			}
+			// Clean up the remote perf.data file
+			// cleanupCommand = "sudo rm ~/perf.data"
+			// log.Debugf("Cleaning up perf.data on node %s", node)
+			// _, err = utils.ServerExec(node, cleanupCommand)
+			// if err != nil {
+			// 	log.Errorf("Failed to cleanup perf.data on node %s: %v", node, err)
+			// }
 		}(node, nodeIndex)
 	}
 
