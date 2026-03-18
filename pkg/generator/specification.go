@@ -141,7 +141,7 @@ func getBlankTimeUnit(granularity common.TraceGranularity) float64 {
 	}
 }
 
-// GenerateIAT generates IAT according to the given distribution. Number of minutes is the length of invocationsPerMinute array
+// GenerateIAT generates IAT according to the given distribution.
 func (s *SpecificationGenerator) generateIAT(invocationsPerMinute []int, iatDistribution common.IatDistribution,
 	shiftIAT bool, granularity common.TraceGranularity) (common.IATArray, []int, common.ProbabilisticDuration) {
 

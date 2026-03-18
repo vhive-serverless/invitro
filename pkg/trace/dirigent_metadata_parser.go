@@ -2,10 +2,11 @@ package trace
 
 import (
 	"encoding/json"
-	log "github.com/sirupsen/logrus"
-	"github.com/vhive-serverless/loader/pkg/common"
 	"os"
 	"strings"
+
+	log "github.com/sirupsen/logrus"
+	"github.com/vhive-serverless/loader/pkg/common"
 )
 
 type DirigentMetadataParser struct {
@@ -46,6 +47,8 @@ func readDirigentMetadataJSON(traceFile string, platform string) *[]common.Dirig
 	return &metadata
 }
 
+// Reads Dirigent trace meta-data, and places into *common.Function as property "dirigentMetadata"
+// Or if Knative yaml is provided, converts it to dirigent configurations. 
 func (dmp *DirigentMetadataParser) Parse() {
 	dirigentPath := dmp.directoryPath + "/dirigent.json"
 	dirigentMetadata := readDirigentMetadataJSON(dirigentPath, dmp.platform)

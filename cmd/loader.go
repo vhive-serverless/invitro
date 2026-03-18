@@ -105,7 +105,7 @@ func main() {
 		common.CheckCPULimit(cfg.CPULimit)
 	}
 
-	runMode(&cfg, *iatFromFile, *iatGeneration)
+	run(&cfg, *iatFromFile, *iatGeneration)
 }
 
 func determineDurationToParse(runtimeDuration int, warmupDuration int) int {
@@ -168,22 +168,21 @@ func parseTraceGranularity(cfg *config.LoaderConfiguration) common.TraceGranular
 	return common.MinuteGranularity
 }
 
-func runMode(cfg *config.LoaderConfiguration, readIATFromFile bool, writeIATsToFile bool) {
+func run(cfg *config.LoaderConfiguration, readIATFromFile bool, writeIATsToFile bool) {
 	//
 	// Determine type of input.
 	//
 	var traceInputType string
 	if cfg.TracePath == "RPS" {
 		traceInputType = "RPS"
-	} else { 
+	} else {
 		if cfg.VSwarm {
 			traceInputType = "vSwarm"
 		} else if !cfg.VSwarm {
 			traceInputType = "Azure2019"
+		} else { // Reduant, for future input types.
+			log.Fatal("Unsupported Trace Input Type", traceInputType)
 		}
-		// else { // Reduant, for future input types.
-		// 	log.Fatal("Unsupported Trace Input Type", traceInputType)
-		// }
 	}
 	log.Info("Detected Trace Input Type", traceInputType)
 
@@ -200,16 +199,13 @@ func runMode(cfg *config.LoaderConfiguration, readIATFromFile bool, writeIATsToF
 
 	//
 	// Handle Dirgient (Container orchestrator)
+	// Reads Dirigent trace meta-data, and places into *common.Function as property "dirigentMetadata"
 	//
 	dirigentConfig := config.ReadDirigentConfig(cfg)
 	switch traceInputType {
 	case "RPS":
-		// Handle dirigent metadata, handle warm and cold function differently.
 		generator.AppendDirigentMetadata(functions, cfg, dirigentConfig)
 	case "Azure2019", "vSwarm":
-		// Reads Dirigent trace meta-data, and places into *common.Function as property "dirigentMetadata"
-		// Or if Knative yaml is provided, converts it to dirigent configurations. 
-		// Dirigent metadata parsing
 		yamlPath := parseYAMLSpecification(cfg)
 		dirigentMetadataParser := trace.NewDirigentMetadataParser(cfg.TracePath, functions, yamlPath, cfg.Platform)
 		dirigentMetadataParser.Parse()
@@ -222,18 +218,17 @@ func runMode(cfg *config.LoaderConfiguration, readIATFromFile bool, writeIATsToF
 
 	driver.ReadOrWriteSpecificationToFile(functions, writeIATsToFile, readIATFromFile)
 
-
 	experimentDuration := determineDurationToParse(cfg.ExperimentDuration, cfg.WarmupDuration)
 	experimentDriver := driver.NewDriver(&config.Configuration{
 		LoaderConfiguration:   cfg,
-		FailureConfiguration: config.ReadFailureConfiguration(*failurePath),
+		FailureConfiguration:  config.ReadFailureConfiguration(*failurePath),
 		DirigentConfiguration: dirigentConfig,
 
 		TraceGranularity: parseTraceGranularity(cfg),
-		TestMode: false,
+		TestMode:         false,
 
-		TraceDuration:         experimentDuration,
-		Functions:             functions,
+		TraceDuration: experimentDuration,
+		Functions:     functions,
 	})
 
 	// Skip experiments execution during dry run mode

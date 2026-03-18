@@ -108,7 +108,7 @@ func GenerateColdStartFunctions(experimentDuration int, rpsTarget float64, coold
 	return functions, countResult
 }
 
-// Generates []*common.Function based on intended warm/cold functionality, does not generate dirigent metadata.
+// Generates []*common.Function based on intended warm/cold functionality
 func CreateRPSFunctions(cfg *config.LoaderConfiguration, warmFunction common.IATArray, warmFunctionCount []int,
 	coldFunctions []common.IATArray, coldFunctionCount [][]int, yamlPath string) []*common.Function {
 	var result []*common.Function
@@ -119,9 +119,9 @@ func CreateRPSFunctions(cfg *config.LoaderConfiguration, warmFunction common.IAT
 		result = append(result, &common.Function{
 			Name: fmt.Sprintf("warm-function-%d", rand.Int()),
 
-			InvocationStats:  &common.FunctionInvocationStats{Invocations: warmFunctionCount},
-			RuntimeStats:     &common.FunctionRuntimeStats{Average: float64(cfg.RpsRuntimeMs)},
-			MemoryStats:      &common.FunctionMemoryStats{Percentile100: float64(cfg.RpsMemoryMB)},
+			InvocationStats: &common.FunctionInvocationStats{Invocations: warmFunctionCount},
+			RuntimeStats:    &common.FunctionRuntimeStats{Average: float64(cfg.RpsRuntimeMs)},
+			MemoryStats:     &common.FunctionMemoryStats{Percentile100: float64(cfg.RpsMemoryMB)},
 
 			Specification: &common.FunctionSpecification{
 				IAT:                  warmFunction,
@@ -138,8 +138,8 @@ func CreateRPSFunctions(cfg *config.LoaderConfiguration, warmFunction common.IAT
 		result = append(result, &common.Function{
 			Name: fmt.Sprintf("cold-function-%d-%d", i, rand.Int()),
 
-			InvocationStats:  &common.FunctionInvocationStats{Invocations: coldFunctionCount[i]},
-			MemoryStats:      &common.FunctionMemoryStats{Percentile100: float64(cfg.RpsMemoryMB)},
+			InvocationStats: &common.FunctionInvocationStats{Invocations: coldFunctionCount[i]},
+			MemoryStats:     &common.FunctionMemoryStats{Percentile100: float64(cfg.RpsMemoryMB)},
 
 			Specification: &common.FunctionSpecification{
 				IAT:                  coldFunctions[i],
@@ -154,8 +154,6 @@ func CreateRPSFunctions(cfg *config.LoaderConfiguration, warmFunction common.IAT
 
 	return result
 }
-
-// TODO consider pointer receiver for []*functions
 
 // Attaches 2 possible DirigentMetadata property, depending if function is cold or warm (based on function name) for RPS function.
 func AppendDirigentMetadata(functions []*common.Function, cfg *config.LoaderConfiguration, dcfg *config.DirigentConfig) {
@@ -188,7 +186,7 @@ func AppendDirigentMetadata(functions []*common.Function, cfg *config.LoaderConf
 
 	// Appends cold/warm metadata based on function's name.
 	for _, function := range functions {
-		if strings.Contains(function.Name, "warm-function"){
+		if strings.Contains(function.Name, "warm-function") {
 			function.DirigentMetadata = dirigentMetadataWarm
 		} else if strings.Contains(function.Name, "cold-function") {
 			function.DirigentMetadata = dirigentMetadataCold
@@ -197,7 +195,6 @@ func AppendDirigentMetadata(functions []*common.Function, cfg *config.LoaderConf
 		}
 	}
 }
-
 
 func createRuntimeSpecification(count int, runtime, memory int) common.RuntimeSpecificationArray {
 	var result common.RuntimeSpecificationArray

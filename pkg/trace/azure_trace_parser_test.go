@@ -25,10 +25,11 @@
 package trace
 
 import (
-	"github.com/vhive-serverless/loader/pkg/common"
 	"math"
 	"strings"
 	"testing"
+
+	"github.com/vhive-serverless/loader/pkg/common"
 )
 
 func floatEqual(n, expected float64) bool {
