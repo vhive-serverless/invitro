@@ -1,7 +1,7 @@
 import json
-import json
 import os
 import glob
+import numpy as np
 import matplotlib.pyplot as plt
 import argparse
 from datetime import datetime
@@ -95,6 +95,7 @@ def plot_metric_comparison(folders, metric_filename, title, ylabel, output_file,
 def plot_bar_comparison(folders, metric_filename, title, ylabel, output_file, is_memory=False, is_average=False, is_integral=False, is_peak=False, multiplier=1.0):
     """Plot a grouped bar chart comparing the metric value across different pod counts."""
     data_map = {}
+    error_map = {}
     
     for folder in folders:
         mode, replicas = get_metadata(folder)
@@ -108,27 +109,39 @@ def plot_bar_comparison(folders, metric_filename, title, ylabel, output_file, is
                 
             # Use a stable 1s step size over raw json data dumps
             step_size = 1
+            error_value = (0.0, 0.0)
             
             if is_integral:
                 # Calculate absolute total energy expended (Area under the curve)
                 # Multiply each rate by the step_size.
                 metric_value = sum([val * step_size for val in data])
             elif is_average:
-                # Calculate the overall average across the entire timeseries (Flawed for CPU, kept for Memory)
-                metric_value = sum(data) / len(data)
+                # Calculate the overall average and 5th/95th percentiles for error bars
+                metric_value = np.mean(data)
+                if len(data) > 1:
+                    p05 = np.percentile(data, 5)
+                    p95 = np.percentile(data, 95)
+                    error_value = (max(0, metric_value - p05), max(0, p95 - metric_value))
             elif is_peak:
                 # Get the absolute maximum value recorded (ideal for latencies and percentiles)
                 metric_value = max(data)
             else:
                 # Take the average of the last 3 points to represent final stable state avoiding 1-sec spikes
                 metric_value = sum(data[-3:]) / len(data[-3:]) if len(data) >= 3 else data[-1]
+                if len(data) >= 3:
+                    p05 = np.percentile(data[-3:], 5)
+                    p95 = np.percentile(data[-3:], 95)
+                    error_value = (max(0, metric_value - p05), max(0, p95 - metric_value))
                 
             if is_memory:
                 metric_value = metric_value / (1024 * 1024) # Convert bytes to MB
+                error_value = (error_value[0] / (1024 * 1024), error_value[1] / (1024 * 1024))
                 
             if replicas not in data_map:
                 data_map[replicas] = {}
+                error_map[replicas] = {}
             data_map[replicas][mode] = metric_value
+            error_map[replicas][mode] = error_value
             
     if not data_map:
         return
@@ -137,12 +150,20 @@ def plot_bar_comparison(folders, metric_filename, title, ylabel, output_file, is
     iptables_vals = [data_map[r].get('iptables', 0) for r in sorted_replicas]
     nftables_vals = [data_map[r].get('nftables', 0) for r in sorted_replicas]
 
+    iptables_errs_lower = [error_map[r].get('iptables', (0.0, 0.0))[0] for r in sorted_replicas]
+    iptables_errs_upper = [error_map[r].get('iptables', (0.0, 0.0))[1] for r in sorted_replicas]
+    nftables_errs_lower = [error_map[r].get('nftables', (0.0, 0.0))[0] for r in sorted_replicas]
+    nftables_errs_upper = [error_map[r].get('nftables', (0.0, 0.0))[1] for r in sorted_replicas]
+
+    iptables_yerr = [iptables_errs_lower, iptables_errs_upper] if any(iptables_errs_lower) or any(iptables_errs_upper) else None
+    nftables_yerr = [nftables_errs_lower, nftables_errs_upper] if any(nftables_errs_lower) or any(nftables_errs_upper) else None
+
     x = range(len(sorted_replicas))
     width = 0.35
 
     fig, ax = plt.subplots(figsize=(10, 6))
-    ax.bar([i - width/2 for i in x], iptables_vals, width, label='Iptables', color=COLORS.get('iptables'), alpha=0.9)
-    ax.bar([i + width/2 for i in x], nftables_vals, width, label='Nftables', color=COLORS.get('nftables'), alpha=0.9)
+    ax.bar([i - width/2 for i in x], iptables_vals, width, yerr=iptables_yerr, capsize=4, ecolor='black', label='Iptables', color=COLORS.get('iptables'), alpha=0.9)
+    ax.bar([i + width/2 for i in x], nftables_vals, width, yerr=nftables_yerr, capsize=4, ecolor='black', label='Nftables', color=COLORS.get('nftables'), alpha=0.9)
 
     ax.set_xlabel('Number of Pods', fontsize=12)
     ax.set_ylabel(ylabel, fontsize=12)
@@ -152,13 +173,13 @@ def plot_bar_comparison(folders, metric_filename, title, ylabel, output_file, is
     ax.legend()
     ax.grid(True, axis='y', linestyle='--', alpha=0.7)
     
-    # Add value labels on top of bars
-    for i, v in enumerate(iptables_vals):
+    # Add value labels on top of bars and above error caps
+    for i, (v, err_upper) in enumerate(zip(iptables_vals, iptables_errs_upper)):
         if v > 0:
-            ax.text(i - width/2, v + (max(max(iptables_vals), max(nftables_vals)) * 0.01), f'{v:.2f}', ha='center', va='bottom', fontsize=9, rotation=90)
-    for i, v in enumerate(nftables_vals):
+            ax.text(i - width/2, v + err_upper + (max(max(iptables_vals), max(nftables_vals)) * 0.01), f'{v:.2f}', ha='center', va='bottom', fontsize=9, rotation=90)
+    for i, (v, err_upper) in enumerate(zip(nftables_vals, nftables_errs_upper)):
         if v > 0:
-            ax.text(i + width/2, v + (max(max(iptables_vals), max(nftables_vals)) * 0.01), f'{v:.2f}', ha='center', va='bottom', fontsize=9, rotation=90)
+            ax.text(i + width/2, v + err_upper + (max(max(iptables_vals), max(nftables_vals)) * 0.01), f'{v:.2f}', ha='center', va='bottom', fontsize=9, rotation=90)
 
     plt.tight_layout()
     plt.savefig(output_file, dpi=300)

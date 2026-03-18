@@ -259,6 +259,10 @@ trickle_and_monitor() {
         # Incrementally scale the deployment by 1
         kubectl scale deployment massive-scale-deployment --replicas="${current}" > /dev/null
         
+        if (( i % 25 == 0 )) || (( i == 1 )) || (( i == trickle_count )); then
+            echo "[$(date +%T)]   Trickling progress: scaled to ${current} pods (${i}/${trickle_count})"
+        fi
+        
         # Wait long enough to guarantee PromQL captures the trickle before moving to next point
         sleep "${trickle_delay}"
     done
@@ -280,30 +284,30 @@ collect_deployment_metrics() {
     # Use a stable 1s query resolution for all iterations
     local step="1"
     
-    query_prometheus_range 'histogram_quantile(0.99, sum by (le) (rate(kubeproxy_sync_proxy_rules_duration_seconds_bucket[10s])))' "${result_dir}/sync_duration_p99_timeseries.json" "$start_time" "$end_time" "$step"
-    query_prometheus_range 'histogram_quantile(0.95, sum by (le) (rate(kubeproxy_sync_proxy_rules_duration_seconds_bucket[10s])))' "${result_dir}/sync_duration_p95_timeseries.json" "$start_time" "$end_time" "$step"
-    query_prometheus_range 'histogram_quantile(0.50, sum by (le) (rate(kubeproxy_sync_proxy_rules_duration_seconds_bucket[10s])))' "${result_dir}/sync_duration_p50_timeseries.json" "$start_time" "$end_time" "$step"
-    query_prometheus_range 'sum(rate(kubeproxy_sync_proxy_rules_duration_seconds_sum[10s])) / sum(rate(kubeproxy_sync_proxy_rules_duration_seconds_count[10s]) > 0)' "${result_dir}/sync_duration_avg_timeseries.json" "$start_time" "$end_time" "$step"
+    query_prometheus_range 'histogram_quantile(0.99, sum by (le) (rate(kubeproxy_sync_proxy_rules_duration_seconds_bucket[20s])))' "${result_dir}/sync_duration_p99_timeseries.json" "$start_time" "$end_time" "$step"
+    query_prometheus_range 'histogram_quantile(0.95, sum by (le) (rate(kubeproxy_sync_proxy_rules_duration_seconds_bucket[20s])))' "${result_dir}/sync_duration_p95_timeseries.json" "$start_time" "$end_time" "$step"
+    query_prometheus_range 'histogram_quantile(0.50, sum by (le) (rate(kubeproxy_sync_proxy_rules_duration_seconds_bucket[20s])))' "${result_dir}/sync_duration_p50_timeseries.json" "$start_time" "$end_time" "$step"
+    query_prometheus_range 'sum(rate(kubeproxy_sync_proxy_rules_duration_seconds_sum[20s])) / sum(rate(kubeproxy_sync_proxy_rules_duration_seconds_count[20s]) > 0)' "${result_dir}/sync_duration_avg_timeseries.json" "$start_time" "$end_time" "$step"
     
-    query_prometheus_range 'histogram_quantile(0.99, sum by (le) (rate(kubeproxy_network_programming_duration_seconds_bucket[10s])))' "${result_dir}/network_programming_p99_timeseries.json" "$start_time" "$end_time" "$step"
-    query_prometheus_range 'histogram_quantile(0.95, sum by (le) (rate(kubeproxy_network_programming_duration_seconds_bucket[10s])))' "${result_dir}/network_programming_p95_timeseries.json" "$start_time" "$end_time" "$step"
-    query_prometheus_range 'histogram_quantile(0.50, sum by (le) (rate(kubeproxy_network_programming_duration_seconds_bucket[10s])))' "${result_dir}/network_programming_p50_timeseries.json" "$start_time" "$end_time" "$step"
-    query_prometheus_range 'sum(rate(kubeproxy_network_programming_duration_seconds_sum[10s])) / sum(rate(kubeproxy_network_programming_duration_seconds_count[10s]) > 0)' "${result_dir}/network_programming_avg_timeseries.json" "$start_time" "$end_time" "$step"
+    query_prometheus_range 'histogram_quantile(0.99, sum by (le) (rate(kubeproxy_network_programming_duration_seconds_bucket[20s])))' "${result_dir}/network_programming_p99_timeseries.json" "$start_time" "$end_time" "$step"
+    query_prometheus_range 'histogram_quantile(0.95, sum by (le) (rate(kubeproxy_network_programming_duration_seconds_bucket[20s])))' "${result_dir}/network_programming_p95_timeseries.json" "$start_time" "$end_time" "$step"
+    query_prometheus_range 'histogram_quantile(0.50, sum by (le) (rate(kubeproxy_network_programming_duration_seconds_bucket[20s])))' "${result_dir}/network_programming_p50_timeseries.json" "$start_time" "$end_time" "$step"
+    query_prometheus_range 'sum(rate(kubeproxy_network_programming_duration_seconds_sum[20s])) / sum(rate(kubeproxy_network_programming_duration_seconds_count[20s]) > 0)' "${result_dir}/network_programming_avg_timeseries.json" "$start_time" "$end_time" "$step"
 
     # KWOK Pod Spawning metrics (Using fuzzy match since workqueue name might be 'pods', 'pod_controller', etc.)
-    query_prometheus_range 'histogram_quantile(0.99, sum by (le) (rate(workqueue_work_duration_seconds_bucket{name=~".*pod.*"}[10s])))' "${result_dir}/kwok_pod_duration_p99_timeseries.json" "$start_time" "$end_time" "$step"
-    query_prometheus_range 'histogram_quantile(0.95, sum by (le) (rate(workqueue_work_duration_seconds_bucket{name=~".*pod.*"}[10s])))' "${result_dir}/kwok_pod_duration_p95_timeseries.json" "$start_time" "$end_time" "$step"
-    query_prometheus_range 'histogram_quantile(0.50, sum by (le) (rate(workqueue_work_duration_seconds_bucket{name=~".*pod.*"}[10s])))' "${result_dir}/kwok_pod_duration_p50_timeseries.json" "$start_time" "$end_time" "$step"
-    query_prometheus_range 'sum(rate(workqueue_work_duration_seconds_sum{name=~".*pod.*"}[10s])) / sum(rate(workqueue_work_duration_seconds_count{name=~".*pod.*"}[10s]) > 0)' "${result_dir}/kwok_pod_duration_avg_timeseries.json" "$start_time" "$end_time" "$step"
+    query_prometheus_range 'histogram_quantile(0.99, sum by (le) (rate(workqueue_work_duration_seconds_bucket{name=~".*pod.*"}[20s])))' "${result_dir}/kwok_pod_duration_p99_timeseries.json" "$start_time" "$end_time" "$step"
+    query_prometheus_range 'histogram_quantile(0.95, sum by (le) (rate(workqueue_work_duration_seconds_bucket{name=~".*pod.*"}[20s])))' "${result_dir}/kwok_pod_duration_p95_timeseries.json" "$start_time" "$end_time" "$step"
+    query_prometheus_range 'histogram_quantile(0.50, sum by (le) (rate(workqueue_work_duration_seconds_bucket{name=~".*pod.*"}[20s])))' "${result_dir}/kwok_pod_duration_p50_timeseries.json" "$start_time" "$end_time" "$step"
+    query_prometheus_range 'sum(rate(workqueue_work_duration_seconds_sum{name=~".*pod.*"}[20s])) / sum(rate(workqueue_work_duration_seconds_count{name=~".*pod.*"}[20s]) > 0)' "${result_dir}/kwok_pod_duration_avg_timeseries.json" "$start_time" "$end_time" "$step"
 
-    query_prometheus_range 'sum(rate(process_cpu_seconds_total{job="kube-proxy"}[10s]))' "${result_dir}/cpu_usage_timeseries.json" "$start_time" "$end_time" "$step"
+    query_prometheus_range 'sum(rate(process_cpu_seconds_total{job="kube-proxy"}[20s]))' "${result_dir}/cpu_usage_timeseries.json" "$start_time" "$end_time" "$step"
     
     # CPU usage metrics calculation. Note: node_cpu is tracked as fractional cores natively.
     query_prometheus_range 'sum(rate(node_cpu_seconds_total{mode!="idle"}[30s]))' "${result_dir}/overall_cpu_usage_timeseries.json" "$start_time" "$end_time" "$step"
     
     query_prometheus_range 'sum(process_resident_memory_bytes{job="kube-proxy"})' "${result_dir}/memory_usage_timeseries.json" "$start_time" "$end_time" "$step"
-    query_prometheus_range 'histogram_quantile(0.99, sum by (le) (rate(apiserver_request_duration_seconds_bucket{verb=~"POST|PUT|PATCH",resource=~"endpoints.*"}[10s])))' "${result_dir}/apiserver_latency_p99_timeseries.json" "$start_time" "$end_time" "$step"
-    query_prometheus_range 'sum(rate(kubeproxy_sync_proxy_rules_duration_seconds_count[10s]))' "${result_dir}/sync_count_timeseries.json" "$start_time" "$end_time" "$step"
+    query_prometheus_range 'histogram_quantile(0.99, sum by (le) (rate(apiserver_request_duration_seconds_bucket{verb=~"POST|PUT|PATCH",resource=~"endpoints.*"}[20s])))' "${result_dir}/apiserver_latency_p99_timeseries.json" "$start_time" "$end_time" "$step"
+    query_prometheus_range 'sum(rate(kubeproxy_sync_proxy_rules_duration_seconds_count[20s]))' "${result_dir}/sync_count_timeseries.json" "$start_time" "$end_time" "$step"
     
     # Final state metrics
     query_prometheus 'count(kube_pod_info{pod=~"massive-scale-deployment.*"})' "${result_dir}/final_pod_count.json"
