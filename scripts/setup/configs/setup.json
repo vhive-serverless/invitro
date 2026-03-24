@@ -4,7 +4,7 @@
     "LOADER_REPO": "https://github.com/vhive-serverless/invitro",
     "LOADER_BRANCH": "khala-loader",
     "KHALA_REPO": "https://github.com/hyscale-lab/khala.git",
-    "KHALA_BRANCH": "jy/nexus-knative-impl",
+    "KHALA_BRANCH": "jy/nexus-knative-impl-rdma",
     "CLUSTER_MODE": "container",
     "PODS_PER_NODE": 240,
     "DEPLOY_PROMETHEUS": true,

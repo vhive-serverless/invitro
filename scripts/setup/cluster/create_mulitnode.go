@@ -102,6 +102,11 @@ func CreateMultiNodeSetup(configDir string, configName string) {
 		utils.InfoPrintf("RDMA components setup completed.\n")
 	}
 
+	utils.InfoPrintf("Setting up Khala ...\n")
+	if err := setupKhala(cfg.SetupCfg, cfg.MasterNode, cfg.LoaderNode, cfg.WorkerNodes); err != nil {
+		utils.FatalPrintf("Failed to setup Khala: %v\n", err)
+	}
+
 	// Post-Setup Configuration
 	utils.InfoPrintf("Applying post-setup configurations...\n")
 	if err := applyPostSetupConfigurations(cfg.MasterNode); err != nil {

@@ -9,7 +9,6 @@ import (
 
 func setupRDMA(tenantNodes []string) error {
 	var wg sync.WaitGroup
-	errChan := make(chan error, len(tenantNodes))
 
 	commandList := []string{
 		"sudo apt-get update",
@@ -25,7 +24,6 @@ func setupRDMA(tenantNodes []string) error {
 			for _, cmd := range commandList {
 				_, err := loaderUtils.ServerExec(node, cmd)
 				if !utils.CheckErrorWithMsg(err, "Failed to execute %s on node %s: %v\n", cmd, node, err) {
-					errChan <- err
 					return
 				}
 			}

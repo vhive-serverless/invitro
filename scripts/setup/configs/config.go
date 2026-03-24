@@ -11,6 +11,7 @@ import (
 
 type InvitroSetupConfig struct {
 	MasterNode         string
+	LoaderNode         string
 	WorkerNodes        []string
 	MinioOperatorNodes []string
 	MinioTenantNodes   []string
@@ -89,6 +90,7 @@ func CommonConfigSetup(configDir string, configName string) (*InvitroSetupConfig
 	}
 
 	masterNode := extNodeSetup.NodeSetup.MasterNode[0]
+	loaderNode := extNodeSetup.NodeSetup.LoaderNode[0]
 	workerNodes := extNodeSetup.NodeSetup.WorkerNode
 	minioOperatorNodes := extNodeSetup.NodeSetup.MinioOperatorNode
 	minioTenantNodes := extNodeSetup.NodeSetup.MinioTenantNode
@@ -96,6 +98,7 @@ func CommonConfigSetup(configDir string, configName string) (*InvitroSetupConfig
 
 	return &InvitroSetupConfig{
 		MasterNode:         masterNode,
+		LoaderNode:         loaderNode,
 		WorkerNodes:        workerNodes,
 		MinioOperatorNodes: minioOperatorNodes,
 		MinioTenantNodes:   minioTenantNodes,
