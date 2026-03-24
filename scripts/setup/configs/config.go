@@ -44,6 +44,7 @@ type SetupConfig struct {
 	PodsPerNode      int    `json:"PODS_PER_NODE"`
 	DeployPrometheus bool   `json:"DEPLOY_PROMETHEUS"`
 	DeployMinio      bool   `json:"DEPLOY_MINIO"`
+	DeployRDMA       bool   `json:"DEPLOY_RDMA"`
 }
 
 type MinioConfig struct {

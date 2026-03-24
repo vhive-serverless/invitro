@@ -29,6 +29,7 @@ var (
 	CorePool        = flag.String("corepool-size", "", "Manual core pool size to set when using 'set-corepool' command")
 	SetNexusSDK     = flag.Bool("set-nexus-sdk", false, "Whether to set Nexus SDK environment variable for worker nodes")
 	SetNexusRPC     = flag.Bool("set-nexus-rpc", false, "Whether to set Nexus RPC environment variable for worker nodes")
+	WithRDMA        = flag.Bool("with-rdma", false, "Whether to deploy RDMA storage along with Khala")
 	Debug           = flag.Bool("debug", false, "Enable debug mode")
 
 	WorkloadList = []string{"helloworld", "chameleonserve", "cnnserve", "imageresize", "lrserving", "mapper", "pyaesserve", "reducer", "rnnserve", "streducer", "sttrainer"}
@@ -67,7 +68,10 @@ func main() {
 	switch *Command {
 	case "deploy":
 		log.Infof("Deploying Khala on worker nodes: %v", workerNodeSetup.WorkerNodes)
-		DeployKhala(workerNodeSetup, *CorePoolPolicy, *Implementation, *Debug)
+		DeployKhala(workerNodeSetup, *CorePoolPolicy, *Implementation, *WithRDMA, *Debug)
+		if *WithRDMA {
+			DeployRDMAStorage(workerNodeSetup)
+		}
 	case "clean":
 		log.Infof("Cleaning Khala on worker nodes: %v", workerNodeSetup.WorkerNodes)
 		CleanKhala(workerNodeSetup, *RemoveSnapshots)
@@ -87,7 +91,8 @@ func main() {
 }
 
 type WorkerNodeSetup struct {
-	WorkerNodes []string `json:"worker_nodes"`
+	WorkerNodes  []string `json:"worker_nodes"`
+	StorageNodes []string `json:"storage_nodes"`
 }
 
 func getWorkerNodes() (WorkerNodeSetup, error) {
@@ -100,10 +105,13 @@ func getWorkerNodes() (WorkerNodeSetup, error) {
 	if err != nil {
 		return WorkerNodeSetup{}, err
 	}
+	if len(workerNodeSetup.WorkerNodes) != len(workerNodeSetup.StorageNodes) {
+		return WorkerNodeSetup{}, fmt.Errorf("number of worker nodes and storage nodes must be the same")
+	}
 	return workerNodeSetup, nil
 }
 
-func DeployKhala(workerNodeSetup WorkerNodeSetup, corePoolPolicy string, implementation string, debug bool) error {
+func DeployKhala(workerNodeSetup WorkerNodeSetup, corePoolPolicy string, implementation string, withRDMA bool, debug bool) error {
 	// 1. cleanup minio
 	log.Infof("Cleaning up minio")
 	cmd := exec.Command("bash", "-c", "cd ~/khala && bash ./scripts/deploy-minio-obj.sh http://myminio-api.minio.10.200.3.4.sslip.io")
@@ -131,23 +139,26 @@ func DeployKhala(workerNodeSetup WorkerNodeSetup, corePoolPolicy string, impleme
 		deploymentCmd += " --set-nexus-rpc=false"
 	}
 
-	if debug {
-		deploymentCmd += " > ~/khala/kn-integration.log 2>&1"
+	if withRDMA {
+		deploymentCmd += " --with-rdma=true"
+	} else {
+		deploymentCmd += " --with-rdma=false"
 	}
 
 	CommandList := []string{
 		`sudo pkill --signal INT kn-integration 2>/dev/null || true`,
 		`tmux kill-session -t kn-integration 2>/dev/null || true`,
 		`tmux new-session -d -s kn-integration`,
-		fmt.Sprintf(`tmux send-keys -t kn-integration "%s" C-m`, deploymentCmd),
 	}
 
 	// 2. deploy khala on all worker nodes
 	log.Infof("Deploying Khala on worker nodes: %v", workerNodeSetup.WorkerNodes)
 	var wg sync.WaitGroup
-	for _, workerNode := range workerNodeSetup.WorkerNodes {
-		go func(node string) {
+	for nodeIndex, workerNode := range workerNodeSetup.WorkerNodes {
+		go func(node string, nodeIndex int) {
 			defer wg.Done()
+			deploymentCmd += " --storage-ip=" + workerNodeSetup.StorageNodes[nodeIndex] + ":10191"
+			CommandList = append(CommandList, fmt.Sprintf(`tmux send-keys -t kn-integration "%s" C-m`, deploymentCmd))
 			for _, cmd := range CommandList {
 				_, err := loaderUtils.ServerExec(node, cmd)
 				if err != nil {
@@ -155,13 +166,45 @@ func DeployKhala(workerNodeSetup WorkerNodeSetup, corePoolPolicy string, impleme
 				}
 			}
 			log.Infof("Khala deployed on worker node %s", workerNode)
-		}(workerNode)
+		}(workerNode, nodeIndex)
 		wg.Add(1)
 	}
 	wg.Wait()
 	time.Sleep(10 * time.Second)
 
 	return nil
+}
+
+func DeployRDMAStorage(workerNodeSetup WorkerNodeSetup) {
+	CommandList := []string{
+		`sudo pkill --signal INT s3-rdma-server 2>/dev/null || true`,
+		`tmux kill-session -t s3-rdma-server 2>/dev/null || true`,
+		`tmux new-session -d -s s3-rdma-server`,
+	}
+
+	deploymentCmd := "cd ~/rdma-demo && sudo ./s3-rdma-server"
+
+	deploymentCmd += " --payload-root=assets --enable-rdma-zcopy=true"
+
+	log.Infof("Deploying RDMA storage on worker nodes: %v", workerNodeSetup.StorageNodes)
+	var wg sync.WaitGroup
+	for _, storageNode := range workerNodeSetup.StorageNodes {
+		go func(node string) {
+			defer wg.Done()
+			deploymentCmd += " --tcp-listen=" + node + ":10090"
+			deploymentCmd += " --rdma-zcopy-listen=" + node + ":10191"
+			CommandList = append(CommandList, fmt.Sprintf(`tmux send-keys -t s3-rdma-server "%s" C-m`, deploymentCmd))
+			for _, cmd := range CommandList {
+				_, err := loaderUtils.ServerExec(node, cmd)
+				if err != nil {
+					log.Errorf("Failed to execute command '%s' on storage node %s: %v", cmd, node, err)
+				}
+			}
+			log.Infof("RDMA storage deployed on storage node %s", node)
+		}(storageNode)
+		wg.Add(1)
+	}
+	wg.Wait()
 }
 
 func CleanKhala(workerNodeSetup WorkerNodeSetup, removeSnapshots bool) {

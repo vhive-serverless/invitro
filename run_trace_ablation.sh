@@ -9,9 +9,9 @@
 
 
 # for max_multiplier in 29
-for max_multiplier in 35
+for max_multiplier in 25
 do
-    divisor=200
+    divisor=100
     EXPWARMUP=2
     START_SCALE=1
     END_SCALE=$max_multiplier
@@ -103,6 +103,28 @@ do
     
     mkdir -p data/out/$EXP
     go run experiment/khala_command.go --command=deploy --set-nexus-sdk=true --set-nexus-rpc=true
+    cat cmd/config_khala_trace_template.json | EXPERIMENT="$EXP" EXP_DUR="$EXP_DUR" WARMUP="$EXPWARMUP" PREFETCH="$PREFETCH" envsubst > cmd/config_khala_trace.json
+    go run cmd/loader.go --config cmd/config_khala_trace.json | tee data/out/$EXP/loader.log
+    kubectl logs deployment/activator -n knative-serving > data/out/$EXP/activator.log
+    go run experiment/khala_command.go --command=clean --remove-snapshots=false
+
+    sleep 60
+
+    ### RDMA
+    echo "Running Nexus + RDMA with function multiplier: $max_multiplier"
+    PREFETCH=false
+    EXP="nexusrdma_d-${divisor}_s-${START_SCALE}_e-${END_SCALE}_t-${STEP}_p-${PREFETCH}"
+    python3 generate_trace_sweep.py \
+        --divisor $divisor \
+        --start-scale $START_SCALE \
+        --end-scale $END_SCALE \
+        --step $STEP \
+        --shift-step 10 \
+        --warmup-duration $EXPWARMUP \
+        --warmup-scale 1 --s3 --rpc
+    
+    mkdir -p data/out/$EXP
+    go run experiment/khala_command.go --command=deploy --set-nexus-sdk=true --set-nexus-rpc=true --with-rdma=true
     cat cmd/config_khala_trace_template.json | EXPERIMENT="$EXP" EXP_DUR="$EXP_DUR" WARMUP="$EXPWARMUP" PREFETCH="$PREFETCH" envsubst > cmd/config_khala_trace.json
     go run cmd/loader.go --config cmd/config_khala_trace.json | tee data/out/$EXP/loader.log
     kubectl logs deployment/activator -n knative-serving > data/out/$EXP/activator.log

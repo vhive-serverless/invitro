@@ -220,12 +220,12 @@ func StopPerfCollection(perfCtx *PerfCollectionContext) {
 				log.Errorf("Failed to cleanup perf.csv on node %s: %v", node, err)
 			}
 			// Clean up the remote perf.data file
-			// cleanupCommand = "sudo rm ~/perf.data"
-			// log.Debugf("Cleaning up perf.data on node %s", node)
-			// _, err = utils.ServerExec(node, cleanupCommand)
-			// if err != nil {
-			// 	log.Errorf("Failed to cleanup perf.data on node %s: %v", node, err)
-			// }
+			cleanupCommand = "sudo rm ~/perf.data"
+			log.Debugf("Cleaning up perf.data on node %s", node)
+			_, err = utils.ServerExec(node, cleanupCommand)
+			if err != nil {
+				log.Errorf("Failed to cleanup perf.data on node %s: %v", node, err)
+			}
 		}(node, nodeIndex)
 	}
 

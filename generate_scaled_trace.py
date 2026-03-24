@@ -43,6 +43,17 @@ import pandas as pd
 # Experiment: baseline, Workload: sttrainer, interpolated_cpu_50%: 187.75085688193084
 # Workload: sttrainer, half of max rps: 130.20560678256757
 
+# workload: chameleonserve, baseline response time avg: 45.06541880744756
+# workload: cnnserve, baseline response time avg: 594.7142112676056
+# workload: imageresize, baseline response time avg: 2202.993191489362
+# workload: lrserving, baseline response time avg: 48.63073059768064
+# workload: mapper, baseline response time avg: 823.1290893854749
+# workload: pyaesserve, baseline response time avg: 29.472829667683417
+# workload: reducer, baseline response time avg: 4236.056647058824
+# workload: rnnserve, baseline response time avg: 210.2171624803768
+# workload: streducer, baseline response time avg: 177.01164913657772
+# workload: sttrainer, baseline response time avg: 250.6105230296827
+
 # RPS that drives load to 50% CPU utilization
 # DEFAULT_INPUT_RPS: Dict[str, float] = {
 #     "chameleonserve": 795, "cnnserve": 100, "imageresize": 30, "lrserving": 680,
@@ -58,10 +69,10 @@ DEFAULT_INPUT_RPS: Dict[str, float] = {
 }
 
 DEFAULT_WORKLOAD_AVG_DURATION_MS: Dict[str, float] = {
-    "chameleonserve": 44.22, "cnnserve": 585.589, "imageresize": 2113.782,
-	"lrserving": 47.26, "mapper": 775.300, "pyaesserve": 28.542,
-	"reducer": 4037.270, "rnnserve": 197.117, "streducer": 154.807,
-	"sttrainer": 244.291,
+    "chameleonserve": 45.06, "cnnserve": 594.71, "imageresize": 2202.99,
+	"lrserving": 48.63, "mapper": 823.13, "pyaesserve": 29.47,
+	"reducer": 4236.05, "rnnserve": 210.21, "streducer": 177.01,
+	"sttrainer": 250.61,
 }
 
 

@@ -93,6 +93,15 @@ func CreateMultiNodeSetup(configDir string, configName string) {
 		utils.InfoPrintf("Prometheus components setup completed.\n")
 	}
 
+	// Deploy RDMA if enabled
+	if cfg.SetupCfg.DeployRDMA {
+		utils.InfoPrintf("Setting up RDMA components...\n")
+		if err := setupRDMA(cfg.MinioTenantNodes); err != nil {
+			utils.FatalPrintf("Failed to setup RDMA components: %v\n", err)
+		}
+		utils.InfoPrintf("RDMA components setup completed.\n")
+	}
+
 	// Post-Setup Configuration
 	utils.InfoPrintf("Applying post-setup configurations...\n")
 	if err := applyPostSetupConfigurations(cfg.MasterNode); err != nil {

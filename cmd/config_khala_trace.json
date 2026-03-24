@@ -10,11 +10,11 @@
 
   "TracePath": "data/traces/nexus",
   "Granularity": "minute",
-  "OutputPathPrefix": "data/out/baseline_d-100_s-1_e-14_t-1_p-true/experiment",
-  "IATDistribution": "equidistant",
+  "OutputPathPrefix": "data/out/baseline_d-100_s-1_e-25_t-1_p-false/experiment",
+  "IATDistribution": "exponential",
   "CPULimit": "1vCPU",
-  "ExperimentDuration": 14,
-  "WarmupDuration": 5,
+  "ExperimentDuration": 25,
+  "WarmupDuration": 2,
 
   "IsPartiallyPanic": false,
   "EnableZipkinTracing": false,
@@ -22,12 +22,12 @@
   "MetricScrapingPeriodSeconds": 1,
   "AutoscalingMetric": "concurrency",
 
-  "GRPCConnectionTimeoutSeconds": 20,
-  "GRPCFunctionTimeoutSeconds": 900,
+  "GRPCConnectionTimeoutSeconds": 5,
+  "GRPCFunctionTimeoutSeconds": 20,
   "DAGMode": false,
   "EnableDAGDataset": true,
   "Width": 2,
   "Depth": 2,
   
-  "EnablePrefetch": true
+  "EnablePrefetch": false
 }

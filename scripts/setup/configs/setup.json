@@ -8,5 +8,6 @@
     "CLUSTER_MODE": "container",
     "PODS_PER_NODE": 240,
     "DEPLOY_PROMETHEUS": true,
-    "DEPLOY_MINIO": true
+    "DEPLOY_MINIO": true,
+    "DEPLOY_RDMA": true
 }
