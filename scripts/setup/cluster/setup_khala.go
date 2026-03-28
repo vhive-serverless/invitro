@@ -80,7 +80,7 @@ func setupKhala(cfg *configs.SetupConfig, masterNode string, loaderNode string, 
 			defer wg.Done()
 			utils.WaitPrintf("Setting up Khala on node: %s\n", node)
 			// cd khala && bash scripts/setup_knative.sh
-			_, err := loaderUtils.ServerExec(node, "cd khala && source /etc/profile && bash scripts/setup_knative.sh && make build-all && sudo mkdir -p /mnt/resources/jailer")
+			_, err := loaderUtils.ServerExec(node, "cd khala && bash scripts/setup_knative.sh && source /etc/profile && make build-all && sudo mkdir -p /mnt/resources/jailer")
 			if !utils.CheckErrorWithMsg(err, "Failed to set up Khala on node %s: %v\n", node, err) {
 				return
 			}
