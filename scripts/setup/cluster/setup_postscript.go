@@ -21,7 +21,7 @@ func applyPostSetupConfigurations(masterNode string) error {
 		return err
 	}
 
-	_, err = loaderUtils.ServerExec(masterNode, `kubectl set env deployment/activator -n knative-serving KEEPALIVE_DURATION=60 UPDATE_INTERVAL=5`)
+	_, err = loaderUtils.ServerExec(masterNode, `kubectl set env deployment/activator -n knative-serving KEEPALIVE_DURATION=83 UPDATE_INTERVAL=13`)
 	if err != nil {
 		return err
 	}

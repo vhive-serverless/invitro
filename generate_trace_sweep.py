@@ -64,15 +64,15 @@ DEFAULT_OUTPUT_DIR = "data/traces/nexus"
 # 50% of max RPS the system can handle
 DEFAULT_WORKLOAD_RPS: Dict[str, float] = {
     "chameleonserve": 510, "cnnserve": 75, "imageresize": 26, "lrserving": 475,
-    "mapper": 60, "pyaesserve": 500, "reducer": 12, "rnnserve": 150, 
+    "mapper": 60, "pyaesserve": 500, "reducer": 12, "rnnserve": 90, 
     "streducer": 160, "sttrainer": 130
 }
 
 DEFAULT_WORKLOAD_AVG_DURATION_MS: Dict[str, float] = {
-    "chameleonserve": 45.06, "cnnserve": 594.71, "imageresize": 2202.99,
-	"lrserving": 48.63, "mapper": 823.13, "pyaesserve": 29.47,
-	"reducer": 4236.05, "rnnserve": 210.21, "streducer": 177.01,
-	"sttrainer": 250.61,
+    "chameleonserve": 18.26, "cnnserve": 165.387, "imageresize": 491.001,
+	"lrserving": 28.387, "mapper": 245.188, "pyaesserve": 12.862,
+	"reducer": 1025.913, "rnnserve": 2 * 25.4895, "streducer": 88.839,
+	"sttrainer": 54.328,
 }
 
 # --- Configuration Class ---

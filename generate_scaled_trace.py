@@ -21,38 +21,37 @@ from typing import Dict, List
 import pandas as pd
 
 # --- Default Configuration ---
-# Data below is measured with fixed VM scale at 320, effectively removing control plane ovehead.
-# Experiment: baseline, Workload: chameleonserve, interpolated_cpu_50%: 794.208980649154
-# Workload: chameleonserve, half of max rps: 510.1130331693075
-# Experiment: baseline, Workload: cnnserve, interpolated_cpu_50%: 98.50977075980629
-# Workload: cnnserve, half of max rps: 73.77754980418474
-# Experiment: baseline, Workload: imageresize, interpolated_cpu_50%: 29.165104779391093
-# Workload: imageresize, half of max rps: 26.25288767365064
-# Experiment: baseline, Workload: lrserving, interpolated_cpu_50%: 682.0362429717659
-# Workload: lrserving, half of max rps: 473.1911782701717
-# Experiment: baseline, Workload: mapper, interpolated_cpu_50%: 66.17061197172778
-# Workload: mapper, half of max rps: 60.56107732911952
-# Experiment: baseline, Workload: pyaesserve, interpolated_cpu_50%: 1155.7815579080993
-# Workload: pyaesserve, half of max rps: 498.26441366365714
-# Experiment: baseline, Workload: reducer, interpolated_cpu_50%: 14.113463475493615
-# Workload: reducer, half of max rps: 12.00999359289477
-# Experiment: baseline, Workload: rnnserve, interpolated_cpu_50%: 238.1260685804099
-# Workload: rnnserve, half of max rps: 149.69988899183645
-# Experiment: baseline, Workload: streducer, interpolated_cpu_50%: 227.98705106890299
-# Workload: streducer, half of max rps: 160.38296265131862
-# Experiment: baseline, Workload: sttrainer, interpolated_cpu_50%: 187.75085688193084
-# Workload: sttrainer, half of max rps: 130.20560678256757
+# Experiment: baseline, Workload: chameleonserve, interpolated_cpu_50%: 914.5110999422967
+# Workload: chameleonserve, half of max rps: 510.64113827356385
+# Experiment: baseline, Workload: cnnserve, interpolated_cpu_50%: 105.32465327874101
+# Workload: cnnserve, half of max rps: 86.57271723457745
+# Experiment: baseline, Workload: imageresize, interpolated_cpu_50%: 29.655882219981198
+# Workload: imageresize, half of max rps: 27.164712979160246
+# Experiment: baseline, Workload: lrserving, interpolated_cpu_50%: 781.9822168011407
+# Workload: lrserving, half of max rps: 485.0037563339206
+# Experiment: baseline, Workload: mapper, interpolated_cpu_50%: 73.28781949035546
+# Workload: mapper, half of max rps: 63.33092863154349
+# Experiment: baseline, Workload: pyaesserve, interpolated_cpu_50%: 1264.929833206269
+# Workload: pyaesserve, half of max rps: 532.2919584308415
+# Experiment: baseline, Workload: reducer, interpolated_cpu_50%: 15.454956074749756
+# Workload: reducer, half of max rps: 13.033682301189971
+# Experiment: baseline, Workload: rnnserve, interpolated_cpu_50%: 299.19113547736833
+# Workload: rnnserve, half of max rps: 149.85646244835635
+# Experiment: baseline, Workload: streducer, interpolated_cpu_50%: 239.0041474891381
+# Workload: streducer, half of max rps: 168.22258447757287
+# Experiment: baseline, Workload: sttrainer, interpolated_cpu_50%: 220.8585622072425
+# Workload: sttrainer, half of max rps: 123.69716994491367
 
-# workload: chameleonserve, baseline response time avg: 45.06541880744756
-# workload: cnnserve, baseline response time avg: 594.7142112676056
-# workload: imageresize, baseline response time avg: 2202.993191489362
-# workload: lrserving, baseline response time avg: 48.63073059768064
-# workload: mapper, baseline response time avg: 823.1290893854749
-# workload: pyaesserve, baseline response time avg: 29.472829667683417
-# workload: reducer, baseline response time avg: 4236.056647058824
-# workload: rnnserve, baseline response time avg: 210.2171624803768
-# workload: streducer, baseline response time avg: 177.01164913657772
-# workload: sttrainer, baseline response time avg: 250.6105230296827
+# workload: chameleonserve, experiment: baseline, unloaded latency avg: 18.26 ms
+# workload: cnnserve, experiment: baseline, unloaded latency avg: 165.387 ms
+# workload: imageresize, experiment: baseline, unloaded latency avg: 491.001 ms
+# workload: lrserving, experiment: baseline, unloaded latency avg: 28.387 ms
+# workload: mapper, experiment: baseline, unloaded latency avg: 245.188 ms
+# workload: pyaesserve, experiment: baseline, unloaded latency avg: 12.862 ms
+# workload: reducer, experiment: baseline, unloaded latency avg: 1025.913 ms
+# workload: rnnserve, experiment: baseline, unloaded latency avg: 25.4895 ms
+# workload: streducer, experiment: baseline, unloaded latency avg: 88.839 ms
+# workload: sttrainer, experiment: baseline, unloaded latency avg: 54.328 ms
 
 # RPS that drives load to 50% CPU utilization
 # DEFAULT_INPUT_RPS: Dict[str, float] = {
@@ -64,15 +63,15 @@ import pandas as pd
 # 50% of max RPS the system can handle
 DEFAULT_INPUT_RPS: Dict[str, float] = {
     "chameleonserve": 510, "cnnserve": 75, "imageresize": 26, "lrserving": 475,
-    "mapper": 60, "pyaesserve": 500, "reducer": 12, "rnnserve": 150, 
+    "mapper": 60, "pyaesserve": 500, "reducer": 12, "rnnserve": 120, 
     "streducer": 160, "sttrainer": 130
 }
 
 DEFAULT_WORKLOAD_AVG_DURATION_MS: Dict[str, float] = {
-    "chameleonserve": 45.06, "cnnserve": 594.71, "imageresize": 2202.99,
-	"lrserving": 48.63, "mapper": 823.13, "pyaesserve": 29.47,
-	"reducer": 4236.05, "rnnserve": 210.21, "streducer": 177.01,
-	"sttrainer": 250.61,
+    "chameleonserve": 18.26, "cnnserve": 165.387, "imageresize": 491.001,
+	"lrserving": 28.387, "mapper": 245.188, "pyaesserve": 12.862,
+	"reducer": 1025.913, "rnnserve": 25.4895, "streducer": 88.839,
+	"sttrainer": 54.328,
 }
 
 

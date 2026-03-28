@@ -68,18 +68,29 @@ func (*nexusDeployer) Deploy(cfg *config.Configuration) {
 		khalaClients = append(khalaClients, &client)
 	}
 
+	wg := sync.WaitGroup{}
+	sem := make(chan struct{}, 10) // limit to 5 concurrent deployments to avoid overwhelming the cluster
 	for i := 0; i < len(cfg.Functions); i++ {
 		// deploy to all khala endpoints
-		nexusDeploySingleFunction(
-			cfg.Functions[i],
-			cfg.Functions[i].YAMLPath,
-			nexusConfig.IsPartiallyPanic,
-			nexusConfig.EndpointPort,
-			nexusConfig.AutoscalingMetric,
-			khalaClients,
-		)
+		sem <- struct{}{} // acquire semaphore
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			success := nexusDeploySingleFunction(
+				cfg.Functions[i],
+				cfg.Functions[i].YAMLPath,
+				nexusConfig.IsPartiallyPanic,
+				nexusConfig.EndpointPort,
+				nexusConfig.AutoscalingMetric,
+				khalaClients,
+			)
+			if !success {
+				log.Errorf("Failed to deploy function %s\n", cfg.Functions[i].Name)
+			}
+			<-sem // release semaphore
+		}(i)
 	}
-
+	wg.Wait()
 }
 
 func (*nexusDeployer) Clean() {
