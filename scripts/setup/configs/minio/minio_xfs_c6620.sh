@@ -1,88 +1,66 @@
 #!/bin/bash
 # Exit immediately if a command exits with a non-zero status.
-set -e
+set -euo pipefail
 
 # --- Configuration ---
 MOUNT_POINT="/mnt/resources/minio"
+TMPFS_MOUNT="/mnt/tmpfs"
+RAMDISK_IMAGE_NAME="ramdisk.img"
+RAMDISK_SIZE_GB="96"
 FILESYSTEM="xfs"
-CANDIDATE_DEVICES=("/dev/nvme0n1" "/dev/nvme1n1")
-TARGET_DEVICE=""
+RAMDISK_IMAGE_PATH="${TMPFS_MOUNT}/${RAMDISK_IMAGE_NAME}"
 
-# --- Logic to find the target device ---
-echo "INFO: Identifying the root filesystem's parent disk..."
+echo "================================================="
+echo "INFO: Preparing RAM disk for MinIO"
+echo "INFO: Mount point      : ${MOUNT_POINT}"
+echo "INFO: Tmpfs mount      : ${TMPFS_MOUNT}"
+echo "INFO: Ramdisk image    : ${RAMDISK_IMAGE_PATH}"
+echo "INFO: Ramdisk size (GB): ${RAMDISK_SIZE_GB}"
+echo "================================================="
 
-# 1. Get the partition mounted at root '/' (e.g., /dev/nvme0n1p3)
-ROOT_PARTITION=$(findmnt -n -o SOURCE /)
+# --- Cleanup existing mounts/devices ---
 
-# 2. Get the parent disk of that partition (e.g., nvme0n1 from /dev/nvme0n1p3)
-#    We add /dev/ to the front to get the full path (e.g., /dev/nvme0n1)
-ROOT_DEVICE="/dev/$(lsblk -no pkname "${ROOT_PARTITION}")"
+echo "INFO: Cleaning up any existing MinIO RAM-disk mounts..."
+sudo umount -f -l "${MOUNT_POINT}" 2>/dev/null || true
 
-echo "INFO: Root filesystem is on ${ROOT_DEVICE}. This disk will be avoided."
-
-# 3. Find the candidate device that is NOT the root device
-for d in "${CANDIDATE_DEVICES[@]}"; do
-    if [[ "${d}" != "${ROOT_DEVICE}" ]]; then
-        TARGET_DEVICE="${d}"
-        break
+while read -r loopdev _; do
+    clean_loopdev="${loopdev%:}"
+    if [[ -n "${clean_loopdev}" ]]; then
+        echo "INFO: Detaching loop device ${clean_loopdev}"
+        sudo losetup -d "${clean_loopdev}" || true
     fi
-done
+done < <(sudo losetup -j "${RAMDISK_IMAGE_PATH}" || true)
 
-# 4. Final validation: Ensure a target was found and that it's not mounted
-if [ -z "${TARGET_DEVICE}" ]; then
-    echo "ERROR: Could not determine a target device to format."
-    exit 1
-fi
+sudo umount -f -l "${TMPFS_MOUNT}" 2>/dev/null || true
+sudo rm -rf "${MOUNT_POINT}" "${TMPFS_MOUNT}"
 
-if findmnt "${TARGET_DEVICE}" &>/dev/null; then
-    echo "ERROR: Safety check failed! The intended target ${TARGET_DEVICE} appears to be mounted."
-    lsblk
-    exit 1
-fi
+# --- Create RAM disk ---
 
-echo "================================================="
-echo "INFO: Target device for formatting: ${TARGET_DEVICE}"
-echo "================================================="
+echo "INFO: Creating tmpfs mount at ${TMPFS_MOUNT}..."
+sudo mkdir -p "${TMPFS_MOUNT}"
+sudo mount -t tmpfs -o "size=${RAMDISK_SIZE_GB}G" tmpfs "${TMPFS_MOUNT}"
 
+echo "INFO: Creating ${RAMDISK_SIZE_GB}G RAM-disk image..."
+RAMDISK_SIZE_MB=$((RAMDISK_SIZE_GB * 1024))
+sudo dd if=/dev/zero of="${RAMDISK_IMAGE_PATH}" bs=1M count="${RAMDISK_SIZE_MB}" status=progress
 
-# --- Formatting and Mounting ---
+echo "INFO: Attaching loop device..."
+LOOPDEV=$(sudo losetup --show -f "${RAMDISK_IMAGE_PATH}")
+echo "INFO: Loop device is ${LOOPDEV}"
 
-echo "INFO: Formatting ${TARGET_DEVICE} with ${FILESYSTEM}..."
-# The -f flag forces formatting if an old, unused filesystem exists
-sudo mkfs."${FILESYSTEM}" -f "${TARGET_DEVICE}"
+echo "INFO: Formatting ${LOOPDEV} with ${FILESYSTEM}..."
+sudo mkfs."${FILESYSTEM}" -f "${LOOPDEV}"
 
 echo "INFO: Creating mount point ${MOUNT_POINT}..."
 sudo mkdir -p "${MOUNT_POINT}"
 sudo chmod 777 "${MOUNT_POINT}"
 
-echo "INFO: Adding entry to /etc/fstab..."
-UUID=$(sudo blkid -s UUID -o value "${TARGET_DEVICE}")
-
-# Check if an entry for this UUID already exists to prevent duplicates
-if grep -q "UUID=${UUID}" /etc/fstab; then
-    echo "WARN: fstab entry for UUID=${UUID} already exists. Skipping add."
-else
-    # Backup fstab before modifying it, just in case.
-    sudo cp /etc/fstab /etc/fstab.bak."$(date +%F-%T)"
-    echo "INFO: Backed up /etc/fstab to /etc/fstab.bak.$(date +%F-%T)"
-    
-    # Append the new entry
-    {
-        echo "# Entry for ${TARGET_DEVICE} (${MOUNT_POINT}) added on $(date)"
-        echo "UUID=${UUID}  ${MOUNT_POINT}  ${FILESYSTEM}  defaults,nofail  0  2"
-    } | sudo tee -a /etc/fstab > /dev/null
-    echo "INFO: Successfully added fstab entry."
-fi
-
-echo "INFO: Mounting all filesystems defined in /etc/fstab..."
-sudo mount -a
-
-echo "INFO: Reloading systemd manager configuration..."
-sudo systemctl daemon-reload
+echo "INFO: Mounting ${LOOPDEV} to ${MOUNT_POINT}..."
+sudo mount -t "${FILESYSTEM}" "${LOOPDEV}" "${MOUNT_POINT}"
 
 echo "================================================="
 echo "INFO: Script completed successfully."
-echo "Final disk layout:"
-lsblk
-echo "Filesystem usage for the new mount:"
+echo "Loop device mapping:"
+sudo losetup -a | grep "${RAMDISK_IMAGE_PATH}" || true
+echo "Filesystem usage:"
 df -h "${MOUNT_POINT}"

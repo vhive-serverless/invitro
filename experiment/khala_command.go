@@ -172,6 +172,14 @@ func DeployKhala(workerNodeSetup WorkerNodeSetup, corePoolPolicy string, impleme
 	wg.Wait()
 	time.Sleep(10 * time.Second)
 
+	for _, workerNode := range workerNodeSetup.WorkerNodes {
+		err := SetDefaultCorePool(workerNode)
+		if err != nil {
+			log.Errorf("Failed to set default core pool on worker node %s: %v", workerNode, err)
+			return err
+		}
+	}
+
 	return nil
 }
 
@@ -474,4 +482,38 @@ func getCorePool(name string, nCore int, fromCore int, coreFreq int, reuseCgroup
 		CoreFreq:    coreFreqList,
 		ReuseCgroup: reuseCgroup,
 	}
+}
+
+func SetDefaultCorePool(node string) error {
+	// parse core pool setting
+	// 'C:18@2.1,IO:10@1.0'
+	// means set core pool for CPU-intensive functions to 18 with frequency scaling factor 2.1
+	// and for IO-intensive functions to 10 with frequency scaling factor 1.0
+
+	//parse corePoolSize
+	conn, err := grpc.NewClient(node+":8002", grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		log.Errorf("Failed to connect to hardware manager on node %s: %v", node, err)
+		return err
+	}
+	defer conn.Close()
+	client := proto.NewHardwareManagerClient(conn)
+
+	// set core pool
+	corePoolList := []proto.CorePool{
+		getCorePool("empty", 4, 0, 2100000, true), // empty core pool to avoid errors
+		getCorePool("nexus", 28, 0, 2100000, true),
+		getCorePool("firecracker", 28, 0, 2100000, true),
+	}
+	for _, corePool := range corePoolList {
+		_, err = client.SetCorePool(context.Background(), &corePool)
+		if err != nil {
+			log.Errorf("Failed to set core pool on node %s: %v", node, err)
+			return err
+		} else {
+			log.Infof("Set core pool %v on node %s", corePool, node)
+		}
+	}
+
+	return nil
 }

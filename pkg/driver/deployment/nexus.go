@@ -69,7 +69,7 @@ func (*nexusDeployer) Deploy(cfg *config.Configuration) {
 	}
 
 	wg := sync.WaitGroup{}
-	sem := make(chan struct{}, 10) // limit to 5 concurrent deployments to avoid overwhelming the cluster
+	sem := make(chan struct{}, 20) // limit to 5 concurrent deployments to avoid overwhelming the cluster
 	for i := 0; i < len(cfg.Functions); i++ {
 		// deploy to all khala endpoints
 		sem <- struct{}{} // acquire semaphore
