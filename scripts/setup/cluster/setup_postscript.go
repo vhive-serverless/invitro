@@ -36,5 +36,23 @@ func applyPostSetupConfigurations(masterNode string) error {
 		return err
 	}
 
+	_, err = loaderUtils.ServerExec(masterNode, `kubectl set resources deployment istio-ingressgateway -n istio-system -c istio-proxy --limits=cpu=4,memory="4Gi" --requests=cpu=100m,memory=128Mi`)
+	if err != nil {
+		return err
+	}
+
+	_, err = loaderUtils.ServerExec(masterNode, `kubectl set resources deployment cluster-local-gateway -n istio-system -c istio-proxy --limits=cpu=4,memory="4Gi" --requests=cpu=100m,memory=128Mi`)
+	if err != nil {
+		return err
+	}
+
+	_, err = loaderUtils.ServerExec(masterNode, `kubectl patch deployment istio-ingressgateway -n istio-system --type merge -p '{"spec":{"template":{"metadata":{"annotations":{"proxy.istio.io/config":"{\"concurrency\": 4}"}}}}}'`)
+
+	_, err = loaderUtils.ServerExec(masterNode, `kubectl patch deployment cluster-local-gateway -n istio-system --type merge -p '{"spec":{"template":{"metadata":{"annotations":{"proxy.istio.io/config":"{\"concurrency\": 4}"}}}}}'`)
+
+	_, err = loaderUtils.ServerExec(masterNode, `kubectl patch hpa istio-ingressgateway -n istio-system --type merge -p '{"spec":{"maxReplicas": 20}}'`)
+	
+	_, err = loaderUtils.ServerExec(masterNode, `kubectl patch hpa cluster-local-gateway -n istio-system --type merge -p '{"spec":{"maxReplicas": 20}}'`)
+
 	return nil
 }

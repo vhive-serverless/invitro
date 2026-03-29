@@ -10,6 +10,8 @@ operator:
     value: "monitoring"
   - name: MINIO_PROMETHEUS_AUTH_TYPE
     value: "public"
+  - name: GOMAXPROCS
+    value: "8"
 
 console:
   nodeSelector:
