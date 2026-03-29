@@ -38,38 +38,28 @@ func setupKhala(cfg *configs.SetupConfig, masterNode string, loaderNode string, 
 
 	// distribute keys from master node to all nodes (including loader and worker nodes)
 	for _, node := range append([]string{loaderNode}, workerNodes...) {
-		wg.Add(1)
-		go func(node string) {
-			defer wg.Done()
-			utils.WaitPrintf("Distributing keys to node: %s\n", node)
-			// rsync -Pav -e 'ssh -o StrictHostKeyChecking=no' ~/.ssh "$i":~/ &
-			_, err := loaderUtils.ServerExec(masterNode, fmt.Sprintf("rsync -Pav -e 'ssh -o StrictHostKeyChecking=no' ~/.ssh %s:~/", node))
-			if !utils.CheckErrorWithMsg(err, "Failed to rsync SSH keys to node %s: %v\n", node, err) {
-				return
-			}
+		utils.WaitPrintf("Distributing keys to node: %s\n", node)
+		// rsync -Pav -e 'ssh -o StrictHostKeyChecking=no' ~/.ssh "$i":~/ &
+		_, err := loaderUtils.ServerExec(masterNode, fmt.Sprintf("rsync -Pav -e 'ssh -o StrictHostKeyChecking=no' ~/.ssh %s:~/", node))
+		if !utils.CheckErrorWithMsg(err, "Failed to rsync SSH keys to node %s: %v\n", node, err) {
+		}
 
-			// rsync -Pav -e 'ssh -o StrictHostKeyChecking=no' ~/.gitconfig "$i":~/ &
-			_, err = loaderUtils.ServerExec(masterNode, fmt.Sprintf("rsync -Pav -e 'ssh -o StrictHostKeyChecking=no' ~/.gitconfig %s:~/", node))
-			if !utils.CheckErrorWithMsg(err, "Failed to rsync gitconfig to node %s: %v\n", node, err) {
-				return
-			}
-		}(node)
+		// rsync -Pav -e 'ssh -o StrictHostKeyChecking=no' ~/.gitconfig "$i":~/ &
+		_, err = loaderUtils.ServerExec(masterNode, fmt.Sprintf("rsync -Pav -e 'ssh -o StrictHostKeyChecking=no' ~/.gitconfig %s:~/", node))
+		if !utils.CheckErrorWithMsg(err, "Failed to rsync gitconfig to node %s: %v\n", node, err) {
+		}
 	}
 
 	wg.Wait()
 
 	// distribute keys from master node to all nodes (including loader and worker nodes)
 	for _, node := range append([]string{loaderNode}, workerNodes...) {
-		wg.Add(1)
-		go func(node string) {
-			defer wg.Done()
-			utils.WaitPrintf("Distributing Khala on node: %s\n", node)
-			// rsync -Pav -e 'ssh -o StrictHostKeyChecking=no' ~/.ssh "$i":~/ &
-			_, err := loaderUtils.ServerExec(masterNode, fmt.Sprintf("rsync -Pav -e 'ssh -o StrictHostKeyChecking=no' ~/khala %s:~/", node))
-			if !utils.CheckErrorWithMsg(err, "Failed to rsync Khala to node %s: %v\n", node, err) {
-				return
-			}
-		}(node)
+
+		utils.WaitPrintf("Distributing Khala on node: %s\n", node)
+		// rsync -Pav -e 'ssh -o StrictHostKeyChecking=no' ~/.ssh "$i":~/ &
+		_, err := loaderUtils.ServerExec(masterNode, fmt.Sprintf("rsync -Pav -e 'ssh -o StrictHostKeyChecking=no' ~/khala %s:~/", node))
+		if !utils.CheckErrorWithMsg(err, "Failed to rsync Khala to node %s: %v\n", node, err) {
+		}
 	}
 
 	wg.Wait()

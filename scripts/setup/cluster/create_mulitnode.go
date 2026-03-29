@@ -1,6 +1,8 @@
 package cluster
 
 import (
+	"time"
+
 	"github.com/vhive-serverless/loader/scripts/setup/configs"
 	loaderUtils "github.com/vhive-serverless/loader/scripts/setup/utils"
 	"github.com/vhive-serverless/vHive/scripts/utils"
@@ -53,6 +55,8 @@ func CreateMultiNodeSetup(configDir string, configName string) {
 	}
 	utils.InfoPrintf("Worker nodes setup completed.\n")
 
+	time.Sleep(5 * time.Second) // Wait for nodes to stabilize
+
 	// Extend CIDR if necessary
 	if cfg.SetupCfg.PodsPerNode > 240 {
 		utils.InfoPrintf("Extending CIDR range...\n")
@@ -61,6 +65,8 @@ func CreateMultiNodeSetup(configDir string, configName string) {
 		}
 		utils.InfoPrintf("CIDR range extended.\n")
 	}
+
+	time.Sleep(5 * time.Second) // Wait for nodes to stabilize
 
 	// Finalize Cluster Setup
 	utils.InfoPrintf("Finalizing cluster setup...\n")
