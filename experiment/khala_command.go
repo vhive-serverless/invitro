@@ -74,7 +74,7 @@ func main() {
 		}
 	case "clean":
 		log.Infof("Cleaning Khala on worker nodes: %v", workerNodeSetup.WorkerNodes)
-		CleanKhala(workerNodeSetup, *RemoveSnapshots)
+		CleanKhala(workerNodeSetup, *RemoveSnapshots, *WithRDMA)
 	case "create-snapshots":
 		log.Infof("Creating snapshots on worker nodes: %v", workerNodeSetup.WorkerNodes)
 		CreateSnapshots(workerNodeSetup)
@@ -112,8 +112,6 @@ func getWorkerNodes() (WorkerNodeSetup, error) {
 }
 
 func DeployKhala(workerNodeSetup WorkerNodeSetup, corePoolPolicy string, implementation string, withRDMA bool, debug bool) error {
-	// 1. cleanup minio
-	log.Infof("Cleaning up minio")
 	cmd := exec.Command("bash", "-c", "cd ~/khala && bash ./scripts/deploy-minio-obj.sh http://myminio-api.minio.10.200.3.4.sslip.io")
 	output, err := cmd.CombinedOutput()
 	if err != nil {
@@ -151,23 +149,27 @@ func DeployKhala(workerNodeSetup WorkerNodeSetup, corePoolPolicy string, impleme
 		`tmux new-session -d -s kn-integration`,
 	}
 
-	// 2. deploy khala on all worker nodes
-	log.Infof("Deploying Khala on worker nodes: %v", workerNodeSetup.WorkerNodes)
 	var wg sync.WaitGroup
 	for nodeIndex, workerNode := range workerNodeSetup.WorkerNodes {
-		go func(node string, nodeIndex int) {
+		wg.Add(1)
+		go func(node string, idx int) {
 			defer wg.Done()
-			deploymentCmd += " --storage-ip=" + workerNodeSetup.StorageNodes[nodeIndex] + ":10191"
-			CommandList = append(CommandList, fmt.Sprintf(`tmux send-keys -t kn-integration "%s" C-m`, deploymentCmd))
-			for _, cmd := range CommandList {
+
+			nodeCmd := fmt.Sprintf("%s --storage-ip=%s:10191", deploymentCmd, workerNodeSetup.StorageNodes[idx])
+
+			nodeCommandList := make([]string, len(CommandList))
+			copy(nodeCommandList, CommandList)
+
+			nodeCommandList = append(nodeCommandList, fmt.Sprintf(`tmux send-keys -t kn-integration "%s" C-m`, nodeCmd))
+
+			for _, cmd := range nodeCommandList {
 				_, err := loaderUtils.ServerExec(node, cmd)
 				if err != nil {
-					log.Errorf("Failed to execute command '%s' on worker node %s: %v", cmd, workerNode, err)
+					log.Errorf("Failed to execute command '%s' on worker node %s: %v", cmd, node, err)
 				}
 			}
-			log.Infof("Khala deployed on worker node %s", workerNode)
+			log.Infof("Khala deployed on worker node %s", node)
 		}(workerNode, nodeIndex)
-		wg.Add(1)
 	}
 	wg.Wait()
 	time.Sleep(10 * time.Second)
@@ -184,25 +186,25 @@ func DeployKhala(workerNodeSetup WorkerNodeSetup, corePoolPolicy string, impleme
 }
 
 func DeployRDMAStorage(workerNodeSetup WorkerNodeSetup) {
-	CommandList := []string{
+	baseCommandList := []string{
 		`sudo pkill --signal INT s3-rdma-server 2>/dev/null || true`,
 		`tmux kill-session -t s3-rdma-server 2>/dev/null || true`,
 		`tmux new-session -d -s s3-rdma-server`,
 	}
-
-	deploymentCmd := "cd ~/rdma-demo && sudo ./s3-rdma-server"
-
-	deploymentCmd += " --payload-root=assets --enable-rdma-zcopy=true"
+	baseDeploymentCmd := "cd ~/rdma-demo && sudo ./s3-rdma-server --payload-root=assets --enable-rdma-zcopy=true"
 
 	log.Infof("Deploying RDMA storage on worker nodes: %v", workerNodeSetup.StorageNodes)
+
 	var wg sync.WaitGroup
 	for _, storageNode := range workerNodeSetup.StorageNodes {
+		wg.Add(1)
 		go func(node string) {
 			defer wg.Done()
-			deploymentCmd += " --tcp-listen=" + node + ":10090"
-			deploymentCmd += " --rdma-zcopy-listen=" + node + ":10191"
-			CommandList = append(CommandList, fmt.Sprintf(`tmux send-keys -t s3-rdma-server "%s" C-m`, deploymentCmd))
-			for _, cmd := range CommandList {
+			nodeCmd := fmt.Sprintf("%s --tcp-listen=%s:10090 --rdma-zcopy-listen=%s:10191", baseDeploymentCmd, node, node)
+			nodeCommandList := make([]string, len(baseCommandList))
+			copy(nodeCommandList, baseCommandList)
+			nodeCommandList = append(nodeCommandList, fmt.Sprintf(`tmux send-keys -t s3-rdma-server "%s" C-m`, nodeCmd))
+			for _, cmd := range nodeCommandList {
 				_, err := loaderUtils.ServerExec(node, cmd)
 				if err != nil {
 					log.Errorf("Failed to execute command '%s' on storage node %s: %v", cmd, node, err)
@@ -210,12 +212,12 @@ func DeployRDMAStorage(workerNodeSetup WorkerNodeSetup) {
 			}
 			log.Infof("RDMA storage deployed on storage node %s", node)
 		}(storageNode)
-		wg.Add(1)
 	}
+
 	wg.Wait()
 }
 
-func CleanKhala(workerNodeSetup WorkerNodeSetup, removeSnapshots bool) {
+func CleanKhala(workerNodeSetup WorkerNodeSetup, removeSnapshots bool, withRDMA bool) {
 	log.Infof("Cleaning Khala on worker nodes: %v", workerNodeSetup.WorkerNodes)
 	CommandList := []string{
 		`sudo pkill --signal INT kn-integration 2>/dev/null || true`,
@@ -239,6 +241,7 @@ func CleanKhala(workerNodeSetup WorkerNodeSetup, removeSnapshots bool) {
 	var wg sync.WaitGroup
 	var khalaDied atomic.Bool
 	for _, workerNode := range workerNodeSetup.WorkerNodes {
+		wg.Add(1)
 		go func(node string) {
 			defer wg.Done()
 			conn, err := grpc.NewClient(node+":8000", grpc.WithTransportCredentials(insecure.NewCredentials()))
@@ -265,9 +268,12 @@ func CleanKhala(workerNodeSetup WorkerNodeSetup, removeSnapshots bool) {
 			}
 
 		}(workerNode)
-		wg.Add(1)
 	}
 	wg.Wait()
+
+	if withRDMA {
+		CleanupRDMAStorage(workerNodeSetup)
+	}
 
 	out, err := loaderUtils.ServerExec("10.0.1.1", "bash -c 'cd ~/loader && bash cleanup_etcd.sh'")
 	if err != nil {
@@ -340,6 +346,30 @@ func CleanKhala(workerNodeSetup WorkerNodeSetup, removeSnapshots bool) {
 	log.Infof("Khala cleaned on all worker nodes")
 }
 
+func CleanupRDMAStorage(workerNodeSetup WorkerNodeSetup) {
+	CommandList := []string{
+		`sudo pkill --signal INT s3-rdma-server 2>/dev/null || true`,
+		`tmux kill-session -t s3-rdma-server 2>/dev/null || true`,
+	}
+
+	log.Infof("Cleaning RDMA storage on worker nodes: %v", workerNodeSetup.StorageNodes)
+	var wg sync.WaitGroup
+	for _, storageNode := range workerNodeSetup.StorageNodes {
+		wg.Add(1)
+		go func(node string) {
+			defer wg.Done()
+			for _, cmd := range CommandList {
+				_, err := loaderUtils.ServerExec(node, cmd)
+				if err != nil {
+					log.Errorf("Failed to execute command '%s' on storage node %s: %v", cmd, node, err)
+				}
+			}
+		}(storageNode)
+	}
+	wg.Wait()
+
+}
+
 func CreateSnapshots(workerNodeSetup WorkerNodeSetup) {
 	// workloadList := []string{"streducer-s3-rpc-0", "streducer-0"}
 	var workloadList []string
@@ -357,6 +387,7 @@ func CreateSnapshots(workerNodeSetup WorkerNodeSetup) {
 
 	var wg sync.WaitGroup
 	for _, workerNode := range workerNodeSetup.WorkerNodes {
+		wg.Add(1)
 		go func(node string) {
 			defer wg.Done()
 			conn, err := grpc.NewClient(node+":8000", grpc.WithTransportCredentials(insecure.NewCredentials()))
@@ -376,7 +407,6 @@ func CreateSnapshots(workerNodeSetup WorkerNodeSetup) {
 			}
 
 		}(workerNode)
-		wg.Add(1)
 	}
 	wg.Wait()
 }

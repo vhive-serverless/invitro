@@ -203,7 +203,7 @@ func CreatePVDir(tenantNode []string) error {
 func CreatePVDirC6620(tenantNode []string, minioConfig *configs.MinioConfig) error {
 	var wg sync.WaitGroup
 	errChan := make(chan error, len(tenantNode))
-	PVDirScript := minioConfig.MinIOValuePath + "/minio_xfs_c6620.sh"
+	PVDirScript := minioConfig.MinIOValuePath + "/minio_xfs_c6620_fs.sh"
 
 	for _, node := range tenantNode {
 		wg.Add(1)

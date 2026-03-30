@@ -30,6 +30,31 @@ def get_promql_query(query):
         return "tools/bin/promql --no-headers --host 'http://" + prometheus_ip + ":9090' '" + query + "' | grep . | awk '{print $1\" \"$2}'"
     return promql_query
 
+
+def parse_metric_map(query, caster):
+    metrics = {}
+    output = os.popen(get_promql_query(query)()).read()
+
+    for raw_line in output.splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+
+        parts = line.split()
+        if len(parts) < 2:
+            continue
+
+        try:
+            metrics[parts[0]] = caster(parts[1])
+        except ValueError:
+            continue
+
+    return metrics
+
+
+def to_int(value):
+    return int(float(value))
+
 if __name__ == "__main__":
     query_desired_pods = 'max(autoscaler_desired_pods) by(configuration_name)'
     query_running_pods = 'max(autoscaler_actual_pods) by(configuration_name)'
@@ -38,22 +63,22 @@ if __name__ == "__main__":
     query_terminating_pods = 'max(autoscaler_terminating_pods) by(configuration_name)'
     query_activator_queue = 'sum(activator_request_concurrency) by(configuration_name)'
 
-    desired_pods_count = {x.split()[0]: int(x.split()[1]) for x in os.popen(get_promql_query(query_desired_pods)()).read().strip().split('\n')}
-    running_pods_count = {x.split()[0]: int(x.split()[1]) for x in os.popen(get_promql_query(query_running_pods)()).read().strip().split('\n')}
-    unready_pods_count = {x.split()[0]: int(x.split()[1]) for x in os.popen(get_promql_query(query_unready_pods)()).read().strip().split('\n')}
-    pending_pods_count = {x.split()[0]: int(x.split()[1]) for x in os.popen(get_promql_query(query_pending_pods)()).read().strip().split('\n')}
-    terminating_pods_count = {x.split()[0]: int(x.split()[1]) for x in os.popen(get_promql_query(query_terminating_pods)()).read().strip().split('\n')}
-    queue_size = {x.split()[0]: float(x.split()[1]) for x in os.popen(get_promql_query(query_activator_queue)()).read().strip().split('\n')}
+    desired_pods_count = parse_metric_map(query_desired_pods, to_int)
+    running_pods_count = parse_metric_map(query_running_pods, to_int)
+    unready_pods_count = parse_metric_map(query_unready_pods, to_int)
+    pending_pods_count = parse_metric_map(query_pending_pods, to_int)
+    terminating_pods_count = parse_metric_map(query_terminating_pods, to_int)
+    queue_size = parse_metric_map(query_activator_queue, float)
 
     results = []
     for func in desired_pods_count.keys():
         results.append({
             'function': func,
             'desired_pods': desired_pods_count[func],
-            'running_pods': running_pods_count[func],
-            'unready_pods': unready_pods_count[func],
-            'pending_pods': pending_pods_count[func],
-            'terminating_pods': terminating_pods_count[func],
+            'running_pods': running_pods_count.get(func, 0),
+            'unready_pods': unready_pods_count.get(func, 0),
+            'pending_pods': pending_pods_count.get(func, 0),
+            'terminating_pods': terminating_pods_count.get(func, 0),
             'activator_queue': queue_size.get(func, 0)
         })
 
