@@ -428,10 +428,21 @@ func (d *Driver) internalRun() {
 
 			d.writeAsyncRecordsToLog(globalMetricsCollector)
 		}
-		totalIssuedChannel <- atomic.LoadInt64(&invocationsIssued)
-		scraperFinishCh <- 0 // Ask the scraper to finish metrics collection
+		// totalIssuedChannel <- atomic.LoadInt64(&invocationsIssued)
+		// scraperFinishCh <- 0 // Ask the scraper to finish metrics collection
 
-		allRecordsWritten.Wait()
+		// allRecordsWritten.Wait()
+	}
+
+	totalIssuedChannel <- atomic.LoadInt64(&invocationsIssued)
+	scraperFinishCh <- 0 // Ask the scraper to finish metrics collection
+
+	allRecordsWritten.Wait()
+
+	// ADD YOUR CLOSING CODE HERE, right after allRecordsWritten.Wait()
+	// Close the connection pool if it exists
+	if invoker, ok := d.Invoker.(*clients.GrpcInvoker); ok {
+		invoker.Close()
 	}
 
 	statSuccess := atomic.LoadInt64(&successfulInvocations)

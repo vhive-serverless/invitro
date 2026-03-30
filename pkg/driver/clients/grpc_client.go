@@ -27,6 +27,7 @@ package clients
 import (
 	"context"
 	"math"
+	"sync"
 
 	"github.com/sirupsen/logrus"
 	log "github.com/sirupsen/logrus"
@@ -43,6 +44,82 @@ import (
 
 	mc "github.com/vhive-serverless/loader/pkg/metric"
 )
+
+// ConnectionPool manages a pool of gRPC connections
+type ConnectionPool struct {
+	mu          sync.Mutex
+	connections map[string][]*grpc.ClientConn
+	maxIdle     int
+	dialOptions []grpc.DialOption
+}
+
+// NewConnectionPool creates a new connection pool
+func NewConnectionPool(maxIdleConns int, dialOptions []grpc.DialOption) *ConnectionPool {
+	return &ConnectionPool{
+		connections: make(map[string][]*grpc.ClientConn),
+		maxIdle:     maxIdleConns,
+		dialOptions: dialOptions,
+	}
+}
+
+// Get retrieves a connection from the pool or creates a new one
+func (p *ConnectionPool) Get(endpoint string) (*grpc.ClientConn, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	if conns, ok := p.connections[endpoint]; ok && len(conns) > 0 {
+		// Get last connection from the pool
+		lastIdx := len(conns) - 1
+		conn := conns[lastIdx]
+		p.connections[endpoint] = conns[:lastIdx]
+		return conn, nil
+	}
+
+	// No connection available in pool, create a new one
+	conn, err := grpc.NewClient("passthrough:///"+endpoint, p.dialOptions...)
+	if err != nil {
+		return nil, err
+	}
+
+	return conn, nil
+}
+
+// Put returns a connection to the pool
+func (p *ConnectionPool) Put(endpoint string, conn *grpc.ClientConn) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	if conn == nil {
+		return
+	}
+
+	// Check if we're at max idle connections
+	if conns, exists := p.connections[endpoint]; exists && len(conns) >= p.maxIdle {
+		// Close excess connection instead of adding to pool
+		if err := conn.Close(); err != nil {
+			logrus.Warnf("Error closing excess gRPC connection: %v", err)
+		}
+		return
+	}
+
+	// Add connection to pool
+	p.connections[endpoint] = append(p.connections[endpoint], conn)
+}
+
+// Close closes all connections in the pool
+func (p *ConnectionPool) Close() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	for endpoint, conns := range p.connections {
+		for _, conn := range conns {
+			if err := conn.Close(); err != nil {
+				logrus.Warnf("Error closing gRPC connection to %s: %v", endpoint, err)
+			}
+		}
+		delete(p.connections, endpoint)
+	}
+}
 
 type invoker interface {
 	Invoke(function *common.Function, runtimeSpec *common.RuntimeSpecification, conn *grpc.ClientConn, record *mc.ExecutionRecord, executionCxt context.Context, prefetchBucket string, prefetchKey []string) bool
@@ -174,19 +251,33 @@ func (i NexusRPC) Invoke(function *common.Function, runtimeSpec *common.RuntimeS
 	return true
 }
 
-type grpcInvoker struct {
-	cfg     *config.LoaderConfiguration
-	invoker invoker
+type GrpcInvoker struct {
+	cfg      *config.LoaderConfiguration
+	invoker  invoker
+	connPool *ConnectionPool
 }
 
-func newGRPCInvoker(cfg *config.LoaderConfiguration, invoker invoker) *grpcInvoker {
-	return &grpcInvoker{
-		cfg:     cfg,
-		invoker: invoker,
+func newGRPCInvoker(cfg *config.LoaderConfiguration, invoker invoker) *GrpcInvoker {
+	var dialOptions []grpc.DialOption
+	dialOptions = append(dialOptions, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if strings.Contains(cfg.Platform, common.PlatformDirigent) {
+		dialOptions = append(dialOptions, grpc.WithAuthority("pooled-authority"))
+	}
+
+	if cfg.EnableZipkinTracing {
+		dialOptions = append(dialOptions, grpc.WithStatsHandler(otelgrpc.NewClientHandler()))
+	}
+
+	// Create a connection pool with a reasonable number of idle connections per endpoint
+	// Adjust the maxIdleConns value based on your workload characteristics
+	return &GrpcInvoker{
+		cfg:      cfg,
+		invoker:  invoker,
+		connPool: NewConnectionPool(500, dialOptions),
 	}
 }
 
-func (i *grpcInvoker) Invoke(function *common.Function, runtimeSpec *common.RuntimeSpecification) (bool, *mc.ExecutionRecord) {
+func (i *GrpcInvoker) Invoke(function *common.Function, runtimeSpec *common.RuntimeSpecification) (bool, *mc.ExecutionRecord) {
 	logrus.Tracef("(Invoke)\t %s: %d[ms], %d[MiB]", function.Name, runtimeSpec.Runtime, runtimeSpec.Memory)
 
 	record := &mc.ExecutionRecord{
@@ -201,14 +292,14 @@ func (i *grpcInvoker) Invoke(function *common.Function, runtimeSpec *common.Runt
 	start := time.Now()
 	record.StartTime = start.UnixMicro()
 
-	var dialOptions []grpc.DialOption
-	dialOptions = append(dialOptions, grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if strings.Contains(i.cfg.Platform, common.PlatformDirigent) {
-		dialOptions = append(dialOptions, grpc.WithAuthority(function.Name)) // Dirigent specific
-	}
-	if i.cfg.EnableZipkinTracing {
-		dialOptions = append(dialOptions, grpc.WithStatsHandler(otelgrpc.NewClientHandler()))
-	}
+	// var dialOptions []grpc.DialOption
+	// dialOptions = append(dialOptions, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	// if strings.Contains(i.cfg.Platform, common.PlatformDirigent) {
+	// 	dialOptions = append(dialOptions, grpc.WithAuthority(function.Name)) // Dirigent specific
+	// }
+	// if i.cfg.EnableZipkinTracing {
+	// 	dialOptions = append(dialOptions, grpc.WithStatsHandler(otelgrpc.NewClientHandler()))
+	// }
 	var prefetchBucket string
 	var prefetchKeys []string
 	if i.cfg.EnablePrefetch {
@@ -218,25 +309,34 @@ func (i *grpcInvoker) Invoke(function *common.Function, runtimeSpec *common.Runt
 
 	grpcStart := time.Now()
 
-	conn, err := grpc.NewClient("passthrough:///"+function.Endpoint, dialOptions...)
+	conn, err := i.connPool.Get(function.Endpoint)
 	if err != nil {
-		logrus.Debugf("Failed to establish a gRPC connection - %v\n", err)
+		logrus.Debugf("Failed to get a gRPC connection from pool - %v\n", err)
 
 		record.ResponseTime = time.Since(start).Microseconds()
 		record.ConnectionTimeout = true
 
 		return false, record
 	}
-	defer gRPCConnectionClose(conn)
+	// defer gRPCConnectionClose(conn)
 
 	record.GRPCConnectionEstablishTime = time.Since(grpcStart).Microseconds()
 	executionCxt, cancelExecution := context.WithTimeout(context.Background(), perFunctionTimeout(i.cfg, function))
-	defer cancelExecution()
+	// defer cancelExecution()
 
 	success := i.invoker.Invoke(function, runtimeSpec, conn, record, executionCxt, prefetchBucket, prefetchKeys)
+	cancelExecution()
+	// Return connection to pool instead of closing
+	i.connPool.Put(function.Endpoint, conn)
 	record.ResponseTime = time.Since(start).Microseconds()
 	logrus.Tracef("(E2E Latency) %s: %.2f[ms]\n", function.Name, float64(record.ResponseTime)/1e3)
 	return success, record
+}
+
+func (i *GrpcInvoker) Close() {
+	if i.connPool != nil {
+		i.connPool.Close()
+	}
 }
 
 func perFunctionTimeout(cfg *config.LoaderConfiguration, function *common.Function) time.Duration {
