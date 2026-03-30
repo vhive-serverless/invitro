@@ -37,7 +37,7 @@ func setupKhala(cfg *configs.SetupConfig, masterNode string, loaderNode string, 
 	}
 
 	// distribute keys from master node to all nodes (including loader and worker nodes)
-	for _, node := range append([]string{loaderNode}, workerNodes...) {
+	for _, node := range workerNodes {
 		utils.WaitPrintf("Distributing keys to node: %s\n", node)
 		// rsync -Pav -e 'ssh -o StrictHostKeyChecking=no' ~/.ssh "$i":~/ &
 		_, err := loaderUtils.ServerExec(masterNode, fmt.Sprintf("rsync -Pav -e 'ssh -o StrictHostKeyChecking=no' ~/.ssh %s:~/", node))
@@ -53,7 +53,7 @@ func setupKhala(cfg *configs.SetupConfig, masterNode string, loaderNode string, 
 	wg.Wait()
 
 	// distribute keys from master node to all nodes (including loader and worker nodes)
-	for _, node := range append([]string{loaderNode}, workerNodes...) {
+	for _, node := range workerNodes {
 
 		utils.WaitPrintf("Distributing Khala on node: %s\n", node)
 		// rsync -Pav -e 'ssh -o StrictHostKeyChecking=no' ~/.ssh "$i":~/ &
@@ -64,7 +64,7 @@ func setupKhala(cfg *configs.SetupConfig, masterNode string, loaderNode string, 
 
 	wg.Wait()
 
-	for _, node := range append([]string{loaderNode}, workerNodes...) {
+	for _, node := range workerNodes {
 		wg.Add(1)
 		go func(node string) {
 			defer wg.Done()
