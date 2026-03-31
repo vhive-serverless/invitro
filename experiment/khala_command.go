@@ -288,13 +288,16 @@ func CleanKhala(workerNodeSetup WorkerNodeSetup, removeSnapshots bool, withRDMA 
 	}
 
 	// 4. restart cluster components
-	if khalaDied.Load() {
+	if true {
 		CleanupCmd := []string{
 			"kubectl rollout restart daemonset calico-node -n kube-system",
 			"kubectl rollout status daemonset calico-node -n kube-system",
 			"sleep 10",
 			"kubectl rollout restart deployment calico-kube-controllers -n kube-system",
 			"kubectl rollout status deployment calico-kube-controllers -n kube-system",
+			"sleep 10",
+			"kubectl rollout restart daemonset speaker -n metallb-system",
+			"kubectl rollout status daemonset speaker -n metallb-system",
 			"sleep 10",
 		}
 		log.Infof("Khala appears to have died on one or more worker nodes, restarting calico")
