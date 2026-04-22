@@ -60,25 +60,61 @@ func NewAzure2021Parser(filePath string, totalMinutesToParse int, dirigentYamlPa
 
 func (p *Azure2021TraceParser) Parse() []*common.Function {
 
-	/* Parse Azure2021 Trace data */
-	csvfile, err := os.Open(p.FilePath)
+	invocationTracker := ParseCSVFile(p.FilePath)
+
+	var functions []*common.Function
+
+	/* invocationTracker populated, begin creating function array. */
+	for funcID, invocationSlice := range invocationTracker {
+
+		funcSpec, empty := GenerateFunctionSpecification(funcID, invocationSlice, p.durationMinutes)
+		if empty {
+			continue
+		}
+
+		// Normally directly lifted from csv file.
+		memoryStats := common.FunctionMemoryStats{Percentile100: 300}
+
+		// TODO: aaaaaaa
+		function := common.Function{
+			Name:                fmt.Sprintf("%s-%.5s-%.5s-%d", common.FunctionNamePrefix, funcID.appHash, funcID.functionHash, p.functionNameGenerator.Uint64()),
+			YAMLPath:            p.dirigentYamlPath,
+			ColdStartBusyLoopMs: generator.ComputeBusyLoopPeriod(150),
+			MemoryStats:         &memoryStats,
+		}
+
+		function.Specification = funcSpec
+
+		functions = append(functions, &function)
+	}
+
+	return functions
+}
+
+/* Function Invocation Table */
+type UniqueFunctionID struct {
+	appHash, functionHash string
+}
+type Invocation struct {
+	startTime float64 // Seconds
+	duration  float64 // Seconds
+}
+type Invocations []Invocation
+
+// Reads csv, reads all fields, calculates "start_timestamp". Returns data as a hashmap.
+func ParseCSVFile(filePath string) map[UniqueFunctionID]Invocations {
+
+	// Open File Reader
+	fd, err := os.Open(filePath)
 	if err != nil {
 		log.Fatal("Failed to open Azure 2021 CSV file.", err)
 	}
-	reader := csv.NewReader(csvfile)
+	reader := csv.NewReader(fd)
+
+	invocationTracker := make(map[UniqueFunctionID]Invocations) //TODO, provide a capacity hint after finished implementation.
 
 	rowID := -1
 	hashAppIndex, hashFunctionIndex, endTimestampIndex, durationIndex := -1, -1, -1, -1
-
-	type UniqueFunctionID struct {
-		appHash, functionHash string
-	}
-	type Invocation struct {
-		startTime float64 // Seconds
-		duration  float64 // Seconds
-	}
-	type Invocations []Invocation
-	invocationTracker := make(map[UniqueFunctionID]Invocations) //TODO, provide a capacity hint after finished implementation.
 
 	/* Parse csv data into array of invocation time + duration, for each function ID */
 	for {
@@ -128,95 +164,69 @@ func (p *Azure2021TraceParser) Parse() []*common.Function {
 		rowID++
 	}
 
-	var functions []*common.Function
-
-	/* invocationTracker populated, begin creating function array. */
-	for funcID, invocationSlice := range invocationTracker {
-
-		// sort from first to last invocation
-		sort.Slice(invocationSlice, func(i, j int) bool {
-			return invocationSlice[i].startTime < invocationSlice[j].startTime
-		})
-
-		// Generate IAT Array (IATs are microsecond precision) (cannot be same microsecond)
-		IATArray := common.IATArray{}
-		var runtimeArray common.RuntimeSpecificationArray
-
-		finalInvocation := invocationSlice[len(invocationSlice)-1].startTime
-		lastMinuteNumber := int(time.Duration(finalInvocation * float64(time.Second)).Minutes())
-		perMinuteCount := make([]int, lastMinuteNumber+1)
-
-		for i, invocation := range invocationSlice {
-			iat_microseconds := invocation.startTime * 1_000_000 //TODO consider math rounding errors.
-			var iat float64
-			if len(IATArray) == 0 {
-				iat = iat_microseconds
-			} else {
-				iat = iat_microseconds - IATArray[i-1]
-			}
-			IATArray = append(IATArray, iat)
-
-			duration := time.Duration(invocation.startTime * float64(time.Second))
-			minutesPassed := int(duration.Minutes())
-			perMinuteCount[minutesPassed]++
-
-			runtime_milliseconds := int(math.Round(invocation.duration * 1_000))
-			memory := 150 // TODO, allow user to specify memory, current value was visual inspecction of average
-			runtimeArray = append(runtimeArray, common.RuntimeSpecification{Runtime: runtime_milliseconds, Memory: memory})
-		}
-
-		funcSpec := &common.FunctionSpecification{
-			IAT:                  IATArray,
-			PerMinuteCount:       perMinuteCount,
-			RuntimeSpecification: runtimeArray,
-		}
-
-		// Normally directly lifted from csv file.
-		memoryStats := common.FunctionMemoryStats{Percentile100: 300}
-
-		// TODO: aaaaaaa
-		function := common.Function{
-			Name:                fmt.Sprintf("%s-%.5s-%.5s-%d", common.FunctionNamePrefix, funcID.appHash, funcID.functionHash, p.functionNameGenerator.Uint64()),
-			YAMLPath:            p.dirigentYamlPath,
-			ColdStartBusyLoopMs: generator.ComputeBusyLoopPeriod(150),
-			MemoryStats:         &memoryStats,
-		}
-
-		function.Specification = funcSpec
-
-		functions = append(functions, &function)
-	}
-
-	return functions
-	/* Create invocation array for each function */
-
-	/* Create common.Function for each function */
-
-	// for i := 0; i < len(*invocations); i++ {
-	// 	invocationStats := (*invocations)[i]
-
-	// 	function := &common.Function{
-	// 		Name: fmt.Sprintf("%s-%d-%d", common.FunctionNamePrefix, i, p.functionNameGenerator.Uint64()),
-
-	// 		InvocationStats:     &invocationStats,
-	// 		RuntimeStats:        runtimeByHashFunction[invocationStats.HashFunction],
-	// 		MemoryStats:         memoryByHashFunction[invocationStats.HashFunction],
-	// 		YAMLPath:            p.yamlPath,
-	// 		ColdStartBusyLoopMs: generator.ComputeBusyLoopPeriod(generator.GenerateMemorySpec(gen, gen.Float64(), memoryByHashFunction[invocationStats.HashFunction])),
-	// 	}
-
-	// 	result = append(result, function)
-	// }
-
-	// return result
+	return invocationTracker
 }
 
-// func generateInvocationTrace(traceFilePath string, traceDurationMinutes int) *[]common.FunctionInvocationStats {
+func GenerateFunctionSpecification(funcID UniqueFunctionID, invocationSlice Invocations, durationMinutes int) (*common.FunctionSpecification, bool) {
 
-// 	// True function ID
+	// sort from first to last invocation
+	sort.Slice(invocationSlice, func(i, j int) bool {
+		return invocationSlice[i].startTime < invocationSlice[j].startTime
+	})
 
-// 	csvfile, err := os.Open(traceFilePath)
-// 	if err != nil {
-// 		log.Fatal("Failed to open invocation CSV file.", err)
-// 	}
-// }
+	// Generate IAT Array (IATs are microsecond precision) (cannot be same microsecond)
+	IATArray := common.IATArray{}
+	var runtimeArray common.RuntimeSpecificationArray
+
+	finalInvocation := invocationSlice[len(invocationSlice)-1].startTime
+	lastMinuteNumber := int(time.Duration(finalInvocation * float64(time.Second)).Minutes())
+	perMinuteCount := make([]int, lastMinuteNumber+1)
+
+	var previousInvocationTimestamp float64 = 0.0
+
+	for _, invocation := range invocationSlice {
+		// truncate if function invocation ends after durationMinutes.
+		if (invocation.startTime + invocation.duration) > float64(durationMinutes*60) {
+			continue
+		}
+
+		invocation_microseconds := invocation.startTime * 1_000_000 //TODO consider math rounding errors.
+		var iat float64
+		if len(IATArray) == 0 {
+			iat = invocation_microseconds
+			previousInvocationTimestamp = invocation_microseconds
+		} else {
+			iat = invocation_microseconds - previousInvocationTimestamp
+			previousInvocationTimestamp = invocation_microseconds
+		}
+		// Negative iat check
+		if iat < 0 {
+			log.Fatalf("Encountered negative iat of %s", strconv.FormatFloat(iat, 'f', -1, 64))
+		}
+
+		//
+
+		IATArray = append(IATArray, iat)
+
+		duration := time.Duration(invocation.startTime * float64(time.Second))
+		minutesPassed := int(duration.Minutes())
+		perMinuteCount[minutesPassed]++
+
+		runtime_milliseconds := int(math.Round(invocation.duration * 1_000))
+		memory := 150 // TODO, allow user to specify memory, current value was visual inspecction of average
+		runtimeArray = append(runtimeArray, common.RuntimeSpecification{Runtime: runtime_milliseconds, Memory: memory})
+	}
+
+	// If all invocations truncated out
+	if len(IATArray) == 0 {
+		return nil, true
+	}
+
+	funcSpec := &common.FunctionSpecification{
+		IAT:                  IATArray,
+		PerMinuteCount:       perMinuteCount,
+		RuntimeSpecification: runtimeArray,
+	}
+
+	return funcSpec, false
+}

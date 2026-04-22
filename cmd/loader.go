@@ -282,7 +282,6 @@ func RPSGenerateFunctions(cfg *config.LoaderConfiguration) []*common.Function {
 	return functions
 }
 
-// TODO: Future development to add Azure2021 trace support.
 func Azure2019GenerateFunctions(cfg *config.LoaderConfiguration) []*common.Function {
 	durationToParse := determineDurationToParse(cfg.ExperimentDuration, cfg.WarmupDuration)
 	yamlPath := parseYAMLSpecification(cfg)

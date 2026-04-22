@@ -8,7 +8,7 @@
 
   "BusyLoopOnSandboxStartup": false,
 
-  "TracePath": "pkg/trace/test_data/AzureFunctionsInvocationTraceForTwoWeeksJan2021.csv",
+  "TracePath": "pkg/trace/test_data/Azure2021_200.csv",
   "Granularity": "minute",
   "OutputPathPrefix": "data/out/experiment",
   "IATDistribution": "exponential",
