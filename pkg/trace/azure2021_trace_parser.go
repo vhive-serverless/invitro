@@ -43,10 +43,10 @@ import (
 )
 
 type Azure2021TraceParser struct {
-	FilePath              string // File path to Azure2021 CSV
+	FilePath              string // CSV
 	dirigentYamlPath      string
 	durationMinutes       int
-	functionNameGenerator *rand.Rand // TODO: remove, seems useless
+	functionNameGenerator *rand.Rand
 }
 
 func NewAzure2021Parser(filePath string, totalMinutesToParse int, dirigentYamlPath string) *Azure2021TraceParser {
@@ -54,40 +54,35 @@ func NewAzure2021Parser(filePath string, totalMinutesToParse int, dirigentYamlPa
 		FilePath:              filePath,
 		dirigentYamlPath:      dirigentYamlPath,
 		durationMinutes:       totalMinutesToParse,
-		functionNameGenerator: rand.New(rand.NewSource(time.Now().UnixNano())), //TODO: remove, seems useless
+		functionNameGenerator: rand.New(rand.NewSource(time.Now().UnixNano())),
 	}
 }
 
 func (p *Azure2021TraceParser) Parse() []*common.Function {
 
 	invocationTracker := ParseCSVFile(p.FilePath)
-
 	var functions []*common.Function
 
 	/* invocationTracker populated, begin creating function array. */
 	for funcID, invocationSlice := range invocationTracker {
-
-		funcSpec, empty := GenerateFunctionSpecification(funcID, invocationSlice, p.durationMinutes)
+		funcSpec, empty := GenerateFunctionSpecification(invocationSlice, p.durationMinutes)
 		if empty {
 			continue
 		}
 
-		// Normally directly lifted from csv file.
+		// Eyeballed a set value. Can consider randomising from a distribution.
 		memoryStats := common.FunctionMemoryStats{Percentile100: 300}
 
-		// TODO: aaaaaaa
 		function := common.Function{
 			Name:                fmt.Sprintf("%s-%.5s-%.5s-%d", common.FunctionNamePrefix, funcID.appHash, funcID.functionHash, p.functionNameGenerator.Uint64()),
 			YAMLPath:            p.dirigentYamlPath,
 			ColdStartBusyLoopMs: generator.ComputeBusyLoopPeriod(150),
 			MemoryStats:         &memoryStats,
 		}
-
 		function.Specification = funcSpec
 
 		functions = append(functions, &function)
 	}
-
 	return functions
 }
 
@@ -101,17 +96,16 @@ type Invocation struct {
 }
 type Invocations []Invocation
 
-// Reads csv, reads all fields, calculates "start_timestamp". Returns data as a hashmap.
+// Reads all fields, calculates "start_timestamp". Returns data as a hashmap.
 func ParseCSVFile(filePath string) map[UniqueFunctionID]Invocations {
 
-	// Open File Reader
 	fd, err := os.Open(filePath)
 	if err != nil {
 		log.Fatal("Failed to open Azure 2021 CSV file.", err)
 	}
 	reader := csv.NewReader(fd)
 
-	invocationTracker := make(map[UniqueFunctionID]Invocations) //TODO, provide a capacity hint after finished implementation.
+	invocationTracker := make(map[UniqueFunctionID]Invocations) // Consider add capacity hint
 
 	rowID := -1
 	hashAppIndex, hashFunctionIndex, endTimestampIndex, durationIndex := -1, -1, -1, -1
@@ -167,14 +161,14 @@ func ParseCSVFile(filePath string) map[UniqueFunctionID]Invocations {
 	return invocationTracker
 }
 
-func GenerateFunctionSpecification(funcID UniqueFunctionID, invocationSlice Invocations, durationMinutes int) (*common.FunctionSpecification, bool) {
+func GenerateFunctionSpecification(invocationSlice Invocations, durationMinutes int) (*common.FunctionSpecification, bool) {
 
 	// sort from first to last invocation
 	sort.Slice(invocationSlice, func(i, j int) bool {
 		return invocationSlice[i].startTime < invocationSlice[j].startTime
 	})
 
-	// Generate IAT Array (IATs are microsecond precision) (cannot be same microsecond)
+	// generate IAT Array (IATs are microsecond precision) (cannot be same microsecond)
 	IATArray := common.IATArray{}
 	var runtimeArray common.RuntimeSpecificationArray
 
@@ -190,7 +184,7 @@ func GenerateFunctionSpecification(funcID UniqueFunctionID, invocationSlice Invo
 			continue
 		}
 
-		invocation_microseconds := invocation.startTime * 1_000_000 //TODO consider math rounding errors.
+		invocation_microseconds := invocation.startTime * 1_000_000
 		var iat float64
 		if len(IATArray) == 0 {
 			iat = invocation_microseconds
@@ -199,12 +193,10 @@ func GenerateFunctionSpecification(funcID UniqueFunctionID, invocationSlice Invo
 			iat = invocation_microseconds - previousInvocationTimestamp
 			previousInvocationTimestamp = invocation_microseconds
 		}
-		// Negative iat check
+
 		if iat < 0 {
 			log.Fatalf("Encountered negative iat of %s", strconv.FormatFloat(iat, 'f', -1, 64))
 		}
-
-		//
 
 		IATArray = append(IATArray, iat)
 
@@ -213,7 +205,7 @@ func GenerateFunctionSpecification(funcID UniqueFunctionID, invocationSlice Invo
 		perMinuteCount[minutesPassed]++
 
 		runtime_milliseconds := int(math.Round(invocation.duration * 1_000))
-		memory := 150 // TODO, allow user to specify memory, current value was visual inspecction of average
+		memory := 150 // Eyeballed a set value. Consider allow user specify.
 		runtimeArray = append(runtimeArray, common.RuntimeSpecification{Runtime: runtime_milliseconds, Memory: memory})
 	}
 
