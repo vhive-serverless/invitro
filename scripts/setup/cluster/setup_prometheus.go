@@ -98,10 +98,26 @@ func setupPrometheus(masterNode string, allNode []string, promConfig *configs.Pr
 		return err
 	}
 
-	// Bind addresses of the control manager and scheduler to "0.0.0.0"
-	utils.WaitPrintf("Binding control manager and scheduler addresses on master node %s...\n", masterNode)
-	_, err = loaderUtils.ServerExec(masterNode, fmt.Sprintf("sudo kubeadm upgrade apply --config %s/kubeadm_init.yaml --ignore-preflight-errors all --force --v=7", promConfig.PromValuePath))
-	if !utils.CheckErrorWithMsg(err, "Failed to bind control manager and scheduler addresses on master node %s: %v\n", masterNode, err) {
+	// Re-render the controller manager manifest so Prometheus can scrape it on
+	// all interfaces using the existing kubeadm init configuration file.
+	utils.WaitPrintf("Binding controller manager address on master node %s...\n", masterNode)
+	_, err = loaderUtils.ServerExec(masterNode, fmt.Sprintf("sudo kubeadm init phase control-plane controller-manager --config %s/kubeadm_init.yaml --v=7", promConfig.PromValuePath))
+	if !utils.CheckErrorWithMsg(err, "Failed to bind controller manager address on master node %s: %v\n", masterNode, err) {
+		return err
+	}
+
+	// Re-render the scheduler manifest using the same single kubeadm config file.
+	utils.WaitPrintf("Binding scheduler address on master node %s...\n", masterNode)
+	_, err = loaderUtils.ServerExec(masterNode, fmt.Sprintf("sudo kubeadm init phase control-plane scheduler --config %s/kubeadm_init.yaml --v=7", promConfig.PromValuePath))
+	if !utils.CheckErrorWithMsg(err, "Failed to bind scheduler address on master node %s: %v\n", masterNode, err) {
+		return err
+	}
+
+	// kube-proxy is configured via the kube-system/kube-proxy ConfigMap, so
+	// re-apply it from the init config before restarting the DaemonSet pods.
+	utils.WaitPrintf("Updating kube-proxy metrics bind address on master node %s...\n", masterNode)
+	_, err = loaderUtils.ServerExec(masterNode, fmt.Sprintf("sudo kubeadm init phase addon kube-proxy --config %s/kubeadm_init.yaml --v=7", promConfig.PromValuePath))
+	if !utils.CheckErrorWithMsg(err, "Failed to update kube-proxy configuration on master node %s: %v\n", masterNode, err) {
 		return err
 	}
 

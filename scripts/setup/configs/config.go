@@ -34,12 +34,9 @@ type SetupConfig struct {
 	HiveBranch       string `json:"VHIVE_BRANCH"`
 	LoaderRepo       string `json:"LOADER_REPO"`
 	LoaderBranch     string `json:"LOADER_BRANCH"`
-	KhalaRepo        string `json:"KHALA_REPO"`
-	KhalaBranch      string `json:"KHALA_BRANCH"`
 	ClusterMode      string `json:"CLUSTER_MODE"`
 	PodsPerNode      int    `json:"PODS_PER_NODE"`
 	DeployPrometheus bool   `json:"DEPLOY_PROMETHEUS"`
-	DeployRDMA       bool   `json:"DEPLOY_RDMA"`
 }
 
 type PrometheusConfig struct {
