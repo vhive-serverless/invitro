@@ -1,0 +1,46 @@
+apiVersion: kubeadm.k8s.io/v1beta3
+kind: InitConfiguration
+localAPIEndpoint:
+  advertiseAddress: 10.0.1.1
+
+---
+apiVersion: kubeadm.k8s.io/v1beta3
+kind: ClusterConfiguration
+apiServer:
+  extraArgs:
+    authorization-mode: Node,RBAC
+  timeoutForControlPlane: 4m0s  # The timeout that we wait for the API server to appear
+certificatesDir: /etc/kubernetes/pki
+clusterName: kubernetes
+dns: {}
+etcd:
+  local:
+    dataDir: /var/lib/etcd
+    extraArgs:
+      listen-metrics-urls: http://0.0.0.0:2381
+imageRepository: registry.k8s.io
+kubernetesVersion: v1.29.1
+networking:
+  dnsDomain: cluster.local
+  podSubnet: 10.168.0.0/16
+  serviceSubnet: 10.96.0.0/12
+controllerManager:
+  extraArgs:
+    bind-address: 0.0.0.0 # This allows scheduler and controllers to be scraped on other ports and nodes.
+scheduler:
+  extraArgs:
+    bind-address: 0.0.0.0
+
+---
+# Configure kubelet for large pod limits.
+apiVersion: kubelet.config.k8s.io/v1beta1
+kind: KubeletConfiguration
+kubeAPIQPS: 50  # Default: 5
+kubeAPIBurst: 100  # Default: 10
+configMapAndSecretChangeDetectionStrategy: "Watch"
+
+
+---
+apiVersion: kubeproxy.config.k8s.io/v1alpha1
+kind: KubeProxyConfiguration
+metricsBindAddress: 0.0.0.0:10249
