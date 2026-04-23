@@ -1,0 +1,11 @@
+{
+    "VHIVE_REPO": "https://github.com/vhive-serverless/vhive",
+    "VHIVE_BRANCH": "v1.8.2",
+    "LOADER_REPO": "https://github.com/vhive-serverless/invitro",
+    "LOADER_BRANCH": "main",
+    "KHALA_REPO": "https://github.com/hyscale-lab/khala.git",
+    "KHALA_BRANCH": "jy/nexus-knative-impl-rdma",
+    "CLUSTER_MODE": "container",
+    "PODS_PER_NODE": 240,
+    "DEPLOY_PROMETHEUS": false
+}
