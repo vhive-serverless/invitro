@@ -33,7 +33,7 @@ yq eval '
   .prometheus.prometheusSpec.resources.limits.memory = "512Mi" |
   .prometheus.prometheusSpec.resources.requests.cpu = "100m" |
   .prometheus.prometheusSpec.resources.requests.memory = "256Mi"
-' -i "./config/prometh_values_kn.yaml"
+' -i "./scripts/setup/configs/prometheus/prom_values.yaml"
 
 # Install prometheus stack
 release_label="prometheus"
@@ -42,7 +42,7 @@ prometheus_chart_version="60.1.0"
 helm install \
     -n monitoring $release_label \
     --version $prometheus_chart_version prometheus-community/kube-prometheus-stack \
-    -f ./config/prometh_values_kn.yaml
+    -f ./scripts/setup/configs/prometheus/prom_values.yaml
 
 # Configure kubectl config for non-root user
 docker exec knative-control-plane sh -c "mkdir -p /home/$(whoami)/.kube"

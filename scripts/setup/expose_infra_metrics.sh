@@ -47,7 +47,7 @@ server_exec() {
 	server_exec 'kubectl create namespace monitoring'
 	release_label="prometheus"
 	prometheus_chart_version="72.6.2"
-	server_exec "cd loader; helm install -n monitoring $release_label --version $prometheus_chart_version prometheus-community/kube-prometheus-stack -f config/prometh_values_kn.yaml"
+	server_exec "cd loader; helm install -n monitoring $release_label --version $prometheus_chart_version prometheus-community/kube-prometheus-stack -f ~/loader/scripts/setup/configs/prometheus/prom_values.yaml"
 
 	#* Apply the ServiceMonitors/PodMonitors to collect metrics from Knative.
 	#* The ports of the control manager and scheduler are mapped in a way that prometheus default installation can find them. 
@@ -57,7 +57,10 @@ server_exec() {
 	server_exec "curl -sL $commit_version/config/configmap-serving-dashboard.json | sed 's/"namespace": "knative-serving"/"namespace": "monitoring"/g' | kubectl apply -f -"
 
 	#* Bind addresses of the control manager and scheduler to "0.0.0.0" so that prometheus can scrape them from any domains.
-	server_exec 'cd loader; sudo kubeadm upgrade apply --config config/kubeadm_init.yaml --ignore-preflight-errors all --yes --v=7'
+	server_exec 'sudo kubeadm init phase control-plane controller-manager --config ~/loader/scripts/setup/configs/prometheus/kubeadm_init.yaml --v=7'
+	server_exec 'sudo kubeadm init phase control-plane scheduler --config ~/loader/scripts/setup/configs/prometheus/kubeadm_init.yaml --v=7'
+	#* Re-apply kube-proxy configuration so Prometheus can scrape kube-proxy metrics.
+	server_exec 'sudo kubeadm init phase addon kube-proxy --config ~/loader/scripts/setup/configs/prometheus/kubeadm_init.yaml --v=7'
 
 	#* Restart the kube-proxy to apply the changes.
 	server_exec 'kubectl delete pod -l k8s-app=kube-proxy -n kube-system'
