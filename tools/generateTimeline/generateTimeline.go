@@ -107,23 +107,21 @@ func generateLoad(outputFilename string, millisecondScale bool) {
 	default:
 		log.Fatal("Unsupported IAT distribution.")
 	}
-	writer := make(chan interface{}, 1000)
+	writer := make(chan any, 1000)
 
-	traceParser := trace.NewAzureParser(*tracePath, *duration)
+	traceParser := trace.NewAzureParser(*tracePath, *duration, "")
 	functions := traceParser.Parse()
 
 	log.Infof("Traces contain the following %d functions:\n", len(functions))
 
-	wg2.Add(1)
-	go func() {
-		defer wg2.Done()
+	wg2.Go(func() {
 		f, err := os.Create(outputFilename)
 		if err != nil {
 			log.Fatal(err)
 		}
 		_ = gocsv.MarshalChan(writer, gocsv.DefaultCSVWriter(f))
 		f.Close()
-	}()
+	})
 
 	specGenerator := spec.NewSpecificationGenerator(*randSeed)
 
@@ -141,55 +139,70 @@ func generateLoad(outputFilename string, millisecondScale bool) {
 	wg2.Wait()
 }
 
-func generateFunctionTimeline(function *common.Function, writer chan interface{}, wg *sync.WaitGroup, millisecondScale bool) {
+func generateFunctionTimeline(function *common.Function, writer chan any, wg *sync.WaitGroup, millisecondScale bool) {
 	defer wg.Done()
-	minuteIndex, invocationIndex := 0, 0
-	runtimes, memory, cpuSum, memoryUsage := 0, 0, 0, 0
 
 	IAT, runtimeSpecification := function.Specification.IAT, function.Specification.RuntimeSpecification
+	invocationCount := len(IAT)
 
-	for {
+	if invocationCount == 0 {
+		return
+	}
+	if invocationCount != len(runtimeSpecification) {
+		log.Fatalf("Mismatched IAT and runtime specification lengths for function %s: %d != %d",
+			function.Name, invocationCount, len(runtimeSpecification))
+	}
+
+	minuteIndexSearch := common.NewIntervalSearch(function.Specification.PerMinuteCount)
+	interval := minuteIndexSearch.SearchInterval(0)
+	if interval == nil {
+		log.Fatalf("No per-minute interval found for function %s with %d generated invocations",
+			function.Name, invocationCount)
+	}
+	minuteIndexEnd, minuteIndex := interval.End, interval.Value
+
+	iatIndex := 0
+	var previousIATSum int64
+	runtimes, memory, cpuSum, memoryUsage := 0, 0, 0, 0
+
+	for iatIndex < invocationCount {
 		if minuteIndex >= *duration {
 			break
-		} else if function.InvocationStats.Invocations[minuteIndex] == 0 {
-			minuteIndex++
-			invocationIndex = 0
-			continue
 		}
-		sum := 0.0
-		for i := 0; i < invocationIndex; i++ {
-			sum += IAT[minuteIndex][i]
-		}
+
+		iat := time.Duration(IAT[iatIndex]) * time.Microsecond
+		previousIATSum += iat.Microseconds()
+		runtimeSpec := runtimeSpecification[iatIndex]
 
 		var duration, cpu int
 		if *cpuQuota {
 			cpu = trace.ConvertMemoryToCpu(int(function.MemoryStats.Percentile100))
-			duration = int((float64(runtimeSpecification[minuteIndex][invocationIndex].Runtime) / float64(cpu)) * 1000)
+			duration = int((float64(runtimeSpec.Runtime) / float64(cpu)) * 1000)
 		} else {
-			duration = runtimeSpecification[minuteIndex][invocationIndex].Runtime
+			duration = runtimeSpec.Runtime
 			cpu = 1 * 1000
 		}
 
 		if millisecondScale {
 			// Write the millisecond scale timeline
 			writer <- loaderRecord{
-				Millisecond:  int((time.Duration(minuteIndex)*time.Minute + time.Duration(sum)*time.Microsecond) / time.Millisecond),
+				Millisecond:  int((time.Duration(previousIATSum) * time.Microsecond) / time.Millisecond),
 				FunctionHash: function.InvocationStats.HashApp,
 				Runtime:      duration,
-				MemoryUsage:  runtimeSpecification[minuteIndex][invocationIndex].Memory,
+				MemoryUsage:  runtimeSpec.Memory,
 				Memory:       int(function.MemoryStats.Percentile100),
 				Cpu:          cpu,
 			}
 		} else {
 			// Add the millisecond data to list, to be averaged later
 			runtimes += duration
-			memoryUsage += runtimeSpecification[minuteIndex][invocationIndex].Memory * duration
+			memoryUsage += runtimeSpec.Memory * duration
 			cpuSum += cpu
 			memory += int(function.MemoryStats.Percentile100) * duration
 		}
 
-		invocationIndex++
-		if function.InvocationStats.Invocations[minuteIndex] == invocationIndex {
+		iatIndex++
+		if iatIndex > minuteIndexEnd {
 			if !millisecondScale {
 				// Generated one minute of the trace, write the average
 				writer <- minuteTimelineRecord{
@@ -202,8 +215,12 @@ func generateFunctionTimeline(function *common.Function, writer chan interface{}
 				}
 				runtimes, memory, cpuSum, memoryUsage = 0, 0, 0, 0
 			}
-			minuteIndex++
-			invocationIndex = 0
+
+			interval = minuteIndexSearch.SearchInterval(iatIndex)
+			if interval == nil {
+				break
+			}
+			minuteIndexEnd, minuteIndex = interval.End, interval.Value
 		}
 	}
 }
