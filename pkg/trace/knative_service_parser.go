@@ -8,8 +8,8 @@ import (
 	"strconv"
 )
 
-func readKnativeYaml(path string) map[string]interface{} {
-	cfg := make(map[string]interface{})
+func readKnativeYaml(path string) map[string]any {
+	cfg := make(map[string]any)
 
 	yamlFile, err := os.ReadFile(path)
 	if err != nil {
@@ -24,9 +24,9 @@ func readKnativeYaml(path string) map[string]interface{} {
 	return cfg
 }
 
-func getNodeByName(data []interface{}, key string) map[string]interface{} {
-	for i := 0; i < len(data); i++ {
-		d := data[i].(map[string]interface{})
+func getNodeByName(data []any, key string) map[string]any {
+	for i := range data {
+		d := data[i].(map[string]any)
 
 		if d["name"] == key {
 			return d
@@ -39,25 +39,25 @@ func getNodeByName(data []interface{}, key string) map[string]interface{} {
 func convertKnativeYamlToDirigentMetadata(path string) *common.DirigentMetadata {
 	cfg := readKnativeYaml(path)
 
-	r1 := cfg["spec"].(map[string]interface{})
-	r2 := r1["template"].(map[string]interface{})
+	r1 := cfg["spec"].(map[string]any)
+	r2 := r1["template"].(map[string]any)
 
-	metadata := r2["metadata"].(map[string]interface{})
-	annotations := metadata["annotations"].(map[string]interface{})
+	metadata := r2["metadata"].(map[string]any)
+	annotations := metadata["annotations"].(map[string]any)
 	upperScale := annotations["autoscaling.knative.dev/max-scale"].(string)
 	lowerScale := annotations["autoscaling.knative.dev/min-scale"].(string)
 	upperScaleInt, _ := strconv.Atoi(upperScale)
 	lowerScaleInt, _ := strconv.Atoi(lowerScale)
 
-	spec := r2["spec"].(map[string]interface{})
-	containers := spec["containers"].([]interface{})[0].(map[string]interface{})
+	spec := r2["spec"].(map[string]any)
+	containers := spec["containers"].([]any)[0].(map[string]any)
 	image := containers["image"].(string)
 
-	ports := containers["ports"].([]interface{})
+	ports := containers["ports"].([]any)
 	port := getNodeByName(ports, "h2c")
 	portInt := port["containerPort"].(int)
 
-	env := containers["env"].([]interface{})
+	env := containers["env"].([]any)
 	iterationMultiplier := getNodeByName(env, "ITERATIONS_MULTIPLIER")
 	iterationMultiplierInt, _ := strconv.Atoi(iterationMultiplier["value"].(string))
 

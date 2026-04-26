@@ -103,7 +103,7 @@ func TestZipHealth(t *testing.T) {
 	assert.NoError(t, err, "Failed to create function app zips")
 
 	// Validate each zip file
-	for i := 0; i < expectedFunctionCount; i++ {
+	for i := range expectedFunctionCount {
 		zipFilePath := filepath.Join(root, fmt.Sprintf("function%d.zip", i))
 
 		// Check if the zip file exists

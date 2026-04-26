@@ -58,7 +58,7 @@ func TestParseInvocationTrace(t *testing.T) {
 		t.Error("Invalid invocations trace for length.")
 	}
 
-	for i := 0; i < duration; i++ {
+	for i := range duration {
 		if function.Invocations[i] != i+1 {
 			t.Error("Invalid number of invocations has been read.")
 		}

@@ -90,7 +90,7 @@ var functions []*common.Function = []*common.Function{
 
 func TestGenerateSingleDAG(t *testing.T) {
 	var functionList []*common.Function = make([]*common.Function, 3)
-	for i := 0; i < len(functionList); i++ {
+	for i := range functionList {
 		functionList[i] = functions[0]
 	}
 	dagList := GenerateDAGs(fakeConfig, functionList, true)[0]
@@ -103,7 +103,7 @@ func TestGenerateSingleDAG(t *testing.T) {
 func TestGenerateMultipleDAGs(t *testing.T) {
 	var functionList []*common.Function = make([]*common.Function, 200)
 	var initialWidth int64
-	for i := 0; i < len(functionList); i++ {
+	for i := range functionList {
 		functionList[i] = functions[0]
 	}
 	fakeConfig.Width = 10
@@ -112,7 +112,7 @@ func TestGenerateMultipleDAGs(t *testing.T) {
 	if len(dagList) < 2 {
 		t.Error("Failed to create Multiple DAGs")
 	}
-	for i := 0; i < len(dagList); i++ {
+	for i := range dagList {
 		initialWidth = 1
 		width, depth := GetDAGShape(dagList[i], &initialWidth, 0)
 		if width != fakeConfig.Width || depth != fakeConfig.Depth {
@@ -124,7 +124,7 @@ func TestGenerateMultipleDAGs(t *testing.T) {
 
 func TestGenerateDAGByDataset(t *testing.T) {
 	var functionList []*common.Function = make([]*common.Function, 10)
-	for i := 0; i < len(functionList); i++ {
+	for i := range functionList {
 		functionList[i] = functions[0]
 	}
 	fakeConfig.EnableDAGDataset = true

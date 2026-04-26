@@ -289,7 +289,7 @@ func TestDAGInvocation(t *testing.T) {
 		Memory:  128,
 	}}
 	functionList := make([]*common.Function, 3)
-	for i := 0; i < len(functionList); i++ {
+	for i := range functionList {
 		functionList[i] = function
 	}
 	originalBranch := []*list.List{
@@ -331,7 +331,7 @@ func TestDAGInvocation(t *testing.T) {
 	if !(successCount == 3 && failureCount == 0) {
 		t.Error("Number of successful and failed invocations not as expected.")
 	}
-	for i := 0; i < functionsToInvoke; i++ {
+	for range functionsToInvoke {
 		record := <-invocationRecordOutputChannel
 		if record.Phase != int(metadata.Phase) ||
 			record.InvocationID != composeInvocationID(common.MinuteGranularity, 0, 0) {
@@ -360,7 +360,7 @@ func TestVSwarmDAGInvocation(t *testing.T) {
 		Memory:  128,
 	}}
 	functionList := make([]*common.Function, 3)
-	for i := 0; i < len(functionList); i++ {
+	for i := range functionList {
 		functionList[i] = function
 	}
 	originalBranch := []*list.List{
@@ -402,7 +402,7 @@ func TestVSwarmDAGInvocation(t *testing.T) {
 	if !(successCount == 3 && failureCount == 0) {
 		t.Error("Number of successful and failed invocations not as expected.")
 	}
-	for i := 0; i < functionsToInvoke; i++ {
+	for range functionsToInvoke {
 		record := <-invocationRecordOutputChannel
 		if record.Phase != int(metadata.Phase) ||
 			record.InvocationID != composeInvocationID(common.MinuteGranularity, 0, 0) {

@@ -36,15 +36,12 @@ func (d *Driver) writeAsyncRecordsToLog(logCh chan *metric.ExecutionRecord) {
 	for d.AsyncRecords.Length() > 0 {
 		currentBatch++
 
-		toProcess := batchSize
-		if d.AsyncRecords.Length() < batchSize {
-			toProcess = d.AsyncRecords.Length()
-		}
+		toProcess := min(d.AsyncRecords.Length(), batchSize)
 
 		wg := sync.WaitGroup{}
 		wg.Add(toProcess)
 
-		for i := 0; i < toProcess; i++ {
+		for range toProcess {
 			go func() {
 				defer wg.Done()
 

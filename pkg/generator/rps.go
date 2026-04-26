@@ -36,13 +36,13 @@ func countNumberOfInvocationsPerMinute(experimentDuration int, iatResult []float
 	result := make([]int, experimentDuration)
 
 	// set zero count for each minute
-	for i := 0; i < experimentDuration; i++ {
+	for i := range experimentDuration {
 		result[i] = 0
 	}
 
 	cnt := make(map[int]int)
 	timestamp := 0.0
-	for i := 0; i < len(iatResult); i++ {
+	for i := range iatResult {
 		t := timestamp + iatResult[i]
 		minute := int(t) / 60_000_000
 		cnt[minute]++
@@ -83,7 +83,7 @@ func GenerateColdStartFunctions(experimentDuration int, rpsTarget float64, coold
 	var functions []common.IATArray
 	var countResult [][]int
 
-	for i := 0; i < totalFunctions; i++ {
+	for i := range totalFunctions {
 		offsetWithinBatch := 0
 		if rpsTarget >= 1 {
 			offsetWithinBatch = int(float64(i%int(rpsTarget)) * iat)
@@ -134,7 +134,7 @@ func CreateRPSFunctions(cfg *config.LoaderConfiguration, warmFunction common.IAT
 		})
 	}
 
-	for i := 0; i < len(coldFunctions); i++ {
+	for i := range coldFunctions {
 		result = append(result, &common.Function{
 			Name: fmt.Sprintf("cold-function-%d-%d", i, rand.Int()),
 
@@ -198,7 +198,7 @@ func AppendDirigentMetadata(functions []*common.Function, cfg *config.LoaderConf
 
 func createRuntimeSpecification(count int, runtime, memory int) common.RuntimeSpecificationArray {
 	var result common.RuntimeSpecificationArray
-	for i := 0; i < count; i++ {
+	for range count {
 		result = append(result, common.RuntimeSpecification{
 			Runtime: runtime,
 			Memory:  memory,

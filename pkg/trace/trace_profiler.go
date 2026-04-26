@@ -32,7 +32,7 @@ import (
 )
 
 func DoStaticTraceProfiling(functions []*common.Function) {
-	for i := 0; i < len(functions); i++ {
+	for i := range functions {
 		f := functions[i]
 
 		f.InitialScale = int(math.Ceil(profileConcurrency(functions[i])))
@@ -41,7 +41,7 @@ func DoStaticTraceProfiling(functions []*common.Function) {
 }
 
 func ApplyResourceLimits(functions []*common.Function, CPULimit string) {
-	for i := 0; i < len(functions); i++ {
+	for i := range functions {
 		memoryPct100 := int(functions[i].MemoryStats.Percentile100)
 		var cpuShare int
 		switch CPULimit {

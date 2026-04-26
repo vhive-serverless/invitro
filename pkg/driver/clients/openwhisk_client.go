@@ -89,7 +89,7 @@ func (i *openWhiskInvoker) Invoke(function *common.Function, runtimeSpec *common
 
 func parseActivationMetadata(response string) (error, ActivationMetadata) {
 	var result ActivationMetadata
-	var jsonMap map[string]interface{}
+	var jsonMap map[string]any
 
 	ind := strings.Index(response, "{")
 	err := json.Unmarshal([]byte(response[ind:]), &jsonMap)
@@ -100,9 +100,9 @@ func parseActivationMetadata(response string) (error, ActivationMetadata) {
 	result.Duration = uint32(jsonMap["duration"].(float64))
 	result.StartType = mc.Hot
 	result.InitTime = 0
-	annotations := jsonMap["annotations"].([]interface{})
-	for i := 0; i < len(annotations); i++ {
-		annotation := annotations[i].(map[string]interface{})
+	annotations := jsonMap["annotations"].([]any)
+	for i := range annotations {
+		annotation := annotations[i].(map[string]any)
 
 		if annotation["key"] == "waitTime" {
 			result.WaitTime = int64(annotation["value"].(float64))

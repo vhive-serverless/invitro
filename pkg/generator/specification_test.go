@@ -691,7 +691,7 @@ func checkDistribution(data []float64, perMinuteCount []int, nonScaledDuration [
 	beginIndex := 0
 	endIndex := perMinuteCount[0]
 
-	for min := 0; min < len(perMinuteCount); min++ {
+	for min := range perMinuteCount {
 		// WRITING DISTRIBUTION TO TEST
 		f, err := os.Create(inputFile)
 		if err != nil {

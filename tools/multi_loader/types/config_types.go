@@ -29,13 +29,13 @@ type MultiLoaderConfiguration struct {
 }
 
 type LoaderStudy struct {
-	Name   string                 `json:"Name"`
-	Config map[string]interface{} `json:"Config"`
+	Name   string         `json:"Name"`
+	Config map[string]any `json:"Config"`
 	// A combination of format and values or just dir should be specified
 	TracesDir string `json:"TracesDir"`
 
-	TracesFormat string        `json:"TracesFormat"`
-	TraceValues  []interface{} `json:"TraceValues"`
+	TracesFormat string `json:"TracesFormat"`
+	TraceValues  []any  `json:"TraceValues"`
 
 	// Optional
 	OutputDir     string         `json:"OutputDir"`
@@ -49,20 +49,20 @@ type LoaderStudy struct {
 }
 
 type LoaderExperiment struct {
-	Name          string                 `json:"Name"`
-	Config        map[string]interface{} `json:"Config"`
-	OutputDir     string                 `json:"OutputDir"`
-	Verbosity     string                 `json:"Verbosity"`
-	IatGeneration bool                   `json:"IatGeneration"`
-	Generated     bool                   `json:"Generated"`
-	PreScript     string                 `json:"PreScript"`
-	PostScript    string                 `json:"PostScript"`
+	Name          string         `json:"Name"`
+	Config        map[string]any `json:"Config"`
+	OutputDir     string         `json:"OutputDir"`
+	Verbosity     string         `json:"Verbosity"`
+	IatGeneration bool           `json:"IatGeneration"`
+	Generated     bool           `json:"Generated"`
+	PreScript     string         `json:"PreScript"`
+	PostScript    string         `json:"PostScript"`
 }
 
 type SweepOptions struct {
-	Field  string        `json:"Field"`
-	Values []interface{} `json:"Values"`
-	Format string        `json:"Format"`
+	Field  string `json:"Field"`
+	Values []any  `json:"Values"`
+	Format string `json:"Format"`
 }
 
 func (so *SweepOptions) Validate() error {
@@ -83,7 +83,7 @@ func (so *SweepOptions) Validate() error {
 	return nil
 }
 
-func (so *SweepOptions) GetValue(index int) interface{} {
+func (so *SweepOptions) GetValue(index int) any {
 	if index >= len(so.Values) {
 		log.Fatal("Index out of range when getting value from sweep options")
 	}
@@ -96,8 +96,8 @@ func (so *SweepOptions) GetValue(index int) interface{} {
 }
 
 type PrometheusSnapshot struct {
-	Status    string      `json:"status"`
-	ErrorType string      `json:"errorType"`
-	Error     string      `json:"error"`
-	Data      interface{} `json:"data"`
+	Status    string `json:"status"`
+	ErrorType string `json:"errorType"`
+	Error     string `json:"error"`
+	Data      any    `json:"data"`
 }

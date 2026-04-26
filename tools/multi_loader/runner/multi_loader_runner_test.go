@@ -82,7 +82,7 @@ func TestPrepareExperiment(t *testing.T) {
 	defer cleanup()
 	subExperiment := types.LoaderExperiment{
 		Name: "example_1",
-		Config: map[string]interface{}{
+		Config: map[string]any{
 			"ExperimentDuration": 10,
 			"TracePath":          path.Join(rootPath, "data", "multi_traces", "example_1_test"),
 			"OutputPathPrefix":   "./test_output/example_1_test",
@@ -121,7 +121,7 @@ func TestMergeConfig(t *testing.T) {
 	newTracePath := path.Join(rootPath, "data", "multi_traces", "example_1_test")
 	experiment := types.LoaderExperiment{
 		Name: "example_1",
-		Config: map[string]interface{}{
+		Config: map[string]any{
 			"ExperimentDuration": 10,
 			"TracePath":          newTracePath,
 			"OutputPathPrefix":   "./test_output/example_1_test",
@@ -200,11 +200,11 @@ func TestSweepOptions(t *testing.T) {
 	sweepOptions := []types.SweepOptions{
 		{
 			Field:  "ExperimentDuration",
-			Values: []interface{}{10, 20},
+			Values: []any{10, 20},
 		},
 		{
 			Field: "PostScript",
-			Values: []interface{}{
+			Values: []any{
 				1,
 				"2",
 			},
@@ -214,7 +214,7 @@ func TestSweepOptions(t *testing.T) {
 
 	loaderExperiment := types.LoaderExperiment{
 		Name: "test1",
-		Config: map[string]interface{}{
+		Config: map[string]any{
 			"WarmupDuration":   10,
 			"OutputPathPrefix": "data/out/test_output",
 		},
@@ -268,11 +268,11 @@ func TestSweepOptions(t *testing.T) {
 			testStudy.Sweep = []types.SweepOptions{
 				{
 					Field:  "ExperimentDuration",
-					Values: []interface{}{10, 20},
+					Values: []any{10, 20},
 				},
 				{
 					Field:  "PreScript",
-					Values: []interface{}{"touch data/out/scripts/test_prescript_1"},
+					Values: []any{"touch data/out/scripts/test_prescript_1"},
 				},
 			}
 			_ = multiLoader.unpackSweepOptions(testStudy, loaderExperiment)
@@ -367,7 +367,7 @@ func validateGridSweepOutput(t *testing.T, output []types.LoaderExperiment) {
 	expectedOutput := []types.LoaderExperiment{
 		{
 			Name: "test1_ExperimentDuration_10_PostScript_1",
-			Config: map[string]interface{}{
+			Config: map[string]any{
 				"WarmupDuration":     10.0,
 				"OutputPathPrefix":   "data/out_ExperimentDuration_10_PostScript_1/test_output",
 				"ExperimentDuration": 10.0,
@@ -376,7 +376,7 @@ func validateGridSweepOutput(t *testing.T, output []types.LoaderExperiment) {
 		},
 		{
 			Name: "test1_ExperimentDuration_10_PostScript_2",
-			Config: map[string]interface{}{
+			Config: map[string]any{
 				"WarmupDuration":     10.0,
 				"OutputPathPrefix":   "data/out_ExperimentDuration_10_PostScript_2/test_output",
 				"ExperimentDuration": 10.0,
@@ -385,7 +385,7 @@ func validateGridSweepOutput(t *testing.T, output []types.LoaderExperiment) {
 		},
 		{
 			Name: "test1_ExperimentDuration_20_PostScript_1",
-			Config: map[string]interface{}{
+			Config: map[string]any{
 				"WarmupDuration":     10.0,
 				"OutputPathPrefix":   "data/out_ExperimentDuration_20_PostScript_1/test_output",
 				"ExperimentDuration": 20.0,
@@ -394,7 +394,7 @@ func validateGridSweepOutput(t *testing.T, output []types.LoaderExperiment) {
 		},
 		{
 			Name: "test1_ExperimentDuration_20_PostScript_2",
-			Config: map[string]interface{}{
+			Config: map[string]any{
 				"WarmupDuration":     10.0,
 				"OutputPathPrefix":   "data/out_ExperimentDuration_20_PostScript_2/test_output",
 				"ExperimentDuration": 20.0,
@@ -416,7 +416,7 @@ func validateLinearSweepOutput(t *testing.T, output []types.LoaderExperiment) {
 	expectedOutput := []types.LoaderExperiment{
 		{
 			Name: "test1_ExperimentDuration_10_PostScript_1",
-			Config: map[string]interface{}{
+			Config: map[string]any{
 				"WarmupDuration":     10.0,
 				"OutputPathPrefix":   "data/out_ExperimentDuration_10_PostScript_1/test_output",
 				"ExperimentDuration": 10.0,
@@ -425,7 +425,7 @@ func validateLinearSweepOutput(t *testing.T, output []types.LoaderExperiment) {
 		},
 		{
 			Name: "test1_ExperimentDuration_20_PostScript_2",
-			Config: map[string]interface{}{
+			Config: map[string]any{
 				"WarmupDuration":     10.0,
 				"OutputPathPrefix":   "data/out_ExperimentDuration_20_PostScript_2/test_output",
 				"ExperimentDuration": 20.0,

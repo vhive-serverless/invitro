@@ -10,7 +10,7 @@ import (
 	"sync"
 )
 
-func RunCSVWriter(records chan interface{}, filename string, writerDone *sync.WaitGroup) {
+func RunCSVWriter(records chan any, filename string, writerDone *sync.WaitGroup) {
 	log.Debugf("Starting writer for %s", filename)
 
 	file, err := os.Create(filename)
@@ -41,7 +41,7 @@ func CreateGlobalMetricsCollector(filename string, collector chan *ExecutionReco
 
 	signalReady.Done()
 
-	records := make(chan interface{}, 100)
+	records := make(chan any, 100)
 	writerDone := sync.WaitGroup{}
 	writerDone.Add(1)
 	go RunCSVWriter(records, filename, &writerDone)

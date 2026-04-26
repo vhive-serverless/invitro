@@ -4,12 +4,12 @@ inputs:
   go-version:
     description: Version of Go to set up
     required: true
-    default: '1.22'
+    default: '1.26'
 runs:
   using: "composite"
   steps:
     - name: Checkout repository
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
       with:
         lfs: "true"
 
@@ -18,7 +18,7 @@ runs:
       run: git lfs checkout
 
     - name: Set up Go
-      uses: actions/setup-go@v5
+      uses: actions/setup-go@v6
       with:
         go-version: ${{ inputs.go-version }}
 

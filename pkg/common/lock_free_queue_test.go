@@ -41,7 +41,7 @@ func TestAtomicQueueParallel(t *testing.T) {
 
 	wg := sync.WaitGroup{}
 	wg.Add(values)
-	for i := 0; i < values; i++ {
+	for i := range values {
 		go func(idx int) {
 			defer wg.Done()
 
@@ -57,7 +57,7 @@ func TestAtomicQueueParallel(t *testing.T) {
 	sum := int64(0)
 
 	wg.Add(values)
-	for i := 0; i < values; i++ {
+	for range values {
 		go func() {
 			defer wg.Done()
 

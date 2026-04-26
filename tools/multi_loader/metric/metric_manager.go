@@ -9,6 +9,7 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -366,10 +367,5 @@ func (m *MetricManager) shouldCollect(targetMetrics string) bool {
 	if !strings.HasPrefix(m.platform, common.PlatformKnative) {
 		return false
 	}
-	for _, metric := range m.metricsToCollect {
-		if metric == targetMetrics {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(m.metricsToCollect, targetMetrics)
 }
