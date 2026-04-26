@@ -18,7 +18,7 @@ jobs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
       - name: Checkout Sources
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       - id: set-matrix
         run: ./utils/golangci-lint/resolve-modules.sh
 
@@ -30,17 +30,20 @@ jobs:
       matrix: { dir: ['cmd', 'pkg', 'tools/plotter'] }
       fail-fast: false
     steps:
-      - name: Setup Go 1.22
-        uses: actions/setup-go@v5
+      - name: Checkout code into go module directory
+          uses: actions/checkout@v6
+    
+      - name: Set up Go version in go.mod file
+        uses: actions/setup-go@v6
         with:
-          go-version: 1.22
+          go-version-file: ./go.mod
+          cache-dependency-path: |
+            ./go.mod
+            ./go.sum
 
       - name: Install dependencies for cgo
         run: sudo apt update && sudo apt install libsnmp-dev
 
-      - name: Checkout code into go module directory
-        uses: actions/checkout@v4
-        
       - name: Lint with golangci-lint
         uses: golangci/golangci-lint-action@v6.5.0
         with:

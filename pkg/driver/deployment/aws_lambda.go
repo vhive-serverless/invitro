@@ -45,7 +45,7 @@ func internalAWSDeployment(functions []*common.Function) {
 	parallelDeployment := 2
 
 	for i := 0; i < len(functionGroups); {
-		for parallelIndex := 0; parallelIndex < parallelDeployment; parallelIndex++ {
+		for range parallelDeployment {
 			if i < len(functionGroups) {
 				wg.Add(1)
 				go func(functionGroup []*common.Function, index int) {
@@ -59,7 +59,7 @@ func internalAWSDeployment(functions []*common.Function) {
 						log.Fatalf("Failed to deploy serverless-%d.yml", index) // Immediately terminate deployment for fast feedback
 					} else {
 						atomic.AddUint64(&counter, 1)
-						for i := 0; i < len(functionGroup); i++ {
+						for i := range functionGroup {
 							functionGroup[i].Endpoint = functionToURLMapping[i]
 							log.Debugf("Function %s set to %s", functionGroup[i].Name, functionGroup[i].Endpoint)
 						}
@@ -87,7 +87,7 @@ func CleanAWSLambda(functions []*common.Function) {
 	parallelDeployment := 2
 
 	for i := 0; i < len(functionGroups); {
-		for parallelIndex := 0; parallelIndex < parallelDeployment; parallelIndex++ {
+		for range parallelDeployment {
 			if i < len(functionGroups) {
 				wg.Add(1)
 				go func(index int) {
@@ -253,10 +253,7 @@ func separateFunctions(functions []*common.Function) [][]*common.Function {
 	groupSize := 60
 
 	for i := 0; i < len(functions); i += groupSize {
-		end := i + groupSize
-		if end > len(functions) {
-			end = len(functions)
-		}
+		end := min(i+groupSize, len(functions))
 		functionGroups = append(functionGroups, functions[i:end])
 	}
 
@@ -265,7 +262,7 @@ func separateFunctions(functions []*common.Function) [][]*common.Function {
 
 // createSlsConfigFiles creates serverless.yml files for each group of functions
 func createSlsConfigFiles(functionGroups [][]*common.Function, provider string, awsAccountId string) {
-	for i := 0; i < len(functionGroups); i++ {
+	for i := range functionGroups {
 		log.Debugf("Creating serverless-%d.yml", i)
 		serverless := Serverless{}
 		serverless.CreateHeader(i, provider)

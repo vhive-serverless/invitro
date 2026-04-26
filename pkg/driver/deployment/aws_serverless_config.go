@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
+	"slices"
 	"strings"
 )
 
@@ -55,12 +56,7 @@ func (s *Serverless) CreateHeader(index int, provider string) {
 }
 
 func stringContains(s []string, str string) bool {
-	for _, v := range s {
-		if v == str {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(s, str)
 }
 
 // AddPackagePattern adds a string pattern to Package.Pattern as long as such a pattern does not already exist in Package.Pattern
@@ -120,7 +116,7 @@ func DeployServerless(index int) map[int]string {
 
 	// Map the function names (endpoints) to the URLs (Serverless.com console outputs in order)
 	functionToURL := make(map[int]string)
-	for i := 0; i < len(urlMatches); i++ {
+	for i := range urlMatches {
 		functionToURL[i] = urlMatches[i][0]
 	}
 

@@ -39,7 +39,7 @@ import (
 )
 
 type Pair struct {
-	Key   interface{}
+	Key   any
 	Value int
 }
 type PairList []Pair

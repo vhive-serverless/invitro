@@ -173,7 +173,7 @@ func TestGRPCClientWithServerBatchWorkload(t *testing.T) {
 
 	invoker := CreateInvoker(&config.Configuration{LoaderConfiguration: cfg}, nil, nil)
 
-	for i := 0; i < 50; i++ {
+	for range 50 {
 		success, record := invoker.Invoke(&testFunction, &testRuntimeSpecs)
 
 		if !success ||

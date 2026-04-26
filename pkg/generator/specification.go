@@ -59,7 +59,7 @@ func (s *SpecificationGenerator) generateIATPerGranularity(numberOfInvocations i
 	var iatResult []float64
 	totalDuration := 0.0 // total non-scaled duration
 
-	for i := 0; i < numberOfInvocations; i++ {
+	for range numberOfInvocations {
 		var iat float64
 
 		switch iatDistribution {
@@ -150,7 +150,7 @@ func (s *SpecificationGenerator) generateIAT(invocationsPerMinute []int, iatDist
 	var nonScaledDuration []float64
 
 	numberOfMinutes := len(invocationsPerMinute)
-	for i := 0; i < numberOfMinutes; i++ {
+	for i := range numberOfMinutes {
 		minuteIAT, duration := s.generateIATPerGranularity(invocationsPerMinute[i], iatDistribution, shiftIAT, granularity)
 
 		IAT[len(IAT)-1] += minuteIAT[0]
@@ -172,7 +172,7 @@ func (s *SpecificationGenerator) GenerateInvocationData(function *common.Functio
 
 	// Generating runtime specifications
 	var runtimeArray common.RuntimeSpecificationArray
-	for i := 0; i < len(perMinuteCount); i++ {
+	for i := range perMinuteCount {
 		for j := 0; j < perMinuteCount[i]; j++ {
 			runtimeArray = append(runtimeArray, s.generateExecutionSpecs(function))
 		}

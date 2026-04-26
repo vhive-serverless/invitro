@@ -146,7 +146,7 @@ func InitAzureFunctions(config *Config, functions []*common.Function) {
 	}
 
 	// 3. Create Function Apps + Set Settings For Each App
-	for i := 0; i < len(functions); i++ {
+	for i := range functions {
 		functionAppName := fmt.Sprintf("%s-%d", config.AzureConfig.FunctionAppName, i)
 
 		if err := CreateFunctionApp(config, functionAppName); err != nil {
@@ -279,7 +279,7 @@ func SetORYXSettings(config *Config, functionAppName string) error {
 /* Function to create folders and copy files to the folders */
 
 func CreateFunctionFolders(baseDir, sharedWorkloadDir string, functions []*common.Function) error {
-	for i := 0; i < len(functions); i++ {
+	for i := range functions {
 		folderName := fmt.Sprintf("function%d", i)
 		folderPath := filepath.Join(baseDir, folderName)
 
@@ -312,7 +312,7 @@ func CreateFunctionFolders(baseDir, sharedWorkloadDir string, functions []*commo
 /* Functions for zipping created function folders */
 
 func ZipFunctionAppFiles(baseDir string, functions []*common.Function) error {
-	for i := 0; i < len(functions); i++ {
+	for i := range functions {
 		folderName := fmt.Sprintf("function%d", i)
 		folderPath := filepath.Join(baseDir, folderName)
 		zipFileName := fmt.Sprintf("function%d.zip", i)
@@ -336,7 +336,7 @@ func ZipFunctionAppFiles(baseDir string, functions []*common.Function) error {
 func DeployFunctions(config *Config, baseDir string, functions []*common.Function) error {
 	log.Infof("Deploying %d functions to Azure Function Apps...", len(functions))
 
-	for i := 0; i < len(functions); i++ {
+	for i := range functions {
 		functionAppName := fmt.Sprintf("%s-%d", config.AzureConfig.FunctionAppName, i)
 		zipFileName := fmt.Sprintf("function%d.zip", i)
 		zipFilePath := filepath.Join(baseDir, zipFileName)
@@ -373,7 +373,7 @@ func CleanUpDeploymentFiles(baseDir string, functions []*common.Function) error 
 	log.Debugf("Successfully removed directory: %s", baseDir)
 
 	// Remove each individual function zip file
-	for i := 0; i < len(functions); i++ {
+	for i := range functions {
 		zipFileName := fmt.Sprintf("function%d.zip", i)
 		if err := os.Remove(zipFileName); err != nil {
 			return fmt.Errorf("failed to remove zip file %s: %w", zipFileName, err)

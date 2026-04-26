@@ -349,7 +349,7 @@ func (d *MultiLoaderRunner) unpackLinearSweep(study types.LoaderStudy, experimen
 	}
 
 	// Create experiments for each sweep value
-	for i := 0; i < numOfSweepValues; i++ {
+	for i := range numOfSweepValues {
 		newExperiment, err := common.DeepCopy(experiment)
 		if err != nil {
 			log.Fatal("Error when deep copying experiment", err)

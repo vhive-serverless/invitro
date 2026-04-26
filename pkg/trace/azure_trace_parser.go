@@ -162,7 +162,7 @@ func parseInvocationTrace(traceFile string, traceDuration int) *[]common.Functio
 
 		if rowID == -1 {
 			// Parse header
-			for i := 0; i < 4; i++ {
+			for i := range 4 {
 				switch strings.ToLower(record[i]) {
 				case "hashowner":
 					hashOwnerIndex = i
@@ -193,7 +193,7 @@ func parseInvocationTrace(traceFile string, traceDuration int) *[]common.Functio
 
 				invocations = append(invocations, num)
 
-				for j := 0; j < num; j++ {
+				for range num {
 					invocationIndices[minute] = append(invocationIndices[minute], rowID)
 				}
 				totalInvocations[minute] = totalInvocations[minute] + num

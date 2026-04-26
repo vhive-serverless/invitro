@@ -47,10 +47,10 @@ func TestSweepOptionsToPostfix(t *testing.T) {
 	t.Run("Test Post Fix Naming Util", func(t *testing.T) {
 		result := SweepOptionsToPostfix(
 			[]types.SweepOptions{
-				{Field: "PreScript", Values: []interface{}{"PreValue_1", "PreValue_2"}},
-				{Field: "CPULimit", Values: []interface{}{"1vCPU", "2vCPU", "4vCPU"}},
-				{Field: "ExperimentDuration", Values: []interface{}{"10", "20", "30"}},
-				{Field: "PostScript", Values: []interface{}{"PostValue_1", "PostValue_2", "PostValue_3"}},
+				{Field: "PreScript", Values: []any{"PreValue_1", "PreValue_2"}},
+				{Field: "CPULimit", Values: []any{"1vCPU", "2vCPU", "4vCPU"}},
+				{Field: "ExperimentDuration", Values: []any{"10", "20", "30"}},
+				{Field: "PostScript", Values: []any{"PostValue_1", "PostValue_2", "PostValue_3"}},
 			},
 			[]int{1, 2, 0, 2},
 		)
@@ -61,14 +61,14 @@ func TestSweepOptionsToPostfix(t *testing.T) {
 func TestUpdateExperimentWithSweepIndices(t *testing.T) {
 	experiment := &types.LoaderExperiment{
 		Name:   "test_experiment",
-		Config: map[string]interface{}{"OutputPathPrefix": "first/second/third"},
+		Config: map[string]any{"OutputPathPrefix": "first/second/third"},
 	}
 
 	// Test sweep options
 	sweepOptions := []types.SweepOptions{
-		{Field: "PreScript", Values: []interface{}{"pre1", "pre2"}, Format: "test_{}"},
-		{Field: "PostScript", Values: []interface{}{"post1", "post2"}, Format: ""},
-		{Field: "ExperimentDuration", Values: []interface{}{"1", "2"}, Format: ""},
+		{Field: "PreScript", Values: []any{"pre1", "pre2"}, Format: "test_{}"},
+		{Field: "PostScript", Values: []any{"post1", "post2"}, Format: ""},
+		{Field: "ExperimentDuration", Values: []any{"1", "2"}, Format: ""},
 	}
 
 	selectedSweepValues := []int{1, 0, 1}

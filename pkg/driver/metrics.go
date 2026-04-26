@@ -15,8 +15,8 @@ func (d *Driver) CreateMetricsScrapper(interval time.Duration,
 
 	return func() {
 		signalReady.Done()
-		knStatRecords := make(chan interface{}, 100)
-		scaleRecords := make(chan interface{}, 100)
+		knStatRecords := make(chan any, 100)
+		scaleRecords := make(chan any, 100)
 		writerDone := sync.WaitGroup{}
 
 		clusterUsageFile, err := os.Create(d.outputFilename("cluster_usage"))

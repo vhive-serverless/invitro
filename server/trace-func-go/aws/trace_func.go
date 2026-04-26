@@ -61,7 +61,7 @@ func Handler(_ context.Context, event events.LambdaFunctionURLRequest) (Response
 	standard.IterationsMultiplier = 102 // Cloudlab xl170 benchmark @ 1 second function execution time
 	_ = common.TraceFunctionExecution(start, 102, req.RuntimeInMilliSec)
 
-	body, err := json.Marshal(map[string]interface{}{
+	body, err := json.Marshal(map[string]any{
 		"DurationInMicroSec": uint32(time.Since(start).Microseconds()),
 		"MemoryUsageInKb":    req.MemoryInMebiBytes * 1024,
 	})

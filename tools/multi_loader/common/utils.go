@@ -103,11 +103,11 @@ func SplitPath(path string) []string {
 }
 
 func SweepOptionsToPostfix(sweepOptions []types.SweepOptions, selectedSweepValues []int) string {
-	var postfix string
+	var postfix strings.Builder
 	for i, sweepOption := range sweepOptions {
-		postfix += fmt.Sprintf("_%s_%v", sweepOption.Field, sweepOption.Values[selectedSweepValues[i]])
+		postfix.WriteString(fmt.Sprintf("_%s_%v", sweepOption.Field, sweepOption.Values[selectedSweepValues[i]]))
 	}
-	return postfix
+	return postfix.String()
 }
 
 func UpdateExperimentWithSweepIndices(experiment *types.LoaderExperiment, sweepOptions []types.SweepOptions, selectedSweepValues []int) {

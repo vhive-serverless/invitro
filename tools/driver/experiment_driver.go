@@ -96,20 +96,6 @@ type Driver struct {
 	loaderConfig                loaderConfig
 }
 
-func min(x, y int) int {
-	if x < y {
-		return x
-	}
-	return y
-}
-
-func max(x, y int) int {
-	if x < y {
-		return y
-	}
-	return x
-}
-
 func NewDriver(configFile string) *[]Driver {
 	driverConfig, _ := os.ReadFile(configFile)
 	var driver Driver
@@ -261,7 +247,7 @@ func (d *Driver) transferFilesToLoader(client *simplessh.Client, wg *sync.WaitGr
 		filepath.Join(d.LoaderTracePath, "durations.csv"),
 		filepath.Join("loader/cmd/", d.loaderConfig.configPath),
 	}
-	for i := 0; i < 4; i++ {
+	for i := range 4 {
 		_, err := os.Stat(localFilePaths[i])
 		if err != nil {
 			log.Fatalf("Local file %s does not exist: %s", localFilePaths[i], err)

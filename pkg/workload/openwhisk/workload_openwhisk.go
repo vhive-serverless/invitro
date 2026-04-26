@@ -38,9 +38,9 @@ type FunctionResponse struct {
 	ExecutionTime int64  `json:"ExecutionTime"`
 }
 
-func Main(obj map[string]interface{}) map[string]interface{} {
+func Main(obj map[string]any) map[string]any {
 	requestedCpu, ok := obj["cpu"].(string)
-	result := make(map[string]interface{})
+	result := make(map[string]any)
 
 	if !ok {
 		result["body"] = obj

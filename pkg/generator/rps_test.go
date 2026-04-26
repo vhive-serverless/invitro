@@ -104,7 +104,7 @@ func TestWarmStartMatrix(t *testing.T) {
 			sum := 0.0
 			count := 0
 
-			for i := 0; i < len(matrix); i++ {
+			for i := range matrix {
 				if math.Abs(matrix[i]-test.expectedIAT[i]) > epsilon {
 					t.Error("Unexpected IAT value.")
 				}
@@ -113,7 +113,7 @@ func TestWarmStartMatrix(t *testing.T) {
 				count++
 			}
 
-			for i := 0; i < len(minuteCount); i++ {
+			for i := range minuteCount {
 				if test.expectedPerMinuteCount[i] != minuteCount[i] {
 					t.Error("Unexpected per minute count.")
 				}
@@ -384,7 +384,7 @@ func TestColdStartMatrix(t *testing.T) {
 				t.Errorf("Unexpected count array size - got: %d, expected: %d", len(minuteCounts), len(test.expectedCount))
 			}
 
-			for fIndex := 0; fIndex < len(matrix); fIndex++ {
+			for fIndex := range matrix {
 				if len(matrix[fIndex]) != len(test.expectedIAT[fIndex]) {
 					t.Errorf("Unexpected length of function %d IAT array - got: %d, expected: %d", fIndex, len(matrix[fIndex]), len(test.expectedIAT[fIndex]))
 				}

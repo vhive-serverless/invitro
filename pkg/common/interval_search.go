@@ -20,7 +20,7 @@ func constructIntervals(pmc []int) []Interval[int] {
 	var result []Interval[int]
 
 	sum := 0
-	for i := 0; i < len(pmc); i++ {
+	for i := range pmc {
 		if pmc[i] == 0 {
 			continue
 		}

@@ -34,7 +34,7 @@ func TestLogConsolidation(t *testing.T) {
 		var b bytes.Buffer
 		w := gzip.NewWriter(&b)
 		for i, line := range logData {
-			w.Write([]byte(fmt.Sprintf("%s 1 2 %s_%s\n", startTime.Add(-time.Minute*time.Duration(i+1)).Format(time.RFC3339Nano), logFileName[0], line)))
+			w.Write(fmt.Appendf(nil, "%s 1 2 %s_%s\n", startTime.Add(-time.Minute*time.Duration(i+1)).Format(time.RFC3339Nano), logFileName[0], line))
 		}
 		w.Close()
 		os.WriteFile(strings.Join([]string{path.Join(logDir, logFileName[0]), (startTime.Add(-time.Minute * 1)).Format(TIMESTAMP_FORMAT), "gz"}, "."), b.Bytes(), 0666)
@@ -43,7 +43,7 @@ func TestLogConsolidation(t *testing.T) {
 		b.Reset()
 		w = gzip.NewWriter(&b)
 		for i, line := range logData {
-			w.Write([]byte(fmt.Sprintf("%s 1 2 %s_%s\n", startTime.Add(time.Minute*time.Duration(i)-time.Second*30).Format(time.RFC3339Nano), logFileName[1], line)))
+			w.Write(fmt.Appendf(nil, "%s 1 2 %s_%s\n", startTime.Add(time.Minute*time.Duration(i)-time.Second*30).Format(time.RFC3339Nano), logFileName[1], line))
 		}
 		w.Close()
 		os.WriteFile(strings.Join([]string{path.Join(logDir, logFileName[1]), (startTime.Add(time.Minute*time.Duration(2) - time.Second*30)).Format(TIMESTAMP_FORMAT), "gz"}, "."), b.Bytes(), 0666)
@@ -54,7 +54,7 @@ func TestLogConsolidation(t *testing.T) {
 			assert.Fail(t, err.Error())
 		}
 		for i, line := range logData {
-			f.Write([]byte(fmt.Sprintf("%s 1 2 %s_%s\n", startTime.Add(time.Minute*time.Duration(i+3)).Format(time.RFC3339Nano), logFileName[2], line)))
+			f.Write(fmt.Appendf(nil, "%s 1 2 %s_%s\n", startTime.Add(time.Minute*time.Duration(i+3)).Format(time.RFC3339Nano), logFileName[2], line))
 		}
 		f.Close()
 

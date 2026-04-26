@@ -162,7 +162,7 @@ func createDAGWorkflow(functionList []*common.Function, functionID int, maxWidth
 	widthList := generateNodeDistribution(maxWidth, maxDepth)
 	// Implement a FIFO queue for nodes to assign functions and branches to each node.
 	nodeQueue := []*list.Element{}
-	for i := 0; i < len(widthList); i++ {
+	for i := range widthList {
 		widthList[i] -= 1
 		DAGList.PushBack(&common.Node{Depth: -1})
 	}
