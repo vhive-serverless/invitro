@@ -106,6 +106,7 @@ func knativeDeploySingleFunction(function *common.Function, yamlPath string, isP
 		// for rps mode use the average runtime in milliseconds to determine how many requests a pod can process per
 		// second, then round to an integer as that is what the knative config expects
 	}
+	hashOwner, hashApp, hashFunction := knbillHashes(function)
 	for _, path := range function.PredeploymentPath {
 		envCmd := cmd.NewCmd("kubectl", "apply", "-f", path)
 		status := <-envCmd.Start()
@@ -131,6 +132,9 @@ func knativeDeploySingleFunction(function *common.Function, yamlPath string, isP
 		wrapString(strconv.Itoa(autoscalingTarget)),
 
 		wrapString(strconv.Itoa(function.ColdStartBusyLoopMs)),
+		wrapString(hashOwner),
+		wrapString(hashApp),
+		wrapString(hashFunction),
 	)
 
 	stdoutStderr, err := cmd.CombinedOutput()
@@ -152,6 +156,13 @@ func knativeDeploySingleFunction(function *common.Function, yamlPath string, isP
 	log.Debugf("Deployed function on %s\n", function.Endpoint)
 
 	return true
+}
+
+func knbillHashes(function *common.Function) (hashOwner, hashApp, hashFunction string) {
+	if function == nil || function.InvocationStats == nil {
+		return "", "", ""
+	}
+	return function.InvocationStats.HashOwner, function.InvocationStats.HashApp, function.InvocationStats.HashFunction
 }
 
 func wrapString(value string) string {

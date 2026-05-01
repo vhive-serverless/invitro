@@ -1,0 +1,82 @@
+server:
+  retentionPeriod: "14d"
+  persistentVolume:
+    enabled: true
+    storageClass: "local-storage"
+    size: 50Gi
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: loader-nodetype
+                operator: In
+                values:
+                  - monitoring
+                  - singlenode
+  scrape:
+    enabled: true
+    extraScrapeConfigs:
+      - job_name: kubelet-cadvisor-apiserver-proxy
+        scheme: https
+        metrics_path: /metrics/cadvisor
+        kubernetes_sd_configs:
+          - role: node
+        bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+        tls_config:
+          ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+          insecure_skip_verify: true
+        honor_timestamps: false
+        relabel_configs:
+          - action: keep
+            source_labels:
+              - __meta_kubernetes_node_label_loader_nodetype
+            regex: .+
+          - action: replace
+            source_labels:
+              - __meta_kubernetes_node_name
+            regex: (.+)
+            target_label: __metrics_path__
+            replacement: /api/v1/nodes/${1}/proxy/metrics/cadvisor
+          - action: replace
+            target_label: __address__
+            replacement: kubernetes.default.svc:443
+          - action: labelmap
+            regex: __meta_kubernetes_node_label_(.+)
+          - action: replace
+            source_labels:
+              - __meta_kubernetes_node_name
+            target_label: node
+
+serviceAccount:
+  create: true
+  name: victoria-metrics-single
+
+extraObjects:
+  - apiVersion: rbac.authorization.k8s.io/v1
+    kind: ClusterRole
+    metadata:
+      name: victoria-metrics-single-kubelet-proxy
+    rules:
+      - apiGroups:
+          - ""
+        resources:
+          - nodes
+          - nodes/proxy
+          - nodes/metrics
+        verbs:
+          - get
+          - list
+          - watch
+  - apiVersion: rbac.authorization.k8s.io/v1
+    kind: ClusterRoleBinding
+    metadata:
+      name: victoria-metrics-single-kubelet-proxy
+    roleRef:
+      apiGroup: rbac.authorization.k8s.io
+      kind: ClusterRole
+      name: victoria-metrics-single-kubelet-proxy
+    subjects:
+      - kind: ServiceAccount
+        name: victoria-metrics-single
+        namespace: monitoring

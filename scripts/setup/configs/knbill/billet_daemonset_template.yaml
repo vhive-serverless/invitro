@@ -1,0 +1,58 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: billet
+  namespace: billing
+  labels:
+    app.kubernetes.io/name: billet
+    app.kubernetes.io/component: node-aggregator
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: billet
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: billet
+        app.kubernetes.io/component: node-aggregator
+    spec:
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      terminationGracePeriodSeconds: 10
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: loader-nodetype
+                    operator: In
+                    values:
+                      - worker
+                      - singlenode
+      containers:
+        - name: billet
+          image: ${BILLET_IMAGE}
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: VM_URL
+              value: http://victoria-metrics-victoria-metrics-single-server.monitoring.svc.cluster.local:8428/write
+          ports:
+            - name: billing-udp
+              containerPort: 15020
+              protocol: UDP
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65532
+            runAsGroup: 65532
+            capabilities:
+              drop:
+                - ALL
+          resources:
+            requests:
+              cpu: 25m
+              memory: 32Mi
+            limits:
+              cpu: 250m
+              memory: 128Mi

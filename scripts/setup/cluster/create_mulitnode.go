@@ -110,6 +110,30 @@ func CreateMultiNodeSetup(configDir string, configName string) error {
 		utils.InfoPrintf("Prometheus components setup completed.\n")
 	}
 
+	if cfg.SetupCfg.DeployVictoriaMetrics {
+		utils.InfoPrintf("Setting up VictoriaMetrics components...\n")
+		if err := setupVictoriaMetrics(cfg.MasterNode, cfg.LoaderNode); err != nil {
+			utils.FatalPrintf("Failed to setup VictoriaMetrics components: %v\n", err)
+			return err
+		}
+		utils.InfoPrintf("VictoriaMetrics components setup completed.\n")
+	}
+
+	if cfg.SetupCfg.DeployKNBill {
+		utils.InfoPrintf("Setting up KNBill components...\n")
+		if err := setupKNBill(cfg.MasterNode, cfg.AllNodes, cfg.KnbillConfig); err != nil {
+			utils.FatalPrintf("Failed to setup KNBill components: %v\n", err)
+			return err
+		}
+		utils.InfoPrintf("KNBill components setup completed.\n")
+	}
+
+	utils.InfoPrintf("Apply post-init script")
+	if err := applyPostSetupConfigurations(cfg.MasterNode); err != nil {
+		utils.FatalPrintf("Failed to apply post-setup configurations: %v\n", err)
+		return err
+	}
+
 	utils.InfoPrintf("Multi-node cluster setup finished successfully!\n")
 	return nil
 }

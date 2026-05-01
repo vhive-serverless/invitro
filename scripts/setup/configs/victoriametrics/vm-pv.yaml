@@ -1,0 +1,11 @@
+nodeSelector:
+  loader-nodetype: monitoring # Use your existing label
+
+classes:
+  - name: local-storage
+    hostDir: /mnt/resources 
+    mountDir: /mnt/resources
+    
+    storageClass:
+      reclaimPolicy: Retain
+      volumeBindingMode: WaitForFirstConsumer

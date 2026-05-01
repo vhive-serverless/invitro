@@ -15,8 +15,9 @@ type InvitroSetupConfig struct {
 	WorkerNodes []string
 	AllNodes    []string
 
-	SetupCfg   *SetupConfig
-	PromConfig *PrometheusConfig
+	SetupCfg     *SetupConfig
+	PromConfig   *PrometheusConfig
+	KnbillConfig *KnbillConfig
 }
 
 type NodeSetup struct {
@@ -30,16 +31,15 @@ type NodeSetup struct {
 }
 
 type SetupConfig struct {
-	HiveRepo         string `json:"VHIVE_REPO"`
-	HiveBranch       string `json:"VHIVE_BRANCH"`
-	LoaderRepo       string `json:"LOADER_REPO"`
-	LoaderBranch     string `json:"LOADER_BRANCH"`
-	KhalaRepo        string `json:"KHALA_REPO"`
-	KhalaBranch      string `json:"KHALA_BRANCH"`
-	ClusterMode      string `json:"CLUSTER_MODE"`
-	PodsPerNode      int    `json:"PODS_PER_NODE"`
-	DeployPrometheus bool   `json:"DEPLOY_PROMETHEUS"`
-	DeployRDMA       bool   `json:"DEPLOY_RDMA"`
+	HiveRepo              string `json:"VHIVE_REPO"`
+	HiveBranch            string `json:"VHIVE_BRANCH"`
+	LoaderRepo            string `json:"LOADER_REPO"`
+	LoaderBranch          string `json:"LOADER_BRANCH"`
+	ClusterMode           string `json:"CLUSTER_MODE"`
+	PodsPerNode           int    `json:"PODS_PER_NODE"`
+	DeployPrometheus      bool   `json:"DEPLOY_PROMETHEUS"`
+	DeployVictoriaMetrics bool   `json:"DEPLOY_VICTORIAMETRICS"`
+	DeployKNBill          bool   `json:"DEPLOY_KNBILL"`
 }
 
 type PrometheusConfig struct {
@@ -48,6 +48,12 @@ type PrometheusConfig struct {
 	PushgatewayChartVersion string `json:"PushgatewayChartVersion"`
 	PromValuePath           string `json:"PromValuePath"`
 	KnativePromURL          string `json:"KnativePromURL"`
+}
+
+type KnbillConfig struct {
+	KnbillPath      string `json:"KnbillPath"`
+	QueueProxyImage string `json:"QueueProxyImage"`
+	BilletImage     string `json:"BilletImage"`
 }
 
 func CommonConfigSetup(configDir string, configName string) (*InvitroSetupConfig, error) {
@@ -70,18 +76,25 @@ func CommonConfigSetup(configDir string, configName string) (*InvitroSetupConfig
 		return nil, err
 	}
 
+	knbillConfig, err := GetKnbillConfig(configDir)
+	if err != nil {
+		utils.FatalPrintf("Failed to get KNBill config: %v\n", err)
+		return nil, err
+	}
+
 	masterNode := extNodeSetup.NodeSetup.MasterNode[0]
 	loaderNode := extNodeSetup.NodeSetup.LoaderNode[0]
 	workerNodes := extNodeSetup.NodeSetup.WorkerNode
 	allNodes := append([]string{masterNode}, workerNodes...)
 
 	return &InvitroSetupConfig{
-		MasterNode:  masterNode,
-		LoaderNode:  loaderNode,
-		WorkerNodes: workerNodes,
-		AllNodes:    allNodes,
-		SetupCfg:    setupCfg,
-		PromConfig:  promConfig,
+		MasterNode:   masterNode,
+		LoaderNode:   loaderNode,
+		WorkerNodes:  workerNodes,
+		AllNodes:     allNodes,
+		SetupCfg:     setupCfg,
+		PromConfig:   promConfig,
+		KnbillConfig: knbillConfig,
 	}, nil
 }
 
@@ -165,4 +178,20 @@ func swapIPs(nodes []string, ipToURL map[string]string) []string {
 		}
 	}
 	return swapped
+}
+
+func GetKnbillConfig(path string) (*KnbillConfig, error) {
+	configPath := filepath.Join(path, "knbill/knbill_config.json")
+	configFile, err := os.ReadFile(configPath)
+	if err != nil {
+		return nil, err
+	}
+
+	var knbillConfig KnbillConfig
+	err = json.Unmarshal(configFile, &knbillConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	return &knbillConfig, nil
 }

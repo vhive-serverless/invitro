@@ -41,11 +41,16 @@ func setupPrometheus(masterNode string, allNode []string, promConfig *configs.Pr
 	}
 
 	// Install Helm
+	// check if helm is already installed
 	utils.WaitPrintf("Installing Helm on master node %s...\n", masterNode)
-	_, err = loaderUtils.ServerExec(masterNode, "curl https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3 | bash")
-	if !utils.CheckErrorWithMsg(err, "Failed to install Helm on master node %s: %v\n", masterNode, err) {
-		return err
+	_, err = loaderUtils.ServerExec(masterNode, "helm version --short")
+	if err != nil {
+		_, err = loaderUtils.ServerExec(masterNode, "curl https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3 | bash")
+		if !utils.CheckErrorWithMsg(err, "Failed to install Helm on master node %s: %v\n", masterNode, err) {
+			return err
+		}
 	}
+
 
 	time.Sleep(1 * time.Second)
 

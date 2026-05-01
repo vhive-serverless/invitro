@@ -1,0 +1,5 @@
+{
+    "KnbillPath": "~/loader/scripts/setup/configs/knbill",
+    "QueueProxyImage": "ghcr.io/hyscale-lab/knbill/queue-knbill-39be6f1d08a095bd076a71d288d295b6:20260430062949",
+    "BilletImage": "ghcr.io/hyscale-lab/knbill/billet:20260501054721"
+}

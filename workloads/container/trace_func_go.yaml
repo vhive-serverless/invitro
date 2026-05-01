@@ -16,6 +16,9 @@ spec:
         autoscaling.knative.dev/panic-threshold-percentage: $PANIC_THRESHOLD
         autoscaling.knative.dev/metric: $AUTOSCALING_METRIC
         autoscaling.knative.dev/target: $AUTOSCALING_TARGET
+        knbill.dev/user-id: $KNBILL_HASH_OWNER
+        knbill.dev/app-id: $KNBILL_HASH_APP
+        knbill.dev/func-id: $KNBILL_HASH_FUNCTION
     spec:
       containerConcurrency: 1
       affinity:
