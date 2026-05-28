@@ -244,7 +244,7 @@ func (s *SpecificationGenerator) determineExecutionSpecSeedQuantiles() (float64,
 }
 
 // GenerateExecuteSpec is not thread safe as it could cause non-repeatable spec generation.
-// Estimates the value for a specific quartile
+// Samples the value for a specific quartile
 func GenerateExecuteSpec(gen *rand.Rand, runQtl float64, runStats *common.FunctionRuntimeStats) (runtime int) {
 	switch {
 	case runQtl == 0:
@@ -266,7 +266,7 @@ func GenerateExecuteSpec(gen *rand.Rand, runQtl float64, runStats *common.Functi
 	return runtime
 }
 
-// GenerateMemorySpec is not thread safe as it could cause non-repeatable spec generation
+// GenerateMemorySpec is not thread safe as it could cause non-repeatable spec generation.
 func GenerateMemorySpec(gen *rand.Rand, memQtl float64, memStats *common.FunctionMemoryStats) (memory int) {
 	switch {
 	case memQtl <= 0.01:
@@ -290,7 +290,7 @@ func GenerateMemorySpec(gen *rand.Rand, memQtl float64, memStats *common.Functio
 	return memory
 }
 
-// Estimate the runtime duration & memory usage for a function, given its summary statistics. 
+// Sample the runtime duration & memory usage for a function, given its summary statistics. 
 func (s *SpecificationGenerator) generateExecutionSpecs(function *common.Function) common.RuntimeSpecification {
 	runStats, memStats := function.RuntimeStats, function.MemoryStats
 	if runStats.Count <= 0 || memStats.Count <= 0 {

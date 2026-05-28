@@ -120,3 +120,8 @@ const (
 const (
 	BackendDandelion string = "dandelion"
 )
+
+// azure2021 trace - memory reference value (trace does not have memory usage values)
+const (
+	Azure2021MemoryReferenceValue int = 150
+)

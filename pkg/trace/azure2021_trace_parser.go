@@ -185,6 +185,11 @@ func GenerateFunctionSpecification(invocationSlice Invocations, durationMinutes 
 		}
 
 		invocation_microseconds := invocation.startTime * 1_000_000
+		if (invocation_microseconds == previousInvocationTimestamp){
+			log.Fatalf("Encountered 2 invocations at same micro-second instant %s and %s", 
+			strconv.FormatFloat(invocation_microseconds, 'f', -1, 64), strconv.FormatFloat(previousInvocationTimestamp, 'f', -1, 64))
+		}
+
 		var iat float64
 		if len(IATArray) == 0 {
 			iat = invocation_microseconds
@@ -205,8 +210,8 @@ func GenerateFunctionSpecification(invocationSlice Invocations, durationMinutes 
 		perMinuteCount[minutesPassed]++
 
 		runtime_milliseconds := int(math.Round(invocation.duration * 1_000))
-		memory := 150 // Eyeballed a set value. Consider allow user specify.
-		runtimeArray = append(runtimeArray, common.RuntimeSpecification{Runtime: runtime_milliseconds, Memory: memory})
+		if (runtime_milliseconds == 0) {runtime_milliseconds = 1}  // prevent 0.000s duration, set minimum to 1ms
+		runtimeArray = append(runtimeArray, common.RuntimeSpecification{Runtime: runtime_milliseconds, Memory: common.Azure2021MemoryReferenceValue})
 	}
 
 	// If all invocations truncated out

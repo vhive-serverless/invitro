@@ -42,7 +42,7 @@ import (
 
 // Test full parser usage, verifying values of aaaaa-11111 function
 func TestAzure2021ParserWrapper(t *testing.T) {
-	tracePath := "test_data/Azure2021.csv"
+	tracePath := "test_data/Azure2021/Azure2021_30.csv"
 	durationToParse := 3
 	yamlPath := "dummy"
 	writeToFile := false
@@ -74,7 +74,7 @@ func TestAzure2021ParserWrapper(t *testing.T) {
 
 // Test data read and derive "start_timestamp" into InvocationTracker hashmap
 func TestAzure2021ParseCSVFile(t *testing.T) {
-	var filePath string = "test_data/Azure2021.csv"
+	var filePath string = "test_data/Azure2021/Azure2021_30.csv"
 	invocationTracker := ParseCSVFile(filePath)
 
 	if len(invocationTracker) == 0 {
