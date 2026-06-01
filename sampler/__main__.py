@@ -95,6 +95,7 @@ def main():
     parser = argparse.ArgumentParser()
     subparser = parser.add_subparsers(dest="cmd")
 
+    ####################################################
     sample_parser = subparser.add_parser('sample')
 
     sample_parser.add_argument(
@@ -231,6 +232,10 @@ def main():
         metavar='duration',
         help='Duration in minutes of the excerpt extracted from the postprocessed trace'
     )
+
+    ####################################################
+
+    
 
     ####################################################
 
