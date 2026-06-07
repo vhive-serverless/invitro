@@ -30,6 +30,7 @@ import pandas as pd
 # from sampler.plot import plot_cdf
 from sampler.preprocess import parse_trace_files
 from sampler.sample import generate_samples
+from sampler.preprocess2021 import preprocess_file
 
 log.basicConfig(format='%(levelname)s:%(message)s', level=log.INFO)
 
@@ -62,6 +63,11 @@ def run(args):
         mem_df.to_csv(f"{args.output}/memory.csv", index=False)
         run_df.to_csv(f"{args.output}/durations.csv", index=False)
 
+        return
+    
+    if args.cmd == 'preprocess2021':
+        preprocess_file(trace_dir=args.trace, start_time=args.start, duration=args.duration, 
+                        output_dir=args.output, zero_ms_threshold_percent=args.threshold)
         return
 
     inv_df = pd.read_csv(f"{args.source_trace}/invocations.csv")
@@ -235,7 +241,48 @@ def main():
 
     ####################################################
 
-    
+    pre2021_parser = subparser.add_parser('preprocess2021')
+
+    pre2021_parser.add_argument(
+        '-t',
+        '--trace',
+        metavar='path',
+        default='data/2021',
+        help='Path to the Azure2021 trace directory'
+    )
+
+    pre2021_parser.add_argument(
+        '-o',
+        '--output',
+        required=True,
+        metavar='path',
+        help='Output path for the preprocessed traces'
+    )
+
+    pre2021_parser.add_argument(
+        '-s',
+        '--start',
+        required=True,
+        metavar='start',
+        help='Time in dd:hh:mm format, at which the excerpt of the postprocessed trace should begin, first day is day 0'
+    )
+
+    pre2021_parser.add_argument(
+        '-dur',
+        '--duration',
+        required=True,
+        metavar='duration',
+        help='Duration in minutes of the excerpt extracted from the postprocessed trace'
+    )
+
+    pre2021_parser.add_argument(
+        '-thresh',
+        '--threshold',
+        required=False,
+        default=50,
+        metavar='threshold',
+        help='Threshold in percentage, for which a function is ignored if the percentage of its 0ms invocations is equal or higher'
+    )
 
     ####################################################
 
