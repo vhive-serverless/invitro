@@ -108,6 +108,10 @@ class Trace:
         log.debug(f"Joined df:\n{self.joined_df}")
 
         self.resources_df = self.inv_df.copy()
+
+        target_cols = self.resources_df.columns[FIRST_MINUTES_COLUMN_POSITION:] # Prevent precision loss warning from float to int
+        self.resources_df[target_cols] = self.resources_df[target_cols].astype('float64')
+
         self.resources_df.iloc[:, FIRST_MINUTES_COLUMN_POSITION:] = \
             self.resources_df.iloc[:, FIRST_MINUTES_COLUMN_POSITION:] \
                 .multiply(self.joined_df['Run_x_Mem'], axis="index")
@@ -248,13 +252,13 @@ def fold_samples(target_sample: Trace, subsample: Trace, original_trace: Trace) 
               f"The subsample to be included\n"
               f"Inv:\n{subsample.inv_df.head()}\n"
               )
+    
+    inv_df = pd.concat([target_sample.inv_df, subsample.inv_df], ignore_index=True)
+    mem_df = pd.concat([target_sample.mem_df, subsample.mem_df], ignore_index=True)
+    run_df = pd.concat([target_sample.run_df, subsample.run_df], ignore_index=True)
 
-    inv_df = target_sample.inv_df.append(subsample.inv_df, ignore_index=True)
-    mem_df = target_sample.mem_df.append(subsample.mem_df, ignore_index=True)
-    run_df = target_sample.run_df.append(subsample.run_df, ignore_index=True)
-
-    joined_df = target_sample.joined_df.append(subsample.joined_df, ignore_index=True)
-    resources_df = target_sample.resources_df.append(subsample.resources_df, ignore_index=True)
+    joined_df = pd.concat([target_sample.joined_df, subsample.joined_df], ignore_index=True)
+    resources_df = pd.concat([target_sample.resources_df, subsample.resources_df], ignore_index=True)
 
     resulting_sample: Trace = Trace(name=f"s{target_sample.size + subsample.size}",
                                     inv_df=inv_df,
