@@ -31,6 +31,7 @@ import pandas as pd
 from sampler.preprocess import parse_trace_files
 from sampler.sample import generate_samples
 from sampler.preprocess2021 import preprocess_file
+from sampler.filter import filter_azure2021
 
 log.basicConfig(format='%(levelname)s:%(message)s', level=log.INFO)
 
@@ -68,6 +69,10 @@ def run(args):
     if args.cmd == 'preprocess2021':
         preprocess_file(trace_dir=args.trace, start_time=args.start, duration=args.duration, 
                         output_dir=args.output, zero_ms_threshold_percent=args.threshold)
+        return
+    
+    if args.cmd == 'filter2021':
+        filter_azure2021(orig_trace_dir=args.trace, sampled_trace_dir=args.sampled_trace, out_dir=args.output, start_time=args.start, duration=args.duration)
         return
 
     inv_df = pd.read_csv(f"{args.source_trace}/invocations.csv")
@@ -285,6 +290,51 @@ def main():
     )
 
     ####################################################
+
+    filter2021_parser = subparser.add_parser('filter2021')
+
+    filter2021_parser.add_argument(
+        '-t',
+        '--trace',
+        required=True,
+        metavar='og_path',
+        help='Directory path to the original Azure2021 trace'
+    )
+
+    filter2021_parser.add_argument(
+        '-st',
+        '--sampled_trace',
+        required=True,
+        metavar='samp_path',
+        help='Directory path to trace output of sample command'
+    )
+
+    filter2021_parser.add_argument(
+        '-o',
+        '--output',
+        required=True,
+        metavar='out_path',
+        help='Directory path for output of final filtered azure2021 trace'
+    )
+
+    filter2021_parser.add_argument(
+        '-s',
+        '--start',
+        required=True,
+        metavar='start',
+        help='Time in dd:hh:mm format, at which the excerpt of the postprocessed trace should begin, first day is day 0'
+    )
+
+    filter2021_parser.add_argument(
+        '-dur',
+        '--duration',
+        required=True,
+        metavar='duration',
+        help='Duration in minutes of the excerpt extracted from the postprocessed trace'
+    )
+
+    ####################################################
+
 
     args = parser.parse_args()
 
