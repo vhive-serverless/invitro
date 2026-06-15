@@ -61,7 +61,7 @@ def filter_azure2021(orig_trace_dir: str, sampled_trace_dir: str, out_dir: str, 
             raise RuntimeError(f"Failed to create the output folder: {e}")
         
     log.info(f"Saving sampled Azure2021 to {out_dir}/SampledAzure2021.csv")
-    trace_df.to_csv(f"{out_dir}/SampledAzure2021.csv", index=False) # consider writing number of samples
+    trace_df.to_csv(f"{out_dir}/SampledAzure2021.csv", index=False)
 
 if __name__ == "__main__":
     orig_trace_dir = "data/azure2021/"
