@@ -197,16 +197,16 @@ def generate_mem_df(df: pd.DataFrame) -> pd.DataFrame:
     ] + ["start_timestamp"]
     df = df.reindex(columns=new_columns) 
 
-    df['SampleCount'] = df['start_timestamp'].str.len() #TODO: Determine if SampleCount needs a particular value, what reference value to use.
+    df['SampleCount'] = df['start_timestamp'].str.len()
     df = df.fillna(static_value) # 200MB, based on average stated in Azure2019
 
     # Cleanup
-    df = df.drop(columns=["start_timestamp", "HashFunction"])
+    df = df.drop(columns=["start_timestamp"])
     df["HashOwner"] = 0
 
     return df
 
-# Calculate statistics from duration list
+# Calculate statistics from duration list, convert s to ms.
 def generate_dur_df(df: pd.DataFrame) -> pd.DataFrame:
     new_columns = [
         "HashOwner", "HashApp", "HashFunction", 
@@ -226,6 +226,8 @@ def generate_dur_df(df: pd.DataFrame) -> pd.DataFrame:
 
 def generate_duration_statistics(row):
     timestamp_list = row['duration']
+
+    timestamp_list = [s * 1000 for s in timestamp_list] # duration is in ms
 
     row["Average"] = np.mean(timestamp_list)
     row["Count"] = len(timestamp_list)

@@ -174,14 +174,14 @@ in [`plotTimeline/analysis.ipynb`](/tools/plotTimeline/analysis.ipynb)
 
 The sampling process of Azure2021 trace follows 3 steps: 
 1. Pre-process the original trace (`preprocess2021`) -> obtain clean trace.
-2. Run the sampler on cleaned trace (`sampler`) -> obtain downsampled trace, which contains a list of functions to keep in azure2019 format.
-3. Filter the original trace for functions in list (`filter`) -> obtain downsampled trace in azure2021 format (per-invocation format).
+2. Run the sampler on cleaned trace (`sampler`) -> obtain down-sampled trace, which contains a list of functions to keep in azure2019 format.
+3. Filter the original trace for functions in list (`filter`) -> obtain down-sampled trace in azure2021 format (per-invocation format).
 
 Functionality of modules emulates the normal azure2019 modules, the differences is discussed below.
 
 The differences stems from the differences in trace:
-- azure2021 traces are inovcation per row, while azure2019 is a function per row.
-- azure2021 traces does not have memory data.
+- azure2021 trace is invocation per row, while azure2019 is a function per row.
+- azure2021 trace does not have memory data.
 
 ### Preprocess2021
 
@@ -207,9 +207,9 @@ and extract the CSV files (default location: `data/azure2021/`).
 The following is an example usage of the sampler:
 
 ```console
-python -m sampler preprocess2021  -t data/azure2021/ -o data/traces/reference/preprocessedAzure2021 -s 00:01:00 -dur 100 -thresh 50
+python -m sampler preprocess2021  -t data/azure2021/ -o data/traces/reference/preprocessed_azure2021 -s 00:01:00 -dur 100 -thresh 50
 
-python -m sampler sample -t data/traces/reference/preprocessedAzure2021 -orig data/traces/reference/preprocessedAzure2021 -o data/traces/reference/sampledAzure2021 -min 20 -st 5 -max 50 -tr 16
+python -m sampler sample -t data/traces/reference/preprocessed_azure2021 -orig data/traces/reference/preprocessed_azure2021 -o data/traces/reference/sampled_azure2021 -min 20 -st 5 -max 45 -tr 16
 
-python -m sampler filter2021  -t data/azure2021/ -st data/traces/reference/sampledAzure2021/samples/40 -o data/traces/reference/filtered2021 -s 00:01:00 -dur 100
+python -m sampler filter2021  -t data/azure2021/ -st data/traces/reference/sampled_azure2021/samples/40 -o data/traces/reference/filtered2021 -s 00:01:00 -dur 100
 ```

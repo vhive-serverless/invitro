@@ -252,7 +252,7 @@ def fold_samples(target_sample: Trace, subsample: Trace, original_trace: Trace) 
               f"The subsample to be included\n"
               f"Inv:\n{subsample.inv_df.head()}\n"
               )
-    
+
     inv_df = pd.concat([target_sample.inv_df, subsample.inv_df], ignore_index=True)
     mem_df = pd.concat([target_sample.mem_df, subsample.mem_df], ignore_index=True)
     run_df = pd.concat([target_sample.run_df, subsample.run_df], ignore_index=True)
