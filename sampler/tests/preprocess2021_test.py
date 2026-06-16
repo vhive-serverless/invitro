@@ -25,7 +25,7 @@ import pandas as pd
 import numpy as np
 import pytest
 
-from invitro.sampler.preprocess2021 import (
+from sampler.preprocess2021 import (
     preprocess_file,
     filter_within_time_interval,
     filter_functions_with_0ms_inovcations,
@@ -133,6 +133,7 @@ def test_generate_mem_df_fills_static_memory_values():
     static_value = 200.0
     expected_df = pd.DataFrame(
         {
+            "HashFunction": ["fa", "fb", "fc"],
             "HashOwner":    [   0,    0,    0],
             "HashApp":      ["aa", "ab", "ab"],
             "SampleCount":  [   1,    1,    3],
