@@ -68,7 +68,7 @@ def preprocess_file(trace_dir: str, start_time: str, duration: str, output_dir: 
     mem_df.to_csv(f"{output_dir}/memory.csv", index=False)
     dur_df.to_csv(f"{output_dir}/durations.csv", index=False)
 
-# Filter for invocation from [start_time, start_time+duration_mintues]
+# Filter for invocation from [start_time, start_time+duration_mintues)
 def filter_within_time_interval(df: pd.DataFrame, start_time: str, duration_minutes: str) -> Tuple[pd.DataFrame, pd.Timedelta, pd.Timedelta]:
     
     # Generate start time
@@ -86,7 +86,7 @@ def filter_within_time_interval(df: pd.DataFrame, start_time: str, duration_minu
     interval_end = pd.Timedelta(days=day, hours=hours, minutes=(minutes+duration))
 
     # Get time interval slice
-    df = df[df['start_timestamp'].between(interval_start, interval_end)]
+    df = df[df['start_timestamp'].between(interval_start, interval_end, inclusive="left")]
 
     if (interval_end > pd.Timedelta(days=14, hours=0, minutes=0)):
         log.warning(f"interval_end includes time after 14 days. azure2021 only has 14 days of invocations, ensure start_time and duration entered is intended.")
@@ -192,7 +192,7 @@ def generate_mem_df(df: pd.DataFrame) -> pd.DataFrame:
 
     new_columns = [
         "HashFunction", "HashOwner", "HashApp", "SampleCount", 
-        "AverageAllocatedMb", "AverageAllocatedMb_pct1", "AverageAllocatedMb_pct5", "AverageAllocatedMb_pct25"
+        "AverageAllocatedMb", "AverageAllocatedMb_pct1", "AverageAllocatedMb_pct5", "AverageAllocatedMb_pct25",
         "AverageAllocatedMb_pct50", "AverageAllocatedMb_pct75", "AverageAllocatedMb_pct95", "AverageAllocatedMb_pct99", "AverageAllocatedMb_pct100"
     ] + ["start_timestamp"]
     df = df.reindex(columns=new_columns) 
@@ -201,7 +201,7 @@ def generate_mem_df(df: pd.DataFrame) -> pd.DataFrame:
     df = df.fillna(static_value) # 200MB, based on average stated in Azure2019
 
     # Cleanup
-    df = df.drop(columns=["start_timestamp"])
+    df = df.drop(columns=["start_timestamp", "HashFunction"])
     df["HashOwner"] = 0
 
     return df
@@ -240,17 +240,3 @@ def generate_duration_statistics(row):
     row["percentile_Average_100"] = np.percentile(timestamp_list, 100)
 
     return row
-
-
-# TODO, for debugging, remove once finished
-if __name__ == "__main__":
-    trace_dir = "data/azure2021/"
-    out_dir = "data/traces/reference/preprocessedAzure2021"
-    start_time = "00:01:00"
-    duration = "100"
-    zero_ms_threshold_percent = "50"
-
-    log.basicConfig(format='%(levelname)s:%(message)s', level=log.INFO)
-
-    preprocess_file(trace_dir=trace_dir, start_time=start_time, duration=duration, output_dir=out_dir, zero_ms_threshold_percent=zero_ms_threshold_percent)
-
