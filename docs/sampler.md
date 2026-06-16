@@ -168,3 +168,48 @@ Tools that can be used to generate the timeline of a trace are available in the 
 
 A jupyter notebook containing examples of the timeline analysis is available
 in [`plotTimeline/analysis.ipynb`](/tools/plotTimeline/analysis.ipynb)
+
+## Using Azure2021 Traces
+### Overview
+
+The sampling process of Azure2021 trace follows 3 steps: 
+1. Pre-process the original trace (`preprocess2021`) -> obtain clean trace.
+2. Run the sampler on cleaned trace (`sampler`) -> obtain downsampled trace, which contains a list of functions to keep in azure2019 format.
+3. Filter the original trace for functions in list (`filter`) -> obtain downsampled trace in azure2021 format (per-invocation format).
+
+Functionality of modules emulates the normal azure2019 modules, the differences is discussed below.
+
+The differences stems from the differences in trace:
+- azure2021 traces are inovcation per row, while azure2019 is a function per row.
+- azure2021 traces does not have memory data.
+
+### Preprocess2021
+
+The preprocessing follows 3 steps:
+1. Filter for invocations within time interval (according to the user-defined start and end time)
+2. Remove functions with invocation rate of 0ms duration above threshold rate. (user-defined threshold)
+3. Transform the trace to azure2019 format. 
+
+While `inv_df` and `dur_df` can be calculated, `mem_df` is set to a static value of 200.
+
+### Filter
+
+Filter first filters for invocations in original trace within the time interval. 
+It then tracks all `HashApp` and `HashFunction` in sampled trace. 
+Using that, it filters the original trace and keeps all invocations with matching `app` and `func` values.
+
+### Workflow
+
+First, download the original Azure2021 trace files
+from [here](https://github.com/Azure/AzurePublicDataset/blob/master/AzureFunctionsInvocationTrace2021.md#downloading)
+and extract the CSV files (default location: `data/azure2021/`).
+
+The following is an example usage of the sampler:
+
+```console
+python -m sampler preprocess2021  -t data/azure2021/ -o data/traces/reference/preprocessedAzure2021 -s 00:01:00 -dur 100 -thresh 50
+
+python -m sampler sample -t data/traces/reference/preprocessedAzure2021 -orig data/traces/reference/preprocessedAzure2021 -o data/traces/reference/sampledAzure2021 -min 20 -st 5 -max 50 -tr 16
+
+python -m sampler filter2021  -t data/azure2021/ -st data/traces/reference/sampledAzure2021/samples/40 -o data/traces/reference/filtered2021 -s 00:01:00 -dur 100
+```
