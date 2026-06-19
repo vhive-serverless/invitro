@@ -354,5 +354,6 @@ Notes:
 
 If `TracePath` is a file path, loader will interpret it as a valid Azure2021 trace.
 
-As Azure2021 traces do not indicate memory usage, an empirical value of 150 was chosen as a rough estimate for `common.RuntimeSpecificationArray`.
-Value is also used as argument for `ColdStartBusyLoopMs`.
+As Azure2021 traces do not indicate memory usage, a reference value of 200 was chosen.
+Sampler.md empirically found that the memory average for Azure2019 trace is 200MB, and we decided to follow it.
+This value is used as an estimate for `common.RuntimeSpecificationArray` and argument for `ColdStartBusyLoopMs`.

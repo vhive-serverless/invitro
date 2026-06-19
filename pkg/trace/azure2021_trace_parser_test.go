@@ -1,7 +1,7 @@
 /*
  * MIT License
  *
- * Copyright (c) 2023 EASL and the vHive community
+ * Copyright (c) 2026 HySCALE and vHive community
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -136,7 +136,7 @@ func TestAzure2021ParseCSVFile(t *testing.T) {
 
 // Test transformation of InvocationArray into specification struct.
 func TestAzure2021GenerateFunctionSpecification(t *testing.T) {
-	memoryDefault := 150
+	memoryDefault := common.Azure2021MemoryReferenceValue
 
 	spec1 := common.FunctionSpecification{
 		IAT:            common.IATArray{1000000},

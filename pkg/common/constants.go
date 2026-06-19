@@ -122,6 +122,7 @@ const (
 )
 
 // azure2021 trace - memory reference value (trace does not have memory usage values)
+// Follow sampler.md obversation that memory average is 200MB.
 const (
-	Azure2021MemoryReferenceValue int = 150
+	Azure2021MemoryReferenceValue int = 200
 )

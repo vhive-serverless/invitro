@@ -1,7 +1,7 @@
 /*
  * MIT License
  *
- * Copyright (c) 2023 EASL and the vHive community
+ * Copyright (c) 2026 HySCALE and vHive community
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -58,6 +58,8 @@ func NewAzure2021Parser(filePath string, totalMinutesToParse int, dirigentYamlPa
 	}
 }
 
+const referenceMemoryValue int = common.Azure2021MemoryReferenceValue
+
 func (p *Azure2021TraceParser) Parse() []*common.Function {
 
 	invocationTracker := ParseCSVFile(p.FilePath)
@@ -76,7 +78,7 @@ func (p *Azure2021TraceParser) Parse() []*common.Function {
 		function := common.Function{
 			Name:                fmt.Sprintf("%s-%.5s-%.5s-%d", common.FunctionNamePrefix, funcID.appHash, funcID.functionHash, p.functionNameGenerator.Uint64()),
 			YAMLPath:            p.dirigentYamlPath,
-			ColdStartBusyLoopMs: generator.ComputeBusyLoopPeriod(150),
+			ColdStartBusyLoopMs: generator.ComputeBusyLoopPeriod(referenceMemoryValue),
 			MemoryStats:         &memoryStats,
 		}
 		function.Specification = funcSpec
@@ -185,9 +187,9 @@ func GenerateFunctionSpecification(invocationSlice Invocations, durationMinutes 
 		}
 
 		invocation_microseconds := invocation.startTime * 1_000_000
-		if (invocation_microseconds == previousInvocationTimestamp){
-			log.Fatalf("Encountered 2 invocations at same micro-second instant %s and %s", 
-			strconv.FormatFloat(invocation_microseconds, 'f', -1, 64), strconv.FormatFloat(previousInvocationTimestamp, 'f', -1, 64))
+		if invocation_microseconds == previousInvocationTimestamp {
+			log.Fatalf("Encountered 2 invocations at same micro-second instant %s and %s",
+				strconv.FormatFloat(invocation_microseconds, 'f', -1, 64), strconv.FormatFloat(previousInvocationTimestamp, 'f', -1, 64))
 		}
 
 		var iat float64
@@ -210,7 +212,9 @@ func GenerateFunctionSpecification(invocationSlice Invocations, durationMinutes 
 		perMinuteCount[minutesPassed]++
 
 		runtime_milliseconds := int(math.Round(invocation.duration * 1_000))
-		if (runtime_milliseconds == 0) {runtime_milliseconds = 1}  // prevent 0.000s duration, set minimum to 1ms
+		if runtime_milliseconds == 0 {
+			runtime_milliseconds = 1
+		} // prevent 0.000s duration, set minimum to 1ms
 		runtimeArray = append(runtimeArray, common.RuntimeSpecification{Runtime: runtime_milliseconds, Memory: common.Azure2021MemoryReferenceValue})
 	}
 
