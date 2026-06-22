@@ -187,7 +187,7 @@ The differences stems from the differences in trace:
 
 The preprocessing follows 3 steps:
 1. Filter for invocations within time interval (according to the user-defined start and end time)
-2. Remove functions with invocation rate of 0ms duration above threshold rate. (user-defined threshold)
+2. Remove functions with invocation rate of 0ms duration above threshold rate. Default threshold of 50%. (user-defined threshold)
 3. Transform the trace to azure2019 format. 
 
 While `inv_df` and `dur_df` can be calculated, `mem_df` is set to a static value of 200.

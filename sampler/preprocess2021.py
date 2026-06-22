@@ -1,6 +1,6 @@
 #  MIT License
 #
-#  Copyright (c) 2023 EASL and the vHive community
+#  Copyright (c) 2026 HySCALE and vHive community
 #
 #  Permission is hereby granted, free of charge, to any person obtaining a copy
 #  of this software and associated documentation files (the "Software"), to deal
@@ -33,7 +33,7 @@ import math
 
 import os
 
-def preprocess_file(trace_dir: str, start_time: str, duration: str, output_dir: str, zero_ms_threshold_percent:str) -> pd.DataFrame:
+def preprocess_file(trace_dir: str, start_time: str, duration: str, output_dir: str, zero_ms_threshold_percent: str) -> pd.DataFrame:
     
     # Read CSV
     trace_file = glob(f"{trace_dir}/AzureFunctionsInvocationTraceForTwoWeeksJan2021.txt")
