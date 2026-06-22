@@ -72,7 +72,8 @@ def run(args):
         return
     
     if args.cmd == 'filter2021':
-        filter_azure2021(orig_trace_dir=args.trace, sampled_trace_dir=args.sampled_trace, out_dir=args.output, start_time=args.start, duration=args.duration)
+        filter_azure2021(orig_trace_dir=args.trace, sampled_trace_dir=args.sampled_trace, out_dir=args.output, 
+                         start_time=args.start, duration=args.duration, orig_trace_filename=args.trace_file)
         return
 
     inv_df = pd.read_csv(f"{args.source_trace}/invocations.csv")
@@ -331,6 +332,14 @@ def main():
         required=True,
         metavar='duration',
         help='Duration in minutes of the excerpt extracted from the postprocessed trace'
+    )
+
+    filter2021_parser.add_argument(
+        '-tf',
+        '--trace_file',
+        required=False,
+        metavar='trace_filename',
+        help='Filename of the original trace, if using non-default original trace other than `AzureFunctionsInvocationTraceForTwoWeeksJan2021.txt`'
     )
 
     ####################################################

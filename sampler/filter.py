@@ -1,6 +1,6 @@
 #  MIT License
 #
-#  Copyright (c) 2023 EASL and the vHive community
+#  Copyright (c) 2026 HySCALE and vHive community
 #
 #  Permission is hereby granted, free of charge, to any person obtaining a copy
 #  of this software and associated documentation files (the "Software"), to deal
@@ -28,10 +28,12 @@ from glob import glob
 
 from sampler.preprocess2021 import filter_within_time_interval
 
-def filter_azure2021(orig_trace_dir: str, sampled_trace_dir: str, out_dir: str, start_time: str, duration: int):
+def filter_azure2021(orig_trace_dir: str, sampled_trace_dir: str, out_dir: str, start_time: str, duration: int, orig_trace_filename: str = None):
+    if orig_trace_filename is None:
+        orig_trace_filename = "AzureFunctionsInvocationTraceForTwoWeeksJan2021.txt"
 
     # Read original trace
-    trace_file = glob(f"{orig_trace_dir}/AzureFunctionsInvocationTraceForTwoWeeksJan2021.txt")
+    trace_file = glob(f"{orig_trace_dir}/{orig_trace_filename}")
     assert len(trace_file) == 1, "Expected 1 Azure2021 trace file"
     trace_df = pd.read_csv(trace_file[0])
 
@@ -50,10 +52,9 @@ def filter_azure2021(orig_trace_dir: str, sampled_trace_dir: str, out_dir: str, 
     # Cleanup
     trace_df = trace_df.drop(columns=['start_timestamp'])
 
-    # Save to file
     log.info(f"The final sampled trace contains: {len(trace_df)} rows and {len(trace_df.groupby(['app', 'func']))} functions")
 
-    # Save to directory
+    # Save to file at directory
     if not os.path.exists(out_dir):
         try:
             os.makedirs(out_dir)

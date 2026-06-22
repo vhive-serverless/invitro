@@ -1,6 +1,6 @@
 #  MIT License
 #
-#  Copyright (c) 2023 EASL and the vHive community
+#  Copyright (c) 2026 HySCALE and vHive community
 #
 #  Permission is hereby granted, free of charge, to any person obtaining a copy
 #  of this software and associated documentation files (the "Software"), to deal
@@ -39,18 +39,18 @@ from sampler.preprocess2021 import (
 # Validate [,) interval slicing
 def test_filter_within_time_interval():
     input_df = pd.DataFrame({
-        "app": ["app1", "app2", "app3", "app4"] ,
-        "func": ["f1", "f1", "f2", "f3"],
-        "end_timestamp": [45.0, 70.0, 95.0, 121.0],
-        "duration": [30.0, 10.0, 20.0, 1.0],
-        #"start_timestamp" : [15, 60, 75, 120],
+        "app":           ["app1", "app2", "app3", "app4"],
+        "func":          [  "f1",   "f1",   "f2",   "f3"],
+        "end_timestamp": [  45.0,   70.0,   95.0,  121.0],
+        "duration":      [  30.0,   10.0,   20.0,    1.0],
+        #"start_timestamp":[15, 60, 75, 120],
     })
 
     expected_df = pd.DataFrame({
-        "app": ["app2", "app3"] ,
-        "func": ["f1", "f2"],
-        "end_timestamp": [70.0, 95.0],
-        "duration": [10.0, 20.0],
+        "app":           ["app2", "app3"],
+        "func":          [  "f1",   "f2"],
+        "end_timestamp": [  70.0,   95.0],
+        "duration":      [  10.0,   20.0],
         "start_timestamp": [60, 75],
     })
     expected_df['start_timestamp'] = pd.to_timedelta(expected_df['start_timestamp'], unit='s')
