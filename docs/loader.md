@@ -141,6 +141,13 @@ $ go run cmd/loader.go --config cmd/config_vswarm_trace.json
 ```
 To direct the loader to execute vSwarm functions, set the `VSwarm` flag in the loader configuration `true`. For information on how to configure the workload for load generator, please refer to `docs/configuration.md`.
 
+To run load generator with Azure2021 functions run the following:
+
+```bash
+$ go run cmd/loader.go --config cmd/config_knative2021_trace.json
+```
+To direct the loader to execute Azure2021 dataset functions, set `TracePath` in the loader configuration to the Azure2021 csv file path instead of a directory path. For more information, please refer to [Azure2021 Trace Usage](#azure2021-trace-usage).
+
 Additionally, one can specify log verbosity argument as `--verbosity [info, debug, trace]`. The default value is `info`.
 
 To execute in a dry run mode without generating any load, set the `--dry-run` flag to `true`. This is useful for testing and validating configurations without executing actual requests.
@@ -342,3 +349,11 @@ Notes:
      ```
 - Current deployment is via ZIP
 - Python is used for deployment workload as Go is not supported in Consumption Plan
+
+## Azure2021 Trace Usage
+
+If `TracePath` is a file path, loader will interpret it as a valid Azure2021 trace.
+
+As Azure2021 traces do not indicate memory usage, a reference value of 200 was chosen.
+Sampler.md empirically found that the memory average for Azure2019 trace is 200MB, and we decided to follow it.
+This value is used as an estimate for `common.RuntimeSpecificationArray` and argument for `ColdStartBusyLoopMs`.

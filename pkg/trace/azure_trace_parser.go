@@ -90,6 +90,8 @@ func createDirigentMetadataMap(metadata *[]common.DirigentMetadata) map[string]*
 	return result
 }
 
+// Creates hashmap for both runtime & duration with "HashFunction" as key
+// Returns Function representation
 func (p *AzureTraceParser) extractFunctions(invocations *[]common.FunctionInvocationStats, runtime *[]common.FunctionRuntimeStats, memory *[]common.FunctionMemoryStats) []*common.Function {
 	var result []*common.Function
 
@@ -117,6 +119,8 @@ func (p *AzureTraceParser) extractFunctions(invocations *[]common.FunctionInvoca
 	return result
 }
 
+// Parses Azure2019 csv files
+// Return Function representation
 func (p *AzureTraceParser) Parse() []*common.Function {
 	invocationPath := p.DirectoryPath + "/invocations.csv"
 	runtimePath := p.DirectoryPath + "/durations.csv"

@@ -168,6 +168,27 @@ func parseTraceGranularity(cfg *config.LoaderConfiguration) common.TraceGranular
 	return common.MinuteGranularity
 }
 
+// Determine if pathString is Azure2019 directory, or Azure2021 .csv file
+func determine2019Or2021(path string) string {
+	info, err := os.Stat(path)
+	if err != nil {
+		log.Fatalf("Unable to determine path string '%s', Error: %s", path, err)
+		return "err"
+	} else {
+		// Assume is Azure2021 .csv file
+		if info.Mode().IsRegular() {
+			return "Azure2021"
+		}
+		// Assume is Azure2019 directory
+		if info.IsDir() {
+			return "Azure2019"
+		}
+
+		log.Fatalf("Path string '%s' is not file or directory", path)
+		return "err"
+	}
+}
+
 func run(cfg *config.LoaderConfiguration, readIATFromFile bool, writeIATsToFile bool) {
 	//
 	// Determine type of input.
@@ -179,7 +200,7 @@ func run(cfg *config.LoaderConfiguration, readIATFromFile bool, writeIATsToFile 
 		if cfg.VSwarm {
 			traceInputType = "vSwarm"
 		} else if !cfg.VSwarm {
-			traceInputType = "Azure2019"
+			traceInputType = determine2019Or2021(cfg.TracePath)
 		} else { // Reduant, for future input types.
 			log.Fatal("Unsupported Trace Input Type", traceInputType)
 		}
@@ -195,6 +216,8 @@ func run(cfg *config.LoaderConfiguration, readIATFromFile bool, writeIATsToFile 
 		functions = RPSGenerateFunctions(cfg)
 	case "Azure2019", "vSwarm":
 		functions = Azure2019GenerateFunctions(cfg)
+	case "Azure2021":
+		functions = Azure2021GenerateFunctions(cfg)
 	}
 
 	//
@@ -205,10 +228,11 @@ func run(cfg *config.LoaderConfiguration, readIATFromFile bool, writeIATsToFile 
 	switch traceInputType {
 	case "RPS":
 		generator.AppendDirigentMetadata(functions, cfg, dirigentConfig)
-	case "Azure2019", "vSwarm":
+	case "Azure2019", "vSwarm", "Azure2021":
 		yamlPath := parseYAMLSpecification(cfg)
 		dirigentMetadataParser := trace.NewDirigentMetadataParser(cfg.TracePath, functions, yamlPath, cfg.Platform)
 		dirigentMetadataParser.Parse()
+		// TODO, confirm if dirigent handling will work seamlessly.
 	}
 
 	log.Infof("Traces contain the following %d functions:\n", len(functions))
@@ -249,6 +273,7 @@ func RPSGenerateFunctions(cfg *config.LoaderConfiguration) []*common.Function {
 	warmStartRPS := rpsTarget * (100 - coldStartPercentage) / 100
 	coldStartRPS := rpsTarget * coldStartPercentage / 100
 
+	// IAT, PerMinuteCount
 	warmFunction, warmStartCount := generator.GenerateWarmStartFunction(experimentDuration, warmStartRPS)
 	coldFunctions, coldStartCount := generator.GenerateColdStartFunctions(experimentDuration, coldStartRPS, cfg.RpsCooldownSeconds)
 
@@ -257,7 +282,6 @@ func RPSGenerateFunctions(cfg *config.LoaderConfiguration) []*common.Function {
 	return functions
 }
 
-// TODO: Future development to add Azure2021 trace support.
 func Azure2019GenerateFunctions(cfg *config.LoaderConfiguration) []*common.Function {
 	durationToParse := determineDurationToParse(cfg.ExperimentDuration, cfg.WarmupDuration)
 	yamlPath := parseYAMLSpecification(cfg)
@@ -275,6 +299,16 @@ func Azure2019GenerateFunctions(cfg *config.LoaderConfiguration) []*common.Funct
 	iatType, shiftIAT := parseIATDistribution(cfg)
 	traceGranularity := parseTraceGranularity(cfg)
 	generator.GenerateAzure2019Specification(functions, cfg, iatType, shiftIAT, traceGranularity)
+
+	return functions
+}
+
+func Azure2021GenerateFunctions(cfg *config.LoaderConfiguration) []*common.Function {
+	durationToParse := determineDurationToParse(cfg.ExperimentDuration, cfg.WarmupDuration)
+	yamlPath := parseYAMLSpecification(cfg)
+
+	traceParser := trace.NewAzure2021Parser(cfg.TracePath, durationToParse, yamlPath)
+	functions := traceParser.Parse()
 
 	return functions
 }

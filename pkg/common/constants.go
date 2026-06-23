@@ -56,6 +56,7 @@ const (
 	Equidistant
 )
 
+// Invocations for each (sec/minute) range
 type TraceGranularity int
 
 const (
@@ -118,4 +119,10 @@ const (
 // dirigent backend
 const (
 	BackendDandelion string = "dandelion"
+)
+
+// azure2021 trace - memory reference value (trace does not have memory usage values)
+// Follow sampler.md obversation that memory average is 200MB.
+const (
+	Azure2021MemoryReferenceValue int = 200
 )
