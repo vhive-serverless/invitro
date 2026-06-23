@@ -72,8 +72,7 @@ func (p *Azure2021TraceParser) Parse() []*common.Function {
 			continue
 		}
 
-		// Eyeballed a set value. Can consider randomising from a distribution.
-		memoryStats := common.FunctionMemoryStats{Percentile100: 300}
+		memoryStats := common.FunctionMemoryStats{Percentile100: referenceMemoryValue}
 
 		function := common.Function{
 			Name:                fmt.Sprintf("%s-%.5s-%.5s-%d", common.FunctionNamePrefix, funcID.appHash, funcID.functionHash, p.functionNameGenerator.Uint64()),
