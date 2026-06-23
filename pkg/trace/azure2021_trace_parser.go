@@ -72,7 +72,7 @@ func (p *Azure2021TraceParser) Parse() []*common.Function {
 			continue
 		}
 
-		memoryStats := common.FunctionMemoryStats{Percentile100: referenceMemoryValue}
+		memoryStats := common.FunctionMemoryStats{Percentile100: float64(referenceMemoryValue)}
 
 		function := common.Function{
 			Name:                fmt.Sprintf("%s-%.5s-%.5s-%d", common.FunctionNamePrefix, funcID.appHash, funcID.functionHash, p.functionNameGenerator.Uint64()),
