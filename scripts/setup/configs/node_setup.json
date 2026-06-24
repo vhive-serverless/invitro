@@ -1,0 +1,30 @@
+{
+    "NODE_SETUP": {
+        "MASTER_NODE": [
+            "10.0.1.1"
+        ],
+        "LOADER_NODE": [
+            "10.0.1.2"
+        ],
+        "WORKER_NODE": [
+            "10.0.1.2",
+            "10.0.1.3",
+            "10.0.1.4"
+        ]
+    },
+
+    "NODE_LABEL": {
+        "loader-nodetype=master": [
+            "10.0.1.1"
+        ],
+        "loader-nodetype=monitoring": [
+            "10.0.1.2"
+        ],
+        "loader-nodetype=worker": [
+            "10.0.1.3",
+            "10.0.1.4"
+        ]
+    },
+
+    "NODE_URL": ["username@example.com", "username@example.com", "username@example.com", "username@example.com"]
+}

@@ -1,0 +1,9 @@
+{
+    "VHIVE_REPO": "https://github.com/vhive-serverless/vhive",
+    "VHIVE_BRANCH": "v1.8.2",
+    "LOADER_REPO": "https://github.com/vhive-serverless/invitro",
+    "LOADER_BRANCH": "main",
+    "CLUSTER_MODE": "container",
+    "PODS_PER_NODE": 240,
+    "DEPLOY_PROMETHEUS": false
+}
