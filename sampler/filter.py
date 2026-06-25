@@ -28,12 +28,10 @@ from glob import glob
 
 from sampler.preprocess2021 import filter_within_time_interval
 
-def filter_azure2021(orig_trace_dir: str, sampled_trace_dir: str, out_dir: str, start_time: str, duration: int, orig_trace_filename: str = None):
-    if orig_trace_filename is None:
-        orig_trace_filename = "AzureFunctionsInvocationTraceForTwoWeeksJan2021.txt"
-
+def filter_azure2021(orig_trace_path: str, sampled_trace_dir: str, out_dir: str, start_time: str, duration: int):
+    
     # Read original trace
-    trace_file = glob(f"{orig_trace_dir}/{orig_trace_filename}")
+    trace_file = glob(f"{orig_trace_path}")
     assert len(trace_file) == 1, "Expected 1 Azure2021 trace file"
     trace_df = pd.read_csv(trace_file[0])
 
@@ -63,15 +61,3 @@ def filter_azure2021(orig_trace_dir: str, sampled_trace_dir: str, out_dir: str, 
         
     log.info(f"Saving sampled Azure2021 to {out_dir}/SampledAzure2021.csv")
     trace_df.to_csv(f"{out_dir}/SampledAzure2021.csv", index=False)
-
-if __name__ == "__main__":
-    orig_trace_dir = "data/azure2021/"
-    sampled_trace_dir = "data/traces/reference/sampledAzure2021/" + "samples/40"
-    out_dir = "data/traces/reference/filtered2021"
-    start_time = "00:01:00"
-    duration = 100
-
-    log.basicConfig(format='%(levelname)s:%(message)s', level=log.INFO)
-
-    filter_azure2021(orig_trace_dir, sampled_trace_dir, out_dir, start_time, duration)
-

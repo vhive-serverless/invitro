@@ -67,13 +67,13 @@ def run(args):
         return
     
     if args.cmd == 'preprocess2021':
-        preprocess_file(trace_dir=args.trace, start_time=args.start, duration=args.duration, 
+        preprocess_file(trace_path=args.trace, start_time=args.start, duration=args.duration, 
                         output_dir=args.output, zero_ms_threshold_percent=args.threshold)
         return
     
     if args.cmd == 'filter2021':
-        filter_azure2021(orig_trace_dir=args.trace, sampled_trace_dir=args.sampled_trace, out_dir=args.output, 
-                         start_time=args.start, duration=args.duration, orig_trace_filename=args.trace_file)
+        filter_azure2021(orig_trace_path=args.trace, sampled_trace_dir=args.sampled_trace, out_dir=args.output, 
+                         start_time=args.start, duration=args.duration)
         return
 
     inv_df = pd.read_csv(f"{args.source_trace}/invocations.csv")
@@ -253,8 +253,8 @@ def main():
         '-t',
         '--trace',
         metavar='path',
-        default='data/2021',
-        help='Path to the Azure2021 trace directory'
+        default='data/2021/AzureFunctionsInvocationTraceForTwoWeeksJan2021.txt',
+        help='Path to the Azure2021 trace file'
     )
 
     pre2021_parser.add_argument(
@@ -262,7 +262,7 @@ def main():
         '--output',
         required=True,
         metavar='path',
-        help='Output path for the preprocessed traces'
+        help='Output directory for the preprocessed traces'
     )
 
     pre2021_parser.add_argument(
@@ -299,7 +299,7 @@ def main():
         '--trace',
         required=True,
         metavar='og_path',
-        help='Directory path to the original Azure2021 trace'
+        help='File path to the original Azure2021 trace'
     )
 
     filter2021_parser.add_argument(
@@ -332,14 +332,6 @@ def main():
         required=True,
         metavar='duration',
         help='Duration in minutes of the excerpt extracted from the postprocessed trace'
-    )
-
-    filter2021_parser.add_argument(
-        '-tf',
-        '--trace_file',
-        required=False,
-        metavar='trace_filename',
-        help='Filename of the original trace, if using non-default original trace other than `AzureFunctionsInvocationTraceForTwoWeeksJan2021.txt`'
     )
 
     ####################################################
