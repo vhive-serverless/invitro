@@ -30,10 +30,11 @@ def create_original_df_file(tmp_path, og_df: pd.DataFrame):
 
     dir_path = tmp_path / "og_df"
     dir_path.mkdir()
+    file_path = dir_path / "AzureFunctionsInvocationTraceForTwoWeeksJan2021.txt"
 
-    og_df.to_csv(dir_path / "AzureFunctionsInvocationTraceForTwoWeeksJan2021.txt", index=False)
+    og_df.to_csv(file_path, index=False)
 
-    return str(dir_path)
+    return str(file_path)
 
 def create_sampled_df_file(tmp_path, inv_df: pd.DataFrame):
 
@@ -57,7 +58,7 @@ def test_azure2021_filter(tmp_path):
         # "start_timestamp": [0.50,  5.0, 64.5,  60.0, 200.0]
         }
     )
-    orig_trace_dir = create_original_df_file(tmp_path, og_df)
+    orig_trace_path = create_original_df_file(tmp_path, og_df)
 
     # Sampled DF
     inv_df = pd.DataFrame(
@@ -80,7 +81,7 @@ def test_azure2021_filter(tmp_path):
     duration = 5
     orig_trace_filename = "AzureFunctionsInvocationTraceForTwoWeeksJan2021.txt"
     
-    filter_azure2021(orig_trace_dir, sampled_trace_dir, str(out_dir), start_time, duration, orig_trace_filename)
+    filter_azure2021(orig_trace_path, sampled_trace_dir, str(out_dir), start_time, duration)
 
     # Read and compare output filtered_DF
     filtered_df_path = out_dir / "SampledAzure2021.csv"
@@ -113,7 +114,7 @@ def test_same_app_different_functions(tmp_path):
         # "start_timestamp": [0.50,  5.0, 64.5,  60.0]
         }
     )
-    orig_trace_dir = create_original_df_file(tmp_path, og_df)
+    orig_trace_path = create_original_df_file(tmp_path, og_df)
 
     # Sampled DF
     inv_df = pd.DataFrame(
@@ -135,7 +136,7 @@ def test_same_app_different_functions(tmp_path):
     start_time = "00:00:00"
     duration = 5
     
-    filter_azure2021(orig_trace_dir, sampled_trace_dir, str(out_dir), start_time, duration)
+    filter_azure2021(orig_trace_path, sampled_trace_dir, str(out_dir), start_time, duration)
 
     # Read and compare output filtered_DF
     filtered_df_path = out_dir / "SampledAzure2021.csv"

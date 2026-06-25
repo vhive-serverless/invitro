@@ -33,10 +33,10 @@ import math
 
 import os
 
-def preprocess_file(trace_dir: str, start_time: str, duration: str, output_dir: str, zero_ms_threshold_percent: str) -> pd.DataFrame:
+def preprocess_file(trace_path: str, start_time: str, duration: str, output_dir: str, zero_ms_threshold_percent: str) -> pd.DataFrame:
     
     # Read CSV
-    trace_file = glob(f"{trace_dir}/AzureFunctionsInvocationTraceForTwoWeeksJan2021.txt")
+    trace_file = glob(f"{trace_path}")
     assert len(trace_file) == 1, "There exists only 1 Azure2021 trace file"
     df = pd.read_csv(trace_file[0])
 

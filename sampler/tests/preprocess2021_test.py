@@ -177,7 +177,7 @@ def test_preprocess2021(tmp_path):
     duration = 5
     zero_ms_threshold_percent = 50
     
-    preprocess_file(dir_path, start_time, str(duration), str(out_dir), str(zero_ms_threshold_percent))
+    preprocess_file(orig_trace_path, start_time, str(duration), str(out_dir), str(zero_ms_threshold_percent))
 
     # Read and compare output preprocessed2021 (inv_df)
     preprocessed2021_df_path = out_dir / "invocations.csv"
