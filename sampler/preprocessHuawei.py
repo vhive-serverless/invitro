@@ -25,7 +25,6 @@ import logging as log
 import numpy as np
 from pathlib import Path
 
-
 def preprocess_huawei(trace_dir: str, start_time: str, duration: str, output_dir: str, zero_ms_threshold_percent: str) -> pd.DataFrame:
     
     # Time interval filter // Allow cross day filtering?
@@ -83,11 +82,123 @@ def preprocess_huawei(trace_dir: str, start_time: str, duration: str, output_dir
     return
 
 
+def generate_inv_df(requests_minute_df: pd.DataFrame) -> pd.DataFrame: # Honestly creating test will make me more confident
+
+    # Make columns into minute bins
+    df = requests_minute_df.drop(columns='day')
+    df['time'] = df['time']/60 + 1 # inv_df starts from minute 1
+    df = df.set_index('time', drop=True)
+    df = df.T
+
+    # Add in front 4 columns
+    front_cols = ["HashOwner", "HashApp", "HashFunction", "Trigger"]
+    empty_front_df = pd.DataFrame(columns=front_cols, index=df.index)
+    df = pd.concat([empty_front_df, df], axis=1)
+
+    df["HashOwner"] = 0
+    df['HashApp'] = df.index
+    df['HashFunction'] = df.index
+    df["Trigger"] = "http"
+
+    # Filter out functions with 0 invocations
+    minute_bin_columns = df.columns[4:]
+    df = df.dropna(subset=minute_bin_columns, how='all')
+
+    # Set 0 invocations from NaN to 0.
+    df = df.fillna(0)
+
+    return df
+
+# Memory is total function footprint -> allocated memory across all pods for a single function.
+def generate_mem_df(memory_limit_minute: pd.DataFrame) -> pd.DataFrame:
+    
+    # Make columns into minute bins
+    df = memory_limit_minute.drop(columns='day')
+    df['time'] = df['time']/60 + 1 # inv_df starts from minute 1
+    df = df.set_index('time', drop=True)
+    df = df.T
+
+    minute_bin_columns = df.columns
+    min_bin_df = df[minute_bin_columns]
+
+    # Set IDs
+    df["HashFunction"] = df.index
+    df["HashOwner"] = 0
+    df['HashApp'] = df.index
+
+    # Sample count is estimated as count of non-NAN samples
+    df["SampleCount"] = min_bin_df.count(axis=1)
+
+    # Calculate percentiles from non-NAN datapoints within time interval
+    df["AverageAllocatedMb"] = min_bin_df.mean(axis=1)
+    df["AverageAllocatedMb_pct1"] = min_bin_df.quantile(0.01, axis=1)
+    df["AverageAllocatedMb_pct5"] = min_bin_df.quantile(0.05, axis=1)
+    df["AverageAllocatedMb_pct25"] = min_bin_df.quantile(0.25, axis=1)
+    df["AverageAllocatedMb_pct50"] = min_bin_df.quantile(0.50, axis=1)
+    df["AverageAllocatedMb_pct75"] = min_bin_df.quantile(0.75, axis=1)
+    df["AverageAllocatedMb_pct95"] = min_bin_df.quantile(0.95, axis=1)
+    df["AverageAllocatedMb_pct99"] = min_bin_df.quantile(0.99, axis=1)
+    df["AverageAllocatedMb_pct100"] = min_bin_df.quantile(1.00, axis=1)    
+
+    # Cleanup - Keep only required columns
+    column_order = [
+        "HashFunction", "HashOwner", "HashApp", "SampleCount", 
+        "AverageAllocatedMb", "AverageAllocatedMb_pct1", "AverageAllocatedMb_pct5", "AverageAllocatedMb_pct25",
+        "AverageAllocatedMb_pct50", "AverageAllocatedMb_pct75", "AverageAllocatedMb_pct95", "AverageAllocatedMb_pct99", "AverageAllocatedMb_pct100"
+    ]
+    df = df.reindex(columns=column_order)
+
+    return df
+
+# Duration is function execution time averaged over all pods, timestamped in minute basis
+def generate_dur_df(function_delay_minute: pd.DataFrame) -> pd.DataFrame:
+
+    # Make columns into minute bins
+    df = function_delay_minute.drop(columns='day')
+    df['time'] = df['time']/60 + 1 # inv_df starts fro#m minute 1
+    df = df.set_index('time', drop=True)
+    df = df.T
+
+    minute_bin_columns = df.columns
+    min_bin_df = df[minute_bin_columns]
+
+    # Set IDs
+    df["HashOwner"] = 0
+    df['HashApp'] = df.index
+    df["HashFunction"] = df.index
+
+    # Generate stats (derived from datapoints within time interval)
+    df["Average"] = min_bin_df.mean(axis=1)
+    df["Count"] = min_bin_df.count(axis=1)
+    df["Minimum"] = min_bin_df.min(axis=1)
+    df["Maximum"] = min_bin_df.max(axis=1)
+    df["percentile_Average_0"] = min_bin_df.quantile(0.00, axis=1)
+    df["percentile_Average_1"] = min_bin_df.quantile(0.01, axis=1)
+    df["percentile_Average_25"] = min_bin_df.quantile(0.25, axis=1)
+    df["percentile_Average_50"] = min_bin_df.quantile(0.50, axis=1)
+    df["percentile_Average_75"] = min_bin_df.quantile(0.75, axis=1)
+    df["percentile_Average_99"] = min_bin_df.quantile(0.99, axis=1)
+    df["percentile_Average_100"] = min_bin_df.quantile(1.00, axis=1)
+
+    # Cleanup - Keep only required columns
+    new_columns = [
+        "HashFunction", "HashOwner", "HashApp",  
+        "Average", "Count", "Minimum", "Maximum",
+        "percentile_Average_0", "percentile_Average_1", "percentile_Average_25", "percentile_Average_50", 
+        "percentile_Average_75", "percentile_Average_99", "percentile_Average_100"
+    ]
+    df = df.reindex(columns=new_columns)
+
+    return df
+
+def filter_out_functions_with_zero_invocations():
+    return 1
+
 if __name__ == "__main__":
 
-    trace_dir = "..\Huawei2023\private_dataset"
+    trace_dir = "../Huawei2023/private_dataset"
     start_time = "00:00:30"  # DD:HH:MM 
     duration = 5             # Minutes
-    output_dir = "..\Huawei2023\output"
+    output_dir = "../Huawei2023/output"
     
     preprocess_huawei(trace_dir, start_time, duration, output_dir, 0)
