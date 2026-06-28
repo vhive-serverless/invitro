@@ -88,6 +88,7 @@ def generate_inv_df(requests_minute_df: pd.DataFrame) -> pd.DataFrame:
     # Make columns into minute bins
     df = requests_minute_df.drop(columns='day')
     df['time'] = df['time']/60 + 1 # inv_df starts from minute 1
+    df['time'] = df['time'].astype(int).astype(str) # 1.0 -> 1
     df = df.set_index('time', drop=True)
     df = df.T
 
@@ -96,17 +97,24 @@ def generate_inv_df(requests_minute_df: pd.DataFrame) -> pd.DataFrame:
     empty_front_df = pd.DataFrame(columns=front_cols, index=df.index)
     df = pd.concat([empty_front_df, df], axis=1)
 
-    df["HashOwner"] = 0
+    df["HashOwner"] = "0"
     df['HashApp'] = df.index
     df['HashFunction'] = df.index
     df["Trigger"] = "http"
 
     # Filter out functions with 0 invocations
+    prefiltered_df = df
+
     minute_bin_columns = df.columns[4:]
     df = df.dropna(subset=minute_bin_columns, how='all')
 
+    log.info(f"Inv df removed uninvoked functions (before -> after): {len(prefiltered_df)} -> {len(df)}")
+
     # Set 0 invocations from NaN to 0.
     df = df.fillna(0)
+    df = df.rename_axis(None, axis=1)
+    df = df.reset_index(drop=True)
+    df[minute_bin_columns] = df[minute_bin_columns].astype(np.int64)
 
     return df
 
@@ -116,6 +124,7 @@ def generate_mem_df(memory_limit_minute: pd.DataFrame) -> pd.DataFrame:
     # Make columns into minute bins
     df = memory_limit_minute.drop(columns='day')
     df['time'] = df['time']/60 + 1 # inv_df starts from minute 1
+    df['time'] = df['time'].astype(int).astype(str) # 1.0 -> 1
     df = df.set_index('time', drop=True)
     df = df.T
 
@@ -124,7 +133,7 @@ def generate_mem_df(memory_limit_minute: pd.DataFrame) -> pd.DataFrame:
 
     # Set IDs
     df["HashFunction"] = df.index
-    df["HashOwner"] = 0
+    df["HashOwner"] = "0"
     df['HashApp'] = df.index
 
     # Sample count is estimated as count of non-NAN samples
@@ -151,6 +160,8 @@ def generate_mem_df(memory_limit_minute: pd.DataFrame) -> pd.DataFrame:
         "AverageAllocatedMb_pct50", "AverageAllocatedMb_pct75", "AverageAllocatedMb_pct95", "AverageAllocatedMb_pct99", "AverageAllocatedMb_pct100"
     ]
     df = df.reindex(columns=column_order)
+    df = df.rename_axis(None, axis=1)
+    df = df.reset_index(drop=True)
 
     return df
 
@@ -159,7 +170,8 @@ def generate_dur_df(function_delay_minute: pd.DataFrame) -> pd.DataFrame:
 
     # Make columns into minute bins
     df = function_delay_minute.drop(columns='day')
-    df['time'] = df['time']/60 + 1 # inv_df starts fro#m minute 1
+    df['time'] = df['time']/60 + 1 # inv_df starts from minute 1
+    df['time'] = df['time'].astype(int).astype(str) # 1.0 -> 1
     df = df.set_index('time', drop=True)
     df = df.T
 
@@ -167,7 +179,7 @@ def generate_dur_df(function_delay_minute: pd.DataFrame) -> pd.DataFrame:
     min_bin_df = df[minute_bin_columns]
 
     # Set IDs
-    df["HashOwner"] = 0
+    df["HashOwner"] = "0"
     df['HashApp'] = df.index
     df["HashFunction"] = df.index
 
@@ -195,6 +207,8 @@ def generate_dur_df(function_delay_minute: pd.DataFrame) -> pd.DataFrame:
         "percentile_Average_75", "percentile_Average_99", "percentile_Average_100"
     ]
     df = df.reindex(columns=new_columns)
+    df = df.rename_axis(None, axis=1)
+    df = df.reset_index(drop=True)
 
     return df
 
@@ -215,9 +229,9 @@ def get_intersection(
     mem_df_cleaned = mem_df.set_index(cols).loc[common_idx].reset_index()
     run_df_cleaned = run_df.set_index(cols).loc[common_idx].reset_index()
 
-    log.debug(f"inv_df row count after intersection: {len(inv_df)}")
-    log.debug(f"mem_df row count after intersection: {len(mem_df)}")
-    log.debug(f"run_df row count after intersection: {len(run_df)}")
+    log.info(f"inv_df row count after intersection: {len(inv_df)}")
+    log.info(f"mem_df row count after intersection: {len(mem_df)}")
+    log.info(f"run_df row count after intersection: {len(run_df)}")
     
     return inv_df_cleaned, mem_df_cleaned, run_df_cleaned
 
