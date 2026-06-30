@@ -26,43 +26,15 @@ import numpy as np
 from pathlib import Path
 from typing import Tuple
 
-def preprocess_huawei(trace_dir: str, start_time: str, duration: str, output_dir: str, zero_ms_threshold_percent: str) -> pd.DataFrame:
+def preprocess_huawei(trace_dir: str, start_time: str, duration: str, output_dir: str) -> pd.DataFrame:
     
-    # Time interval filter // Allow cross day filtering?
-    start_time = start_time.split(":")
-    day = int(start_time[0])
-    hours = int(start_time[1])
-    minutes = int(start_time[2])
-    duration = int(duration)
-
-    # Determine time interval
-    td_interval_start = pd.Timedelta(days=day, hours=hours, minutes=minutes)
-    td_interval_end = pd.Timedelta(days=day, hours=hours, minutes=(minutes+duration))
-    starting_day = td_interval_start.days
-    ending_day = td_interval_end.days
-
-    # Read all metrics within time interval
-    metrics = {
+    # Read CSVs
+    metrics_to_read = {
         "function_delay_minute": {"path": Path("function_delay_minute"), "df": pd.DataFrame()},
         "memory_limit_minute": {"path": Path("memory_limit_minute"), "df": pd.DataFrame()},
-        "memory_usage_minute": {"path": Path("memory_usage_minute"), "df": pd.DataFrame()},
         "requests_minute": {"path": Path("function_delay_minute"), "df": pd.DataFrame()},
     }
-    for metric, value in metrics.items():
-        directory = Path(trace_dir) / value["path"]
-        final_df = pd.DataFrame()
-
-        # Determine files to read
-        for day in range(starting_day, ending_day + 1):
-            file_path = directory / f"day_{day:03d}.csv" # Leading zeros, width of 3 (001, 002)
-            df = pd.read_csv(file_path)
-
-            # Filter by timestamp
-            df = df[df["time"].between(td_interval_start.seconds, td_interval_end.seconds, inclusive='left')] # left <= series < right
-
-            final_df = pd.concat([final_df, df], ignore_index=True)
-
-        value["df"] = final_df
+    metrics = read_all_trace_csv(trace_dir, start_time, duration, metrics_to_read)
 
     # Transform to sampler format (inv_df, mem_df, run_df)
     # All generation filters out zero/NaN values
@@ -81,6 +53,41 @@ def preprocess_huawei(trace_dir: str, start_time: str, duration: str, output_dir
     dur_df.to_csv(output_dir / "durations.csv", index=False)
     
     return
+
+def read_all_trace_csv(trace_dir: str, start_time: str, duration: str, metrics: dict[str, dict[str, pd.DataFrame]]) -> dict[str, dict[str, pd.DataFrame]]:
+
+    # Time interval filter
+    start_time = start_time.split(":")
+    day = int(start_time[0])
+    hours = int(start_time[1])
+    minutes = int(start_time[2])
+    duration = int(duration)
+
+    # Determine time interval
+    td_interval_start = pd.Timedelta(days=day, hours=hours, minutes=minutes)
+    td_interval_end = pd.Timedelta(days=day, hours=hours, minutes=(minutes+duration))
+    starting_day = td_interval_start.days
+    ending_day = td_interval_end.days
+
+    # Read all metrics within time interval
+    for metric, value in metrics.items():
+        directory = Path(trace_dir) / value["path"]
+        final_df = pd.DataFrame()
+
+        # Determine files to read
+        for day in range(starting_day, ending_day + 1):
+            file_path = directory / f"day_{day:03d}.csv" # Leading zeros, width of 3 (001, 002)
+            df = pd.read_csv(file_path)
+
+            # Filter by timestamp
+            df = df[df["time"].between(td_interval_start.total_seconds(), td_interval_end.total_seconds(), inclusive='left')] # left <= series < right
+
+            final_df = pd.concat([final_df, df], ignore_index=True)
+
+        value["df"] = final_df
+
+    return metrics
+
 
 # Count of invocations per minute. Filters out functions with 0 invocations.
 def generate_inv_df(requests_minute_df: pd.DataFrame) -> pd.DataFrame:
@@ -108,7 +115,7 @@ def generate_inv_df(requests_minute_df: pd.DataFrame) -> pd.DataFrame:
     minute_bin_columns = df.columns[4:]
     df = df.dropna(subset=minute_bin_columns, how='all')
 
-    log.info(f"Inv df removed uninvoked functions (before -> after): {len(prefiltered_df)} -> {len(df)}")
+    log.info(f"inv_df removed uninvoked functions (before -> after): {len(prefiltered_df)} -> {len(df)}")
 
     # Set 0 invocations from NaN to 0.
     df = df.fillna(0)
@@ -151,7 +158,9 @@ def generate_mem_df(memory_limit_minute: pd.DataFrame) -> pd.DataFrame:
     df["AverageAllocatedMb_pct100"] = min_bin_df.quantile(1.00, axis=1)
 
     # Filter out zero allocated memory
+    prefiltered_df = df
     df = df.loc[df["SampleCount"] != 0]
+    log.info(f"mem_df removed unallocated functions (before -> after): {len(prefiltered_df)} -> {len(df)}")
 
     # Cleanup - Keep only required columns
     column_order = [
@@ -197,7 +206,9 @@ def generate_dur_df(function_delay_minute: pd.DataFrame) -> pd.DataFrame:
     df["percentile_Average_100"] = min_bin_df.quantile(1.00, axis=1)
 
     # Filter out zero duration
+    prefiltered_df = df
     df = df.loc[df["Count"] != 0]
+    log.info(f"dur_df removed functions without duration (before -> after): {len(prefiltered_df)} -> {len(df)}")
 
     # Cleanup - Keep only required columns
     new_columns = [
@@ -217,7 +228,7 @@ def get_intersection(
         inv_df: pd.DataFrame, mem_df: pd.DataFrame, run_df: pd.DataFrame
 ) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     
-    # Matches cols that are same across all 3 DFs
+    # Matches cols that are same App and Function across all 3 DFs 
     cols = ['HashApp', 'HashFunction']
     common_idx = (
         inv_df.set_index(cols).index
@@ -229,19 +240,11 @@ def get_intersection(
     mem_df_cleaned = mem_df.set_index(cols).loc[common_idx].reset_index()
     run_df_cleaned = run_df.set_index(cols).loc[common_idx].reset_index()
 
-    log.info(f"inv_df row count after intersection: {len(inv_df)}")
-    log.info(f"mem_df row count after intersection: {len(mem_df)}")
-    log.info(f"run_df row count after intersection: {len(run_df)}")
+    log.info(f"Keep only functions that appear in all DFs:")
+    log.info(f"inv_df keep common functions: {len(inv_df)} -> {len(inv_df_cleaned)}")
+    log.info(f"mem_df keep common functions: {len(mem_df)} -> {len(mem_df_cleaned)}")
+    log.info(f"run_df keep common functions: {len(run_df)} -> {len(run_df_cleaned)}")
     
     return inv_df_cleaned, mem_df_cleaned, run_df_cleaned
 
-    # Leaves only rows with the common HashApp and HashFunction values in all 3 dfs
 
-if __name__ == "__main__":
-
-    trace_dir = "../Huawei2023/private_dataset"
-    start_time = "00:00:30"  # DD:HH:MM 
-    duration = 5             # Minutes
-    output_dir = "../Huawei2023/output"
-    
-    preprocess_huawei(trace_dir, start_time, duration, output_dir, 0)

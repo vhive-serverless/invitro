@@ -33,21 +33,6 @@ from sampler.preprocessHuawei import (
     generate_dur_df
 )
 
-# def test_preprocess_huawei():
-
-#     os.getcwd() # Actual 
-
-#     # Test preprocess_huawei
-#     trace_dir = "yes"
-#     start_time = "00:00:00"  # DD:HH:MM 
-#     duration = 5             # Minutes
-    
-#     #preprocess_huawei(trace_dir: str, start_time: str, duration: str, output_dir: str)
-
-# MAYBE STILL IMPLEMENT
-# def test_time_slicing():
-#     return 0
-
 NaN = np.nan
 
 def test_generate_inv_df():
@@ -134,8 +119,3 @@ def test_generate_dur_df():
 
     dur_df = generate_dur_df(input_df)
     pd.testing.assert_frame_equal(dur_df, expected_df)
-
-
-# Full function happy path test
-def test_preprocess_huawei():
-    return 0
