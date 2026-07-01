@@ -10,7 +10,7 @@ require (
 	golang.org/x/sys v0.43.0
 	gonum.org/v1/gonum v0.17.0
 	gonum.org/v1/plot v0.17.0
-	google.golang.org/grpc v1.80.0
+	google.golang.org/grpc v1.82.0
 )
 
 require (
