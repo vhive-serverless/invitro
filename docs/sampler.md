@@ -206,10 +206,56 @@ and extract the CSV files (default location: `data/azure2021/`).
 
 The following is an example usage of the sampler:
 
-```console
+``` bash
 python -m sampler preprocess2021 -t data/azure2021/original_trace_filename.txt -o data/traces/reference/preprocessed_azure2021 -s 00:01:00 -dur 100 -thresh 50
 
 python -m sampler sample -t data/traces/reference/preprocessed_azure2021 -orig data/traces/reference/preprocessed_azure2021 -o data/traces/reference/sampled_azure2021 -min 20 -st 5 -max 45 -tr 16
 
 python -m sampler filter2021 -t data/azure2021/original_trace_filename.txt -st data/traces/reference/sampled_azure2021/samples/40 -o data/traces/reference/filtered2021 -s 00:01:00 -dur 100
 ```
+
+## Using Hua-Wei-2023 Traces
+### Overview
+Conceptually, Hua-Wei-2023-Private trace is transformed into Azure2019 format in `preprocessHuawei2023`. 
+It can then be treated as Azure2019 format for Sampler and Loader.
+
+Sampling Hua-Wei-2023 trace follows 2 steps: 
+1. Pre-process the original trace (`huawei2023private`) -> cleaned Azure2019 format.
+2. Run the sampler on cleaned trace (`sampler`) -> sub-sampled Azure2019 format.
+
+### Workflow
+Firstly, download the original Hua-Wei-2023-Private dataset from the [Hua-Wei-2023 github repo](https://github.com/sir-lab/data-release/blob/main/README_data_release_2023.md). (default location: `data/huawei2023/`).
+
+The folder structure follows the structure recommended in the above repo.
+A condensed version is shown below: 
+```bash
+data/huawei2023/
+├── private_dataset
+    ├── function_delay_minute
+    │   ├── day_000.csv
+    │   ├── ...
+    │   └── day_234.csv
+    ├── memory_limit_minute
+    │   ├── day_000.csv
+    │   ├── ...
+    │   └── day_234.csv
+    └── requests_minute
+        ├── day_000.csv
+        ├── ...
+        └── day_234.csv
+```
+
+Example usage of sampler:
+```bash
+# Preprocess
+`python -m sampler preprocessHuawei2023 -t data/huawei2023/private_dataset -o data/huawei2023/output -s 00:01:00 -dur 100`
+# Sample
+`python -m sampler sample -t data/huawei2023/output -orig data/huawei2023/output -o data/huawei2023/output/sampled -min 20 -st 10 -max 80 -tr 16`
+```
+
+### Preprocess Hua-Wei-2023 
+
+The preprocessing follows 3 steps:
+1. Filter for invocations within user supplied time interval.
+2. Calculate percentile statistics for `run_df` and `mem_df` using non-zero data points within the time interval.
+3. Transform the trace to azure2019 format. 
