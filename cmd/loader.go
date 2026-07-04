@@ -292,7 +292,7 @@ func Azure2019GenerateFunctions(cfg *config.LoaderConfiguration) []*common.Funct
 	if !cfg.VSwarm {
 		traceParser = trace.NewAzureParser(cfg.TracePath, durationToParse, yamlPath)
 	} else {
-		traceParser = trace.NewMapperParser(cfg.TracePath, durationToParse)
+		traceParser = trace.NewMapperParser(cfg.TracePath, durationToParse, yamlPath)
 	}
 	functions = traceParser.Parse()
 

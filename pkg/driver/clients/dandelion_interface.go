@@ -3,14 +3,14 @@ package clients
 import (
 	"bytes"
 	"fmt"
-	"github.com/sirupsen/logrus"
-	"github.com/vhive-serverless/loader/pkg/common"
-	"github.com/vhive-serverless/loader/pkg/metric"
-	"go.mongodb.org/mongo-driver/bson"
 	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/sirupsen/logrus"
+	"github.com/vhive-serverless/loader/pkg/common"
+	"go.mongodb.org/mongo-driver/bson"
 )
 
 type InputItem struct {
@@ -161,7 +161,7 @@ func WorkflowInvocationBody(wfName string, inData *DandelionRequest) string {
 	return body.Encode()
 }
 
-func DeserializeDandelionResponse(function *common.Function, body []byte, record *metric.ExecutionRecord, allowEmptyResponse bool) error {
+func DeserializeDandelionResponse(function *common.Function, body []byte, record *common.ExecutionRecord, allowEmptyResponse bool) error {
 	var result DandelionDeserializeResponse
 	err := bson.Unmarshal(body, &result)
 	if err != nil {

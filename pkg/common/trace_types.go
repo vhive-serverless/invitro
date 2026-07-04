@@ -98,6 +98,10 @@ type WorkflowMetadata struct {
 	InvocationRequest string
 }
 
+type Invoker interface {
+	Invoke(function *Function, runtimeSpecification *RuntimeSpecification) (bool, *ExecutionRecord)
+}
+
 type Function struct {
 	Name     string
 	Endpoint string
@@ -118,6 +122,7 @@ type Function struct {
 	YAMLPath          string // "container" vs "firecracker" -> workloads/xxx/trace_func_go.yml (For Knative config path)
 	PredeploymentPath []string
 	Specification     *FunctionSpecification
+	Invoker           Invoker
 
 	// used only for dirigent workflows
 	WorkflowMetadata *WorkflowMetadata
