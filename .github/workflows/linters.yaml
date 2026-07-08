@@ -40,7 +40,6 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v6
-      - uses: gaurav-nelson/github-action-markdown-link-check@v1
+      - uses: lycheeverse/lychee-action@v2
         with:
-          use-quiet-mode: "yes"
-          config-file: ".github/configs/linkcheck.json"
+          args: --config .github/configs/lychee.toml --root-dir "${{ github.workspace }}" './**/*.md'

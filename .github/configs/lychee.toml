@@ -1,0 +1,14 @@
+no_progress = true
+hidden = true
+
+exclude_path = [
+    '(^|/)node_modules/',
+]
+
+exclude = [
+    '^http://localhost(:[0-9]+)?(/|$)',
+    '^http://127\.0\.0\.1(:[0-9]+)?(/|$)',
+    '^https://portal\.azure\.com/?$',
+    '^https://join\.slack\.com/',
+    '^https://vhivetutorials\.slack\.com/join/',
+]
