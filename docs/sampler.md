@@ -221,7 +221,7 @@ It can then be treated as Azure2019 format for Sampler and Loader.
 
 Sampling Hua-Wei-2023 trace follows 2 steps: 
 1. Pre-process the original trace (`huawei2023private`) -> cleaned Azure2019 format.
-2. Run the sampler on cleaned trace (`sampler`) -> sub-sampled Azure2019 format.
+2. Run the sampler on cleaned trace (`sampler`), specify new res_norm_factor -> sub-sampled Azure2019 format.
 
 ### Workflow
 Firstly, download the original Hua-Wei-2023-Private dataset from the [Hua-Wei-2023 github repo](https://github.com/sir-lab/data-release/blob/main/README_data_release_2023.md). (default location: `data/huawei2023/`).
@@ -246,11 +246,12 @@ data/huawei2023/
 ```
 
 Example usage of sampler:
+A '-res' value of 1,000,000 was found empirically as mean of dataset of non-NAN values. (memory: 4000, duration: 250 -> product: 1,000,000)
 ```bash
 # Preprocess
 `python -m sampler preprocessHuawei2023 -t data/huawei2023/private_dataset -o data/huawei2023/output -s 00:01:00 -dur 100`
 # Sample
-`python -m sampler sample -t data/huawei2023/output -orig data/huawei2023/output -o data/huawei2023/output/sampled -min 20 -st 10 -max 80 -tr 16`
+`python -m sampler sample -t data/huawei2023/output -orig data/huawei2023/output -o data/huawei2023/output/sampled -min 20 -st 10 -max 80 -tr 16 -res 1000000`
 ```
 
 ### Preprocess Hua-Wei-2023 

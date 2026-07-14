@@ -97,7 +97,7 @@ def run(args):
         generate_samples(inv_df=inv_df, mem_df=mem_df, run_df=run_df,
                          inv_df_orig=inv_df_orig, mem_df_orig=mem_df_orig, run_df_orig=run_df_orig,
                          min_size=args.min_size, step=args.step_size, max_size=args.max_size,
-                         trial_num=args.trial_num,
+                         trial_num=args.trial_num, res_norm=args.res_norm,
                          out_path=args.output)
 
     if args.cmd == 'plot':
@@ -180,6 +180,15 @@ def main():
         default=16,
         metavar='integer',
         help='Number of sampling trials for each sample size.'
+    )
+
+    sample_parser.add_argument(
+        '-res',
+        '--res-norm',
+        required=False,
+        type=int,
+        metavar='integer',
+        help='Normalisation factor between invocation and resources distribution. (divides resources by this value, to balance Wasserstein distance calculation)'
     )
 
     ####################################################
