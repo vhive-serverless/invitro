@@ -11,27 +11,15 @@ env:
   GO111MODULE: on
 
 jobs:
-  resolve-modules:
-    name: Resolve Modules
-    runs-on: ubuntu-24.04
-    outputs:
-      matrix: ${{ steps.set-matrix.outputs.matrix }}
-    steps:
-      - name: Checkout Sources
-        uses: actions/checkout@v6
-      - id: set-matrix
-        run: ./utils/golangci-lint/resolve-modules.sh
-
   golangci:
     name: GolangCI Lint
-    needs: resolve-modules
     runs-on: ubuntu-24.04
     strategy:
       matrix: { dir: ['cmd', 'pkg', 'tools/plotter'] }
       fail-fast: false
     steps:
       - name: Checkout code into go module directory
-          uses: actions/checkout@v6
+        uses: actions/checkout@v6
     
       - name: Set up Go version in go.mod file
         uses: actions/setup-go@v6
@@ -45,7 +33,7 @@ jobs:
         run: sudo apt update && sudo apt install libsnmp-dev
 
       - name: Lint with golangci-lint
-        uses: golangci/golangci-lint-action@v6.5.0
+        uses: golangci/golangci-lint-action@v9.3.0
         with:
           working-directory: ${{ matrix.dir }}
           args: --timeout 5m
