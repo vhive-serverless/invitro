@@ -1,13 +1,40 @@
-linters-settings:
-  gofmt:
-    # Simplify code: gofmt with `-s` option.
-    # Default: true
-    simplify: false
-    # Apply the rewrite rules to the source before reformatting.
-    # https://pkg.go.dev/cmd/gofmt
-    # Default: []
-    rewrite-rules:
-      - pattern: 'interface{}'
-        replacement: 'any'
-      - pattern: 'a[b:len(a)]'
-        replacement: 'a[b:]'
+version: "2"
+linters:
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    # paths:
+    #   - third_party$
+    #   - builtin$
+    #   - examples$
+  # Ignore -> inline: cannot inline: type parameter inference is not yet supported (govet)
+  # In loader.go slice.Contains 
+  settings:
+    govet:
+      disable:
+      - inline
+
+formatters:
+  settings:
+    gofmt:
+      # Simplify code: gofmt with `-s` option.
+      # Default: true
+      simplify: false
+      # Apply the rewrite rules to the source before reformatting.
+      # https://pkg.go.dev/cmd/gofmt
+      # Default: []
+      rewrite-rules:
+        - pattern: interface{}
+          replacement: any
+        - pattern: a[b:len(a)]
+          replacement: a[b:]
+  exclusions:
+    generated: lax
+    # paths:
+    #   - third_party$
+    #   - builtin$
+    #   - examples$
