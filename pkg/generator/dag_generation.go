@@ -21,9 +21,9 @@ func printDAG(DAGWorkflow *list.List) {
 	nodeQueue := make([]*list.Element, 0)
 	nodeQueue = append(nodeQueue, DAGNode)
 	var printMessage string
-	var buffer string = ""
+	var buffer = ""
 	var dummyNode *list.Element
-	var startingNode bool = true
+	var startingNode = true
 	for len(nodeQueue) > 0 {
 		DAGNode = nodeQueue[0]
 		nodeQueue = nodeQueue[1:]
@@ -121,8 +121,8 @@ func getDAGStats(cdf [][]float64, maxSize int, numberOfTries int) (int, int) {
 
 func GenerateDAGs(config *config.LoaderConfiguration, functions []*common.Function, test bool) []*list.List {
 	var width, depth int
-	var functionIndex int = 0
-	var dagIdentity int = 0
+	var functionIndex = 0
+	var dagIdentity = 0
 	var functionLinkedList *list.List
 	totalDAGList := []*list.List{}
 	for {
@@ -154,7 +154,7 @@ func GenerateDAGs(config *config.LoaderConfiguration, functions []*common.Functi
 func createDAGWorkflow(functionList []*common.Function, functionID int, maxWidth int, maxDepth int, dagIdentity int) (*list.List, int) {
 	DAGList := list.New()
 	dagIdentifier := fmt.Sprintf("DAG %d,", dagIdentity)
-	var function *common.Function = functionList[functionID]
+	var function = functionList[functionID]
 	if maxDepth == 1 {
 		DAGList.PushBack(&common.Node{Function: function, Depth: 0, DAG: dagIdentifier})
 		return DAGList, functionID + 1

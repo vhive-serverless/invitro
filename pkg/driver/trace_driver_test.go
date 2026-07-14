@@ -167,11 +167,11 @@ func TestInvokeFunctionFromDriver(t *testing.T) {
 
 			switch test.forceFail {
 			case true:
-				if !(successCount == 0 && failureCount == 1 && functionsInvoked == 1) {
+				if successCount != 0 || failureCount != 1 || functionsInvoked != 1 {
 					t.Error("The function somehow managed to execute.")
 				}
 			case false:
-				if !(successCount == 1 && failureCount == 0 && functionsInvoked == 1) {
+				if successCount != 1 || failureCount != 0 || functionsInvoked != 1 {
 					t.Error("The function should not have failed.")
 				}
 			}
@@ -250,11 +250,11 @@ func TestVSwarmInvokeFunctionFromDriver(t *testing.T) {
 
 			switch test.forceFail {
 			case true:
-				if !(successCount == 0 && failureCount == 1 && functionsInvoked == 1) {
+				if successCount != 0 || failureCount != 1 || functionsInvoked != 1 {
 					t.Error("The function somehow managed to execute.")
 				}
 			case false:
-				if !(successCount == 1 && failureCount == 0 && functionsInvoked == 1) {
+				if successCount != 1 || failureCount != 0 || functionsInvoked != 1 {
 					t.Error("The function should not have failed.")
 				}
 			}
@@ -273,7 +273,7 @@ func TestVSwarmInvokeFunctionFromDriver(t *testing.T) {
 func TestDAGInvocation(t *testing.T) {
 	var successCount int64 = 0
 	var failureCount int64 = 0
-	var functionsToInvoke int = 3
+	var functionsToInvoke = 3
 	var functionsInvoked int64
 	invocationRecordOutputChannel := make(chan *metric.ExecutionRecord, functionsToInvoke)
 	announceDone := &sync.WaitGroup{}
@@ -328,7 +328,7 @@ func TestDAGInvocation(t *testing.T) {
 	announceDone.Add(1)
 	testDriver.invokeFunction(metadata)
 	announceDone.Wait()
-	if !(successCount == 3 && failureCount == 0) {
+	if successCount != 3 || failureCount != 0 {
 		t.Error("Number of successful and failed invocations not as expected.")
 	}
 	for range functionsToInvoke {
@@ -344,7 +344,7 @@ func TestDAGInvocation(t *testing.T) {
 func TestVSwarmDAGInvocation(t *testing.T) {
 	var successCount int64 = 0
 	var failureCount int64 = 0
-	var functionsToInvoke int = 3
+	var functionsToInvoke = 3
 	var functionsInvoked int64
 	invocationRecordOutputChannel := make(chan *metric.ExecutionRecord, functionsToInvoke)
 	announceDone := &sync.WaitGroup{}
@@ -399,7 +399,7 @@ func TestVSwarmDAGInvocation(t *testing.T) {
 	announceDone.Add(1)
 	testDriver.invokeFunction(metadata)
 	announceDone.Wait()
-	if !(successCount == 3 && failureCount == 0) {
+	if successCount != 3 || failureCount != 0 {
 		t.Error("Number of successful and failed invocations not as expected.")
 	}
 	for range functionsToInvoke {
@@ -638,7 +638,7 @@ func TestDriverCompletely(t *testing.T) {
 			}
 
 			expectedInvocations := test.expectedInvocations
-			if !(successfulInvocation == expectedInvocations && failedInvocations == 0) {
+			if successfulInvocation != expectedInvocations || failedInvocations != 0 {
 				t.Error("Number of successful and failed invocations do not match.")
 			}
 		})
@@ -740,7 +740,7 @@ func TestVSwarmDriverCompletely(t *testing.T) {
 			}
 
 			expectedInvocations := test.expectedInvocations
-			if !(successfulInvocation == expectedInvocations && failedInvocations == 0) {
+			if successfulInvocation != expectedInvocations || failedInvocations != 0 {
 				t.Error("Number of successful and failed invocations do not match.")
 			}
 		})

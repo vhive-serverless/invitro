@@ -74,7 +74,7 @@ func TestAzure2021ParserWrapper(t *testing.T) {
 
 // Test data read and derive "start_timestamp" into InvocationTracker hashmap
 func TestAzure2021ParseCSVFile(t *testing.T) {
-	var filePath string = "test_data/Azure2021/Azure2021_30.csv"
+	var filePath = "test_data/Azure2021/Azure2021_30.csv"
 	invocationTracker := ParseCSVFile(filePath)
 
 	if len(invocationTracker) == 0 {

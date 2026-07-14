@@ -701,7 +701,7 @@ func checkDistribution(data []float64, perMinuteCount []int, nonScaledDuration [
 		defer f.Close()
 
 		for i := beginIndex; i < endIndex; i++ {
-			_, _ = f.WriteString(fmt.Sprintf("%f\n", data[i]))
+			_, _ = fmt.Fprintf(f, "%f\n", data[i])
 		}
 
 		if min+1 < len(perMinuteCount) {

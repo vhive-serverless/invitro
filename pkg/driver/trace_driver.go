@@ -198,10 +198,8 @@ func (d *Driver) functionsDriver(functionLinkedList *list.List, announceFunction
 	startOfExperiment := time.Now()
 	var previousIATSum int64
 
-	for {
-		if iatIndex >= len(IAT) || iatIndex >= terminationIAT {
-			break // end of experiment for this individual function driver
-		}
+	// do until end of experiment for this individual function driver
+	for (iatIndex < len(IAT) && iatIndex < terminationIAT) {
 
 		d.announceWarmupEnd(minuteIndex, &currentPhase)
 

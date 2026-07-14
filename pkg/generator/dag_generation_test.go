@@ -89,7 +89,7 @@ var functions []*common.Function = []*common.Function{
 }
 
 func TestGenerateSingleDAG(t *testing.T) {
-	var functionList []*common.Function = make([]*common.Function, 3)
+	var functionList = make([]*common.Function, 3)
 	for i := range functionList {
 		functionList[i] = functions[0]
 	}
@@ -101,7 +101,7 @@ func TestGenerateSingleDAG(t *testing.T) {
 }
 
 func TestGenerateMultipleDAGs(t *testing.T) {
-	var functionList []*common.Function = make([]*common.Function, 200)
+	var functionList = make([]*common.Function, 200)
 	var initialWidth int64
 	for i := range functionList {
 		functionList[i] = functions[0]
@@ -123,7 +123,7 @@ func TestGenerateMultipleDAGs(t *testing.T) {
 }
 
 func TestGenerateDAGByDataset(t *testing.T) {
-	var functionList []*common.Function = make([]*common.Function, 10)
+	var functionList = make([]*common.Function, 10)
 	for i := range functionList {
 		functionList[i] = functions[0]
 	}
