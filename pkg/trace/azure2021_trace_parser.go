@@ -177,7 +177,7 @@ func GenerateFunctionSpecification(invocationSlice Invocations, durationMinutes 
 	lastMinuteNumber := int(time.Duration(finalInvocation * float64(time.Second)).Minutes())
 	perMinuteCount := make([]int, lastMinuteNumber+1)
 
-	var previousInvocationTimestamp float64 = 0.0
+	var previousInvocationTimestamp = 0.0
 
 	for _, invocation := range invocationSlice {
 		// truncate if function invocation ends after durationMinutes.

@@ -71,7 +71,7 @@ func (i *openWhiskInvoker) Invoke(function *common.Function, runtimeSpec *common
 	}
 
 	i.readOpenWhiskMetadata.Unlock()
-	err, activationMetadata := parseActivationMetadata(out.String())
+	activationMetadata, err := parseActivationMetadata(out.String())
 	if err != nil {
 		log.Debugf("error parsing activation metadata %s - %s", function.Name, err)
 		return false, record
@@ -87,14 +87,14 @@ func (i *openWhiskInvoker) Invoke(function *common.Function, runtimeSpec *common
 	return true, record
 }
 
-func parseActivationMetadata(response string) (error, ActivationMetadata) {
+func parseActivationMetadata(response string) (ActivationMetadata, error) {
 	var result ActivationMetadata
 	var jsonMap map[string]any
 
 	ind := strings.Index(response, "{")
 	err := json.Unmarshal([]byte(response[ind:]), &jsonMap)
 	if err != nil {
-		return err, result
+		return result, err
 	}
 
 	result.Duration = uint32(jsonMap["duration"].(float64))
@@ -104,15 +104,16 @@ func parseActivationMetadata(response string) (error, ActivationMetadata) {
 	for i := range annotations {
 		annotation := annotations[i].(map[string]any)
 
-		if annotation["key"] == "waitTime" {
+		switch annotation["key"] {
+		case "waitTime":
 			result.WaitTime = int64(annotation["value"].(float64))
-		} else if annotation["key"] == "initTime" {
+		case "initTime":
 			result.StartType = mc.Cold
 			result.InitTime = int64(annotation["value"].(float64))
 		}
 	}
 
-	return nil, result
+	return result, nil
 }
 
 func httpInvocation(dataString string, function *common.Function, AnnounceDoneExe *sync.WaitGroup, tlsSkipVerify bool) (bool, *mc.ExecutionRecordBase, *http.Response) {
