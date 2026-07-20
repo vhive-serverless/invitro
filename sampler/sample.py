@@ -42,7 +42,7 @@ FIRST_MINUTES_COLUMN_POSITION = 4
 # Based on the following estimation:
 # Resources distribution is multiplicative of duration (in ms, avg 1000ms),
 # invocation count per minute (avg <10/min), and memory (in MB, avg 200MB)
-RES_NORM_FACTOR = 1000 * 10 * 100
+RES_NORM_FACTOR_AZURE2019 = 1000 * 10 * 100
 
 
 class Trace:
@@ -66,12 +66,17 @@ class Trace:
     # to find the best sample
     executor: concurrent.futures.ThreadPoolExecutor
 
+    # For non-azure2021 datasets
+    res_norm_factor: int
+
     def __init__(self,
                  name: str, inv_df: pd.DataFrame, mem_df: pd.DataFrame, run_df: pd.DataFrame,
                  # optional args below (used only for derived samples)
                  joined_df=pd.DataFrame(),
                  resources_df=pd.DataFrame(),
                  is_build_extra_dfs=False,
+                 # for non-azure2019 trace
+                 res_norm_factor=RES_NORM_FACTOR_AZURE2019,
                  ) -> None:
         log.debug(f"Initializing {name} trace...")
         self.name = name
@@ -85,6 +90,9 @@ class Trace:
         self.resources_df = resources_df
 
         self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=multiprocessing.cpu_count())
+
+        # Custom norm factor for non-azure2021 datasets
+        self.res_norm_factor = res_norm_factor
 
         if is_build_extra_dfs:
             # Only for the original trace: build the joined data frame with the resource usage specs
@@ -117,7 +125,7 @@ class Trace:
                 .multiply(self.joined_df['Run_x_Mem'], axis="index")
 
         # Divide by a normalization factor (to bring the resources series close to the invocation series)
-        self.resources_df.iloc[:, FIRST_MINUTES_COLUMN_POSITION:] /= RES_NORM_FACTOR
+        self.resources_df.iloc[:, FIRST_MINUTES_COLUMN_POSITION:] /= self.res_norm_factor
 
         log.debug(f"Resources df:\n{self.resources_df}")
 
@@ -376,11 +384,16 @@ def get_rolldown_samples(trace: Trace, original_trace: Trace, min_size: int, max
 
 def generate_samples(inv_df: pd.DataFrame, mem_df: pd.DataFrame, run_df: pd.DataFrame,
                      inv_df_orig: pd.DataFrame, mem_df_orig: pd.DataFrame, run_df_orig: pd.DataFrame,
-                     min_size: int, step: int, max_size: int, trial_num: int,
+                     min_size: int, step: int, max_size: int, trial_num: int, res_norm: int,
                      out_path: str
                      ):
-    original_trace = Trace(name="origin", inv_df=inv_df_orig, mem_df=mem_df_orig, run_df=run_df_orig, is_build_extra_dfs=True)
-    source_trace = Trace(name="source", inv_df=inv_df, mem_df=mem_df, run_df=run_df, is_build_extra_dfs=True)
+    if isinstance(res_norm, int):
+        res_norm_factor = res_norm
+    elif res_norm is None:
+        res_norm_factor = RES_NORM_FACTOR_AZURE2019
+
+    original_trace = Trace(name="origin", inv_df=inv_df_orig, mem_df=mem_df_orig, run_df=run_df_orig, is_build_extra_dfs=True, res_norm_factor=res_norm_factor)
+    source_trace = Trace(name="source", inv_df=inv_df, mem_df=mem_df, run_df=run_df, is_build_extra_dfs=True, res_norm_factor=res_norm_factor)
 
     log.info(f"The original trace has {source_trace.size} functions, "
              f"the best sample is selected based on {trial_num} attempts for each sample size")

@@ -25,12 +25,14 @@ import argparse
 import logging as log
 import os
 import sys
+import trace
 import pandas as pd
 
 # from sampler.plot import plot_cdf
 from sampler.preprocess import parse_trace_files
 from sampler.sample import generate_samples
 from sampler.preprocess2021 import preprocess_file
+from sampler.preprocessHuawei import preprocess_huawei
 from sampler.filter import filter_azure2021
 
 log.basicConfig(format='%(levelname)s:%(message)s', level=log.INFO)
@@ -71,6 +73,11 @@ def run(args):
                         output_dir=args.output, zero_ms_threshold_percent=args.threshold)
         return
     
+    if args.cmd == 'preprocessHuawei2023':
+        preprocess_huawei(trace_dir=args.trace, start_time=args.start, duration=args.duration, 
+                        output_dir=args.output)
+        return
+    
     if args.cmd == 'filter2021':
         filter_azure2021(orig_trace_path=args.trace, sampled_trace_dir=args.sampled_trace, out_dir=args.output, 
                          start_time=args.start, duration=args.duration)
@@ -90,7 +97,7 @@ def run(args):
         generate_samples(inv_df=inv_df, mem_df=mem_df, run_df=run_df,
                          inv_df_orig=inv_df_orig, mem_df_orig=mem_df_orig, run_df_orig=run_df_orig,
                          min_size=args.min_size, step=args.step_size, max_size=args.max_size,
-                         trial_num=args.trial_num,
+                         trial_num=args.trial_num, res_norm=args.res_norm,
                          out_path=args.output)
 
     if args.cmd == 'plot':
@@ -173,6 +180,15 @@ def main():
         default=16,
         metavar='integer',
         help='Number of sampling trials for each sample size.'
+    )
+
+    sample_parser.add_argument(
+        '-res',
+        '--res-norm',
+        required=False,
+        type=int,
+        metavar='integer',
+        help='Normalisation factor between invocation and resources distribution. (divides resources by this value, to balance Wasserstein distance calculation)'
     )
 
     ####################################################
@@ -335,7 +351,44 @@ def main():
     )
 
     ####################################################
+    # Huawei2023 Private
 
+    huwawei2023private_parser = subparser.add_parser('preprocessHuawei2023')
+
+    huwawei2023private_parser.add_argument(
+        '-t',
+        '--trace',
+        required=True,
+        metavar='path',
+        help='Directory path containing the huawei2023private trace. ' \
+        'This directory should have each of the trace metric in a distinct named subfolder. (`function_delay_minute`, `requests_minute`)'
+    )
+
+    huwawei2023private_parser.add_argument(
+        '-s',
+        '--start',
+        required=True,
+        metavar='start',
+        help='Time in dd:hh:mm format, at which the excerpt of the trace should begin, first day is day 0'
+    )
+
+    huwawei2023private_parser.add_argument(
+        '-dur',
+        '--duration',
+        required=True,
+        metavar='duration',
+        help='Duration in minutes to extract from the trace'
+    )
+
+    huwawei2023private_parser.add_argument(
+        '-o',
+        '--output',
+        required=True,
+        metavar='out_path',
+        help='Directory path of the preprocessed traces'
+    )
+
+    ####################################################
 
     args = parser.parse_args()
 
