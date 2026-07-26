@@ -4,6 +4,12 @@ In-Vitro is a set of tools for analyzing the performance of serverless cluster d
 
 Standard sampled traces are available in [data/traces/reference](data/traces/reference/) folder in this repository. The traces are sampled from the Azure Functions production traces using the [sampler](sampler) tool. More details on the sampling process can be found [here](docs/sampler.md#reference-traces).
 
+## Supported traces
+- [Azure 2019](https://github.com/Azure/AzurePublicDataset/blob/master/AzureFunctionsDataset2019.md)
+- [vSwarm Benchmarks](https://github.com/vhive-serverless/vSwarm)
+- [Azure 2021](https://github.com/Azure/AzurePublicDataset/blob/master/AzureFunctionsInvocationTrace2021.md)
+- [Huawei 2023 Private](https://github.com/sir-lab/data-release/blob/main/README_data_release_2023.md)
+
 ## Reference our work
 
 ```

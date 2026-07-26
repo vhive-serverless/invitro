@@ -855,3 +855,8 @@ Kway
 Shen
 Yi
 CloudFormation
+Huawei
+HuaWei
+huawei
+preprocessHuawei
+cmd
