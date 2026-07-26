@@ -214,17 +214,17 @@ python -m sampler sample -t data/traces/reference/preprocessed_azure2021 -orig d
 python -m sampler filter2021 -t data/azure2021/original_trace_filename.txt -st data/traces/reference/sampled_azure2021/samples/40 -o data/traces/reference/filtered2021 -s 00:01:00 -dur 100
 ```
 
-## Using Hua-Wei-2023 Traces
+## Using Huawei-2023 Traces
 ### Overview
-Conceptually, Hua-Wei-2023-Private trace is transformed into Azure2019 format in `preprocessHuawei2023`. 
+Conceptually, Huawei-2023-Private trace is transformed into Azure2019 format in `preprocessHuawei2023`. 
 It can then be treated as Azure2019 format for Sampler and Loader.
 
-Sampling Hua-Wei-2023 trace follows 2 steps: 
+Sampling Huawei-2023 trace follows 2 steps: 
 1. Pre-process the original trace (`huawei2023private`) -> cleaned Azure2019 format.
 2. Run the sampler on cleaned trace (`sampler`), specify new res_norm_factor -> sub-sampled Azure2019 format.
 
 ### Workflow
-Firstly, download the original Hua-Wei-2023-Private dataset from the [Hua-Wei-2023 github repo](https://github.com/sir-lab/data-release/blob/main/README_data_release_2023.md). (default location: `data/huawei2023/`).
+Firstly, download the original Huawei-2023-Private dataset from the [Huawei-2023 github repo](https://github.com/sir-lab/data-release/blob/main/README_data_release_2023.md). (default location: `data/huawei2023/`).
 
 The folder structure follows the structure recommended in the above repo.
 A condensed version is shown below: 
@@ -254,7 +254,7 @@ A '-res' value of 1,000,000 was found empirically as mean of dataset of non-NAN 
 `python -m sampler sample -t data/huawei2023/output -orig data/huawei2023/output -o data/huawei2023/output/sampled -min 20 -st 10 -max 80 -tr 16 -res 1000000`
 ```
 
-### Preprocess Hua-Wei-2023 
+### Preprocess Huawei-2023 
 
 The preprocessing follows 3 steps:
 1. Filter for invocations within user supplied time interval.

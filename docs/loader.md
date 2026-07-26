@@ -7,6 +7,12 @@ A load generator for benchmarking serverless systems.
 The experiments require a server-grade node running Linux (tested on Ubuntu 20, Intel Xeon). On CloudLab, one
 can choose the APT cluster `d430` node.
 
+## Supported trace formats
+- Azure2019
+- vSwarm Functions
+- Azure2021
+- Huawei-2023 Private
+
 ## Create a cluster
 
 ### vHive cluster
@@ -128,12 +134,14 @@ $ tar -xzvf workloads/container/vSwarm_deploy_metadata.tar.gz -C workloads/conta
 This untar the tarball into the `workloads/container/yamls` directory, which contains deployment information and deployment YAML files for all vSwarm benchmarks. If you would like to change some of these deployment files of regenerate them, refer to `generate_deploy_info_docs.md` for an outline of what these deployment files are, and how you can regenerate them.
 
 ## Single execution
-
+### Azure2019
 To run load generator use the following command:
 
 ```bash
 $ go run cmd/loader.go --config cmd/config_knative_trace.json
 ```
+
+### vSwarm
 To run load generator with vSwarm functions based on `mapper_output.json` run the following:
 
 ```bash
@@ -141,6 +149,7 @@ $ go run cmd/loader.go --config cmd/config_vswarm_trace.json
 ```
 To direct the loader to execute vSwarm functions, set the `VSwarm` flag in the loader configuration `true`. For information on how to configure the workload for load generator, please refer to `docs/configuration.md`.
 
+### Azure2021
 To run load generator with Azure2021 functions run the following:
 
 ```bash
@@ -148,6 +157,22 @@ $ go run cmd/loader.go --config cmd/config_knative2021_trace.json
 ```
 To direct the loader to execute Azure2021 dataset functions, set `TracePath` in the loader configuration to the Azure2021 csv file path instead of a directory path. For more information, please refer to [Azure2021 Trace Usage](#azure2021-trace-usage).
 
+### Huawei-2023 Private
+To run `Huawei-2023` functions, the trace must be preprocessed and converted to an equivalent `Azure2019` trace format first. 
+Assuming the `Huawei-2023` dataset is in `data/huawei2023/private_dataset` and is formatted correctly, run the following:
+
+```bash
+# Extract excerpt (100 minutes starting from 1 hr) and convert
+$ python -m sampler preprocessHuawei2023 -t data/huawei2023/private_dataset -o data/huawei2023/output -s 00:01:00 -dur 100
+
+# Run as Azure2019, Ensure to modify 'TracePath' in the .json to 'data/huawei2023/output'
+$ go run cmd/loader.go --config cmd/config_knative_trace.json
+```
+
+For more information about this conversion, the expected directory format of `private_dataset`, as well as instructions on sub-sampling the trace.
+Please refer to the [Huawei-2023 sampler documentation](sampler.md#using-huawei-2023-traces) in `sampler.md`.
+
+### Additional settings
 Additionally, one can specify log verbosity argument as `--verbosity [info, debug, trace]`. The default value is `info`.
 
 To execute in a dry run mode without generating any load, set the `--dry-run` flag to `true`. This is useful for testing and validating configurations without executing actual requests.
