@@ -27,7 +27,7 @@ from pathlib import Path
 from typing import Tuple
 from glob import glob
 
-def convert_ibm2026_to_azure2019(trace_dir: str, start_time: str, duration: str):
+def convert_ibm2026_to_azure2019(trace_dir: str, start_time: str, duration: str, output_dir: str):
 
     # Verify folder is correctly formatted
     ## Ensure folder exists
@@ -53,10 +53,9 @@ def convert_ibm2026_to_azure2019(trace_dir: str, start_time: str, duration: str)
 
     ## Dataset has timestamp zero offset at 4:59:59
     dataset_zero = pd.Timedelta(hours=4, minutes=59, seconds=59)
-    td_interval_start_with_zero = td_interval_start + dataset_zero
-    start_sec_zeroed = td_interval_start_with_zero.total_seconds()
-    td_interval_end_with_zero = td_interval_end + dataset_zero
-    end_sec_zeroed = td_interval_end_with_zero.total_seconds()
+    zero_offset_seconds = dataset_zero.total_seconds()
+    start_sec_zeroed = (td_interval_start + dataset_zero).total_seconds()
+    end_sec_zeroed = (td_interval_end + dataset_zero).total_seconds()
 
     final_df = pd.DataFrame()
 
@@ -87,7 +86,8 @@ def convert_ibm2026_to_azure2019(trace_dir: str, start_time: str, duration: str)
             mask = (inv_arr > start_sec_zeroed) & (inv_arr < end_sec_zeroed)
             
             num_events.append(mask.sum())
-            filtered_inv.append(inv_arr[mask].tolist())
+            # Keep only correctly zeroed timestamp
+            filtered_inv.append((inv_arr[mask] - zero_offset_seconds).tolist())
             filtered_app.append(np.array(app)[mask].tolist())
         df['NumEvents'] = num_events
         df['InvocationTimes'] = filtered_inv
@@ -121,72 +121,35 @@ def convert_ibm2026_to_azure2019(trace_dir: str, start_time: str, duration: str)
         final_df['AppExecTimes'] = sorted_app
 
     # Transform to azure2021 format
-    # (conversion) Then Transform explode into per-invocation basis/Azure2021 format.
+    final_df = final_df.drop(columns=['NumEvents'])
+    final_df = final_df.explode(['InvocationTimes', 'AppExecTimes'])
+    final_df['end_timestamp'] = (pd.to_timedelta(final_df["InvocationTimes"], unit="s") + pd.to_timedelta(final_df["AppExecTimes"], unit="ms"))
+    final_df['AppExecTimes'] = pd.to_timedelta(final_df["AppExecTimes"], unit="ms").dt.total_seconds()
 
+    # Start trace sample from 0
+    final_df['end_timestamp'] = (final_df['end_timestamp'] - td_interval_start).dt.total_seconds()
+
+    # Rename + Sort
+    final_df = final_df.rename(columns={'NamespaceHash': 'app', 'AppHash': 'func', 'AppExecTimes': 'duration'})
+    column_order = ["app", "func", "end_timestamp", "duration"]
+    final_df = final_df.reindex(columns=column_order)
+    final_df = final_df.sort_values(by='end_timestamp')
 
     # Save to output
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    final_df.to_csv(output_dir / "IBM2026AsAzure2021.csv", index=False)
 
-
-
-
-
-
-# def preprocess_huawei(trace_dir: str, start_time: str, duration: str, output_dir: str) -> pd.DataFrame:
-    
-#     # Read CSVs
-#     metrics_to_read = {
-#         "function_delay_minute": {"path": Path("function_delay_minute"), "df": pd.DataFrame()},
-#         "memory_limit_minute": {"path": Path("memory_limit_minute"), "df": pd.DataFrame()},
-#         "requests_minute": {"path": Path("function_delay_minute"), "df": pd.DataFrame()},
-#     }
-#     metrics = read_all_trace_csv(trace_dir, start_time, duration, metrics_to_read)
-
-#     # Transform to sampler format (inv_df, mem_df, run_df)
-
-#     # Save to output
-#     # output_dir = Path(output_dir)
-#     # output_dir.mkdir(parents=True, exist_ok=True)
-#     # inv_df.to_csv(output_dir / "invocations.csv", index=False)
-
-#     return
-
-# def read_all_trace_csv(trace_dir: str, start_time: str, duration: str, metrics: dict[str, dict[str, pd.DataFrame]]) -> dict[str, dict[str, pd.DataFrame]]:
-
-#     # Time interval filter
-#     start_time = start_time.split(":")
-#     day = int(start_time[0])
-#     hours = int(start_time[1])
-#     minutes = int(start_time[2])
-#     duration = int(duration)
-
-#     # Determine time interval
-#     td_interval_start = pd.Timedelta(days=day, hours=hours, minutes=minutes)
-#     td_interval_end = pd.Timedelta(days=day, hours=hours, minutes=(minutes+duration))
-#     starting_day = td_interval_start.days
-#     ending_day = td_interval_end.days
-
-#     # Read all metrics within time interval
-#     for metric, value in metrics.items():
-#         directory = Path(trace_dir) / value["path"]
-#         final_df = pd.DataFrame()
-
-#         # Determine files to read
-#         for day in range(starting_day, ending_day + 1):
-#             file_path = directory / f"day_{day:03d}.csv" # Leading zeros, width of 3 (001, 002)
-#             df = pd.read_csv(file_path)
-
-#             # Filter by timestamp
-#             df = df[df["time"].between(td_interval_start.total_seconds(), td_interval_end.total_seconds(), inclusive='left')] # left <= series < right
-
-#             final_df = pd.concat([final_df, df], ignore_index=True)
-
-#         value["df"] = final_df
-
-#     return metrics
+    # Save app_configs
+    file_path = Path(trace_dir / f"app_configs.pickle")
+    app_config_df = pd.read_pickle(file_path)
+    app_config_df.to_csv(output_dir / "app_configs.csv", index=False)
 
 if __name__ == "__main__":
     
     trace_dir: str = r"data\traces\pickle_data"
     start_time: str = r"00:01:00"
     duration_minutes: str = r"60"
-    convert_ibm2026_to_azure2019(trace_dir, start_time, duration_minutes)
+    output_dir: str = r"data\traces\output"
+
+    convert_ibm2026_to_azure2019(trace_dir, start_time, duration_minutes, output_dir)
