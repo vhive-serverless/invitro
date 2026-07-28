@@ -6,7 +6,6 @@ Standard sampled traces are available in [data/traces/reference](data/traces/ref
 
 ## Supported traces
 - [Azure 2019](https://github.com/Azure/AzurePublicDataset/blob/master/AzureFunctionsDataset2019.md)
-- [vSwarm Benchmarks](https://github.com/vhive-serverless/vSwarm)
 - [Azure 2021](https://github.com/Azure/AzurePublicDataset/blob/master/AzureFunctionsInvocationTrace2021.md)
 - [Huawei 2023 Private](https://github.com/sir-lab/data-release/blob/main/README_data_release_2023.md)
 

@@ -9,7 +9,6 @@ can choose the APT cluster `d430` node.
 
 ## Supported trace formats
 - Azure2019
-- vSwarm Functions
 - Azure2021
 - Huawei-2023 Private
 
