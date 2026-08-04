@@ -176,16 +176,3 @@ def convert_to_azure2021(ibm2026_df: pd.DataFrame, td_interval_start: pd.Timedel
 
     return df
 
-
-if __name__ == "__main__":
-
-    log.basicConfig(format='%(levelname)s:%(message)s', level=log.INFO)
-    
-    trace_dir: str = r"data\traces\pickle_data"
-    start_time: str = r"00:01:00"
-    duration_minutes: str = r"60"
-    output_dir: str = r"data\traces\output"
-
-    preprocessIBM2026(trace_dir, start_time, duration_minutes, output_dir)
-
-    # `python -m sampler convertIBM2026 -t data/traces/pickle_data -o data/traces/output -s 00:01:00 -dur 60`
