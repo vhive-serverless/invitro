@@ -89,7 +89,7 @@ def read_df_from_pickle_files(
         week_index = week - 1
         time_interval = pd.Interval(td_interval_start, td_interval_end)
         file_time_interval = pd.Interval(left=pd.Timedelta(days=(week_index)*7), right=pd.Timedelta(days=(week_index+1)*7), closed='left')
-        if (time_interval not in file_time_interval):
+        if not (file_time_interval.overlaps(time_interval)):
             continue
 
         # Read DF
