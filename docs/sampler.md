@@ -255,8 +255,46 @@ A '-res' value of 1,000,000 was found empirically as mean of dataset of non-NAN 
 ```
 
 ### Preprocess Huawei-2023 
-
 The preprocessing follows 3 steps:
 1. Filter for invocations within user supplied time interval.
 2. Calculate percentile statistics for `run_df` and `mem_df` using non-zero data points within the time interval.
 3. Transform the trace to azure2019 format. 
+
+## Using IBM2026 Traces
+IBM2026 traces are supported by transforming it into Azure2021 format in `convertIBM2026`.
+It is then treated as an Azure2021 trace in InVitro for Sampler and Loader. 
+
+### Folder structure
+Download and extract (7zip) the original dataset from the [IBM2026 github repo](https://github.com/ubc-cirrus-lab/ibm-cloud-code-engine-traces). (default location: `invitro/data/traces/ibm2026/`).
+
+Ensure the extracted pickle files are contained within a directory.
+An example is shown below: 
+```bash
+invitro/data/traces/
+├── ibm2026
+    ├── app_configs.pickle
+    ├── week_1.pickle
+    ├── week_2.pickle
+    ├── ...
+    ├── week_9.pickle
+    └── week_10.pickle
+```
+
+### Workflow
+It should be noted that the `InvocationTimes` in IBM2026 appears to have a zero offset of 4 hours, 59 minutes, 59 seconds.
+For example, `week_1.pickle` contains timestamps from 0 days, 4:59:59 to 7 days 4:59:59.
+This offset is handled internally within `convertIBM2026`, timings for `-s` will start from 0 days, 4:59:59.
+
+The below conversion will:
+- Convert the trace to `azure2021` format.
+- Extract 60 minutes of invocations, from the timestamp interval from 5:59:59 to 6:59:59 (hour 1 to 2). 
+- The output timestamps in `end_timestamp` will be zero-ed, using the start of the timestamp interval as zero.
+
+Example conversion:
+```Bash
+$ python -m sampler convertIBM2026 -t data/traces/ibm2026 -o data/traces/ibm2026/output -s 00:01:00 -dur 60
+```
+
+The output trace can then either:
+- Be used directly in [Loader](loader.md#ibm2026)
+- Be sub-sampled further, following instructions in [Azure2021](#using-azure2021-traces)
