@@ -42,6 +42,8 @@ def preprocessIBM2026(trace_dir: str, start_time: str, duration: str, output_dir
         file = Path(trace_dir / file)
         assert file.exists(), f"Missing expected pickle file: {file.name}"
 
+    log.info('Found all expected pickle files.')
+
     # Determine time interval
     start_time = start_time.split(":")
     day = int(start_time[0])
@@ -56,6 +58,8 @@ def preprocessIBM2026(trace_dir: str, start_time: str, duration: str, output_dir
 
     ibm2026_df = read_df_from_pickle_files(trace_dir, td_interval_start, td_interval_end, dataset_zero)
 
+    log.info(f"Converting files to azure2021 format.")
+
     azure2021_df = convert_to_azure2021(ibm2026_df, td_interval_start)
 
     # Save azure2021_df
@@ -68,6 +72,7 @@ def preprocessIBM2026(trace_dir: str, start_time: str, duration: str, output_dir
     app_config_df = pd.read_pickle(file_path)
     app_config_df.to_csv(output_dir / "app_configs.csv", index=False)
 
+    log.info(f"Saved converted files to {output_dir}")
 
 # Reads df during time interval, normalises start time to 0, combines into per-function basis.
 # Concessions were made for speed reasons
@@ -84,7 +89,7 @@ def read_df_from_pickle_files(
     final_df = pd.DataFrame()
 
     for week in range(1, 11):
-    
+
         # Skip if time interval not within week.
         week_index = week - 1
         time_interval = pd.Interval(td_interval_start, td_interval_end)
@@ -93,6 +98,7 @@ def read_df_from_pickle_files(
             continue
 
         # Read DF
+        log.info(f"Reading week_{week}.pickle")
         file_path = Path(trace_dir / f"week_{week}.pickle")
         df = pd.read_pickle(file_path)
 
@@ -172,6 +178,8 @@ def convert_to_azure2021(ibm2026_df: pd.DataFrame, td_interval_start: pd.Timedel
 
 
 if __name__ == "__main__":
+
+    log.basicConfig(format='%(levelname)s:%(message)s', level=log.INFO)
     
     trace_dir: str = r"data\traces\pickle_data"
     start_time: str = r"00:01:00"
@@ -179,3 +187,5 @@ if __name__ == "__main__":
     output_dir: str = r"data\traces\output"
 
     preprocessIBM2026(trace_dir, start_time, duration_minutes, output_dir)
+
+    # `python -m sampler convertIBM2026 -t data/traces/pickle_data -o data/traces/output -s 00:01:00 -dur 60`
