@@ -63,9 +63,12 @@ const referenceMemoryValue int = common.Azure2021MemoryReferenceValue
 func (p *Azure2021TraceParser) Parse() []*common.Function {
 
 	invocationTracker := ParseCSVFile(p.FilePath)
-	var functions []*common.Function
+
+	/* Zero inovcations -> earliest invocation timestamp will fire immediately */
+	invocationTracker = ZeroInvocations(invocationTracker)
 
 	/* invocationTracker populated, begin creating function array. */
+	var functions []*common.Function
 	for funcID, invocationSlice := range invocationTracker {
 		funcSpec, empty := GenerateFunctionSpecification(invocationSlice, p.durationMinutes)
 		if empty {
@@ -162,6 +165,33 @@ func ParseCSVFile(filePath string) map[UniqueFunctionID]Invocations {
 	return invocationTracker
 }
 
+func ZeroInvocations(invocationTracker map[UniqueFunctionID]Invocations) map[UniqueFunctionID]Invocations {
+
+	if len(invocationTracker) == 0 {
+		return invocationTracker
+	}
+
+	minTime := math.MaxFloat64
+
+	// Pass 1: Find the absolute smallest startTime across all function IDs
+	for _, invocationArray := range invocationTracker {
+		for _, invocation := range invocationArray {
+			if invocation.startTime < minTime {
+				minTime = invocation.startTime
+			}
+		}
+	}
+
+	// Pass 2: Subtract the smallest timestamp from every invocation
+	for _, invocationArray := range invocationTracker {
+		for i := range invocationArray {
+			invocationArray[i].startTime -= minTime
+		}
+	}
+
+	return invocationTracker
+}
+
 func GenerateFunctionSpecification(invocationSlice Invocations, durationMinutes int) (*common.FunctionSpecification, bool) {
 
 	// sort from first to last invocation
@@ -177,7 +207,7 @@ func GenerateFunctionSpecification(invocationSlice Invocations, durationMinutes 
 	lastMinuteNumber := int(time.Duration(finalInvocation * float64(time.Second)).Minutes())
 	perMinuteCount := make([]int, lastMinuteNumber+1)
 
-	var previousInvocationTimestamp = 0.0
+	var previousInvocationTimestamp = -1.0
 
 	for _, invocation := range invocationSlice {
 		// truncate if function invocation ends after durationMinutes.

@@ -59,8 +59,8 @@ func TestAzure2021ParserWrapper(t *testing.T) {
 		str := function.Name
 		if strings.Contains(str, substr) {
 			tolerance := 0.00001
-			if math.Abs(function.Specification.IAT[0]-1000000) > tolerance {
-				t.Errorf("Expected IAT value of 1000000, Got %f", function.Specification.IAT[0])
+			if math.Abs(function.Specification.IAT[0]-0) > tolerance {
+				t.Errorf("Expected IAT value of 0, Got %f", function.Specification.IAT[0])
 			} else if function.Specification.RuntimeSpecification[0].Runtime != 9000 {
 				t.Errorf("Expected Runtime value of 9000, Got %d", function.Specification.RuntimeSpecification[0].Runtime)
 			}
@@ -131,6 +131,39 @@ func TestAzure2021ParseCSVFile(t *testing.T) {
 		if math.Abs(invocation.duration-expectedDuration) > tolerance {
 			t.Errorf("Incorrect duration. Expected 9.0 got %f", invocation.duration)
 		}
+	}
+}
+
+func TestZeroInvocations(t *testing.T) {
+
+	// Input
+	inputTracker := make(map[UniqueFunctionID]Invocations)
+	inputTracker[UniqueFunctionID{"A", "1"}] = Invocations{
+		Invocation{1.0, 1.0},
+	}
+	inputTracker[UniqueFunctionID{"B", "2"}] = Invocations{
+		Invocation{4.0, 2.0},
+	}
+	inputTracker[UniqueFunctionID{"C", "3"}] = Invocations{
+		Invocation{5.0, 1.0},
+	}
+
+	// Output
+	expectedTracker := make(map[UniqueFunctionID]Invocations)
+	expectedTracker[UniqueFunctionID{"A", "1"}] = Invocations{
+		Invocation{0.0, 1.0},
+	}
+	expectedTracker[UniqueFunctionID{"B", "2"}] = Invocations{
+		Invocation{3.0, 2.0},
+	}
+	expectedTracker[UniqueFunctionID{"C", "3"}] = Invocations{
+		Invocation{4.0, 1.0},
+	}
+
+	resultTracker := ZeroInvocations(inputTracker)
+
+	if !reflect.DeepEqual(resultTracker, expectedTracker) {
+		t.Errorf("got %v, want %v", resultTracker, expectedTracker)
 	}
 }
 
