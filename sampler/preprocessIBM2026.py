@@ -28,27 +28,27 @@ from typing import Tuple
 from glob import glob
 
 # Parse files, convert to Azure2021, Save.
-def preprocessIBM2026(trace_dir: str, start_time: str, duration: str, output_dir: str):
+def preprocess_IBM2026(trace: str, start: str, duration: str, output: str):
 
     # Verify folder is correctly formatted
     ## Ensure folder exists
-    trace_dir = Path(trace_dir)
-    assert trace_dir.exists(), "Trace directory does not exist"
+    trace = Path(trace)
+    assert trace.exists(), "Trace directory does not exist"
 
     ## Ensure all 11 pickle files present (app_config + week 1-10)
     expected_files = ["app_configs.pickle"] + [f"week_{i}.pickle" for i in range(1, 11)]
 
     for file in expected_files:
-        file = Path(trace_dir / file)
+        file = Path(trace / file)
         assert file.exists(), f"Missing expected pickle file: {file.name}"
 
     log.info('Found all expected pickle files.')
 
     # Determine time interval
-    start_time = start_time.split(":")
-    day = int(start_time[0])
-    hours = int(start_time[1])
-    minutes = int(start_time[2])
+    start = start.split(":")
+    day = int(start[0])
+    hours = int(start[1])
+    minutes = int(start[2])
     duration = int(duration)
 
     ## Dataset has timestamp zero offset at 4:59:59
@@ -56,23 +56,23 @@ def preprocessIBM2026(trace_dir: str, start_time: str, duration: str, output_dir
     td_interval_start = pd.Timedelta(days=day, hours=hours, minutes=minutes)
     td_interval_end = pd.Timedelta(days=day, hours=hours, minutes=(minutes+duration))
 
-    ibm2026_df = read_df_from_pickle_files(trace_dir, td_interval_start, td_interval_end, dataset_zero)
+    ibm2026_df = read_df_from_pickle_files(trace, td_interval_start, td_interval_end, dataset_zero)
 
     log.info(f"Converting files to azure2021 format.")
 
     azure2021_df = convert_to_azure2021(ibm2026_df, td_interval_start)
 
     # Save azure2021_df
-    output_dir = Path(output_dir)
-    output_dir.mkdir(parents=True, exist_ok=True)
-    azure2021_df.to_csv(output_dir / "IBM2026AsAzure2021.csv", index=False)
+    output = Path(output)
+    output.mkdir(parents=True, exist_ok=True)
+    azure2021_df.to_csv(output / "IBM2026AsAzure2021.csv", index=False)
 
     # Save app_configs
-    file_path = Path(trace_dir / f"app_configs.pickle")
+    file_path = Path(trace / f"app_configs.pickle")
     app_config_df = pd.read_pickle(file_path)
-    app_config_df.to_csv(output_dir / "app_configs.csv", index=False)
+    app_config_df.to_csv(output / "app_configs.csv", index=False)
 
-    log.info(f"Saved converted files to {output_dir}")
+    log.info(f"Saved converted files to {output}")
 
 # Reads df during time interval, normalises start time to 0, combines into per-function basis.
 # Concessions were made for speed reasons
