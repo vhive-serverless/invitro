@@ -169,31 +169,30 @@ $ python -m sampler preprocessHuawei2023 -t data/huawei2023/private_dataset -o d
 $ go run cmd/loader.go --config cmd/config_knative_trace.json
 ```
 
-For more information about this conversion, the expected directory format of `private_dataset`, as well as instructions on sub-sampling the trace.
-Please refer to the [Huawei-2023 sampler documentation](sampler.md#using-huawei-2023-traces) in `sampler.md`.
+For more information about this conversion, the expected directory format of `private_dataset`, as well as instructions on sub-sampling the trace. Please refer to the [Huawei-2023 sampler documentation](sampler.md#using-huawei-2023-traces) in `sampler.md`.
 
 ### IBM2026
-To run `IBM2026` functions, the trace must be preprocessed and converted to an equivalent `Azure2021` trace.
-Assuming dataset is in `data/traces/ibm2026` and is formatted correctly, run the following:
+To run `IBM2026` functions, the trace must be preprocessed and converted to an equivalent `Azure2021` trace. Assuming dataset is in `data/traces/ibm2026` and is formatted correctly, run the following:
 
 ```bash
 # Extract excerpt (60 minutes starting from 1 hr) and convert 
 $ python -m sampler convertIBM2026 -t data/traces/ibm2026 -o data/traces/ibm2026/output -s 00:01:00 -dur 60
+```
+The trace is now in the `Azure2021` format, and can be optionally sub-sampled further, following the instructions in [Azure2021](sampler.md##using-azure2021-traces). Finally, run the following to load the trace:
 
+```bash
 # Run as Azure2021, Ensure to modify 'TracePath' in the .json to the resultant 'data/traces/ibm2026/output/IBM2026AsAzure2021.csv'
 $ go run cmd/loader.go --config cmd/config_knative2021_trace.json
 ```
 
-For information about this conversion and the expected directory format of `data/traces/ibm2026`.
-Please refer to the [IBM2026 sampler documentation](sampler.md#using-ibm-2026-traces) in `sampler.md`.
+For information about this conversion and the expected directory format of `data/traces/ibm2026`. Please refer to the [IBM2026 sampler documentation](sampler.md#using-ibm-2026-traces) in `sampler.md`.
 
 ### Additional settings
 Additionally, one can specify log verbosity argument as `--verbosity [info, debug, trace]`. The default value is `info`.
 
 To execute in a dry run mode without generating any load, set the `--dry-run` flag to `true`. This is useful for testing and validating configurations without executing actual requests.
 
-There are a couple of constants that should not be exposed to the users. They can be examined and changed
-in `pkg/common/constants.go`.
+There are a couple of constants that should not be exposed to the users. They can be examined and changed in `pkg/common/constants.go`.
 
 Sample sizes appropriate for performance evaluation vary depending on the platform. 
 As a starting point for fine-tuning, we suggest at most 5 functions per core with SMT disabled. 
