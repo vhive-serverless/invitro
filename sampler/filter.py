@@ -47,6 +47,9 @@ def filter_azure2021(orig_trace_path: str, sampled_trace_dir: str, out_dir: str,
     functions_to_keep_keys = inv_df[['app', 'func']].drop_duplicates()
     trace_df = trace_df.merge(functions_to_keep_keys, on=['app', 'func'], how='inner')
 
+    # Zero to earliest start_timestamp
+    trace_df = zero_timestamps(trace_df)
+
     # Cleanup
     trace_df = trace_df.drop(columns=['start_timestamp'])
 
@@ -61,3 +64,22 @@ def filter_azure2021(orig_trace_path: str, sampled_trace_dir: str, out_dir: str,
         
     log.info(f"Saving sampled Azure2021 to {out_dir}/SampledAzure2021.csv")
     trace_df.to_csv(f"{out_dir}/SampledAzure2021.csv", index=False)
+
+# Subtracts 'end_timestamp' and 'start_timestamp' by the smallest 'start_timestamp' value.
+def zero_timestamps(df: pd.DataFrame) -> pd.DataFrame:
+
+    if len(df.index) == 0:
+        return df
+
+    # Obtain smallest time_delta (new zero)
+    smallest_td = df['start_timestamp'].min()
+
+    # Zero timestamps
+    df['end_timestamp'] = pd.to_timedelta(df['end_timestamp'], unit='s') - smallest_td
+    df['start_timestamp'] = pd.to_timedelta(df['start_timestamp'], unit='s') - smallest_td
+
+    # Return to original float type
+    df['end_timestamp'] = df['end_timestamp'].dt.total_seconds()
+
+    return df
+    

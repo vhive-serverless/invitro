@@ -91,7 +91,7 @@ def test_azure2021_filter(tmp_path):
         {
             "app":           ["aa", "ab", "ac", "ac"],
             "func":          ["fa", "fb", "fd", "fd"],
-            "end_timestamp": [1.00, 10.0, 100.0, 300.0],
+            "end_timestamp": [0.50,  9.5,  99.5, 299.5], # All zeroed to smallest start_timestamp of 0.5
             "duration":      [0.50,  5.0,  40.0, 100.0],
         # "start_timestamp": [0.50,  5.0,  60.0, 200.0]
         }
@@ -146,7 +146,7 @@ def test_same_app_different_functions(tmp_path):
         {
             "app":           ["aa",  "ac",  "ac"],
             "func":          ["fa",  "fa",  "fb"],
-            "end_timestamp": [1.00,  80.0, 100.0],
+            "end_timestamp": [0.50,  79.5,  99.5],
             "duration":      [0.50,  15.5,  40.0],
         # "start_timestamp": [0.50,  64.5,  60.0]
         }

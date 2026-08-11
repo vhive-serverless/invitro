@@ -175,7 +175,7 @@ in [`plotTimeline/analysis.ipynb`](/tools/plotTimeline/analysis.ipynb)
 The sampling process of Azure2021 trace follows 3 steps: 
 1. Pre-process the original trace (`preprocess2021`) -> obtain clean trace in azure2019 format.
 2. Run the sampler on cleaned trace (`sampler`) -> obtain down-sampled trace, which contains a list of functions to keep in azure2019 format.
-3. Filter the original trace for functions in list (`filter`) -> obtain down-sampled trace in azure2021 format (per-invocation format).
+3. Filter the original trace for functions in list (`filter`) -> obtain down-sampled and zero-ed trace in azure2021 format (per-invocation format).
 
 Functionality of modules emulates the normal azure2019 modules, the differences is discussed below.
 
@@ -194,9 +194,10 @@ While `inv_df` and `dur_df` can be calculated, `mem_df` is set to a static value
 
 ### Filter
 
-Filter first filters for invocations in original trace within the time interval. 
-It then tracks all `HashApp` and `HashFunction` in sampled trace. 
-Using that, it filters the original trace and keeps all invocations with matching `app` and `func` values.
+Filter first filters for invocations in the original trace within the time interval. 
+It then tracks all `HashApp` and `HashFunction` in the sampled trace. 
+Using that, it filters the original trace and keeps all functions that appear in the sampled trace (matching `app` and `func` values with `HashApp` and `HashFunction` values).
+The `start_timestamp` and `end_timestamp` are also zero-ed. This is achieved by subtracting the smallest `start_timestamp` value from both timestamp columns.
 
 ### Workflow
 
