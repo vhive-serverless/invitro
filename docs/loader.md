@@ -169,7 +169,7 @@ $ python -m sampler preprocessHuawei2023 -t data/huawei2023/private_dataset -o d
 $ go run cmd/loader.go --config cmd/config_knative_trace.json
 ```
 
-For more information about this conversion, the expected directory format of `private_dataset`, as well as instructions on sub-sampling the trace. Please refer to the [Huawei-2023 sampler documentation](sampler.md#using-huawei-2023-traces) in `sampler.md`.
+For more information about this conversion, the expected directory format of `private_dataset`, and instructions on sub-sampling the trace, please refer to the [Huawei-2023 sampler documentation](sampler.md#using-huawei-2023-traces) in `sampler.md`.
 
 ### IBM2026
 To run `IBM2026` functions, the trace must be preprocessed and converted to an equivalent `Azure2021` trace. Assuming dataset is in `data/traces/ibm2026` and is formatted correctly, run the following:
@@ -185,7 +185,7 @@ The trace is now in the `Azure2021` format, and can be optionally sub-sampled fu
 $ go run cmd/loader.go --config cmd/config_knative2021_trace.json
 ```
 
-For information about this conversion and the expected directory format of `data/traces/ibm2026`. Please refer to the [IBM2026 sampler documentation](sampler.md#using-ibm-2026-traces) in `sampler.md`.
+For information about this conversion and the expected directory format of `data/traces/ibm2026`, please refer to the [IBM2026 sampler documentation](sampler.md#using-ibm-2026-traces) in `sampler.md`.
 
 ### Additional settings
 Additionally, one can specify log verbosity argument as `--verbosity [info, debug, trace]`. The default value is `info`.

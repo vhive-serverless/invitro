@@ -34,7 +34,7 @@ from sampler.sample import generate_samples
 from sampler.preprocess2021 import preprocess_file
 from sampler.preprocessHuawei import preprocess_huawei
 from sampler.filter import filter_azure2021
-from sampler.preprocessIBM2026 import preprocess_IBM2026
+from sampler.preprocessIBM2026 import preprocessIBM2026
 
 log.basicConfig(format='%(levelname)s:%(message)s', level=log.INFO)
 
@@ -84,8 +84,8 @@ def run(args):
                          start_time=args.start, duration=args.duration)
         return
 
-    if args.cmd == 'convertIBM2026':
-        preprocess_IBM2026(trace=args.trace, start=args.start, duration=args.duration, output=args.output)
+    if args.cmd == 'preprocessIBM2026':
+        preprocessIBM2026(trace_dir=args.trace, start_time=args.start, duration=args.duration, output_dir=args.output)
         return
 
     inv_df = pd.read_csv(f"{args.source_trace}/invocations.csv")
@@ -396,7 +396,7 @@ def main():
     ####################################################
     # IBM2026 Conversion to Azure2021
 
-    ibm2026_parser = subparser.add_parser('convertIBM2026')
+    ibm2026_parser = subparser.add_parser('preprocessIBM2026')
 
     ibm2026_parser.add_argument(
         '-t',
