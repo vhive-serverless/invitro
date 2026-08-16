@@ -197,7 +197,7 @@ While `inv_df` and `dur_df` can be calculated, `mem_df` is set to a static value
 Filter first filters for invocations in the original trace within the time interval. 
 It then tracks all `HashApp` and `HashFunction` in the sampled trace. 
 Using that, it filters the original trace and keeps all functions that appear in the sampled trace (matching `app` and `func` values with `HashApp` and `HashFunction` values).
-The `start_timestamp` and `end_timestamp` are also zero-ed. This is achieved by subtracting the smallest `start_timestamp` value from both timestamp columns.
+The `start_timestamp` and `end_timestamp` are also zero-ed to `start_time` string argument. This is achieved by converting the `start_time` value into a time-delta, and subtracting it from both timestamp columns.
 
 ### Workflow
 

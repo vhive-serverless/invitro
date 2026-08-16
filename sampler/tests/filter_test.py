@@ -91,7 +91,7 @@ def test_azure2021_filter(tmp_path):
         {
             "app":           ["aa", "ab", "ac", "ac"],
             "func":          ["fa", "fb", "fd", "fd"],
-            "end_timestamp": [0.50,  9.5,  99.5, 299.5], # All zeroed to smallest start_timestamp of 0.5
+            "end_timestamp": [ 1.0, 10.0, 100.0, 300.0], # All zeroed to start_time's Timedelta of 0
             "duration":      [0.50,  5.0,  40.0, 100.0],
         # "start_timestamp": [0.50,  5.0,  60.0, 200.0]
         }
@@ -146,7 +146,7 @@ def test_same_app_different_functions(tmp_path):
         {
             "app":           ["aa",  "ac",  "ac"],
             "func":          ["fa",  "fa",  "fb"],
-            "end_timestamp": [0.50,  79.5,  99.5],
+            "end_timestamp": [1.00,  80.0, 100.0],
             "duration":      [0.50,  15.5,  40.0],
         # "start_timestamp": [0.50,  64.5,  60.0]
         }
@@ -154,3 +154,56 @@ def test_same_app_different_functions(tmp_path):
 
     pd.testing.assert_frame_equal(filtered_df, expected_filtered_df)
 
+# - Test that output DF zeros to start_time
+def test_zero_to_start_time(tmp_path):
+
+    # Original DF
+    og_df = pd.DataFrame(
+        {
+            "app":           ["ac",  "ac"],
+            "func":          ["fa",  "fb"],
+            "end_timestamp": [80.0, 100.0], # 4 Minutes, 60-300 seconds
+            "duration":      [15.5,  40.0],
+        # "start_timestamp": [64.5,  60.0]
+        }
+    )
+    orig_trace_path = create_original_df_file(tmp_path, og_df)
+
+    # Sampled DF
+    inv_df = pd.DataFrame(
+        {
+            "HashApp":      ["ac", "ac"],
+            "HashFunction": ["fa", "fb"],
+            "HashOwner":    ["oc", "oc"],
+            "Trigger":      ["tr", "tr"],
+            "1":            [   0,    0],
+            "2":            [   1,    1],
+            "3":            [   0,    0],
+            "4":            [   0,    0],
+            "5":            [   0,    0],
+        }
+    )
+    sampled_trace_dir = create_sampled_df_file(tmp_path, inv_df)
+
+    out_dir = tmp_path / "output"
+    start_time = "00:00:01"
+    duration = 4
+    
+    filter_azure2021(orig_trace_path, sampled_trace_dir, str(out_dir), start_time, duration)
+
+    # Read and compare output filtered_DF
+    filtered_df_path = out_dir / "SampledAzure2021.csv"
+    filtered_df = pd.read_csv(filtered_df_path)
+
+    expected_filtered_df = pd.DataFrame(
+        {
+            "app":           ["ac",  "ac"],
+            "func":          ["fa",  "fb"],
+            "end_timestamp": [20.0,  40.0], 
+        #   "end_timestamp": [80.0, 100.0], Before
+            "duration":      [15.5,  40.0],
+        # "start_timestamp": [ 4.5,  0.00]
+        }
+    )
+
+    pd.testing.assert_frame_equal(filtered_df, expected_filtered_df)
