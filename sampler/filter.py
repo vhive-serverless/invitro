@@ -47,7 +47,7 @@ def filter_azure2021(orig_trace_path: str, sampled_trace_dir: str, out_dir: str,
     functions_to_keep_keys = inv_df[['app', 'func']].drop_duplicates()
     trace_df = trace_df.merge(functions_to_keep_keys, on=['app', 'func'], how='inner')
 
-    # Cleanup
+    # Cleanups
     trace_df = trace_df.drop(columns=['start_timestamp'])
 
     log.info(f"The final sampled trace contains: {len(trace_df)} rows and {len(trace_df.groupby(['app', 'func']))} functions")

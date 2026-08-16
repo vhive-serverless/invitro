@@ -297,4 +297,4 @@ $ python -m sampler convertIBM2026 -t data/traces/ibm2026 -o data/traces/ibm2026
 
 The output trace can then either:
 - Be used directly in [Loader](loader.md#ibm2026)
-- Be sub-sampled further, following instructions in [Azure2021](#using-azure2021-traces)
+- Be sub-sampled further, following the instructions in [Azure2021](#using-azure2021-traces)
