@@ -91,7 +91,7 @@ def test_azure2021_filter(tmp_path):
         {
             "app":           ["aa", "ab", "ac", "ac"],
             "func":          ["fa", "fb", "fd", "fd"],
-            "end_timestamp": [ 1.0, 10.0, 100.0, 300.0], # All zeroed to start_time's Timedelta of 0
+            "end_timestamp": [ 1.0, 10.0, 100.0, 300.0],
             "duration":      [0.50,  5.0,  40.0, 100.0],
         # "start_timestamp": [0.50,  5.0,  60.0, 200.0]
         }
@@ -109,7 +109,7 @@ def test_same_app_different_functions(tmp_path):
         {
             "app":           ["aa", "ab", "ac",  "ac"],
             "func":          ["fa", "fb", "fa",  "fb"],
-            "end_timestamp": [1.00, 10.0, 80.0, 100.0], # 5 Minutes, 0-300 seconds
+            "end_timestamp": [1.00, 10.0, 80.0, 100.0],
             "duration":      [0.50,  5.0, 15.5,  40.0],
         # "start_timestamp": [0.50,  5.0, 64.5,  60.0]
         }
@@ -162,9 +162,9 @@ def test_zero_to_start_time(tmp_path):
         {
             "app":           ["ac",  "ac"],
             "func":          ["fa",  "fb"],
-            "end_timestamp": [80.0, 100.0], # 4 Minutes, 60-300 seconds
-            "duration":      [15.5,  40.0],
-        # "start_timestamp": [64.5,  60.0]
+            "end_timestamp": [80.0, 100.0],
+            "duration":      [15.5,  20.0],
+        # "start_timestamp": [64.5,  80.0]
         }
     )
     orig_trace_path = create_original_df_file(tmp_path, og_df)
@@ -199,10 +199,10 @@ def test_zero_to_start_time(tmp_path):
         {
             "app":           ["ac",  "ac"],
             "func":          ["fa",  "fb"],
-            "end_timestamp": [20.0,  40.0], 
-        #   "end_timestamp": [80.0, 100.0], Before
-            "duration":      [15.5,  40.0],
-        # "start_timestamp": [ 4.5,  0.00]
+            "end_timestamp": [20.0,  40.0],# After normalisation 
+        #   "end_timestamp": [80.0, 100.0],  Before normalisation
+            "duration":      [15.5,  20.0],
+        # "start_timestamp": [ 4.5,  20.0]
         }
     )
 
