@@ -68,12 +68,11 @@ def preprocess_file(trace_path: str, start_time: str, duration: str, output_dir:
     mem_df.to_csv(f"{output_dir}/memory.csv", index=False)
     dur_df.to_csv(f"{output_dir}/durations.csv", index=False)
 
-# Filter for invocation from [start_time, start_time+duration_mintues)
+# Filter for invocation's start timestamp from [start_time, start_time+duration_mintues)
 def filter_within_time_interval(df: pd.DataFrame, start_time: str, duration_minutes: str) -> Tuple[pd.DataFrame, pd.Timedelta, pd.Timedelta]:
     
     # Generate start time
-    df['start_timestamp'] = df['end_timestamp'] - df['duration']
-    df['start_timestamp'] = pd.to_timedelta(df['start_timestamp'], unit='s')
+    df['start_timestamp'] = pd.to_timedelta(df['end_timestamp'], unit='s') - pd.to_timedelta(df['duration'], unit='s')
 
     # Determine time interval
     start_time = start_time.split(":")
