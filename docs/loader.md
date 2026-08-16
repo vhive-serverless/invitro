@@ -176,7 +176,7 @@ To run `IBM2026` functions, the trace must be preprocessed and converted to an e
 
 ```bash
 # Extract excerpt (60 minutes starting from 1 hr) and convert 
-$ python -m sampler convertIBM2026 -t data/traces/ibm2026 -o data/traces/ibm2026/output -s 00:01:00 -dur 60
+$ python -m sampler preprocessIBM2026 -t data/traces/ibm2026 -o data/traces/ibm2026/output -s 00:01:00 -dur 60
 ```
 The trace is now in the `Azure2021` format, and can be optionally sub-sampled further, following the instructions in [Azure2021](sampler.md##using-azure2021-traces). Finally, run the following to load the trace:
 

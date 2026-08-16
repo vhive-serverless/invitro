@@ -262,7 +262,7 @@ The preprocessing follows 3 steps:
 3. Transform the trace to azure2019 format. 
 
 ## Using IBM2026 Traces
-IBM2026 traces are supported by transforming it into Azure2021 format in `convertIBM2026`.
+IBM2026 traces are supported by transforming it into Azure2021 format in `preprocessIBM2026`.
 It is then treated as an Azure2021 trace in InVitro for Sampler and Loader. 
 
 ### Folder structure
@@ -284,7 +284,7 @@ invitro/data/traces/
 ### Workflow
 It should be noted that the `InvocationTimes` in IBM2026 appears to have a zero offset of 4 hours, 59 minutes, 59 seconds.
 For example, `week_1.pickle` contains timestamps from 0 days, 4:59:59 to 7 days 4:59:59.
-This offset is handled internally within `convertIBM2026`, timings for `-s` will start from 0 days, 4:59:59.
+This offset is handled internally within `preprocessIBM2026`, timings for `-s` will start from 0 days, 4:59:59.
 
 The below conversion will:
 - Convert the trace to `azure2021` format.
@@ -293,7 +293,7 @@ The below conversion will:
 
 Example conversion:
 ```Bash
-$ python -m sampler convertIBM2026 -t data/traces/ibm2026 -o data/traces/ibm2026/output -s 00:01:00 -dur 60
+$ python -m sampler preprocessIBM2026 -t data/traces/ibm2026 -o data/traces/ibm2026/output -s 00:01:00 -dur 60
 ```
 
 The output trace can then either:
