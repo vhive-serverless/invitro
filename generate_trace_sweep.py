@@ -48,6 +48,14 @@ from typing import Dict, List
 
 import pandas as pd
 
+from trace_modes import (
+    MATCHED_WORKLOADS,
+    MODE_INVM_PY,
+    TRACE_MODES,
+    canonical_workload_name,
+    trace_workload_name,
+)
+
 # --- Default Configuration ---
 
 DEFAULT_INPUT = "data/traces/reference/preprocessed_150/invocations.csv"
@@ -82,7 +90,11 @@ class Config:
     """Configuration for the sweep trace generator."""
     input_path: Path
     output_dir: Path
-    workload_rps: Dict[str, float] = field(default_factory=lambda: DEFAULT_WORKLOAD_RPS)
+    workload_rps: Dict[str, float] = field(
+        default_factory=lambda: {
+            name: DEFAULT_WORKLOAD_RPS[name] for name in MATCHED_WORKLOADS
+        }
+    )
     divisor: float = 10.0
     start_scale: float = 1.0
     end_scale: float = 10.0
@@ -92,7 +104,7 @@ class Config:
     warmup_scale: float = 1.0
     min_divisor: float = 10.0
     max_multiplier: float = 2.0
-    name_suffix: str = ""
+    mode: str = MODE_INVM_PY
     dry_run: bool = False
 
 
@@ -239,7 +251,7 @@ class SweepTraceBuilder:
             base_fn = self._select_closest_function(target_rps)
             base_values: List[int] = [int(v) for v in base_fn[self.time_cols].tolist()]
             trace_length = len(base_values)
-            workload_name = f"{workload}{self.config.name_suffix}"
+            workload_name = trace_workload_name(workload, self.config.mode)
 
             for i in range(function_count):
                 row: dict = {"FunctionName": workload_name}
@@ -274,7 +286,7 @@ class SweepTraceBuilder:
         """Build duration dataframe with one entry per row in invocations (including duplicates)."""
         rows: List[dict] = []
         for func_name in invocations_df["FunctionName"]:
-            base_workload = func_name.split("-")[0]
+            base_workload = canonical_workload_name(func_name)
             duration_ms = DEFAULT_WORKLOAD_AVG_DURATION_MS.get(base_workload, 1000.0)
             rows.append({"FunctionName": func_name, "AvgDurationMs": duration_ms})
         return pd.DataFrame(rows)
@@ -313,9 +325,9 @@ Examples:
   %(prog)s --divisor 100 --start-scale 1 --end-scale 5 --step 2 \\
            --warmup-duration 2 --warmup-scale 1 --dry-run
 
-  # With naming suffixes
+  # Nexus-Go names use matched Go snapshots and the stream token
   %(prog)s --divisor 100 --start-scale 1 --end-scale 15 --step 1 \\
-           --warmup-duration 2 --warmup-scale 1 --s3 --rpc
+           --warmup-duration 2 --warmup-scale 1 --mode nexus-go
         """,
     )
 
@@ -337,8 +349,10 @@ Examples:
     parser.add_argument("--output", default=DEFAULT_OUTPUT_DIR,
                         help=f"Directory to write output CSVs. Default: {DEFAULT_OUTPUT_DIR}")
     parser.add_argument("--workload-rps", type=parse_workload_rps_arg,
-                        default=DEFAULT_WORKLOAD_RPS,
+                        default={name: DEFAULT_WORKLOAD_RPS[name] for name in MATCHED_WORKLOADS},
                         help="Workload->RPS mapping as a JSON file path or inline JSON.")
+    parser.add_argument("--mode", choices=TRACE_MODES, default=MODE_INVM_PY,
+                        help="Explicit attribution mode. Default: invm-py")
     parser.add_argument("--warmup-duration", type=int, default=0,
                         help="Warmup phase length in minutes (prepended columns). Default: 0")
     parser.add_argument("--warmup-scale", type=float, default=1.0,
@@ -347,10 +361,6 @@ Examples:
                         help="Lower-bound filter divisor for function selection. Default: 10.0")
     parser.add_argument("--max-multiplier", type=float, default=2.0,
                         help="Upper-bound filter multiplier for function selection. Default: 2.0")
-    parser.add_argument("--s3", action="store_true",
-                        help="Append '-s3' suffix to workload names.")
-    parser.add_argument("--rpc", action="store_true",
-                        help="Append '-rpc' suffix to workload names.")
     parser.add_argument("--dry-run", action="store_true",
                         help="Run all steps but do not write output files.")
 
@@ -396,14 +406,6 @@ def main(argv: List[str] | None = None) -> int:
         print("[ERROR] --step must be > 0", file=sys.stderr)
         return 1
 
-    # Build name suffix (order: -s3 before -rpc)
-    suffix_parts = []
-    if args.s3:
-        suffix_parts.append("s3")
-    if args.rpc:
-        suffix_parts.append("rpc")
-    name_suffix = f"-{'-'.join(suffix_parts)}" if suffix_parts else ""
-
     try:
         config = Config(
             input_path=Path(args.input),
@@ -418,7 +420,7 @@ def main(argv: List[str] | None = None) -> int:
             warmup_scale=args.warmup_scale,
             min_divisor=args.min_divisor,
             max_multiplier=args.max_multiplier,
-            name_suffix=name_suffix,
+            mode=args.mode,
             dry_run=args.dry_run,
         )
 
