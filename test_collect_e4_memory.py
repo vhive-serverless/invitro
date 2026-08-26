@@ -21,6 +21,15 @@ class E4MemoryTest(unittest.TestCase):
         self.assertEqual(sample["worker_used_kib"], 600)
         self.assertEqual(backend["backend_processes"], 1)
         self.assertEqual(backend["backend_total_pss_kib"], 80)
+        self.assertEqual(sample["timestamp_unix_us"], 0)
+        self.assertEqual(backend["timestamp_unix_us"], 0)
+
+    def test_backend_and_firecracker_rows_share_an_explicit_join_key(self):
+        payload = {"processes": [], "memtotal_kib": 1000, "memavailable_kib": 500}
+        sample, backend = summarize(payload, "worker", "nexus-py", 1, "now",
+                                    123.0, 3.5, 1, 7, 123_000_000)
+        for field in ("timestamp_utc", "timestamp_unix_us", "elapsed_seconds", "measurement_minute", "sample_index"):
+            self.assertEqual(sample[field], backend[field])
 
     def test_invalid_worker_memory_is_rejected(self):
         with self.assertRaises(ValueError):

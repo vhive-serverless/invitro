@@ -186,6 +186,7 @@ def analyze(plan: dict[str, dict[str, object]], observations: list[dict[str, str
             "workload": workload,
             "unloaded_average_ms": item["unloaded_average_ms"],
             "worker_cores": item["worker_cores"],
+            "ceiling_multiplier": item["ceiling_multiplier"],
             "rbound": item["rbound"],
             "first_failing_step": first_step,
             "first_failing_rps": first_rps,

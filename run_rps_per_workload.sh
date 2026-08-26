@@ -23,13 +23,14 @@ result_root=
 minio_endpoint=10.0.1.4:9001
 dry_run=false
 no_retry=false
+right_censored_rerun=false
 
 usage() {
     cat <<'EOF'
 Usage:
   run_rps_per_workload.sh calibrate --profile 4-node --e1-summary FILE --worker-cores N
       --slo-multiplier 5 --failure-threshold 0.05 --warmup-minutes 2 --steps 20
-      --minutes-per-step 1 --ceiling-multiplier 1 --no-retry --result-root PATH [--dry-run]
+      --minutes-per-step 1 --ceiling-multiplier 1 --no-retry --result-root PATH [--right-censored-rerun] [--dry-run]
   run_rps_per_workload.sh collect --profile 4-node --reference FILE --replicas 320
       --repetitions 3 --result-root PATH [--dry-run]
 EOF
@@ -53,6 +54,7 @@ while (($#)); do
         --result-root) result_root=${2:?}; shift 2 ;;
         --minio-endpoint) minio_endpoint=${2:?}; shift 2 ;;
         --no-retry) no_retry=true; shift ;;
+        --right-censored-rerun) right_censored_rerun=true; shift ;;
         --dry-run) dry_run=true; shift ;;
         -h|--help) usage; exit 0 ;;
         *) echo "unknown option: $1" >&2; usage >&2; exit 2 ;;
@@ -136,14 +138,229 @@ write_config() {
 
 digest() { sha256sum "$1" | awk '{print $1}'; }
 
+line_is() { grep -Fqx "$2" "$1"; }
+
+mode_vm_config() {
+    case "$1" in
+        invm-js|nexus-js) printf '%s\n' configs/vm_orchestrator_config_js.json ;;
+        *) printf '%s\n' configs/vm_orchestrator_config.json ;;
+    esac
+}
+
+config_value() {
+    python3 - "$1" "$2" <<'PY'
+import json, sys
+with open(sys.argv[1], encoding="utf-8") as handle:
+    value = json.load(handle)[sys.argv[2]]
+if not isinstance(value, str) or not value:
+    raise SystemExit(f"missing {sys.argv[2]} in {sys.argv[1]}")
+print(value)
+PY
+}
+
+khala_artifact_hash() { digest "../khala/$1"; }
+
+tracked_workload_sha() {
+    (cd ../khala && git ls-files workload | LC_ALL=C sort | while IFS= read -r path; do sha256sum "$path"; done | sha256sum | awk '{print $1}')
+}
+
+discover_cluster_topology() {
+    local inventory_path=$1 worker_config_path=$2 master_count loader_count worker_count tenant_count node_count workers_csv tenants_csv loaders_csv
+    kubectl get nodes -o json | jq -S '[.items[] | {
+        name: .metadata.name,
+        internal_ip: ([.status.addresses[]? | select(.type == "InternalIP") | .address] | first),
+        loader_nodetype: (.metadata.labels["loader-nodetype"] // ""),
+        minio_type: (.metadata.labels["minio-type"] // ""),
+        kubelet_version: .status.nodeInfo.kubeletVersion,
+        kernel_version: .status.nodeInfo.kernelVersion,
+        os_image: .status.nodeInfo.osImage,
+        container_runtime_version: .status.nodeInfo.containerRuntimeVersion
+    }] | sort_by(.name)' > "$inventory_path"
+    master_count=$(kubectl get nodes -l loader-nodetype=master --no-headers 2>/dev/null | wc -l)
+    loader_count=$(kubectl get nodes -l loader-nodetype=monitoring --no-headers 2>/dev/null | wc -l)
+    worker_count=$(kubectl get nodes -l loader-nodetype=worker --no-headers 2>/dev/null | wc -l)
+    tenant_count=$(kubectl get nodes -l minio-type=tenant --no-headers 2>/dev/null | wc -l)
+    node_count=$(kubectl get nodes --no-headers | wc -l)
+    [[ "$master_count" == 1 && "$loader_count" == 1 && "$worker_count" == 1 && "$tenant_count" == 1 && "$node_count" == 4 ]] || {
+        echo "live labels do not match frozen E2 4-node profile: master=$master_count loader=$loader_count worker=$worker_count tenant=$tenant_count total=$node_count" >&2; return 2; }
+    mapfile -t workers < <(kubectl get nodes -l loader-nodetype=worker -o jsonpath='{range .items[*]}{.status.addresses[?(@.type=="InternalIP")].address}{"\n"}{end}' | LC_ALL=C sort)
+    mapfile -t tenants < <(kubectl get nodes -l minio-type=tenant -o jsonpath='{range .items[*]}{.status.addresses[?(@.type=="InternalIP")].address}{"\n"}{end}' | LC_ALL=C sort)
+    mapfile -t loaders < <(kubectl get nodes -l loader-nodetype=monitoring -o jsonpath='{range .items[*]}{.status.addresses[?(@.type=="InternalIP")].address}{"\n"}{end}' | LC_ALL=C sort)
+    workers_csv=$(IFS=,; echo "${workers[*]}"); tenants_csv=$(IFS=,; echo "${tenants[*]}"); loaders_csv=$(IFS=,; echo "${loaders[*]}")
+    jq -n --arg workers "$workers_csv" --arg storage "$tenants_csv" --arg loaders "$loaders_csv" \
+        '{worker_nodes:($workers|split(",")),storage_nodes:($storage|split(",")),loader_nodes:($loaders|split(","))}' > "$worker_config_path"
+}
+
+snapshot_remote_provenance() {
+    local output=$1 worker_config=$2 require_rdma=$3 expected_head expected_invitro_head expected_workload host vm_config rootfs kernel vmm
+    expected_head=$(git -C ../khala rev-parse HEAD)
+    expected_invitro_head=$(git rev-parse HEAD)
+    expected_workload=$(tracked_workload_sha)
+    : > "$output"
+    mapfile -t provenance_workers < <(jq -r '.worker_nodes[]' "$worker_config" | LC_ALL=C sort)
+    mapfile -t provenance_loaders < <(jq -r '.loader_nodes[]' "$worker_config" | LC_ALL=C sort)
+    ((${#provenance_workers[@]} == 1 && ${#provenance_loaders[@]} == 1)) || {
+        echo "E2 expected exactly one label-discovered worker and loader node" >&2; return 2; }
+    if [[ "$require_rdma" == true ]]; then
+        mapfile -t provenance_storage < <(jq -r '.storage_nodes[]' "$worker_config" | LC_ALL=C sort)
+        ((${#provenance_storage[@]} == 1)) || { echo "E2 collection expected one label-discovered RDMA storage node" >&2; return 2; }
+    fi
+    for host in "${provenance_workers[@]}"; do
+        for vm_config in configs/vm_orchestrator_config.json configs/vm_orchestrator_config_js.json; do
+            rootfs=$(config_value "../khala/$vm_config" RootfsPath)
+            kernel=$(config_value "../khala/$vm_config" KernelPath)
+            vmm=$(config_value "../khala/$vm_config" FirecrackerPath)
+            ssh -o BatchMode=yes -o ConnectTimeout=5 "$host" bash -s -- "$host" "$vm_config" "$rootfs" "$kernel" "$vmm" \
+                "$expected_head" "$(khala_artifact_hash "$vm_config")" "$(khala_artifact_hash "$rootfs")" \
+                "$(khala_artifact_hash "$kernel")" "$(khala_artifact_hash "$vmm")" "$(khala_artifact_hash bin/kn-integration)" "$(khala_artifact_hash bin/nexus-backend)" "$(khala_artifact_hash bin/hardware-manager)" "$expected_workload" <<'SH' >> "$output"
+set -euo pipefail
+host=$1 vm_config=$2 rootfs=$3 kernel=$4 vmm=$5 expected_head=$6 expected_config=$7 expected_rootfs=$8 expected_kernel=$9 expected_vmm=${10} expected_binary=${11} expected_nexus_backend=${12} expected_hardware_manager=${13} expected_workload=${14}
+cd ~/khala
+head=$(git rev-parse HEAD); status=$(git status --porcelain --untracked-files=no)
+[[ "$head" == "$expected_head" && -z "$status" ]]
+workload=$(git ls-files workload | LC_ALL=C sort | while IFS= read -r path; do sha256sum "$path"; done | sha256sum | awk '{print $1}')
+[[ "$workload" == "$expected_workload" ]]
+for item in "$vm_config:$expected_config" "$rootfs:$expected_rootfs" "$kernel:$expected_kernel" "$vmm:$expected_vmm" "bin/kn-integration:$expected_binary" "bin/nexus-backend:$expected_nexus_backend" "bin/hardware-manager:$expected_hardware_manager"; do
+    path=${item%%:*}; expected=${item#*:}; actual=$(sha256sum "$path" | awk '{print $1}'); [[ "$actual" == "$expected" ]]; printf 'role=worker host=%s tree=khala path=%s sha256=%s\n' "$host" "$path" "$actual"
+done
+printf 'role=worker host=%s tree=khala head=%s workload_sha256=%s status=clean\n' "$host" "$head" "$workload"
+SH
+        done
+    done
+    for host in "${provenance_loaders[@]}"; do
+        ssh -o BatchMode=yes -o ConnectTimeout=5 "$host" bash -s -- "$host" "$expected_invitro_head" <<'SH' >> "$output"
+set -euo pipefail
+host=$1 expected_head=$2; cd ~/loader; head=$(git rev-parse HEAD)
+test "$head" = "$expected_head"; test -z "$(git status --porcelain --untracked-files=no)"
+printf 'role=loader host=%s tree=loader head=%s expected_head=%s status=clean\n' "$host" "$head" "$expected_head"
+SH
+    done
+    if [[ "$require_rdma" == true ]]; then
+        for host in "${provenance_storage[@]}"; do
+            ssh -o BatchMode=yes -o ConnectTimeout=5 "$host" bash -s -- "$host" "$(git -C ../rdma-demo rev-parse HEAD)" "$(digest ../rdma-demo/s3-rdma-server)" <<'SH' >> "$output"
+set -euo pipefail
+host=$1 expected_head=$2 expected_binary=$3; cd ~/rdma-demo
+head=$(git rev-parse HEAD); status=$(git status --porcelain --untracked-files=no); binary=$(sha256sum s3-rdma-server | awk '{print $1}')
+[[ "$head" == "$expected_head" && -z "$status" && "$binary" == "$expected_binary" ]]
+printf 'role=storage host=%s tree=rdma-demo head=%s path=s3-rdma-server sha256=%s status=clean\n' "$host" "$head" "$binary"
+SH
+        done
+    fi
+    LC_ALL=C sort -o "$output" "$output"
+    [[ -s "$output" ]]
+}
+
+write_archived_output_checksums() {
+    local directory=$1 checksum_file=archived-output-checksums.csv
+    (
+        cd "$directory"
+        printf 'path,sha256\n' > "$checksum_file"
+        while IFS= read -r -d '' path; do
+            printf '%s,%s\n' "$path" "$(sha256sum "$path" | awk '{print $1}')"
+        done < <(find . -type f ! -name manifest.txt ! -name "$checksum_file" -printf '%P\0' | LC_ALL=C sort -z)
+    )
+}
+
+archived_output_matches() {
+    local directory=$1 row path expected actual count=0
+    [[ -s "$directory/archived-output-checksums.csv" ]] || return 1
+    IFS= read -r row < "$directory/archived-output-checksums.csv"
+    [[ "$row" == 'path,sha256' ]] || return 1
+    while IFS=, read -r path expected; do
+        [[ "$expected" =~ ^[0-9a-f]{64}$ && -n "$path" && -f "$directory/$path" ]] || return 1
+        actual=$(digest "$directory/$path")
+        [[ "$actual" == "$expected" ]] || return 1
+        ((count+=1))
+    done < <(tail -n +2 "$directory/archived-output-checksums.csv")
+    ((count > 0))
+}
+
+manifest_matches() {
+    local manifest=$1 phase=$2 repetition=$3 mode=$4 workload=$5 rps=$6 perf=$7 duration=$8 destination=$9
+    local vm_config rootfs kernel vmm
+    [[ -f "$manifest" ]] || return 1
+    vm_config=$(mode_vm_config "$mode")
+    rootfs=$(config_value "../khala/$vm_config" RootfsPath)
+    kernel=$(config_value "../khala/$vm_config" KernelPath)
+    vmm=$(config_value "../khala/$vm_config" FirecrackerPath)
+    line_is "$manifest" 'manifest_version=2' &&
+        line_is "$manifest" "phase=$phase" && line_is "$manifest" "repetition=$repetition" &&
+        line_is "$manifest" "mode=$mode" && line_is "$manifest" "workload=$workload" &&
+        line_is "$manifest" "rps=$rps" && line_is "$manifest" "replicas=$replicas" &&
+        line_is "$manifest" "perf_enabled=$perf" && line_is "$manifest" "profile=$profile" &&
+        line_is "$manifest" "minio_endpoint=$minio_endpoint" &&
+        line_is "$manifest" "warmup_minutes=$warmup_minutes" && line_is "$manifest" "measurement_minutes=$duration" &&
+        line_is "$manifest" 'scan_snapshot=false' &&
+        line_is "$manifest" "ceiling_multiplier=$ceiling_multiplier" &&
+        line_is "$manifest" "invitro_head=$(git rev-parse HEAD)" &&
+        line_is "$manifest" "khala_head=$(git -C ../khala rev-parse HEAD)" &&
+        line_is "$manifest" "firecracker_head=$(git -C ../firecracker rev-parse HEAD)" &&
+        line_is "$manifest" "rdma_demo_head=$(git -C ../rdma-demo rev-parse HEAD)" &&
+        line_is "$manifest" "e1_summary_sha256=$(digest "$e1_summary")" &&
+        line_is "$manifest" "calibrator_sha256=$(digest e2_calibrate_rps.py)" &&
+        line_is "$manifest" "runner_sha256=$(digest run_rps_per_workload.sh)" &&
+        line_is "$manifest" "config_template_sha256=$(digest cmd/config_khala_trace_template.json)" &&
+        line_is "$manifest" "vm_config_path=$vm_config" &&
+        line_is "$manifest" "vm_config_sha256=$(khala_artifact_hash "$vm_config")" &&
+        line_is "$manifest" "rootfs_path=$rootfs" && line_is "$manifest" "rootfs_sha256=$(khala_artifact_hash "$rootfs")" &&
+        line_is "$manifest" "kernel_path=$kernel" && line_is "$manifest" "kernel_sha256=$(khala_artifact_hash "$kernel")" &&
+        line_is "$manifest" "vmm_path=$vmm" && line_is "$manifest" "vmm_sha256=$(khala_artifact_hash "$vmm")" &&
+        line_is "$manifest" "workload_sha256=$(tracked_workload_sha)" &&
+        line_is "$manifest" "remote_provenance_sha256=$(digest "$result_root/remote-provenance.txt")" &&
+        line_is "$manifest" "cluster_inventory_sha256=$(digest "$result_root/cluster-inventory.txt")" &&
+        line_is "$manifest" "worker_config_sha256=$(digest "$result_root/worker-node.json")" &&
+        line_is "$manifest" 'exit_status=0' || return 1
+    if [[ "$phase" == collection ]]; then
+        line_is "$manifest" "reference_sha256=$(digest "$reference")" || return 1
+        cmp --silent "$reference" "$result_root/b0-rps-reference.csv" || return 1
+    fi
+    cmp --silent "$destination/remote-provenance.txt" "$result_root/remote-provenance.txt" || return 1
+    cmp --silent "$destination/cluster-inventory.txt" "$result_root/cluster-inventory.txt" || return 1
+    cmp --silent "$destination/worker-node.json" "$result_root/worker-node.json" || return 1
+    cmp --silent "$destination/e1-b0-unloaded-average.csv" "$e1_summary" || return 1
+    if [[ "$phase" == collection ]]; then
+        cmp --silent "$destination/b0-rps-reference.csv" "$reference" || return 1
+    fi
+    archived_output_matches "$destination"
+}
+
+prepare_cluster_root() {
+    local require_reference=$1 check_dir
+    if [[ -e "$result_root" ]]; then
+        [[ -f "$result_root/cluster-inventory.txt" && -f "$result_root/worker-node.json" && -f "$result_root/remote-provenance.txt" && -f "$result_root/e1-b0-unloaded-average.csv" ]] || {
+            echo "existing E2 result root lacks archived cluster provenance" >&2; return 2; }
+        cmp --silent "$e1_summary" "$result_root/e1-b0-unloaded-average.csv" || {
+            echo "archived E1 reference differs from this run" >&2; return 2; }
+        if [[ "$require_reference" == true ]]; then
+            [[ -f "$result_root/b0-rps-reference.csv" ]] && cmp --silent "$reference" "$result_root/b0-rps-reference.csv" || {
+                echo "archived B0 reference differs from collection input" >&2; return 2; }
+        fi
+        check_dir=$(mktemp -d)
+        discover_cluster_topology "$check_dir/cluster-inventory.txt" "$check_dir/worker-node.json"
+        cmp --silent "$check_dir/cluster-inventory.txt" "$result_root/cluster-inventory.txt" &&
+            cmp --silent "$check_dir/worker-node.json" "$result_root/worker-node.json" || {
+                rm -r -- "$check_dir"; echo "live E2 topology differs from archived result root" >&2; return 2; }
+        snapshot_remote_provenance "$check_dir/remote-provenance.txt" "$check_dir/worker-node.json" "$require_reference"
+        cmp --silent "$check_dir/remote-provenance.txt" "$result_root/remote-provenance.txt" || {
+            rm -r -- "$check_dir"; echo "remote provenance differs from archived result root" >&2; return 2; }
+        rm -r -- "$check_dir"
+    else
+        mkdir -p "$result_root"
+        cp -- "$e1_summary" "$result_root/e1-b0-unloaded-average.csv"
+        if [[ "$require_reference" == true ]]; then cp -- "$reference" "$result_root/b0-rps-reference.csv"; fi
+        discover_cluster_topology "$result_root/cluster-inventory.txt" "$result_root/worker-node.json"
+        snapshot_remote_provenance "$result_root/remote-provenance.txt" "$result_root/worker-node.json" "$require_reference"
+    fi
+}
+
 run_cell() {
-    local phase=$1 repetition=$2 mode=$3 workload=$4 rps=$5 perf=$6 duration=$7 destination=$8
+    local phase=$1 repetition=$2 mode=$3 workload=$4 rps=$5 perf=$6 duration=$7 destination=$8 worker_config=$9
     local run_id="e2-${phase}-r${repetition}-${mode}-${workload}"
     local scratch_trace="data/traces/nexus-e2/$run_id"
     local scratch_out="data/out/nexus-e2/$run_id"
     local config_path="$scratch_out/config.json"
     local manifest="$destination/manifest.txt"
-    if [[ -f "$manifest" ]] && grep -Fqx 'exit_status=0' "$manifest"; then
+    if [[ -e "$destination" ]] && manifest_matches "$manifest" "$phase" "$repetition" "$mode" "$workload" "$rps" "$perf" "$duration" "$destination"; then
         echo "RESUME skip $run_id"
         return
     fi
@@ -160,8 +377,17 @@ run_cell() {
     fi
     write_config "$run_id" "$duration" "$perf" "$replicas" "$scratch_trace" "$scratch_out/experiment" "$config_path"
     cp -a -- "$scratch_trace" "$scratch_out/trace"
+    cp -- "$result_root/remote-provenance.txt" "$scratch_out/remote-provenance.txt"
+    cp -- "$result_root/cluster-inventory.txt" "$scratch_out/cluster-inventory.txt"
+    cp -- "$worker_config" "$scratch_out/worker-node.json"
+    cp -- "$e1_summary" "$scratch_out/e1-b0-unloaded-average.csv"
+    if [[ "$phase" == collection ]]; then cp -- "$reference" "$scratch_out/b0-rps-reference.csv"; fi
     {
-        echo manifest_version=1
+        vm_config=$(mode_vm_config "$mode")
+        rootfs=$(config_value "../khala/$vm_config" RootfsPath)
+        kernel=$(config_value "../khala/$vm_config" KernelPath)
+        vmm=$(config_value "../khala/$vm_config" FirecrackerPath)
+        echo manifest_version=2
         echo "phase=$phase"
         echo "repetition=$repetition"
         echo "mode=$mode"
@@ -186,6 +412,7 @@ run_cell() {
         echo "minio_endpoint=$minio_endpoint"
         echo "warmup_minutes=$warmup_minutes"
         echo "measurement_minutes=$duration"
+        echo "scan_snapshot=false"
         echo "slo_multiplier=$slo_multiplier"
         echo "failure_threshold=$failure_threshold"
         echo "ceiling_multiplier=$ceiling_multiplier"
@@ -193,15 +420,28 @@ run_cell() {
         echo "e1_summary_sha256=$(digest "$e1_summary")"
         echo "calibrator_sha256=$(digest e2_calibrate_rps.py)"
         echo "runner_sha256=$(digest run_rps_per_workload.sh)"
+        echo "config_template_sha256=$(digest cmd/config_khala_trace_template.json)"
         echo "trace_modes_sha256=$(digest trace_modes.py)"
         echo "trace_invocations_sha256=$(digest "$scratch_trace/invocations.csv")"
         echo "trace_durations_sha256=$(digest "$scratch_trace/durations.csv")"
         echo "config_sha256=$(digest "$config_path")"
+        echo "vm_config_path=$vm_config"
+        echo "vm_config_sha256=$(khala_artifact_hash "$vm_config")"
+        echo "rootfs_path=$rootfs"
+        echo "rootfs_sha256=$(khala_artifact_hash "$rootfs")"
+        echo "kernel_path=$kernel"
+        echo "kernel_sha256=$(khala_artifact_hash "$kernel")"
+        echo "vmm_path=$vmm"
+        echo "vmm_sha256=$(khala_artifact_hash "$vmm")"
+        echo "workload_sha256=$(tracked_workload_sha)"
+        echo "remote_provenance_sha256=$(digest "$result_root/remote-provenance.txt")"
+        echo "cluster_inventory_sha256=$(digest "$result_root/cluster-inventory.txt")"
+        echo "worker_config_sha256=$(digest "$worker_config")"
         if [[ -f "$reference" ]]; then echo "reference_sha256=$(digest "$reference")"; fi
     } > "$scratch_out/manifest.txt"
     local status=0
     set +e
-    go run experiment/khala_command.go --command deploy --mode "$mode" --workloads "$workload" \
+    go run experiment/khala_command.go --command deploy --mode "$mode" --vm-config "$vm_config" --worker-config "$worker_config" --workloads "$workload" \
         --shmem-ring-bytes 4190208 --shmem-io-quantum 262144 --minio-endpoint "$minio_endpoint" \
         > >(tee "$scratch_out/deploy.log") 2>&1
     status=$?
@@ -209,7 +449,7 @@ run_cell() {
         go run cmd/loader.go --config "$config_path" > >(tee "$scratch_out/loader.log") 2>&1
         status=$?
     fi
-    go run experiment/khala_command.go --command clean --mode "$mode" --minio-endpoint "$minio_endpoint" \
+    go run experiment/khala_command.go --command clean --mode "$mode" --worker-config "$worker_config" --minio-endpoint "$minio_endpoint" \
         --remove-snapshots=false > "$scratch_out/clean.log" 2>&1
     clean_status=$?
     if ((status == 0 && clean_status != 0)); then status=$clean_status; fi
@@ -220,6 +460,7 @@ run_cell() {
     } >> "$scratch_out/manifest.txt"
     mkdir -p "$(dirname "$destination")"
     cp -a -- "$scratch_out" "$destination"
+    write_archived_output_checksums "$destination"
     rm -rf -- "$scratch_out" "$scratch_trace"
     if ((status != 0)); then
         echo "cell failed; evidence retained at $destination" >&2
@@ -231,6 +472,14 @@ if [[ "$command" == calibrate ]]; then
     [[ -f "$e1_summary" && -n "$worker_cores" ]] || { echo "calibrate requires --e1-summary and --worker-cores" >&2; exit 2; }
     [[ "$slo_multiplier" == 5 && "$failure_threshold" == 0.05 && "$steps" == 20 && "$minutes_per_step" == 1 && "$no_retry" == true ]] || {
         echo "calibration contract is frozen at 5x, >5%, 20 one-minute steps, and no retry" >&2; exit 2; }
+    if [[ "$ceiling_multiplier" != 1 && "$right_censored_rerun" != true ]]; then
+        echo "initial calibration requires --ceiling-multiplier 1; pass --right-censored-rerun only for a fresh rerun of archived RIGHT_CENSORED evidence" >&2
+        exit 2
+    fi
+    if [[ "$right_censored_rerun" == true && -e "$result_root" ]]; then
+        echo "a right-censored rerun requires a fresh --result-root" >&2
+        exit 2
+    fi
     plan_path="$result_root/calibration-plan.csv"
     if [[ "$dry_run" == true ]]; then
         python3 - "$e1_summary" "$worker_cores" "$ceiling_multiplier" <<'PY' >/dev/null
@@ -245,12 +494,12 @@ PY
         exit 0
     fi
     validate_claim_sources
-    mkdir -p "$result_root"
+    prepare_cluster_root false
     python3 e2_calibrate_rps.py --averages "$e1_summary" --cores "$worker_cores" --ceiling-multiplier "$ceiling_multiplier" plan --output "$plan_path"
     observations=()
     for workload in "${workloads[@]}"; do
         cell="$result_root/cells/$workload"
-        run_cell calibration 0 invm-py "$workload" sweep false 20 "$cell"
+        run_cell calibration 0 invm-py "$workload" sweep false 20 "$cell" "$result_root/worker-node.json"
         duration_csv=$(find "$cell" -maxdepth 1 -name 'experiment_duration_*.csv' -print -quit)
         [[ -n "$duration_csv" ]] || { echo "missing duration CSV for $workload" >&2; exit 2; }
         observation="$cell/observations.csv"
@@ -270,7 +519,7 @@ PY
         printf 'RIGHT_CENSORED: rerun in a new result root with --ceiling-multiplier %s; do not treat Rbound as Rmax_B0.\n' "$next_multiplier"
         rerun=("$0" calibrate --profile "$profile" --e1-summary "$e1_summary" --worker-cores "$worker_cores"
             --slo-multiplier 5 --failure-threshold 0.05 --warmup-minutes 2 --steps 20
-            --minutes-per-step 1 --ceiling-multiplier "$next_multiplier" --no-retry
+            --minutes-per-step 1 --ceiling-multiplier "$next_multiplier" --right-censored-rerun --no-retry
             --result-root "${result_root}-ceiling-${next_multiplier}")
         printf 'RERUN_COMMAND:'
         printf ' %q' "${rerun[@]}"
@@ -289,8 +538,13 @@ fi
 if [[ -z "$worker_cores" ]]; then
     worker_cores=${WORKER_CORES:-$(reference_unique_value worker_cores)}
 fi
+ceiling_multiplier=$(reference_unique_value ceiling_multiplier)
+[[ "$right_censored_rerun" == false ]] || { echo "--right-censored-rerun applies only to calibrate" >&2; exit 2; }
 for workload in "${workloads[@]}"; do reference_value "$workload" rref >/dev/null; done
-if [[ "$dry_run" != true ]]; then validate_claim_sources; fi
+if [[ "$dry_run" != true ]]; then
+    validate_claim_sources
+    prepare_cluster_root true
+fi
 
 for ((repetition=0; repetition<repetitions; repetition++)); do
     read -r -a rotated_python <<< "$(rotate python_modes "$repetition")"
@@ -302,7 +556,7 @@ for ((repetition=0; repetition<repetitions; repetition++)); do
             if [[ "$dry_run" == true ]]; then
                 print_cell collection "$repetition" "$mode" "$workload" "$rps" "$replicas" true "$warmup_minutes" "$measurement_minutes" "$destination"
             else
-                run_cell collection "$repetition" "$mode" "$workload" "$rps" true "$measurement_minutes" "$destination"
+                run_cell collection "$repetition" "$mode" "$workload" "$rps" true "$measurement_minutes" "$destination" "$result_root/worker-node.json"
             fi
         done
     done
@@ -313,7 +567,7 @@ for ((repetition=0; repetition<repetitions; repetition++)); do
         if [[ "$dry_run" == true ]]; then
             print_cell collection "$repetition" "$mode" helloworld "$hello_rps" "$replicas" true "$warmup_minutes" "$measurement_minutes" "$destination"
         else
-            run_cell collection "$repetition" "$mode" helloworld "$hello_rps" true "$measurement_minutes" "$destination"
+            run_cell collection "$repetition" "$mode" helloworld "$hello_rps" true "$measurement_minutes" "$destination" "$result_root/worker-node.json"
         fi
     done
 done

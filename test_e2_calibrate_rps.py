@@ -146,7 +146,7 @@ class CalibrationTest(unittest.TestCase):
             reference = root / "reference.csv"
             with reference.open("w", newline="", encoding="utf-8") as handle:
                 fields = [
-                    "workload", "unloaded_average_ms", "worker_cores", "rbound",
+                    "workload", "unloaded_average_ms", "worker_cores", "ceiling_multiplier", "rbound",
                     "first_failing_step", "first_failing_rps", "rmax_b0", "rref", "status",
                 ]
                 writer = csv.DictWriter(handle, fieldnames=fields)
@@ -156,6 +156,7 @@ class CalibrationTest(unittest.TestCase):
                         "workload": workload,
                         "unloaded_average_ms": plan["unloaded_average_ms"],
                         "worker_cores": 28,
+                        "ceiling_multiplier": 1.0,
                         "rbound": plan["rbound"],
                         "first_failing_step": 2,
                         "first_failing_rps": plan["levels"][1],
@@ -181,6 +182,22 @@ class CalibrationTest(unittest.TestCase):
             self.assertEqual(sum("workload=helloworld " in line for line in cells), 24)
             self.assertIn("E2_DRY_RUN_READY", collection.stdout)
             self.assertFalse((root / "collection").exists())
+
+    def test_runner_uses_archived_worker_config_not_the_checked_in_default(self):
+        source = Path(__file__).with_name("run_rps_per_workload.sh").read_text(encoding="utf-8")
+        self.assertIn('discover_cluster_topology "$result_root/cluster-inventory.txt" "$result_root/worker-node.json"', source)
+        self.assertIn('--worker-config "$worker_config"', source)
+        self.assertIn('worker_config_sha256=$(digest "$worker_config")', source)
+        self.assertIn('remote_provenance_sha256=$(digest "$result_root/remote-provenance.txt")', source)
+        self.assertIn('kubectl get nodes -o json | jq -S', source)
+        self.assertIn('cp -- "$result_root/remote-provenance.txt" "$scratch_out/remote-provenance.txt"', source)
+        self.assertIn('bin/nexus-backend', source)
+        self.assertIn('bin/hardware-manager', source)
+        self.assertIn('expected_invitro_head=$(git rev-parse HEAD)', source)
+        self.assertIn('test "$head" = "$expected_head"', source)
+        self.assertIn('local output=$1 worker_config=$2 require_rdma=$3', source)
+        self.assertIn('snapshot_remote_provenance "$result_root/remote-provenance.txt" "$result_root/worker-node.json" "$require_reference"', source)
+        self.assertIn('if [[ "$require_rdma" == true ]]; then', source)
 
 
 if __name__ == "__main__":

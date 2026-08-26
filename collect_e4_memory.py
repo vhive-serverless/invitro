@@ -38,17 +38,22 @@ print(json.dumps({"processes":processes,"memtotal_kib":mem.get("MemTotal"),"mema
 '''.strip()
 
 SAMPLE_FIELDS = (
-    "timestamp_utc", "mode", "repetition", "worker", "firecracker_processes",
+    "timestamp_utc", "timestamp_unix_us", "sample_epoch_seconds", "elapsed_seconds", "measurement_minute", "sample_index",
+    "mode", "repetition", "worker", "firecracker_processes",
     "firecracker_total_pss_kib", "firecracker_mean_pss_kib", "worker_memtotal_kib",
     "worker_memavailable_kib", "worker_used_kib", "status",
 )
 BACKEND_FIELDS = (
-    "timestamp_utc", "mode", "repetition", "worker", "backend_processes",
+    "timestamp_utc", "timestamp_unix_us", "sample_epoch_seconds", "elapsed_seconds", "measurement_minute", "sample_index",
+    "mode", "repetition", "worker", "backend_processes",
     "backend_total_pss_kib", "status",
 )
 
 
-def summarize(payload: dict, worker: str, mode: str, repetition: int, timestamp: str) -> tuple[dict, dict]:
+def summarize(payload: dict, worker: str, mode: str, repetition: int, timestamp: str,
+              sample_epoch_seconds: float = 0.0, elapsed_seconds: float = 0.0,
+              measurement_minute: int = 1, sample_index: int = 0,
+              timestamp_unix_us: int = 0) -> tuple[dict, dict]:
     processes = payload.get("processes")
     if not isinstance(processes, list):
         raise ValueError("remote payload lacks process list")
@@ -60,6 +65,11 @@ def summarize(payload: dict, worker: str, mode: str, repetition: int, timestamp:
         raise ValueError("remote payload has invalid worker memory")
     sample = {
         "timestamp_utc": timestamp,
+        "timestamp_unix_us": timestamp_unix_us,
+        "sample_epoch_seconds": sample_epoch_seconds,
+        "elapsed_seconds": elapsed_seconds,
+        "measurement_minute": measurement_minute,
+        "sample_index": sample_index,
         "mode": mode,
         "repetition": repetition,
         "worker": worker,
@@ -73,6 +83,11 @@ def summarize(payload: dict, worker: str, mode: str, repetition: int, timestamp:
     }
     backend_row = {
         "timestamp_utc": timestamp,
+        "timestamp_unix_us": timestamp_unix_us,
+        "sample_epoch_seconds": sample_epoch_seconds,
+        "elapsed_seconds": elapsed_seconds,
+        "measurement_minute": measurement_minute,
+        "sample_index": sample_index,
         "mode": mode,
         "repetition": repetition,
         "worker": worker,
@@ -83,8 +98,9 @@ def summarize(payload: dict, worker: str, mode: str, repetition: int, timestamp:
     return sample, backend_row
 
 
-def sample_worker(worker: str, mode: str, repetition: int) -> tuple[dict, dict]:
-    timestamp = datetime.now(timezone.utc).isoformat()
+def sample_worker(worker: str, mode: str, repetition: int, timestamp: str,
+                  sample_epoch_seconds: float, elapsed_seconds: float,
+                  measurement_minute: int, sample_index: int, timestamp_unix_us: int) -> tuple[dict, dict]:
     command = "sudo -n python3 -c " + shlex.quote(REMOTE_PROGRAM)
     completed = subprocess.run(
         ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=5", worker, command],
@@ -96,20 +112,30 @@ def sample_worker(worker: str, mode: str, repetition: int) -> tuple[dict, dict]:
     if completed.returncode != 0:
         detail = completed.stderr.strip().replace("\n", " ")[:240]
         sample = {field: "" for field in SAMPLE_FIELDS}
-        sample.update(timestamp_utc=timestamp, mode=mode, repetition=repetition, worker=worker,
+        sample.update(timestamp_utc=timestamp, timestamp_unix_us=timestamp_unix_us, sample_epoch_seconds=sample_epoch_seconds,
+                      elapsed_seconds=elapsed_seconds, measurement_minute=measurement_minute,
+                      sample_index=sample_index, mode=mode, repetition=repetition, worker=worker,
                       status=f"error:{completed.returncode}:{detail}")
         backend = {field: "" for field in BACKEND_FIELDS}
-        backend.update(timestamp_utc=timestamp, mode=mode, repetition=repetition, worker=worker,
+        backend.update(timestamp_utc=timestamp, timestamp_unix_us=timestamp_unix_us, sample_epoch_seconds=sample_epoch_seconds,
+                       elapsed_seconds=elapsed_seconds, measurement_minute=measurement_minute,
+                       sample_index=sample_index, mode=mode, repetition=repetition, worker=worker,
                        status=f"error:{completed.returncode}:{detail}")
         return sample, backend
     try:
-        return summarize(json.loads(completed.stdout), worker, mode, repetition, timestamp)
+        return summarize(json.loads(completed.stdout), worker, mode, repetition, timestamp,
+                         sample_epoch_seconds, elapsed_seconds, measurement_minute, sample_index,
+                         timestamp_unix_us)
     except (json.JSONDecodeError, TypeError, ValueError, KeyError) as error:
         sample = {field: "" for field in SAMPLE_FIELDS}
-        sample.update(timestamp_utc=timestamp, mode=mode, repetition=repetition, worker=worker,
+        sample.update(timestamp_utc=timestamp, timestamp_unix_us=timestamp_unix_us, sample_epoch_seconds=sample_epoch_seconds,
+                      elapsed_seconds=elapsed_seconds, measurement_minute=measurement_minute,
+                      sample_index=sample_index, mode=mode, repetition=repetition, worker=worker,
                       status=f"error:parse:{error}")
         backend = {field: "" for field in BACKEND_FIELDS}
-        backend.update(timestamp_utc=timestamp, mode=mode, repetition=repetition, worker=worker,
+        backend.update(timestamp_utc=timestamp, timestamp_unix_us=timestamp_unix_us, sample_epoch_seconds=sample_epoch_seconds,
+                       elapsed_seconds=elapsed_seconds, measurement_minute=measurement_minute,
+                       sample_index=sample_index, mode=mode, repetition=repetition, worker=worker,
                        status=f"error:parse:{error}")
         return sample, backend
 
@@ -128,7 +154,8 @@ def main() -> int:
     if not workers or args.interval_seconds <= 0:
         parser.error("workers and a positive interval are required")
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    backend_written: set[str] = set()
+    started_epoch = time.time()
+    sample_index = 0
     with args.output.open("x", newline="", encoding="utf-8") as sample_handle, \
             args.backend_output.open("x", newline="", encoding="utf-8") as backend_handle:
         sample_writer = csv.DictWriter(sample_handle, fieldnames=SAMPLE_FIELDS)
@@ -137,17 +164,26 @@ def main() -> int:
         backend_writer.writeheader()
         while True:
             started = time.monotonic()
+            now_epoch = time.time()
+            timestamp = datetime.fromtimestamp(now_epoch, timezone.utc).isoformat()
+            timestamp_unix_us = int(now_epoch * 1_000_000)
+            elapsed_seconds = now_epoch - started_epoch
+            measurement_minute = int(elapsed_seconds // 60) + 1
             with ThreadPoolExecutor(max_workers=len(workers)) as pool:
-                rows = list(pool.map(lambda worker: sample_worker(worker, args.mode, args.repetition), workers))
+                rows = list(pool.map(
+                    lambda worker: sample_worker(worker, args.mode, args.repetition, timestamp, now_epoch,
+                                                  elapsed_seconds, measurement_minute, sample_index,
+                                                  timestamp_unix_us),
+                    workers,
+                ))
             for sample, backend in rows:
                 sample_writer.writerow(sample)
-                if backend["worker"] not in backend_written:
-                    backend_writer.writerow(backend)
-                    backend_written.add(str(backend["worker"]))
+                backend_writer.writerow(backend)
             sample_handle.flush()
             backend_handle.flush()
             if args.stop_file.exists():
                 break
+            sample_index += 1
             time.sleep(max(0.0, args.interval_seconds - (time.monotonic() - started)))
     return 0
 
