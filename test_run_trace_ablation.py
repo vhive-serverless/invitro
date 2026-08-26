@@ -122,6 +122,7 @@ class AblationDryRunTest(unittest.TestCase):
         self.assertIn('bin/hardware-manager', source)
         self.assertIn('expected_invitro_head=$(git rev-parse HEAD)', source)
         self.assertIn('test "$head" = "$expected_head"', source)
+        self.assertNotIn('remote_khala "$host" loader', source)
         self.assertIn('backend-memory.csv', source)
         self.assertNotIn('backend-memory-once.csv', source)
 

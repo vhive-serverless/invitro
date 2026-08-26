@@ -206,7 +206,6 @@ SH
     mapfile -t provenance_loaders < <(jq -r '.loader_nodes[]' "$worker_config" | LC_ALL=C sort)
     for host in "${provenance_workers[@]}"; do remote_khala "$host" worker; done
     for host in "${provenance_loaders[@]}"; do
-        remote_khala "$host" loader
         ssh -o BatchMode=yes -o ConnectTimeout=5 "$host" bash -s -- "$host" "$expected_invitro_head" <<'SH' >> "$output"
 set -euo pipefail
 host=$1
