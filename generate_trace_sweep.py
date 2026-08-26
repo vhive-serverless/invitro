@@ -40,13 +40,13 @@ drop-in replace that call in shell scripts:
 from __future__ import annotations
 
 import argparse
+import csv
 import json
 import sys
+import tarfile
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List
-
-import pandas as pd
 
 from trace_modes import (
     DENSITY_WORKLOADS,
@@ -58,7 +58,7 @@ from trace_modes import (
 
 # --- Default Configuration ---
 
-DEFAULT_INPUT = "data/traces/reference/preprocessed_150/invocations.csv"
+DEFAULT_INPUT = "data/traces/reference/preprocessed_150.tar.gz"
 DEFAULT_OUTPUT_DIR = "data/traces/nexus"
 
 
@@ -95,6 +95,11 @@ class Config:
             name: DEFAULT_WORKLOAD_RPS[name] for name in DENSITY_WORKLOADS
         }
     )
+    workload_duration_ms: Dict[str, float] = field(
+        default_factory=lambda: {
+            name: DEFAULT_WORKLOAD_AVG_DURATION_MS[name] for name in DENSITY_WORKLOADS
+        }
+    )
     divisor: float = 10.0
     start_scale: float = 1.0
     end_scale: float = 10.0
@@ -115,13 +120,13 @@ class SweepTraceBuilder:
 
     def __init__(self, config: Config):
         self.config = config
-        self.base_df = self._load_base_trace()
-        self.time_cols = self._get_time_columns(self.base_df)
-        self.stats_df = self._compute_invocation_stats()
+        self.base_rows, self.fieldnames = self._load_base_trace()
+        self.time_cols = self._get_time_columns(self.fieldnames)
+        self.stats_rows = self._compute_invocation_stats()
 
     # --- Public entry point ---
 
-    def run(self) -> tuple[pd.DataFrame, pd.DataFrame]:
+    def run(self) -> tuple[List[dict], List[dict]]:
         """Execute the sweep trace building pipeline."""
         function_count = self._compute_function_count()
         start_count, _, step_count = self._get_scale_counts()
@@ -140,9 +145,9 @@ class SweepTraceBuilder:
                 "Reduce --end-scale, increase --step, or increase --start-scale."
             )
 
-        invocations_df = self._build_invocations(function_count)
-        durations_df = self._build_durations(invocations_df)
-        return invocations_df, durations_df
+        invocation_rows = self._build_invocations(function_count)
+        duration_rows = self._build_durations(invocation_rows)
+        return invocation_rows, duration_rows
 
     # --- Internal helpers ---
 
@@ -164,39 +169,55 @@ class SweepTraceBuilder:
             return 0
         return self._compute_activation_offset(function_count - 1)
 
-    def _load_base_trace(self) -> pd.DataFrame:
+    def _load_base_trace(self) -> tuple[List[dict], List[str]]:
         """Load and pre-filter the base invocation trace CSV."""
         print(f"[INFO] Loading base invocation trace: {self.config.input_path}")
-        df = pd.read_csv(self.config.input_path)
-        df.columns = df.columns.map(str)
+        if tarfile.is_tarfile(self.config.input_path):
+            with tarfile.open(self.config.input_path, "r:*") as archive:
+                member = archive.extractfile("preprocessed_150/invocations.csv")
+                if member is None:
+                    raise ValueError(f"{self.config.input_path} lacks preprocessed_150/invocations.csv")
+                rows, fieldnames = self._read_csv(member.read().decode("utf-8").splitlines())
+        else:
+            with self.config.input_path.open(encoding="utf-8", newline="") as handle:
+                rows, fieldnames = self._read_csv(handle)
         # Keep only HTTP-triggered functions (matches generate_trace.py behaviour)
-        return df[df["Trigger"] == "http"].copy()
+        return [row for row in rows if row.get("Trigger") == "http"], fieldnames
 
     @staticmethod
-    def _get_time_columns(df: pd.DataFrame) -> List[str]:
+    def _read_csv(lines) -> tuple[List[dict], List[str]]:
+        reader = csv.DictReader(lines)
+        fieldnames = list(reader.fieldnames or ())
+        if "Trigger" not in fieldnames:
+            raise ValueError("reference trace lacks Trigger column")
+        return list(reader), fieldnames
+
+    @staticmethod
+    def _get_time_columns(fieldnames: List[str]) -> List[str]:
         """Return columns whose names are pure decimal integers (e.g. '540'..'689')."""
-        cols = [c for c in df.columns if isinstance(c, str) and c.isdigit()]
+        cols = [column for column in fieldnames if column.isdigit()]
         if not cols:
             raise ValueError("No numbered time-series columns detected in base trace.")
         return cols
 
-    def _compute_invocation_stats(self) -> pd.DataFrame:
+    def _compute_invocation_stats(self) -> List[dict]:
         """Compute per-row invocation statistics over the time-series columns."""
         print("[INFO] Computing per-function statistics...")
-        df = self.base_df
-        ts = df[self.time_cols]
+        result = []
+        for source in self.base_rows:
+            values = [int(float(source[column])) for column in self.time_cols]
+            row = {column: source.get(column, "") for column in ("HashOwner", "HashApp", "HashFunction", "Trigger")}
+            row.update({column: value for column, value in zip(self.time_cols, values)})
+            row.update(
+                invocation_count_sum=sum(values),
+                invocation_count_avg=sum(values) / len(values),
+                invocation_count_max=max(values),
+                invocation_count_min=min(values),
+            )
+            result.append(row)
+        return sorted(result, key=lambda row: row["invocation_count_sum"], reverse=True)
 
-        stats = pd.DataFrame(index=df.index)
-        stats["invocation_count_sum"] = ts.sum(axis=1)
-        stats["invocation_count_avg"] = ts.mean(axis=1)
-        stats["invocation_count_max"] = ts.max(axis=1)
-        stats["invocation_count_min"] = ts.min(axis=1)
-
-        meta_cols = [c for c in ["HashOwner", "HashApp", "HashFunction", "Trigger"] if c in df.columns]
-        result = pd.concat([df[meta_cols], stats, ts], axis=1)
-        return result.sort_values(by="invocation_count_sum", ascending=False)
-
-    def _select_closest_function(self, target_rps: float) -> pd.Series:
+    def _select_closest_function(self, target_rps: float) -> dict:
         """
         Select the reference function whose average invocation rate (RPM) is
         closest to `target_rps * 60`, subject to min/max bounds.
@@ -205,12 +226,11 @@ class SweepTraceBuilder:
         min_rpm_bound = target_rpm / self.config.min_divisor
         max_rpm_bound = target_rpm * self.config.max_multiplier
 
-        candidates = self.stats_df[
-            (self.stats_df["invocation_count_max"] < max_rpm_bound) &
-            (self.stats_df["invocation_count_min"] > min_rpm_bound)
-        ]
+        candidates = [row for row in self.stats_rows
+                      if row["invocation_count_max"] < max_rpm_bound
+                      and row["invocation_count_min"] > min_rpm_bound]
 
-        if candidates.empty:
+        if not candidates:
             raise ValueError(
                 f"No reference function found for target_rps={target_rps:.2f} "
                 f"(target_rpm={target_rpm:.1f}, "
@@ -218,10 +238,9 @@ class SweepTraceBuilder:
                 "Try adjusting --divisor, --min-divisor, or --max-multiplier."
             )
 
-        diff = (candidates["invocation_count_avg"] - target_rpm).abs()
-        return candidates.loc[diff.idxmin()].copy()
+        return min(candidates, key=lambda row: abs(row["invocation_count_avg"] - target_rpm)).copy()
 
-    def _build_invocations(self, function_count: int) -> pd.DataFrame:
+    def _build_invocations(self, function_count: int) -> List[dict]:
         """
         Build the full invocations dataframe.
 
@@ -237,8 +256,6 @@ class SweepTraceBuilder:
             if self.config.warmup_duration > 0
             else []
         )
-        col_order = ["FunctionName"] + warmup_cols + self.time_cols
-
         all_rows: List[dict] = []
 
         for workload, rps in self.config.workload_rps.items():
@@ -249,7 +266,7 @@ class SweepTraceBuilder:
             )
 
             base_fn = self._select_closest_function(target_rps)
-            base_values: List[int] = [int(v) for v in base_fn[self.time_cols].tolist()]
+            base_values: List[int] = [int(base_fn[column]) for column in self.time_cols]
             trace_length = len(base_values)
             workload_name = trace_workload_name(workload, self.config.mode)
 
@@ -280,16 +297,19 @@ class SweepTraceBuilder:
 
                 all_rows.append(row)
 
-        return pd.DataFrame(all_rows)[col_order]
+        return all_rows
 
-    def _build_durations(self, invocations_df: pd.DataFrame) -> pd.DataFrame:
+    def _build_durations(self, invocation_rows: List[dict]) -> List[dict]:
         """Build duration dataframe with one entry per row in invocations (including duplicates)."""
         rows: List[dict] = []
-        for func_name in invocations_df["FunctionName"]:
+        for invocation in invocation_rows:
+            func_name = invocation["FunctionName"]
             base_workload = canonical_workload_name(func_name)
-            duration_ms = DEFAULT_WORKLOAD_AVG_DURATION_MS.get(base_workload, 1000.0)
+            if base_workload not in self.config.workload_duration_ms:
+                raise ValueError(f"missing unloaded duration for {base_workload}")
+            duration_ms = self.config.workload_duration_ms[base_workload]
             rows.append({"FunctionName": func_name, "AvgDurationMs": duration_ms})
-        return pd.DataFrame(rows)
+        return rows
 
 
 # --- CLI and Main Execution ---
@@ -304,6 +324,39 @@ def parse_workload_rps_arg(value: str) -> Dict[str, float]:
         return json.loads(value)
     except Exception as e:
         raise argparse.ArgumentTypeError(f"Invalid workload RPS mapping '{value}': {e}")
+
+
+def read_e2_reference(path: Path) -> tuple[Dict[str, float], Dict[str, float]]:
+    """Read the frozen B0-derived E3 RPS and E1 unloaded averages."""
+    with path.open(newline="", encoding="utf-8") as handle:
+        rows = list(csv.DictReader(handle))
+    required = {"workload", "unloaded_average_ms", "rref", "status"}
+    if not rows or not required.issubset(set(rows[0])):
+        raise ValueError(f"{path} lacks {sorted(required)}")
+    by_workload = {}
+    for row in rows:
+        workload = row["workload"].strip()
+        if workload in by_workload:
+            raise ValueError(f"duplicate E2 reference row for {workload}")
+        by_workload[workload] = row
+    missing = set(DENSITY_WORKLOADS) - set(by_workload)
+    if missing:
+        raise ValueError(f"E2 reference is missing density workloads: {sorted(missing)}")
+    rps, durations = {}, {}
+    for workload in DENSITY_WORKLOADS:
+        row = by_workload[workload]
+        if row["status"] != "BOUNDARY_OBSERVED":
+            raise ValueError(f"{workload} has inadmissible E2 status {row['status']!r}")
+        try:
+            rps_value = float(row["rref"])
+            duration_value = float(row["unloaded_average_ms"])
+        except ValueError as error:
+            raise ValueError(f"invalid E2 numeric data for {workload}") from error
+        if rps_value <= 0 or duration_value <= 0:
+            raise ValueError(f"non-positive E2 reference data for {workload}")
+        rps[workload] = rps_value
+        durations[workload] = duration_value
+    return rps, durations
 
 
 def build_arg_parser() -> argparse.ArgumentParser:
@@ -349,8 +402,9 @@ Examples:
     parser.add_argument("--output", default=DEFAULT_OUTPUT_DIR,
                         help=f"Directory to write output CSVs. Default: {DEFAULT_OUTPUT_DIR}")
     parser.add_argument("--workload-rps", type=parse_workload_rps_arg,
-                        default={name: DEFAULT_WORKLOAD_RPS[name] for name in DENSITY_WORKLOADS},
-                        help="Workload->RPS mapping as a JSON file path or inline JSON.")
+                        help="Legacy workload->RPS mapping as a JSON file path or inline JSON.")
+    parser.add_argument("--e2-reference", type=Path,
+                        help="Frozen b0-rps-reference.csv; required by the E3/E4 runner.")
     parser.add_argument("--mode", choices=TRACE_MODES, default=MODE_INVM_PY,
                         help="Explicit attribution mode. Default: invm-py")
     parser.add_argument("--warmup-duration", type=int, default=0,
@@ -407,10 +461,22 @@ def main(argv: List[str] | None = None) -> int:
         return 1
 
     try:
+        if args.e2_reference and args.workload_rps is not None:
+            raise ValueError("use either --e2-reference or --workload-rps, not both")
+        if args.e2_reference:
+            workload_rps, workload_durations = read_e2_reference(args.e2_reference)
+        else:
+            workload_rps = args.workload_rps or {
+                name: DEFAULT_WORKLOAD_RPS[name] for name in DENSITY_WORKLOADS
+            }
+            workload_durations = {
+                name: DEFAULT_WORKLOAD_AVG_DURATION_MS[name] for name in workload_rps
+            }
         config = Config(
             input_path=Path(args.input),
             output_dir=Path(args.output),
-            workload_rps=args.workload_rps,
+            workload_rps=workload_rps,
+            workload_duration_ms=workload_durations,
             divisor=args.divisor,
             start_scale=args.start_scale,
             end_scale=args.end_scale,
@@ -425,16 +491,13 @@ def main(argv: List[str] | None = None) -> int:
         )
 
         builder = SweepTraceBuilder(config)
-        invocations_df, durations_df = builder.run()
+        invocation_rows, duration_rows = builder.run()
 
         if args.dry_run:
             print("\n[INFO] Dry-run enabled; skipping output file generation.")
-            with pd.option_context("display.max_columns", None, "display.width", 1200):
-                print("\n--- Generated Invocations (first 3 rows per workload) ---")
-                groups = [g.head(3) for _, g in invocations_df.groupby("FunctionName", sort=False)]
-                print(pd.concat(groups))
-                print("\n--- Generated Durations ---")
-                print(durations_df)
+            names = sorted({row["FunctionName"] for row in invocation_rows})
+            print(f"[INFO] Validated {len(invocation_rows)} rows across {len(names)} workload names.")
+            print(f"[INFO] Names: {','.join(names)}")
             return 0
 
         # Write output files
@@ -443,13 +506,22 @@ def main(argv: List[str] | None = None) -> int:
         invocations_path = output_dir / "invocations.csv"
         durations_path = output_dir / "durations.csv"
 
-        invocations_df.to_csv(invocations_path, index=False)
-        durations_df.to_csv(durations_path, index=False)
+        invocation_fields = ["FunctionName"]
+        invocation_fields.extend(str(index) for index in range(-args.warmup_duration, 0))
+        invocation_fields.extend(builder.time_cols)
+        with invocations_path.open("x", newline="", encoding="utf-8") as handle:
+            writer = csv.DictWriter(handle, fieldnames=invocation_fields)
+            writer.writeheader()
+            writer.writerows(invocation_rows)
+        with durations_path.open("x", newline="", encoding="utf-8") as handle:
+            writer = csv.DictWriter(handle, fieldnames=["FunctionName", "AvgDurationMs"])
+            writer.writeheader()
+            writer.writerows(duration_rows)
 
         print(f"\n[SUCCESS] Wrote sweep traces to: {output_dir.resolve()}")
-        print(f"  - {invocations_path.name}: {len(invocations_df)} rows, "
-              f"{len(invocations_df.columns) - 1} time columns")
-        print(f"  - {durations_path.name}: {len(durations_df)} workloads")
+        print(f"  - {invocations_path.name}: {len(invocation_rows)} rows, "
+              f"{len(invocation_fields) - 1} time columns")
+        print(f"  - {durations_path.name}: {len(duration_rows)} rows")
 
     except Exception as e:
         print(f"[ERROR] {e}", file=sys.stderr)

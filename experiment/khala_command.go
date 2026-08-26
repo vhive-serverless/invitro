@@ -34,6 +34,7 @@ var (
 	ShmemRingBytes  = flag.Int("shmem-ring-bytes", 4_190_208, "Shared-memory mapping ring capacity")
 	ShmemIOQuantum  = flag.Int("shmem-io-quantum", 256*1024, "Shared-memory copy quantum")
 	MinioEndpoint   = flag.String("minio-endpoint", "10.0.1.4:9001", "S3-compatible endpoint for guest and Nexus clients")
+	WorkerConfig    = flag.String("worker-config", "worker_node.json", "Worker/storage pairing JSON for this deployment")
 	Debug           = flag.Bool("debug", false, "Enable debug mode")
 )
 
@@ -440,7 +441,7 @@ func (c *errorCollector) joined() error {
 }
 
 func getWorkerNodes() (WorkerNodeSetup, error) {
-	configFile, err := os.ReadFile("worker_node.json")
+	configFile, err := os.ReadFile(*WorkerConfig)
 	if err != nil {
 		return WorkerNodeSetup{}, err
 	}
