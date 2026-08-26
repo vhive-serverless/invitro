@@ -29,5 +29,7 @@
   "Width": 2,
   "Depth": 2,
   
-  "EnablePrefetch": false
+  "EnablePrefetch": false,
+  "EnablePerfCollection": false,
+  "FixedReplicaCount": 0
 }

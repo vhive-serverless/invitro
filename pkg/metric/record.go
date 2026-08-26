@@ -57,6 +57,7 @@ type ExecutionRecordBase struct {
 
 	ConnectionTimeout bool `csv:"connectionTimeout"`
 	FunctionTimeout   bool `csv:"functionTimeout"`
+	Success           bool `csv:"success"`
 }
 
 type ExecutionRecordOpenWhisk struct {

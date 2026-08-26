@@ -226,7 +226,7 @@ func runTraceMode(cfg *config.LoaderConfiguration, readIATFromFile bool, writeIA
 	experimentDriver.ReadOrWriteFileSpecification(writeIATsToFile, readIATFromFile)
 
 	if experimentDriver.Configuration.WithWarmup() {
-		trace.DoStaticTraceProfiling(experimentDriver.Configuration.Functions)
+		trace.DoStaticTraceProfiling(experimentDriver.Configuration.Functions, cfg.FixedReplicaCount)
 	}
 
 	// Skip experiments execution during dry run mode
@@ -275,7 +275,7 @@ func runRPSMode(cfg *config.LoaderConfiguration, readIATFromFile bool, writeIATs
 	})
 
 	if experimentDriver.Configuration.WithWarmup() {
-		trace.DoStaticTraceProfiling(experimentDriver.Configuration.Functions)
+		trace.DoStaticTraceProfiling(experimentDriver.Configuration.Functions, cfg.FixedReplicaCount)
 	}
 
 	// Skip experiments execution during dry run mode

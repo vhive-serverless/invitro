@@ -8,9 +8,9 @@
 
   "BusyLoopOnSandboxStartup": false,
 
-  "TracePath": "data/traces/nexus",
+  "TracePath": "$TRACE_PATH",
   "Granularity": "minute",
-  "OutputPathPrefix": "data/out/$EXPERIMENT/experiment",
+  "OutputPathPrefix": "$OUTPUT_PREFIX",
   "IATDistribution": "exponential",
   "CPULimit": "1vCPU",
   "ExperimentDuration": $EXP_DUR,
@@ -29,5 +29,7 @@
   "Width": 2,
   "Depth": 2,
   
-  "EnablePrefetch": $PREFETCH
+  "EnablePrefetch": $PREFETCH,
+  "EnablePerfCollection": $ENABLE_PERF,
+  "FixedReplicaCount": $FIXED_REPLICAS
 }

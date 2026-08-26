@@ -31,17 +31,20 @@ import (
 	"github.com/vhive-serverless/loader/pkg/common"
 )
 
-func DoStaticTraceProfiling(functions []*common.Function) {
+func DoStaticTraceProfiling(functions []*common.Function, fixedReplicaCount int) {
 	for i := 0; i < len(functions); i++ {
 		f := functions[i]
+		if fixedReplicaCount > 0 {
+			f.InitialScale = fixedReplicaCount
+			f.MaxScale = fixedReplicaCount
+			f.MinScale = fixedReplicaCount
+			log.Debugf("Function %s scale is pinned to %d replicas.\n", f.Name, fixedReplicaCount)
+			continue
+		}
 
 		f.InitialScale = int(math.Ceil(1 * profileFirstConcurrency(functions[i])))
 		// f.MaxScale = int(math.Ceil(5*profileMaxConcurrency(functions[i]))) + 1
 		f.MaxScale = int(math.Ceil(100 * profileMaxConcurrency(functions[i])))
-
-		// f.InitialScale = 320
-		// f.MaxScale = 320
-		// f.MinScale = 320
 
 		// f.InitialScale = int(math.Min(math.Max(math.Ceil(1*profileConcurrency(functions[i])), 10), 1000))
 		// f.MaxScale = int(math.Min(math.Max(math.Ceil(2.5*profileConcurrency(functions[i])), 10), 1000))

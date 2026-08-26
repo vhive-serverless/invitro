@@ -23,7 +23,8 @@ import (
 
 var (
 	Command         = flag.String("command", "deploy", "Command to execute: deploy or clean")
-	Mode            = flag.String("mode", "", "Experiment mode: invm-py, nexus-py, nexus-go, nexus-rdma, nexus-rdma-py, hosttcp-go, or hosttcp-py")
+	Mode            = flag.String("mode", "", "Experiment mode: invm-py, invm-go, invm-js, nexus-py, nexus-go, nexus-js, nexus-rdma-py, or hosttcp-go")
+	Workloads       = flag.String("workloads", "", "Optional comma-separated canonical workloads; required for E2 single-workload cells")
 	DryRun          = flag.Bool("dry-run", false, "Print the resolved deployment plan without side effects")
 	CorePoolPolicy  = flag.String("core-pool-policy", "", "Core pool policy: baseline, l-sep, or l-shared")
 	Implementation  = flag.String("impl", "go", "Implementation to use: go or cpp")
@@ -38,8 +39,11 @@ var (
 
 const (
 	ModeInVMPy      = "invm-py"
+	ModeInVMGo      = "invm-go"
+	ModeInVMJS      = "invm-js"
 	ModeNexusPy     = "nexus-py"
 	ModeNexusGo     = "nexus-go"
+	ModeNexusJS     = "nexus-js"
 	ModeNexusRDMA   = "nexus-rdma"
 	ModeNexusRDMAPy = "nexus-rdma-py"
 	ModeHostTCPGo   = "hosttcp-go"
@@ -47,6 +51,10 @@ const (
 )
 
 var matchedWorkloads = []string{"pyaesserve", "mapper", "reducer"}
+var pythonEvaluationWorkloads = []string{
+	"helloworld", "chameleonserve", "cnnserve", "imageresize", "lrserving",
+	"mapper", "pyaesserve", "reducer", "rnnserve", "streducer", "sttrainer",
+}
 
 type ExperimentMode struct {
 	Name             string   `json:"mode"`
@@ -95,7 +103,13 @@ func runCommand() error {
 		if *Command == "clean" {
 			mode, err = resolveCleanupMode(*Mode)
 		} else {
-			mode, err = resolveExperimentMode(*Mode, *ShmemRingBytes, *ShmemIOQuantum)
+			var requested []string
+			if strings.TrimSpace(*Workloads) != "" {
+				for _, workload := range strings.Split(*Workloads, ",") {
+					requested = append(requested, strings.TrimSpace(workload))
+				}
+			}
+			mode, err = resolveExperimentMode(*Mode, *ShmemRingBytes, *ShmemIOQuantum, requested...)
 		}
 		if err != nil {
 			return err
@@ -176,20 +190,41 @@ func validateLocalFlags(command, corePoolPolicy, implementation string) error {
 	return nil
 }
 
-func resolveExperimentMode(name string, shmemRingBytes, shmemIOQuantum int) (ExperimentMode, error) {
+func resolveExperimentMode(name string, shmemRingBytes, shmemIOQuantum int, requested ...string) (ExperimentMode, error) {
 	if shmemRingBytes <= 0 || shmemIOQuantum <= 0 {
 		return ExperimentMode{}, fmt.Errorf("shared-memory ring bytes and I/O quantum must be positive")
 	}
 	mode := ExperimentMode{Name: name, ShmemRingBytes: shmemRingBytes, ShmemIOQuantum: shmemIOQuantum}
+	base := append([]string(nil), matchedWorkloads...)
+	if len(requested) > 0 {
+		base = append([]string(nil), requested...)
+		for _, workload := range base {
+			if !containsWorkload(pythonEvaluationWorkloads, workload) {
+				return ExperimentMode{}, fmt.Errorf("unsupported canonical workload %q", workload)
+			}
+		}
+	}
 	switch name {
 	case ModeInVMPy:
-		mode.Workloads = append([]string(nil), matchedWorkloads...)
+		mode.Workloads = append([]string(nil), base...)
+		mode.BackendTransport = "none"
+	case ModeInVMGo:
+		if len(requested) == 0 {
+			base = []string{"helloworld"}
+		}
+		mode.Workloads = goWorkloads(base)
+		mode.BackendTransport = "none"
+	case ModeInVMJS:
+		if len(requested) == 0 {
+			base = []string{"helloworld"}
+		}
+		mode.Workloads = javascriptWorkloads(base)
 		mode.BackendTransport = "none"
 	case ModeNexusPy:
 		if err := validateShmemLayout(shmemRingBytes, shmemIOQuantum); err != nil {
 			return ExperimentMode{}, err
 		}
-		mode.Workloads = append([]string(nil), matchedWorkloads...)
+		mode.Workloads = append([]string(nil), base...)
 		mode.BackendTransport = "shmem"
 		mode.SetNexusSDK = true
 		mode.SetNexusRPC = true
@@ -197,34 +232,48 @@ func resolveExperimentMode(name string, shmemRingBytes, shmemIOQuantum int) (Exp
 		if err := validateShmemLayout(shmemRingBytes, shmemIOQuantum); err != nil {
 			return ExperimentMode{}, err
 		}
-		mode.Workloads = goWorkloads()
+		mode.Workloads = goWorkloads(base)
+		mode.BackendTransport = "shmem"
+		mode.SetNexusSDK = true
+		mode.SetNexusRPC = true
+	case ModeNexusJS:
+		if err := validateShmemLayout(shmemRingBytes, shmemIOQuantum); err != nil {
+			return ExperimentMode{}, err
+		}
+		if len(requested) == 0 {
+			base = []string{"helloworld"}
+		}
+		mode.Workloads = javascriptWorkloads(base)
 		mode.BackendTransport = "shmem"
 		mode.SetNexusSDK = true
 		mode.SetNexusRPC = true
 	case ModeNexusRDMA:
-		mode.Workloads = goWorkloads()
+		mode.Workloads = goWorkloads(base)
 		mode.BackendTransport = "rdma"
 		mode.SetNexusSDK = true
 		mode.SetNexusRPC = true
 		mode.WithRDMA = true
 	case ModeNexusRDMAPy:
-		mode.Workloads = append([]string(nil), matchedWorkloads...)
+		mode.Workloads = append([]string(nil), base...)
 		mode.BackendTransport = "rdma"
 		mode.SetNexusSDK = true
 		mode.SetNexusRPC = true
 		mode.WithRDMA = true
 	case ModeHostTCPGo:
-		mode.Workloads = goWorkloads()
+		mode.Workloads = goWorkloads(base)
 		mode.BackendTransport = "hosttcp"
 		mode.SetNexusSDK = true
 		mode.SetNexusRPC = true
 	case ModeHostTCPPy:
-		mode.Workloads = append([]string(nil), matchedWorkloads...)
+		mode.Workloads = append([]string(nil), base...)
 		mode.BackendTransport = "hosttcp"
 		mode.SetNexusSDK = true
 		mode.SetNexusRPC = true
 	default:
-		return ExperimentMode{}, fmt.Errorf("invalid --mode %q: expected %s, %s, %s, %s, %s, %s, or %s", name, ModeInVMPy, ModeNexusPy, ModeNexusGo, ModeNexusRDMA, ModeNexusRDMAPy, ModeHostTCPGo, ModeHostTCPPy)
+		return ExperimentMode{}, fmt.Errorf("invalid --mode %q", name)
+	}
+	if len(mode.Workloads) == 0 || slicesContainEmpty(mode.Workloads) {
+		return ExperimentMode{}, fmt.Errorf("mode %s resolved no valid workloads", name)
 	}
 	return mode, nil
 }
@@ -236,7 +285,7 @@ func resolveExperimentMode(name string, shmemRingBytes, shmemIOQuantum int) (Exp
 func resolveCleanupMode(name string) (ExperimentMode, error) {
 	mode := ExperimentMode{Name: name}
 	switch name {
-	case ModeInVMPy, ModeNexusPy, ModeNexusGo, ModeHostTCPGo, ModeHostTCPPy:
+	case ModeInVMPy, ModeInVMGo, ModeInVMJS, ModeNexusPy, ModeNexusGo, ModeNexusJS, ModeHostTCPGo, ModeHostTCPPy:
 		return mode, nil
 	case ModeNexusRDMA, ModeNexusRDMAPy:
 		mode.WithRDMA = true
@@ -255,12 +304,46 @@ func validateShmemLayout(ringBytes, quantum int) error {
 	return nil
 }
 
-func goWorkloads() []string {
-	result := make([]string, 0, len(matchedWorkloads))
-	for _, workload := range matchedWorkloads {
-		result = append(result, "go"+workload)
+func goWorkloads(workloads []string) []string {
+	aliases := map[string]string{
+		"helloworld": "gohelloworld", "pyaesserve": "gopyaesserve",
+		"mapper": "gomapper", "reducer": "goreducer",
+	}
+	result := make([]string, 0, len(workloads))
+	for _, workload := range workloads {
+		result = append(result, aliases[workload])
 	}
 	return result
+}
+
+func javascriptWorkloads(workloads []string) []string {
+	result := make([]string, 0, len(workloads))
+	for _, workload := range workloads {
+		if workload == "helloworld" {
+			result = append(result, "jshelloworld")
+		} else {
+			result = append(result, "")
+		}
+	}
+	return result
+}
+
+func slicesContainEmpty(values []string) bool {
+	for _, value := range values {
+		if value == "" {
+			return true
+		}
+	}
+	return false
+}
+
+func containsWorkload(values []string, target string) bool {
+	for _, value := range values {
+		if value == target {
+			return true
+		}
+	}
+	return false
 }
 
 func buildDeploymentCommand(corePoolPolicy, implementation string, mode ExperimentMode, debug bool) string {

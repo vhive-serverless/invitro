@@ -95,7 +95,7 @@ func TestStaticTraceProfiling(t *testing.T) {
 				},
 			}
 
-			DoStaticTraceProfiling([]*common.Function{f})
+			DoStaticTraceProfiling([]*common.Function{f}, 0)
 			ApplyResourceLimits([]*common.Function{f}, test.CPULimit)
 
 			if f.InitialScale != test.expectedInitialScale ||
@@ -106,5 +106,16 @@ func TestStaticTraceProfiling(t *testing.T) {
 				t.Error("Wrong static trace profile.")
 			}
 		})
+	}
+}
+
+func TestStaticTraceProfilingPinsFrozenE2ReplicaCount(t *testing.T) {
+	functions := []*common.Function{{}, {}}
+	DoStaticTraceProfiling(functions, 320)
+	for index, function := range functions {
+		if function.InitialScale != 320 || function.MinScale != 320 || function.MaxScale != 320 {
+			t.Fatalf("function %d scale = initial:%d min:%d max:%d, want all 320",
+				index, function.InitialScale, function.MinScale, function.MaxScale)
+		}
 	}
 }

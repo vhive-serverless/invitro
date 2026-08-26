@@ -17,8 +17,11 @@ func TestResolveExperimentModes(t *testing.T) {
 		workloads      []string
 	}{
 		{ModeInVMPy, "none", false, false, false, []string{"pyaesserve", "mapper", "reducer"}},
+		{ModeInVMGo, "none", false, false, false, []string{"gohelloworld"}},
+		{ModeInVMJS, "none", false, false, false, []string{"jshelloworld"}},
 		{ModeNexusPy, "shmem", true, true, false, []string{"pyaesserve", "mapper", "reducer"}},
 		{ModeNexusGo, "shmem", true, true, false, []string{"gopyaesserve", "gomapper", "goreducer"}},
+		{ModeNexusJS, "shmem", true, true, false, []string{"jshelloworld"}},
 		{ModeHostTCPGo, "hosttcp", true, true, false, []string{"gopyaesserve", "gomapper", "goreducer"}},
 		{ModeNexusRDMA, "rdma", true, true, true, []string{"gopyaesserve", "gomapper", "goreducer"}},
 		{ModeNexusRDMAPy, "rdma", true, true, true, []string{"pyaesserve", "mapper", "reducer"}},
@@ -37,6 +40,29 @@ func TestResolveExperimentModes(t *testing.T) {
 				t.Fatalf("workloads = %v, want %v", mode.Workloads, test.workloads)
 			}
 		})
+	}
+}
+
+func TestResolveExplicitEvaluationWorkloads(t *testing.T) {
+	for _, name := range []string{ModeInVMPy, ModeNexusPy, ModeNexusRDMAPy} {
+		mode, err := resolveExperimentMode(name, 4_190_208, 256*1024, pythonEvaluationWorkloads...)
+		if err != nil {
+			t.Fatalf("%s full Python workload set: %v", name, err)
+		}
+		if strings.Join(mode.Workloads, ",") != strings.Join(pythonEvaluationWorkloads, ",") {
+			t.Fatalf("%s workloads = %v", name, mode.Workloads)
+		}
+	}
+	for _, name := range []string{ModeInVMGo, ModeHostTCPGo, ModeNexusGo, ModeInVMJS, ModeNexusJS} {
+		mode, err := resolveExperimentMode(name, 4_190_208, 256*1024, "helloworld")
+		if err != nil || len(mode.Workloads) != 1 || mode.Workloads[0] == "" {
+			t.Fatalf("%s HelloWorld resolution = %+v, %v", name, mode, err)
+		}
+	}
+	for _, name := range []string{ModeInVMGo, ModeHostTCPGo, ModeNexusGo, ModeInVMJS, ModeNexusJS} {
+		if _, err := resolveExperimentMode(name, 4_190_208, 256*1024, "cnnserve"); err == nil {
+			t.Fatalf("%s accepted an unimplemented cnnserve workload", name)
+		}
 	}
 }
 
@@ -69,8 +95,11 @@ func TestResolveCleanupModeValidatesOnlyTeardownIdentity(t *testing.T) {
 		withRDMA bool
 	}{
 		{ModeInVMPy, false},
+		{ModeInVMGo, false},
+		{ModeInVMJS, false},
 		{ModeNexusPy, false},
 		{ModeNexusGo, false},
+		{ModeNexusJS, false},
 		{ModeHostTCPGo, false},
 		{ModeHostTCPPy, false},
 		{ModeNexusRDMA, true},

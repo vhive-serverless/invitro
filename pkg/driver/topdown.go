@@ -89,6 +89,9 @@ func StartPerfCollection(cfg config.Configuration, ctx context.Context) *PerfCol
 	log.Info("Starting perf collection on worker nodes...")
 
 	for nodeIndex, node := range workerNodeIps {
+		if _, err := utils.ServerExec(node, "rm -f ~/perf.csv ~/perf.data"); err != nil {
+			log.Fatalf("Failed to clear stale perf outputs on node %s: %v", node, err)
+		}
 		perfCtx.cancelChannels[nodeIndex] = make(chan struct{})
 		perfCtx.wg.Add(1)
 		go func(node string, nodeIdx int, cancelCh chan struct{}) {

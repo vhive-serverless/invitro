@@ -49,7 +49,7 @@ from typing import Dict, List
 import pandas as pd
 
 from trace_modes import (
-    MATCHED_WORKLOADS,
+    DENSITY_WORKLOADS,
     MODE_INVM_PY,
     TRACE_MODES,
     canonical_workload_name,
@@ -92,7 +92,7 @@ class Config:
     output_dir: Path
     workload_rps: Dict[str, float] = field(
         default_factory=lambda: {
-            name: DEFAULT_WORKLOAD_RPS[name] for name in MATCHED_WORKLOADS
+            name: DEFAULT_WORKLOAD_RPS[name] for name in DENSITY_WORKLOADS
         }
     )
     divisor: float = 10.0
@@ -349,7 +349,7 @@ Examples:
     parser.add_argument("--output", default=DEFAULT_OUTPUT_DIR,
                         help=f"Directory to write output CSVs. Default: {DEFAULT_OUTPUT_DIR}")
     parser.add_argument("--workload-rps", type=parse_workload_rps_arg,
-                        default={name: DEFAULT_WORKLOAD_RPS[name] for name in MATCHED_WORKLOADS},
+                        default={name: DEFAULT_WORKLOAD_RPS[name] for name in DENSITY_WORKLOADS},
                         help="Workload->RPS mapping as a JSON file path or inline JSON.")
     parser.add_argument("--mode", choices=TRACE_MODES, default=MODE_INVM_PY,
                         help="Explicit attribution mode. Default: invm-py")

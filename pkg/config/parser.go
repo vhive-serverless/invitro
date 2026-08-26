@@ -85,6 +85,12 @@ type LoaderConfiguration struct {
 
 	// used only if nexus
 	EnablePrefetch bool `json:"EnablePrefetch"`
+	// EnablePerfCollection controls the optional host/guest perf collector. It
+	// is enabled for E2 attribution runs and disabled for trace replay.
+	EnablePerfCollection bool `json:"EnablePerfCollection"`
+	// FixedReplicaCount pins initial/min/max scale when positive. Zero preserves
+	// trace-derived autoscaling for E3/E4.
+	FixedReplicaCount int `json:"FixedReplicaCount"`
 }
 
 type WorkflowFunction struct {
