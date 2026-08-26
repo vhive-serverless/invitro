@@ -43,12 +43,12 @@ def read_averages(path: Path, *, require_complete: bool = True) -> dict[str, flo
     return result
 
 
-def build_plan(averages: dict[str, float], cores: int) -> dict[str, dict[str, object]]:
-    if cores <= 0:
-        raise ValueError("worker cores must be positive")
+def build_plan(averages: dict[str, float], cores: int, ceiling_multiplier: float = 1.0) -> dict[str, dict[str, object]]:
+    if cores <= 0 or ceiling_multiplier <= 0:
+        raise ValueError("worker cores and ceiling multiplier must be positive")
     result = {}
     for workload, average in averages.items():
-        bound = math.floor(cores * 1000.0 / average)
+        bound = math.floor(cores * 1000.0 * ceiling_multiplier / average)
         if bound < STEPS:
             raise ValueError(f"Rbound={bound} for {workload} cannot form {STEPS} distinct positive levels")
         levels = [math.floor(index * bound / STEPS) for index in range(1, STEPS + 1)]
@@ -57,6 +57,7 @@ def build_plan(averages: dict[str, float], cores: int) -> dict[str, dict[str, ob
         result[workload] = {
             "unloaded_average_ms": average,
             "worker_cores": cores,
+            "ceiling_multiplier": ceiling_multiplier,
             "rbound": bound,
             "levels": levels,
         }
@@ -209,6 +210,7 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--averages", required=True, type=Path)
     parser.add_argument("--cores", required=True, type=int)
+    parser.add_argument("--ceiling-multiplier", type=float, default=1.0)
     sub = parser.add_subparsers(dest="command", required=True)
     plan_parser = sub.add_parser("plan")
     plan_parser.add_argument("--output", required=True, type=Path)
@@ -232,7 +234,7 @@ def main() -> int:
     finalize_parser.add_argument("--output", required=True, type=Path)
     args = parser.parse_args()
     averages = read_averages(args.averages)
-    plans = build_plan(averages, args.cores)
+    plans = build_plan(averages, args.cores, args.ceiling_multiplier)
     if args.command == "plan":
         rows = [{"workload": workload, **{key: value for key, value in item.items() if key != "levels"},
                  **{f"rps_{index:02d}": value for index, value in enumerate(item["levels"], 1)}}

@@ -153,6 +153,8 @@ write_config() {
         envsubst < cmd/config_khala_trace_template.json > "$destination"
 }
 
+digest() { sha256sum "$1" | awk '{print $1}'; }
+
 run_cell() {
     local repetition=$1 mode=$2 worker_config=$3 workers_for_sampler=$4
     local run_id="e3-e4-r${repetition}-${mode}"
@@ -201,9 +203,15 @@ run_cell() {
             echo "${label}_branch=$(git -C "$path" branch --show-current)"
             echo "${label}_status=$(git -C "$path" status --short | tr '\n' '|')"
         done
-        sha256sum "$reference" generate_trace_sweep.py collect_e4_memory.py run_trace_ablation.sh \
-            data/traces/reference/preprocessed_150.tar.gz \
-            "$scratch_trace/invocations.csv" "$scratch_trace/durations.csv" "$config_path" "$worker_config"
+        echo "reference_sha256=$(digest "$reference")"
+        echo "generator_sha256=$(digest generate_trace_sweep.py)"
+        echo "memory_sampler_sha256=$(digest collect_e4_memory.py)"
+        echo "runner_sha256=$(digest run_trace_ablation.sh)"
+        echo "reference_trace_archive_sha256=$(digest data/traces/reference/preprocessed_150.tar.gz)"
+        echo "trace_invocations_sha256=$(digest "$scratch_trace/invocations.csv")"
+        echo "trace_durations_sha256=$(digest "$scratch_trace/durations.csv")"
+        echo "config_sha256=$(digest "$config_path")"
+        echo "worker_config_sha256=$(digest "$worker_config")"
     } > "$scratch_out/manifest.txt"
 
     local status=0 clean_status=0 sampler_status=0 sampler_pid= stop_file="$scratch_out/stop-memory"

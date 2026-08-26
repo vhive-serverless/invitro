@@ -50,6 +50,13 @@ class CalibrationTest(unittest.TestCase):
             self.assertEqual(len(set(plan["levels"])), STEPS, workload)
             self.assertEqual(plan["levels"][-1], plan["rbound"], workload)
 
+    def test_explicit_larger_ceiling_doubles_rbound_without_auto_extension(self):
+        extended = build_plan(self.averages, 28, 2.0)
+        for workload in WORKLOADS:
+            self.assertEqual(extended[workload]["rbound"], int(28 * 1000 * 2 / self.averages[workload]))
+            self.assertGreater(extended[workload]["rbound"], self.plans[workload]["rbound"])
+            self.assertEqual(extended[workload]["ceiling_multiplier"], 2.0)
+
     def test_exact_slo_boundary_uses_previous_level(self):
         result = {row["workload"]: row for row in analyze(self.plans, self._observations(2))}
         hello = result["helloworld"]

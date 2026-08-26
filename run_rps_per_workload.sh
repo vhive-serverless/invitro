@@ -12,6 +12,7 @@ reference=
 worker_cores=
 slo_multiplier=5
 failure_threshold=0.05
+ceiling_multiplier=1
 warmup_minutes=2
 steps=20
 minutes_per_step=1
@@ -28,7 +29,7 @@ usage() {
 Usage:
   run_rps_per_workload.sh calibrate --profile 4-node --e1-summary FILE --worker-cores N
       --slo-multiplier 5 --failure-threshold 0.05 --warmup-minutes 2 --steps 20
-      --minutes-per-step 1 --no-retry --result-root PATH [--dry-run]
+      --minutes-per-step 1 --ceiling-multiplier 1 --no-retry --result-root PATH [--dry-run]
   run_rps_per_workload.sh collect --profile 4-node --reference FILE --replicas 320
       --repetitions 3 --result-root PATH [--dry-run]
 EOF
@@ -42,6 +43,7 @@ while (($#)); do
         --worker-cores) worker_cores=${2:?}; shift 2 ;;
         --slo-multiplier) slo_multiplier=${2:?}; shift 2 ;;
         --failure-threshold) failure_threshold=${2:?}; shift 2 ;;
+        --ceiling-multiplier) ceiling_multiplier=${2:?}; shift 2 ;;
         --warmup-minutes) warmup_minutes=${2:?}; shift 2 ;;
         --steps) steps=${2:?}; shift 2 ;;
         --minutes-per-step) minutes_per_step=${2:?}; shift 2 ;;
@@ -132,6 +134,8 @@ write_config() {
         envsubst < cmd/config_khala_trace_template.json > "$destination"
 }
 
+digest() { sha256sum "$1" | awk '{print $1}'; }
+
 run_cell() {
     local phase=$1 repetition=$2 mode=$3 workload=$4 rps=$5 perf=$6 duration=$7 destination=$8
     local run_id="e2-${phase}-r${repetition}-${mode}-${workload}"
@@ -147,10 +151,10 @@ run_cell() {
     rm -rf -- "$scratch_out" "$scratch_trace"
     mkdir -p "$scratch_out"
     if [[ "$phase" == calibration ]]; then
-        python3 e2_calibrate_rps.py --averages "$e1_summary" --cores "$worker_cores" trace \
+        python3 e2_calibrate_rps.py --averages "$e1_summary" --cores "$worker_cores" --ceiling-multiplier "$ceiling_multiplier" trace \
             --workload "$workload" --warmup-minutes "$warmup_minutes" --output "$scratch_trace"
     else
-        python3 e2_calibrate_rps.py --averages "$e1_summary" --cores "$worker_cores" fixed-trace \
+        python3 e2_calibrate_rps.py --averages "$e1_summary" --cores "$worker_cores" --ceiling-multiplier "$ceiling_multiplier" fixed-trace \
             --workload "$workload" --mode "$mode" --rps "$rps" --warmup-minutes "$warmup_minutes" \
             --measurement-minutes "$duration" --output "$scratch_trace"
     fi
@@ -184,10 +188,16 @@ run_cell() {
         echo "measurement_minutes=$duration"
         echo "slo_multiplier=$slo_multiplier"
         echo "failure_threshold=$failure_threshold"
+        echo "ceiling_multiplier=$ceiling_multiplier"
         echo "worker_cores=$worker_cores"
-        sha256sum "$e1_summary" e2_calibrate_rps.py run_rps_per_workload.sh trace_modes.py \
-            "$scratch_trace/invocations.csv" "$scratch_trace/durations.csv" "$config_path"
-        if [[ -f "$reference" ]]; then sha256sum "$reference"; fi
+        echo "e1_summary_sha256=$(digest "$e1_summary")"
+        echo "calibrator_sha256=$(digest e2_calibrate_rps.py)"
+        echo "runner_sha256=$(digest run_rps_per_workload.sh)"
+        echo "trace_modes_sha256=$(digest trace_modes.py)"
+        echo "trace_invocations_sha256=$(digest "$scratch_trace/invocations.csv")"
+        echo "trace_durations_sha256=$(digest "$scratch_trace/durations.csv")"
+        echo "config_sha256=$(digest "$config_path")"
+        if [[ -f "$reference" ]]; then echo "reference_sha256=$(digest "$reference")"; fi
     } > "$scratch_out/manifest.txt"
     local status=0
     set +e
@@ -223,11 +233,11 @@ if [[ "$command" == calibrate ]]; then
         echo "calibration contract is frozen at 5x, >5%, 20 one-minute steps, and no retry" >&2; exit 2; }
     plan_path="$result_root/calibration-plan.csv"
     if [[ "$dry_run" == true ]]; then
-        python3 - "$e1_summary" "$worker_cores" <<'PY' >/dev/null
+        python3 - "$e1_summary" "$worker_cores" "$ceiling_multiplier" <<'PY' >/dev/null
 import sys
 from pathlib import Path
 from e2_calibrate_rps import build_plan, read_averages
-build_plan(read_averages(Path(sys.argv[1])), int(sys.argv[2]))
+build_plan(read_averages(Path(sys.argv[1])), int(sys.argv[2]), float(sys.argv[3]))
 PY
         for workload in "${workloads[@]}"; do
             print_cell calibration 0 invm-py "$workload" sweep 320 false 2 20 "$result_root/cells/$workload"
@@ -236,7 +246,7 @@ PY
     fi
     validate_claim_sources
     mkdir -p "$result_root"
-    python3 e2_calibrate_rps.py --averages "$e1_summary" --cores "$worker_cores" plan --output "$plan_path"
+    python3 e2_calibrate_rps.py --averages "$e1_summary" --cores "$worker_cores" --ceiling-multiplier "$ceiling_multiplier" plan --output "$plan_path"
     observations=()
     for workload in "${workloads[@]}"; do
         cell="$result_root/cells/$workload"
@@ -244,12 +254,28 @@ PY
         duration_csv=$(find "$cell" -maxdepth 1 -name 'experiment_duration_*.csv' -print -quit)
         [[ -n "$duration_csv" ]] || { echo "missing duration CSV for $workload" >&2; exit 2; }
         observation="$cell/observations.csv"
-        python3 e2_calibrate_rps.py --averages "$e1_summary" --cores "$worker_cores" observe \
+        python3 e2_calibrate_rps.py --averages "$e1_summary" --cores "$worker_cores" --ceiling-multiplier "$ceiling_multiplier" observe \
             --workload "$workload" --duration-csv "$duration_csv" --output "$observation"
         observations+=("$observation")
     done
-    python3 e2_calibrate_rps.py --averages "$e1_summary" --cores "$worker_cores" finalize \
+    python3 e2_calibrate_rps.py --averages "$e1_summary" --cores "$worker_cores" --ceiling-multiplier "$ceiling_multiplier" finalize \
         --observations "${observations[@]}" --output "$result_root/b0-rps-reference.csv"
+    if python3 - "$result_root/b0-rps-reference.csv" <<'PY'
+import csv, sys
+with open(sys.argv[1], newline='', encoding='utf-8') as handle:
+    raise SystemExit(0 if any(row['status'] == 'RIGHT_CENSORED' for row in csv.DictReader(handle)) else 1)
+PY
+    then
+        next_multiplier=$(python3 -c 'import sys; print(float(sys.argv[1]) * 2)' "$ceiling_multiplier")
+        printf 'RIGHT_CENSORED: rerun in a new result root with --ceiling-multiplier %s; do not treat Rbound as Rmax_B0.\n' "$next_multiplier"
+        rerun=("$0" calibrate --profile "$profile" --e1-summary "$e1_summary" --worker-cores "$worker_cores"
+            --slo-multiplier 5 --failure-threshold 0.05 --warmup-minutes 2 --steps 20
+            --minutes-per-step 1 --ceiling-multiplier "$next_multiplier" --no-retry
+            --result-root "${result_root}-ceiling-${next_multiplier}")
+        printf 'RERUN_COMMAND:'
+        printf ' %q' "${rerun[@]}"
+        printf '\n'
+    fi
     echo "CALIBRATION_READY reference=$result_root/b0-rps-reference.csv"
     exit 0
 fi
