@@ -23,22 +23,27 @@ import (
 
 var (
 	Command         = flag.String("command", "deploy", "Command to execute: deploy or clean")
-	Mode            = flag.String("mode", "", "Experiment mode: invm-py, nexus-go, or nexus-rdma")
+	Mode            = flag.String("mode", "", "Experiment mode: invm-py, nexus-py, nexus-go, nexus-rdma, nexus-rdma-py, hosttcp-go, or hosttcp-py")
 	DryRun          = flag.Bool("dry-run", false, "Print the resolved deployment plan without side effects")
 	CorePoolPolicy  = flag.String("core-pool-policy", "", "Core pool policy: baseline, l-sep, or l-shared")
 	Implementation  = flag.String("impl", "go", "Implementation to use: go or cpp")
 	RemoveSnapshots = flag.Bool("remove-snapshots", false, "Whether to remove existing snapshots before deploying Khala")
 	CorePoolNode    = flag.String("corepool-node", "", "Node to set manual core pool size when using 'set-corepool' command")
 	CorePool        = flag.String("corepool-size", "", "Manual core pool size to set when using 'set-corepool' command")
-	StreamSlots     = flag.Int("stream-slots", 4, "Shared-memory stream slot count")
-	StreamCapacity  = flag.Int("stream-capacity", 256*1024, "Shared-memory capacity per direction per slot")
+	ShmemRingBytes  = flag.Int("shmem-ring-bytes", 4_190_208, "Shared-memory mapping ring capacity")
+	ShmemIOQuantum  = flag.Int("shmem-io-quantum", 256*1024, "Shared-memory copy quantum")
+	MinioEndpoint   = flag.String("minio-endpoint", "10.0.1.4:9001", "S3-compatible endpoint for guest and Nexus clients")
 	Debug           = flag.Bool("debug", false, "Enable debug mode")
 )
 
 const (
-	ModeInVMPy    = "invm-py"
-	ModeNexusGo   = "nexus-go"
-	ModeNexusRDMA = "nexus-rdma"
+	ModeInVMPy      = "invm-py"
+	ModeNexusPy     = "nexus-py"
+	ModeNexusGo     = "nexus-go"
+	ModeNexusRDMA   = "nexus-rdma"
+	ModeNexusRDMAPy = "nexus-rdma-py"
+	ModeHostTCPGo   = "hosttcp-go"
+	ModeHostTCPPy   = "hosttcp-py"
 )
 
 var matchedWorkloads = []string{"pyaesserve", "mapper", "reducer"}
@@ -46,13 +51,12 @@ var matchedWorkloads = []string{"pyaesserve", "mapper", "reducer"}
 type ExperimentMode struct {
 	Name             string   `json:"mode"`
 	Workloads        []string `json:"workloads"`
-	TCPTransport     string   `json:"tcp_transport"`
 	BackendTransport string   `json:"backend_transport"`
 	SetNexusSDK      bool     `json:"set_nexus_sdk"`
 	SetNexusRPC      bool     `json:"set_nexus_rpc"`
 	WithRDMA         bool     `json:"with_rdma"`
-	StreamSlots      int      `json:"stream_slots"`
-	StreamCapacity   int      `json:"stream_capacity"`
+	ShmemRingBytes   int      `json:"shmem_ring_bytes"`
+	ShmemIOQuantum   int      `json:"shmem_io_quantum"`
 }
 
 type DryRunPlan struct {
@@ -91,7 +95,7 @@ func runCommand() error {
 		if *Command == "clean" {
 			mode, err = resolveCleanupMode(*Mode)
 		} else {
-			mode, err = resolveExperimentMode(*Mode, *StreamSlots, *StreamCapacity)
+			mode, err = resolveExperimentMode(*Mode, *ShmemRingBytes, *ShmemIOQuantum)
 		}
 		if err != nil {
 			return err
@@ -172,71 +176,81 @@ func validateLocalFlags(command, corePoolPolicy, implementation string) error {
 	return nil
 }
 
-func resolveExperimentMode(name string, streamSlots, streamCapacity int) (ExperimentMode, error) {
-	if streamSlots <= 0 || streamCapacity <= 0 {
-		return ExperimentMode{}, fmt.Errorf("stream slots and capacity must be positive")
+func resolveExperimentMode(name string, shmemRingBytes, shmemIOQuantum int) (ExperimentMode, error) {
+	if shmemRingBytes <= 0 || shmemIOQuantum <= 0 {
+		return ExperimentMode{}, fmt.Errorf("shared-memory ring bytes and I/O quantum must be positive")
 	}
-	mode := ExperimentMode{Name: name, StreamSlots: streamSlots, StreamCapacity: streamCapacity}
+	mode := ExperimentMode{Name: name, ShmemRingBytes: shmemRingBytes, ShmemIOQuantum: shmemIOQuantum}
 	switch name {
 	case ModeInVMPy:
 		mode.Workloads = append([]string(nil), matchedWorkloads...)
-		mode.TCPTransport = "guest"
 		mode.BackendTransport = "none"
+	case ModeNexusPy:
+		if err := validateShmemLayout(shmemRingBytes, shmemIOQuantum); err != nil {
+			return ExperimentMode{}, err
+		}
+		mode.Workloads = append([]string(nil), matchedWorkloads...)
+		mode.BackendTransport = "shmem"
+		mode.SetNexusSDK = true
+		mode.SetNexusRPC = true
 	case ModeNexusGo:
-		if err := validateStreamLayout(streamSlots, streamCapacity); err != nil {
+		if err := validateShmemLayout(shmemRingBytes, shmemIOQuantum); err != nil {
 			return ExperimentMode{}, err
 		}
 		mode.Workloads = goWorkloads()
-		mode.TCPTransport = "guest"
-		mode.BackendTransport = "stream"
+		mode.BackendTransport = "shmem"
 		mode.SetNexusSDK = true
 		mode.SetNexusRPC = true
 	case ModeNexusRDMA:
 		mode.Workloads = goWorkloads()
-		mode.TCPTransport = "guest"
 		mode.BackendTransport = "rdma"
 		mode.SetNexusSDK = true
 		mode.SetNexusRPC = true
 		mode.WithRDMA = true
+	case ModeNexusRDMAPy:
+		mode.Workloads = append([]string(nil), matchedWorkloads...)
+		mode.BackendTransport = "rdma"
+		mode.SetNexusSDK = true
+		mode.SetNexusRPC = true
+		mode.WithRDMA = true
+	case ModeHostTCPGo:
+		mode.Workloads = goWorkloads()
+		mode.BackendTransport = "hosttcp"
+		mode.SetNexusSDK = true
+		mode.SetNexusRPC = true
+	case ModeHostTCPPy:
+		mode.Workloads = append([]string(nil), matchedWorkloads...)
+		mode.BackendTransport = "hosttcp"
+		mode.SetNexusSDK = true
+		mode.SetNexusRPC = true
 	default:
-		return ExperimentMode{}, fmt.Errorf("invalid --mode %q: expected %s, %s, or %s", name, ModeInVMPy, ModeNexusGo, ModeNexusRDMA)
+		return ExperimentMode{}, fmt.Errorf("invalid --mode %q: expected %s, %s, %s, %s, %s, %s, or %s", name, ModeInVMPy, ModeNexusPy, ModeNexusGo, ModeNexusRDMA, ModeNexusRDMAPy, ModeHostTCPGo, ModeHostTCPPy)
 	}
 	return mode, nil
 }
 
 // resolveCleanupMode intentionally validates only the experiment identity and
 // whether its teardown includes RDMA storage. Cleanup must remain usable after
-// a failed or historical deployment even when its stream layout flags are no
+// a failed or historical deployment even when its shared-memory flags are no
 // longer valid under the current deploy/create rules.
 func resolveCleanupMode(name string) (ExperimentMode, error) {
 	mode := ExperimentMode{Name: name}
 	switch name {
-	case ModeInVMPy, ModeNexusGo:
+	case ModeInVMPy, ModeNexusPy, ModeNexusGo, ModeHostTCPGo, ModeHostTCPPy:
 		return mode, nil
-	case ModeNexusRDMA:
+	case ModeNexusRDMA, ModeNexusRDMAPy:
 		mode.WithRDMA = true
 		return mode, nil
 	default:
-		return ExperimentMode{}, fmt.Errorf("invalid --mode %q: expected %s, %s, or %s", name, ModeInVMPy, ModeNexusGo, ModeNexusRDMA)
+		return ExperimentMode{}, fmt.Errorf("invalid --mode %q: expected %s, %s, %s, %s, %s, %s, or %s", name, ModeInVMPy, ModeNexusPy, ModeNexusGo, ModeNexusRDMA, ModeNexusRDMAPy, ModeHostTCPGo, ModeHostTCPPy)
 	}
 }
 
 const maxSharedMemoryBytes = 16 * 1024 * 1024
 
-func validateStreamLayout(slots, capacity int) error {
-	if slots < 2 {
-		return fmt.Errorf("stream mode requires at least 2 slots (one outbound reservation plus one allocatable slot)")
-	}
-	if slots > maxSharedMemoryBytes || capacity > maxSharedMemoryBytes {
-		return fmt.Errorf("stream slots and capacity must each fit within the %d-byte shared-memory backing", maxSharedMemoryBytes)
-	}
-	// Mirrors nexusstream.CalculateLayout: a 64-byte superblock and, per slot,
-	// 64 bytes of slot metadata plus two 128-byte ring headers and payloads.
-	ringSpan := uint64(128) + uint64(capacity)
-	ringSpan = (ringSpan + 63) &^ uint64(63)
-	logical := uint64(64) + uint64(slots)*(uint64(64)+2*ringSpan)
-	if logical > maxSharedMemoryBytes {
-		return fmt.Errorf("stream layout requires %d bytes, exceeding %d-byte shared-memory backing", logical, maxSharedMemoryBytes)
+func validateShmemLayout(ringBytes, quantum int) error {
+	if ringBytes > maxSharedMemoryBytes || quantum > ringBytes {
+		return fmt.Errorf("shared-memory ring bytes and quantum must fit within %d-byte backing", maxSharedMemoryBytes)
 	}
 	return nil
 }
@@ -255,9 +269,9 @@ func buildDeploymentCommand(corePoolPolicy, implementation string, mode Experime
 	if corePoolPolicy != "" {
 		command += " --corepool=" + corePoolPolicy
 	}
-	command += fmt.Sprintf(" --tcp-transport=%s --backend-transport=%s", mode.TCPTransport, mode.BackendTransport)
+	command += fmt.Sprintf(" --backend-transport=%s --minio-endpoint=%s", mode.BackendTransport, *MinioEndpoint)
 	command += fmt.Sprintf(" --set-nexus-sdk=%t --set-nexus-rpc=%t --with-rdma=%t", mode.SetNexusSDK, mode.SetNexusRPC, mode.WithRDMA)
-	command += fmt.Sprintf(" --stream-slots=%d --stream-capacity=%d --debug=%t", mode.StreamSlots, mode.StreamCapacity, debug)
+	command += fmt.Sprintf(" --shmem-ring-bytes=%d --shmem-io-quantum=%d --debug=%t", *ShmemRingBytes, *ShmemIOQuantum, debug)
 	return command
 }
 
@@ -271,8 +285,14 @@ func buildSnapshotNames(mode ExperimentMode) []string {
 		if mode.SetNexusRPC {
 			suffix += "-rpc"
 		}
-		if mode.BackendTransport == "stream" {
-			suffix += "-stream"
+		if mode.BackendTransport == "shmem" {
+			suffix += "-shmem"
+		}
+		if mode.BackendTransport == "hosttcp" {
+			suffix += "-hosttcp"
+		}
+		if mode.BackendTransport == "rdma" {
+			suffix += "-rdma"
 		}
 		result = append(result, workload+suffix+"-0")
 	}
@@ -306,6 +326,14 @@ var (
 func runLocalCommand(command string) (string, error) {
 	output, err := exec.Command("bash", "-c", command).CombinedOutput()
 	return string(output), err
+}
+
+func minioObjectEndpointURL() string {
+	endpoint := strings.TrimSpace(*MinioEndpoint)
+	if strings.HasPrefix(endpoint, "http://") || strings.HasPrefix(endpoint, "https://") {
+		return endpoint
+	}
+	return "http://" + endpoint
 }
 
 type errorCollector struct {
@@ -344,7 +372,7 @@ func getWorkerNodes() (WorkerNodeSetup, error) {
 }
 
 func DeployKhala(workerNodeSetup WorkerNodeSetup, corePoolPolicy string, implementation string, mode ExperimentMode, debug bool) error {
-	output, err := localCommandFn("cd ~/khala && bash ./scripts/deploy-minio-obj.sh http://myminio-api.minio.10.200.3.4.sslip.io")
+	output, err := localCommandFn("cd ~/khala && bash ./scripts/deploy-minio-obj.sh " + minioObjectEndpointURL())
 	if err != nil {
 		return fmt.Errorf("prepare MinIO objects: %w, output: %s", err, output)
 	}
@@ -558,7 +586,7 @@ func CleanKhala(workerNodeSetup WorkerNodeSetup, removeSnapshots bool, withRDMA 
 		time.Sleep(60 * time.Second)
 	}
 
-	cmd = exec.Command("bash", "-c", "cd ~/khala && bash ./scripts/deploy-minio-obj.sh http://myminio-api.minio.10.200.3.4.sslip.io")
+	cmd = exec.Command("bash", "-c", "cd ~/khala && bash ./scripts/deploy-minio-obj.sh "+minioObjectEndpointURL())
 	outBytes, err = cmd.CombinedOutput()
 	if err != nil {
 		log.Errorf("Failed to cleanup minio: %v, output: %s", err, string(outBytes))

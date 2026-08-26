@@ -63,7 +63,6 @@ func StartPerfCollection(cfg config.Configuration, ctx context.Context) *PerfCol
 	CACHE_EVENTS_G := addModifiers(CACHE_EVENTS, "G")
 	TLB_MISSES_H := addModifiers(TLB_EVENTS, "H")
 	TLB_MISSES_G := addModifiers(TLB_EVENTS, "G")
-
 	BASELINE_Hk := addModifiers(BASELINE, "Hk")
 	BASELINE_Gk := addModifiers(BASELINE, "Gk")
 	BASELINE_Hu := addModifiers(BASELINE, "Hu")
@@ -72,10 +71,6 @@ func StartPerfCollection(cfg config.Configuration, ctx context.Context) *PerfCol
 	commandList := []string{
 		fmt.Sprintf("-e %s,%s,%s,%s", BASELINE_H, TMA_H, CACHE_EVENTS_H, TLB_MISSES_H),                 // Multiplexing 36%
 		fmt.Sprintf("-e %s,%s,%s,%s,%s", BASELINE_G, TMA_G, CACHE_EVENTS_G, TLB_MISSES_G, MISC_EVENTS), // Multiplexing 36%
-	}
-
-	// WARN: This overrides above List
-	commandList = []string{
 		fmt.Sprintf("-e %s,%s,%s,%s", BASELINE_Hk, BASELINE_Gk, BASELINE_Hu, BASELINE_Gu),
 	}
 

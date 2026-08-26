@@ -325,7 +325,7 @@ Examples:
   %(prog)s --divisor 100 --start-scale 1 --end-scale 5 --step 2 \\
            --warmup-duration 2 --warmup-scale 1 --dry-run
 
-  # Nexus-Go names use matched Go snapshots and the stream token
+  # Nexus-Go names use matched Go snapshots and the shmem token
   %(prog)s --divisor 100 --start-scale 1 --end-scale 15 --step 1 \\
            --warmup-duration 2 --warmup-scale 1 --mode nexus-go
         """,

@@ -1,9 +1,24 @@
 """Side-effect-free experiment mode and workload-name mapping."""
 
 MODE_INVM_PY = "invm-py"
+MODE_NEXUS_PY = "nexus-py"
 MODE_NEXUS_GO = "nexus-go"
 MODE_NEXUS_RDMA = "nexus-rdma"
-TRACE_MODES = (MODE_INVM_PY, MODE_NEXUS_GO, MODE_NEXUS_RDMA)
+MODE_NEXUS_RDMA_PY = "nexus-rdma-py"
+MODE_HOSTTCP_GO = "hosttcp-go"
+MODE_HOSTTCP_PY = "hosttcp-py"
+# hosttcp-py is intentionally opt-in: its raw Python admission is terminally
+# inadmissible, although the generator accepts its mode identity for functional
+# follow-up work. The end-to-end matrix gates it separately in the shell plan.
+TRACE_MODES = (
+    MODE_INVM_PY,
+    MODE_NEXUS_PY,
+    MODE_NEXUS_GO,
+    MODE_NEXUS_RDMA,
+    MODE_NEXUS_RDMA_PY,
+    MODE_HOSTTCP_GO,
+    MODE_HOSTTCP_PY,
+)
 
 MATCHED_WORKLOADS = ("pyaesserve", "mapper", "reducer")
 GO_WORKLOAD_NAMES = {
@@ -22,13 +37,19 @@ def trace_workload_name(canonical_name: str, mode: str) -> str:
         )
     if mode == MODE_INVM_PY:
         return canonical_name
+    if mode == MODE_NEXUS_PY:
+        return f"{canonical_name}-s3-rpc-shmem"
     go_name = GO_WORKLOAD_NAMES[canonical_name]
     if mode == MODE_NEXUS_GO:
-        return f"{go_name}-s3-rpc-stream"
+        return f"{go_name}-s3-rpc-shmem"
     if mode == MODE_NEXUS_RDMA:
-        # RDMA is selected by backend metadata. Khala's existing snapshot
-        # grammar deliberately has no "rdma" token.
-        return f"{go_name}-s3-rpc"
+        return f"{go_name}-s3-rpc-rdma"
+    if mode == MODE_NEXUS_RDMA_PY:
+        return f"{canonical_name}-s3-rpc-rdma"
+    if mode == MODE_HOSTTCP_GO:
+        return f"{go_name}-s3-rpc-hosttcp"
+    if mode == MODE_HOSTTCP_PY:
+        return f"{canonical_name}-s3-rpc-hosttcp"
     raise ValueError(f"unsupported experiment mode: {mode}")
 
 

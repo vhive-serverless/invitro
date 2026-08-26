@@ -26,6 +26,7 @@ package driver
 
 import (
 	"container/list"
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -374,9 +375,11 @@ func (d *Driver) internalRun() {
 	backgroundProcessesInitializationBarrier, globalMetricsCollector, totalIssuedChannel, scraperFinishCh := d.startBackgroundProcesses(&allRecordsWritten)
 	backgroundProcessesInitializationBarrier.Wait()
 
-	// // Start perf collection in background
-	// perfContext := context.Background()
-	// perfCollectionCtx := StartPerfCollection(*d.Configuration, perfContext)
+	// Start the existing sequential perf/KVM-event collector for this
+	// claim-bearing experiment branch. Comment these three lines together when
+	// running experiments that must not include collector overhead.
+	perfContext := context.Background()
+	perfCollectionCtx := StartPerfCollection(*d.Configuration, perfContext)
 
 	if d.Configuration.LoaderConfiguration.DAGMode {
 		functions := d.Configuration.Functions
@@ -414,8 +417,7 @@ func (d *Driver) internalRun() {
 
 	allIndividualDriversCompleted.Wait()
 
-	// // Stop perf collection and rsync results back
-	// StopPerfCollection(perfCollectionCtx)
+	StopPerfCollection(perfCollectionCtx)
 
 	if atomic.LoadInt64(&successfulInvocations)+atomic.LoadInt64(&failedInvocations) != 0 {
 		log.Debugf("Waiting for all the invocations record to be written.\n")
