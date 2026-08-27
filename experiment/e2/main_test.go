@@ -45,3 +45,10 @@ func TestSmokeDryRunUsesBoundedTwoCellAdapter(t *testing.T) {
 		t.Fatalf("smoke dry-run wrote result root: %v", err)
 	}
 }
+
+func TestSmokeDefaultsRemainBounded(t *testing.T) {
+	o := defaultOptions("smoke")
+	if !o.smoke || o.replicas != 2 || o.warmupMinutes != 2 || o.measurementMinutes != 1 {
+		t.Fatalf("unexpected smoke defaults: %+v", o)
+	}
+}

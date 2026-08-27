@@ -28,12 +28,7 @@ func main() {
 	}
 	action := os.Args[1]
 	fs := flag.NewFlagSet("e2 "+action, flag.ContinueOnError)
-	o := options{common: eval.Config{Profile: eval.Profile4}, replicas: 320, repetitions: 1,
-		sloMultiplier: "5", failureThreshold: "0.05", ceilingMultiplier: "1",
-		warmupMinutes: 2, steps: 20, minutesPerStep: 1, measurementMinutes: 3}
-	if action == "smoke" {
-		o.smoke, o.replicas, o.measurementMinutes = true, 2, 1
-	}
+	o := defaultOptions(action)
 	eval.AddFlags(fs, &o.common)
 	fs.StringVar(&o.e1Summary, "e1-summary", "", "E1 B0 unloaded-average CSV")
 	fs.StringVar(&o.reference, "reference", "", "frozen B0 RPS reference CSV")
@@ -44,8 +39,8 @@ func main() {
 	fs.IntVar(&o.warmupMinutes, "warmup-minutes", 2, "warmup minutes")
 	fs.IntVar(&o.steps, "steps", 20, "calibration steps")
 	fs.IntVar(&o.minutesPerStep, "minutes-per-step", 1, "minutes per calibration step")
-	fs.IntVar(&o.measurementMinutes, "measurement-minutes", 3, "fixed-RPS measurement minutes")
-	fs.IntVar(&o.replicas, "replicas", 320, "requested fixed replica count")
+	fs.IntVar(&o.measurementMinutes, "measurement-minutes", o.measurementMinutes, "fixed-RPS measurement minutes")
+	fs.IntVar(&o.replicas, "replicas", o.replicas, "requested fixed replica count")
 	fs.IntVar(&o.repetitions, "repetitions", 1, "independent campaign repetitions")
 	fs.BoolVar(&o.noRetry, "no-retry", false, "forbid acquisition-cell retry")
 	if err := fs.Parse(os.Args[2:]); err != nil {
@@ -54,6 +49,16 @@ func main() {
 	if err := run(context.Background(), action, o); err != nil {
 		fail(err.Error())
 	}
+}
+
+func defaultOptions(action string) options {
+	o := options{common: eval.Config{Profile: eval.Profile4}, replicas: 320, repetitions: 1,
+		sloMultiplier: "5", failureThreshold: "0.05", ceilingMultiplier: "1",
+		warmupMinutes: 2, steps: 20, minutesPerStep: 1, measurementMinutes: 3}
+	if action == "smoke" {
+		o.smoke, o.replicas, o.measurementMinutes = true, 2, 1
+	}
+	return o
 }
 
 func run(ctx context.Context, action string, o options) error {
