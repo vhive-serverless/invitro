@@ -39,9 +39,9 @@ func setupKhala(cfg *configs.SetupConfig, masterNode string, loaderNode string, 
 		return err
 	}
 
-	// get asset and build rootfs
+	// Fetch pinned assets and build the one Py/Go/JS evaluation rootfs.
 	utils.WaitPrintf("Building Rootfs on master node: %s\n", masterNode)
-	_, err = loaderUtils.ServerExec(masterNode, "cd khala && source /etc/profile && bash scripts/get_asset.sh &&  go run experiment-cmd/rebuild-squashfs/main.go -worker-ip 10.0.1.1")
+	_, err = loaderUtils.ServerExec(masterNode, "cd khala && source /etc/profile && sudo env NEEDRESTART_SUSPEND=1 apt-get install -y git-lfs squashfs-tools xz-utils && bash scripts/get_asset.sh && bash scripts/build_evaluation_assets.sh")
 	if !utils.CheckErrorWithMsg(err, "Failed to build Rootfs on node %s: %v\n", masterNode, err) {
 		return err
 	}
@@ -88,8 +88,13 @@ func setupKhala(cfg *configs.SetupConfig, masterNode string, loaderNode string, 
 		go func(node string) {
 			defer wg.Done()
 			utils.WaitPrintf("Setting up Khala on node: %s\n", node)
+			_, err := loaderUtils.ServerExec(node, fmt.Sprintf("git clone --branch %s --single-branch %s firecracker", cfg.FirecrackerBranch, cfg.FirecrackerRepo))
+			if !utils.CheckErrorWithMsg(err, "Failed to clone Firecracker source on node %s: %v\n", node, err) {
+				addError(fmt.Errorf("clone Firecracker on %s: %w", node, err))
+				return
+			}
 			// cd khala && bash scripts/setup_knative.sh
-			_, err := loaderUtils.ServerExec(node, "cd khala && bash scripts/setup_knative.sh && source /etc/profile && make build-all && sudo mkdir -p /mnt/resources/jailer")
+			_, err = loaderUtils.ServerExec(node, "cd khala && bash scripts/setup_knative.sh && source /etc/profile && make build-all build-nexus-backend-rdma && sudo mkdir -p /mnt/resources/jailer /mnt/resources/nexus-evaluation")
 			if !utils.CheckErrorWithMsg(err, "Failed to set up Khala on node %s: %v\n", node, err) {
 				addError(fmt.Errorf("set up Khala on %s: %w", node, err))
 				return

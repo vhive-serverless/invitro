@@ -102,7 +102,7 @@ func CreateMultiNodeSetup(configDir string, configName string) {
 	// Deploy RDMA if enabled
 	if cfg.SetupCfg.DeployRDMA {
 		utils.InfoPrintf("Setting up RDMA components...\n")
-		if err := setupRDMA(cfg.MinioTenantNodes); err != nil {
+		if err := setupRDMA(cfg.SetupCfg, cfg.MinioTenantNodes); err != nil {
 			utils.FatalPrintf("Failed to setup RDMA components: %v\n", err)
 		}
 		utils.InfoPrintf("RDMA components setup completed.\n")

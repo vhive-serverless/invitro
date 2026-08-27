@@ -12,7 +12,7 @@ start_scale=1
 step=1
 end_scale=27
 warmup_minutes=2
-repetitions=3
+repetitions=1
 shift_step=10
 divisor=100
 cooldown_seconds=120
@@ -21,28 +21,21 @@ minio_endpoint=
 claim_run=false
 allow_extended_end=false
 dry_run=false
-active_sampler_pid=
-active_stop_file=
-
-stop_active_sampler() {
-    if [[ -n "$active_sampler_pid" ]]; then
-        : > "$active_stop_file"
-        wait "$active_sampler_pid" 2>/dev/null || true
-        active_sampler_pid=
-        active_stop_file=
-    fi
-}
-trap stop_active_sampler EXIT INT TERM
+smoke=false
+eval_firecracker_head=${EVAL_FIRECRACKER_HEAD:-}
+eval_firecracker_branch=${EVAL_FIRECRACKER_BRANCH:-}
+eval_rdma_demo_head=${EVAL_RDMA_DEMO_HEAD:-}
+eval_rdma_demo_branch=${EVAL_RDMA_DEMO_BRANCH:-}
 
 usage() {
     cat <<'EOF'
-Usage: run_trace_ablation.sh --profile 4-node|18-node
+Usage: run_trace_ablation.sh --profile 4-node|10-node|14-node|18-node
   --modes invm-py,nexus-py,nexus-rdma-py --reference b0-rps-reference.csv
   --start-scale 1 --step 1 --end-scale 27 --warmup-minutes 2
-  --repetitions 3 --result-root PATH [--claim-run] [--allow-extended-end] [--dry-run]
+  --repetitions 1 --result-root PATH [--claim-run] [--allow-extended-end] [--dry-run]
 
-The 18-node paper acquisition requires --claim-run. A 4-node run is a
-non-claiming integration preflight, not a node-count scale point.
+The 10/14/18-node paper profiles require --claim-run. A 4-node run is a
+non-claiming pilot, not a node-count scale point.
 EOF
 }
 
@@ -64,12 +57,13 @@ while (($#)); do
         --claim-run) claim_run=true; shift ;;
         --allow-extended-end) allow_extended_end=true; shift ;;
         --dry-run) dry_run=true; shift ;;
+        --smoke) smoke=true; shift ;;
         -h|--help) usage; exit 0 ;;
         *) echo "unknown option: $1" >&2; usage >&2; exit 2 ;;
     esac
 done
 
-[[ "$profile" == 4-node || "$profile" == 18-node ]] || { echo "--profile must be 4-node or 18-node" >&2; exit 2; }
+[[ "$profile" == 4-node || "$profile" == 10-node || "$profile" == 14-node || "$profile" == 18-node ]] || { echo "unsupported E3 profile" >&2; exit 2; }
 [[ -f "$reference" ]] || { echo "--reference must name the frozen B0 RPS reference" >&2; exit 2; }
 [[ -n "$result_root" ]] || { echo "--result-root is required" >&2; exit 2; }
 for value in "$start_scale" "$step" "$end_scale" "$warmup_minutes" "$repetitions" "$shift_step" "$divisor" "$cooldown_seconds"; do
@@ -77,33 +71,40 @@ for value in "$start_scale" "$step" "$end_scale" "$warmup_minutes" "$repetitions
 done
 ((start_scale > 0 && step > 0 && end_scale >= start_scale && repetitions > 0 && divisor > 0)) || {
     echo "invalid scale/repetition contract" >&2; exit 2; }
-[[ "$warmup_minutes" == 2 ]] || { echo "E3/E4 requires a two-minute warmup" >&2; exit 2; }
+[[ "$warmup_minutes" == 2 ]] || { echo "E3 requires a two-minute warmup" >&2; exit 2; }
+[[ "$repetitions" == 1 ]] || { echo "E3 requires one campaign repetition" >&2; exit 2; }
 if ((end_scale > 27)) && [[ "$allow_extended_end" != true ]]; then
     echo "END_SCALE above 27 requires explicit --allow-extended-end" >&2
+    exit 2
+fi
+if [[ "$smoke" == true && ( "$profile" != 4-node || "$end_scale" != 1 || "$cooldown_seconds" != 0 ) ]]; then
+    echo "E3 smoke requires 4-node, END_SCALE=1, and zero cooldown" >&2
     exit 2
 fi
 
 IFS=',' read -r -a modes <<< "$modes_csv"
 expected_modes=(invm-py nexus-py nexus-rdma-py)
-[[ ${#modes[@]} -eq 3 ]] || { echo "E3/E4 requires exactly B0/N4/N5" >&2; exit 2; }
+[[ ${#modes[@]} -eq 3 ]] || { echo "E3 requires exactly B0/N4/N5" >&2; exit 2; }
 for expected in "${expected_modes[@]}"; do
-    [[ ",$modes_csv," == *",$expected,"* ]] || { echo "missing E3/E4 mode $expected" >&2; exit 2; }
+    [[ ",$modes_csv," == *",$expected,"* ]] || { echo "missing E3 mode $expected" >&2; exit 2; }
 done
 
-if [[ "$profile" == 18-node ]]; then
-    [[ "$claim_run" == true ]] || { echo "18-node acquisition requires explicit --claim-run" >&2; exit 2; }
-    [[ "$start_scale" == 1 && "$step" == 1 && "$repetitions" == 3 ]] || {
-        echo "18-node claim run requires START=1 STEP=1 and three repetitions" >&2; exit 2; }
+if [[ "$profile" != 4-node ]]; then
+    [[ "$claim_run" == true ]] || { echo "$profile acquisition requires explicit --claim-run" >&2; exit 2; }
+    [[ "$start_scale" == 1 && "$step" == 1 ]] || {
+        echo "claim run requires START=1 and STEP=1" >&2; exit 2; }
     [[ "$shift_step" == 10 && "$divisor" == 100 ]] || {
-        echo "18-node claim run requires SHIFT_STEP=10 and DIVISOR=100" >&2; exit 2; }
+        echo "claim run requires SHIFT_STEP=10 and DIVISOR=100" >&2; exit 2; }
     if [[ "$allow_extended_end" != true && "$end_scale" != 27 ]]; then
-        echo "initial 18-node claim run requires END=27" >&2; exit 2
+        echo "initial claim run requires END=27" >&2; exit 2
     fi
-    minio_endpoint=${minio_endpoint:-http://myminio-api.minio.10.200.3.4.sslip.io}
+    minio_endpoint=${minio_endpoint:-myminio-api.minio.10.200.3.4.sslip.io:80}
 else
-    [[ "$claim_run" == false ]] || { echo "4-node preflight cannot be marked claim-bearing" >&2; exit 2; }
-    minio_endpoint=${minio_endpoint:-10.0.1.4:9001}
+    [[ "$claim_run" == false ]] || { echo "4-node pilot cannot be marked claim-bearing" >&2; exit 2; }
+    minio_endpoint=${minio_endpoint:-myminio-api.minio.10.200.3.4.sslip.io:80}
 fi
+[[ "$minio_endpoint" == myminio-api.minio.10.200.3.4.sslip.io:80 ]] || {
+    echo "E3 requires the Kubernetes MinIO ingress" >&2; exit 2; }
 
 python3 - "$reference" <<'PY'
 import sys
@@ -139,9 +140,28 @@ require_clean_repo() {
     [[ -z "$status" ]] || { echo "$label repository is dirty; refusing acquisition" >&2; printf '%s\n' "$status" >&2; exit 2; }
 }
 
+repo_value() {
+    local field=$1 path=$2 override=${3:-}
+    if [[ -d "$path/.git" ]]; then
+        case "$field" in
+            head) git -C "$path" rev-parse HEAD ;;
+            branch) git -C "$path" branch --show-current ;;
+            status) git -C "$path" status --short | tr '\n' '|' ;;
+        esac
+    else
+        [[ -n "$override" ]] || { echo "missing provenance for $path/$field" >&2; return 1; }
+        printf '%s\n' "$override"
+    fi
+}
+
 discover_topology() {
     local inventory_path=$1 worker_config_path=$2 expected_workers expected_tenants
-    if [[ "$profile" == 4-node ]]; then expected_workers=1; expected_tenants=1; else expected_workers=8; expected_tenants=8; fi
+    case "$profile" in
+        4-node) expected_workers=1; expected_tenants=1 ;;
+        10-node) expected_workers=4; expected_tenants=4 ;;
+        14-node) expected_workers=6; expected_tenants=6 ;;
+        18-node) expected_workers=8; expected_tenants=8 ;;
+    esac
     kubectl get nodes -o json | jq -S '[.items[] | {
         name: .metadata.name,
         internal_ip: ([.status.addresses[]? | select(.type == "InternalIP") | .address] | first),
@@ -192,7 +212,7 @@ set -euo pipefail
 host=$1 role=$2 vm_config=$3 rootfs=$4 kernel=$5 vmm=$6 expected_head=$7 expected_config=$8 expected_rootfs=$9 expected_kernel=${10} expected_vmm=${11} expected_binary=${12} expected_nexus_backend=${13} expected_hardware_manager=${14} expected_workload=${15}
 cd ~/khala
 head=$(git rev-parse HEAD)
-status=$(git status --porcelain --untracked-files=no)
+status=$(git status --porcelain)
 [[ "$head" == "$expected_head" && -z "$status" ]]
 workload=$(git ls-files workload | LC_ALL=C sort | while IFS= read -r path; do sha256sum "$path"; done | sha256sum | awk '{print $1}')
 [[ "$workload" == "$expected_workload" ]]
@@ -213,19 +233,19 @@ expected_head=$2
 cd ~/loader
 head=$(git rev-parse HEAD)
 test "$head" = "$expected_head"
-test -z "$(git status --porcelain --untracked-files=no)"
+test -z "$(git status --porcelain)"
 printf 'role=loader host=%s tree=loader head=%s expected_head=%s status=clean\n' "$host" "$head" "$expected_head"
 SH
     done
     if [[ "$mode" == nexus-rdma-py ]]; then
         mapfile -t provenance_storage < <(jq -r '.storage_nodes[]' "$worker_config" | LC_ALL=C sort)
         for host in "${provenance_storage[@]}"; do
-            ssh -o BatchMode=yes -o ConnectTimeout=5 "$host" bash -s -- "$host" "$(git -C ../rdma-demo rev-parse HEAD)" "$(digest ../rdma-demo/s3-rdma-server)" <<'SH' >> "$output"
+            ssh -o BatchMode=yes -o ConnectTimeout=5 "$host" bash -s -- "$host" "$eval_rdma_demo_head" <<'SH' >> "$output"
 set -euo pipefail
-host=$1 expected_head=$2 expected_binary=$3
+host=$1 expected_head=$2
 cd ~/rdma-demo
-head=$(git rev-parse HEAD); status=$(git status --porcelain --untracked-files=no); binary=$(sha256sum s3-rdma-server | awk '{print $1}')
-[[ "$head" == "$expected_head" && -z "$status" && "$binary" == "$expected_binary" ]]
+head=$(git rev-parse HEAD); status=$(git status --porcelain); binary=$(sha256sum s3-rdma-server | awk '{print $1}')
+[[ "$head" == "$expected_head" && -z "$status" ]]
 printf 'role=storage host=%s tree=rdma-demo head=%s path=s3-rdma-server sha256=%s status=clean\n' "$host" "$head" "$binary"
 SH
         done
@@ -271,9 +291,7 @@ tracked_workload_sha() {
 
 mode_minio_route() {
     case "$1" in
-        invm-py|nexus-py)
-            if [[ "$profile" == 4-node ]]; then printf '%s\n' direct; else printf '%s\n' istio; fi
-            ;;
+        invm-py|nexus-py) printf '%s\n' istio ;;
         nexus-rdma-py) printf '%s\n' rdma ;;
         *) return 2 ;;
     esac
@@ -312,7 +330,8 @@ manifest_matches() {
     kernel=$(config_value "../khala/$vm_config" KernelPath)
     vmm=$(config_value "../khala/$vm_config" FirecrackerPath)
     route=$(mode_minio_route "$mode")
-    line_is "$manifest" 'manifest_version=2' && line_is "$manifest" 'experiment=e3-e4' &&
+    line_is "$manifest" 'manifest_version=2' && line_is "$manifest" 'experiment=e3' &&
+        line_is "$manifest" "smoke=$smoke" &&
         line_is "$manifest" "claim_bearing=$claim_run" && line_is "$manifest" "profile=$profile" &&
         line_is "$manifest" "repetition=$repetition" && line_is "$manifest" "mode=$mode" &&
         line_is "$manifest" "start_scale=$start_scale" && line_is "$manifest" "step=$step" &&
@@ -322,12 +341,11 @@ manifest_matches() {
         line_is "$manifest" "minio_route=$route" &&
         line_is "$manifest" "invitro_head=$(git rev-parse HEAD)" &&
         line_is "$manifest" "khala_head=$(git -C ../khala rev-parse HEAD)" &&
-        line_is "$manifest" "firecracker_head=$(git -C ../firecracker rev-parse HEAD)" &&
-        line_is "$manifest" "rdma_demo_head=$(git -C ../rdma-demo rev-parse HEAD)" &&
+        line_is "$manifest" "firecracker_head=$(repo_value head ../firecracker "$eval_firecracker_head")" &&
+        line_is "$manifest" "rdma_demo_head=$(repo_value head ../rdma-demo "$eval_rdma_demo_head")" &&
         line_is "$manifest" "reference_sha256=$(digest "$reference")" &&
         line_is "$manifest" "ceiling_multiplier=$ceiling_multiplier" &&
         line_is "$manifest" "generator_sha256=$(digest generate_trace_sweep.py)" &&
-        line_is "$manifest" "memory_sampler_sha256=$(digest collect_e4_memory.py)" &&
         line_is "$manifest" "runner_sha256=$(digest run_trace_ablation.sh)" &&
         line_is "$manifest" "config_template_sha256=$(digest cmd/config_khala_trace_template.json)" &&
         line_is "$manifest" "reference_trace_archive_sha256=$(digest data/traces/reference/preprocessed_150.tar.gz)" &&
@@ -349,10 +367,10 @@ manifest_matches() {
 }
 
 run_cell() {
-    local repetition=$1 mode=$2 worker_config=$3 workers_for_sampler=$4
-    local run_id="e3-e4-r${repetition}-${mode}"
-    local scratch_trace="data/traces/nexus-e3-e4/$run_id"
-    local scratch_out="data/out/nexus-e3-e4/$run_id"
+    local repetition=$1 mode=$2 worker_config=$3
+    local run_id="e3-r${repetition}-${mode}"
+    local scratch_trace="data/traces/nexus-e3/$run_id"
+    local scratch_out="data/out/nexus-e3/$run_id"
     local destination="$result_root/rep-$repetition/$mode"
     local manifest="$destination/manifest.txt"
     if [[ -e "$destination" ]] && manifest_matches "$manifest" "$repetition" "$mode" "$destination"; then
@@ -380,7 +398,8 @@ run_cell() {
         vmm=$(config_value "../khala/$vm_config" FirecrackerPath)
         minio_route=$(mode_minio_route "$mode")
         echo manifest_version=2
-        echo experiment=e3-e4
+        echo experiment=e3
+        echo "smoke=$smoke"
         echo "claim_bearing=$claim_run"
         echo "profile=$profile"
         echo "repetition=$repetition"
@@ -400,18 +419,22 @@ run_cell() {
         echo "min_scale=0"
         echo "minio_endpoint=$minio_endpoint"
         echo "minio_route=$minio_route"
-        echo "workers=$workers_for_sampler"
         echo "start_utc=$(date -u --iso-8601=seconds)"
-        for pair in "invitro:." "khala:../khala" "firecracker:../firecracker" "rdma_demo:../rdma-demo"; do
-            label=${pair%%:*}; path=${pair#*:}
-            echo "${label}_head=$(git -C "$path" rev-parse HEAD)"
-            echo "${label}_branch=$(git -C "$path" branch --show-current)"
-            echo "${label}_status=$(git -C "$path" status --short | tr '\n' '|')"
-        done
+        echo "invitro_head=$(repo_value head .)"
+        echo "invitro_branch=$(repo_value branch .)"
+        echo "invitro_status=$(repo_value status . clean)"
+        echo "khala_head=$(repo_value head ../khala)"
+        echo "khala_branch=$(repo_value branch ../khala)"
+        echo "khala_status=$(repo_value status ../khala clean)"
+        echo "firecracker_head=$(repo_value head ../firecracker "$eval_firecracker_head")"
+        echo "firecracker_branch=$(repo_value branch ../firecracker "$eval_firecracker_branch")"
+        echo "firecracker_status=$(repo_value status ../firecracker frozen-remote)"
+        echo "rdma_demo_head=$(repo_value head ../rdma-demo "$eval_rdma_demo_head")"
+        echo "rdma_demo_branch=$(repo_value branch ../rdma-demo "$eval_rdma_demo_branch")"
+        echo "rdma_demo_status=$(repo_value status ../rdma-demo frozen-remote)"
         echo "reference_sha256=$(digest "$reference")"
         echo "ceiling_multiplier=$ceiling_multiplier"
         echo "generator_sha256=$(digest generate_trace_sweep.py)"
-        echo "memory_sampler_sha256=$(digest collect_e4_memory.py)"
         echo "runner_sha256=$(digest run_trace_ablation.sh)"
         echo "config_template_sha256=$(digest cmd/config_khala_trace_template.json)"
         echo "reference_trace_archive_sha256=$(digest data/traces/reference/preprocessed_150.tar.gz)"
@@ -432,31 +455,15 @@ run_cell() {
         echo "workload_sha256=$(tracked_workload_sha)"
     } > "$scratch_out/manifest.txt"
 
-    local status=0 clean_status=0 sampler_status=0 sampler_pid= stop_file="$scratch_out/stop-memory"
+    local status=0 clean_status=0
     set +e
     go run experiment/khala_command.go --command deploy --mode "$mode" --vm-config "$vm_config" --worker-config "$worker_config" \
         --shmem-ring-bytes 4190208 --shmem-io-quantum 262144 --minio-endpoint "$minio_endpoint" \
         > >(tee "$scratch_out/deploy.log") 2>&1
     status=$?
     if ((status == 0)); then
-        python3 collect_e4_memory.py --workers "$workers_for_sampler" --mode "$mode" --repetition "$repetition" \
-            --stop-file "$stop_file" --output "$scratch_out/firecracker-memory.csv" \
-            --backend-output "$scratch_out/backend-memory.csv" > "$scratch_out/memory-sampler.log" 2>&1 &
-        sampler_pid=$!
-        active_sampler_pid=$sampler_pid
-        active_stop_file=$stop_file
         go run cmd/loader.go --config "$config_path" > >(tee "$scratch_out/loader.log") 2>&1
         status=$?
-        : > "$stop_file"
-        wait "$sampler_pid"
-        sampler_status=$?
-        active_sampler_pid=
-        active_stop_file=
-        if ((status == 0 && sampler_status != 0)); then status=$sampler_status; fi
-        if rg --quiet ',error:' "$scratch_out/firecracker-memory.csv" "$scratch_out/backend-memory.csv"; then
-            echo "memory sampler recorded an SSH/parse failure" >> "$scratch_out/memory-sampler.log"
-            if ((status == 0)); then status=2; fi
-        fi
     fi
     kubectl logs deployment/activator -n knative-serving > "$scratch_out/activator.log" 2>&1
     go run experiment/khala_command.go --command clean --mode "$mode" --worker-config "$worker_config" \
@@ -466,7 +473,6 @@ run_cell() {
     set -e
     {
         echo "end_utc=$(date -u --iso-8601=seconds)"
-        echo "sampler_exit_status=$sampler_status"
         echo "cleanup_exit_status=$clean_status"
         echo "exit_status=$status"
     } >> "$scratch_out/manifest.txt"
@@ -483,7 +489,7 @@ total_minutes=$((warmup_minutes + end_scale))
 for ((repetition=0; repetition<repetitions; repetition++)); do
     read -r -a rotated_modes <<< "$(rotate modes "$repetition")"
     for mode in "${rotated_modes[@]}"; do
-        printf 'CELL experiment=e3-e4 profile=%s claim_bearing=%s repetition=%d mode=%s minio_route=%s workloads=10 deployed_function_rows=%d warmup_minutes=%d measurement_minutes=%d perf=false output=%s\n' \
+        printf 'CELL experiment=e3 profile=%s claim_bearing=%s repetition=%d mode=%s minio_route=%s workloads=10 deployed_function_rows=%d warmup_minutes=%d measurement_minutes=%d perf=false output=%s\n' \
             "$profile" "$claim_run" "$repetition" "$mode" "$(mode_minio_route "$mode")" "$function_count" "$warmup_minutes" "$end_scale" "$result_root/rep-$repetition/$mode"
     done
 done
@@ -495,14 +501,20 @@ if [[ "$dry_run" == true ]]; then
             --step "$step" --shift-step "$shift_step" --warmup-duration "$warmup_minutes" \
             --warmup-scale 1 --dry-run > /dev/null
     done
-    echo "E3_E4_DRY_RUN_READY"
+    echo "E3_DRY_RUN_READY"
     exit 0
 fi
 
 require_clean_repo . invitro
 require_clean_repo ../khala khala
-require_clean_repo ../firecracker firecracker
-require_clean_repo ../rdma-demo rdma-demo
+if [[ -d ../firecracker/.git ]]; then require_clean_repo ../firecracker firecracker
+elif [[ -z "$eval_firecracker_head" || -z "$eval_firecracker_branch" ]]; then
+    echo "missing frozen Firecracker source provenance" >&2; exit 2
+fi
+if [[ -d ../rdma-demo/.git ]]; then require_clean_repo ../rdma-demo rdma-demo
+elif [[ -z "$eval_rdma_demo_head" || -z "$eval_rdma_demo_branch" ]]; then
+    echo "missing frozen RDMA source provenance" >&2; exit 2
+fi
 if [[ -e "$result_root" ]]; then
     [[ -f "$result_root/worker-node.json" && -f "$result_root/cluster-inventory.txt" && -f "$result_root/b0-rps-reference.csv" ]] || {
         echo "existing result root lacks resume provenance" >&2; exit 2; }
@@ -527,19 +539,17 @@ if [[ -e "$result_root" ]]; then
         exit 2
     }
     rm -r -- "$resume_check"
-    workers_csv=$(jq -r '.worker_nodes | join(",")' "$result_root/worker-node.json")
 else
     mkdir -p "$result_root"
     discover_topology "$result_root/cluster-inventory.txt" "$result_root/worker-node.json"
     cp -- "$reference" "$result_root/b0-rps-reference.csv"
     snapshot_remote_provenance "$result_root/remote-provenance.txt" "$result_root/worker-node.json" nexus-rdma-py
-    workers_csv=$(jq -r '.worker_nodes | join(",")' "$result_root/worker-node.json")
 fi
 
 for ((repetition=0; repetition<repetitions; repetition++)); do
     read -r -a rotated_modes <<< "$(rotate modes "$repetition")"
     for mode in "${rotated_modes[@]}"; do
-        run_cell "$repetition" "$mode" "$result_root/worker-node.json" "$workers_csv"
+        run_cell "$repetition" "$mode" "$result_root/worker-node.json"
     done
 done
-echo "E3_E4_ACQUISITION_READY result_root=$result_root"
+echo "E3_ACQUISITION_READY result_root=$result_root"

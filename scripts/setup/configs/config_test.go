@@ -40,6 +40,23 @@ func TestValidateNodeSetupRejectsUnmappedIP(t *testing.T) {
 	}
 }
 
+func TestSetupConfigPinsEvaluationBranches(t *testing.T) {
+	config, err := GetSetupJSON(".")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if config.LoaderBranch != "jy/khala-asplos-27" || config.KhalaBranch != "jy/asplos-26" || config.FirecrackerBranch != "firecracker-v1.14-nexus-shmem-vsock" || config.RDMABranch != "jy/nexus-rdma-eval" {
+		t.Fatalf("unexpected evaluation branches: loader=%q khala=%q firecracker=%q rdma=%q", config.LoaderBranch, config.KhalaBranch, config.FirecrackerBranch, config.RDMABranch)
+	}
+}
+
+func TestValidateSetupConfigRequiresRDMARevision(t *testing.T) {
+	config := SetupConfig{HiveRepo: "v", HiveBranch: "v", LoaderRepo: "l", LoaderBranch: "l", KhalaRepo: "k", KhalaBranch: "k", DeployRDMA: true}
+	if err := validateSetupConfig(&config); err == nil {
+		t.Fatal("missing RDMA revision accepted")
+	}
+}
+
 func validNodeSetupForTest() NodeSetup {
 	data, _ := os.ReadFile("node_setup_base_1.json")
 	var nodeSetup NodeSetup

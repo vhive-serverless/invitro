@@ -1,0 +1,574 @@
+package main
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"flag"
+	"fmt"
+	"net/http"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"regexp"
+	"sort"
+	"strings"
+	"time"
+
+	"github.com/vhive-serverless/loader/experiment/eval"
+)
+
+type check struct {
+	Name   string `json:"name"`
+	Status string `json:"status"`
+	Detail string `json:"detail,omitempty"`
+}
+
+type artifact struct {
+	Role   string `json:"role"`
+	Host   string `json:"host"`
+	Path   string `json:"path"`
+	SHA256 string `json:"sha256"`
+}
+
+type report struct {
+	Profile          eval.Profile      `json:"profile"`
+	MinioEndpoint    string            `json:"minio_endpoint"`
+	Topology         eval.Setup        `json:"topology"`
+	LiveNodes        []eval.LiveNode   `json:"live_nodes,omitempty"`
+	TopologySHA256   string            `json:"topology_sha256"`
+	Status           string            `json:"status"`
+	AcquisitionStart string            `json:"acquisition_start,omitempty"`
+	Checks           []check           `json:"checks"`
+	Provenance       []eval.Provenance `json:"provenance,omitempty"`
+	Artifacts        []artifact        `json:"artifacts,omitempty"`
+}
+
+type vmConfig struct {
+	RootfsPath      string
+	KernelPath      string
+	FirecrackerPath string
+	JailerPath      string
+}
+
+type kubePods struct {
+	Items []struct {
+		Metadata struct{ Namespace, Name string } `json:"metadata"`
+		Status   struct {
+			Phase             string                 `json:"phase"`
+			ContainerStatuses []struct{ Ready bool } `json:"containerStatuses"`
+		} `json:"status"`
+	} `json:"items"`
+}
+
+var sshTargetPattern = regexp.MustCompile(`^[A-Za-z0-9._-]+@[A-Za-z0-9.-]+$`)
+
+func main() {
+	args := os.Args[1:]
+	freezeSubcommand := false
+	if len(args) > 0 && args[0] == "freeze" {
+		freezeSubcommand = true
+		args = args[1:]
+	}
+	fs := flag.NewFlagSet("preflight", flag.ContinueOnError)
+	cfg := eval.Config{Profile: eval.Profile4}
+	eval.AddFlags(fs, &cfg)
+	smokeRoot := fs.String("smoke-root", "", "verified E1 smoke result root required for freeze")
+	if err := fs.Parse(args); err != nil {
+		fail(err.Error())
+	}
+	if freezeSubcommand {
+		cfg.Freeze = true
+	}
+	code, err := run(context.Background(), cfg, *smokeRoot)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "preflight:", err)
+	}
+	os.Exit(code)
+}
+
+func run(ctx context.Context, cfg eval.Config, smokeRoot string) (int, error) {
+	if cfg.Freeze && cfg.ResultRoot == "" && cfg.CampaignManifest != "" {
+		cfg.ResultRoot = filepath.Dir(cfg.CampaignManifest)
+	}
+	if cfg.TopologyConfig == "" || cfg.ResultRoot == "" || cfg.MinioEndpoint == "" {
+		return 2, fmt.Errorf("--topology-config, --minio-endpoint, and --result-root are required")
+	}
+	setup, err := eval.LoadSetup(cfg.TopologyConfig)
+	if err != nil {
+		return 2, err
+	}
+	if err := eval.ValidateSetup(setup, cfg.Profile); err != nil {
+		return 2, err
+	}
+	baseURL, _, err := eval.NormalizeMinioEndpoint(cfg.MinioEndpoint)
+	if err != nil {
+		return 2, err
+	}
+	rep := report{Profile: cfg.Profile, MinioEndpoint: baseURL, Topology: setup, Status: "CHECKING"}
+	rep.TopologySHA256, _ = eval.SHA256File(cfg.TopologyConfig)
+	if cfg.DryRun {
+		for _, name := range plannedChecks(cfg.Freeze) {
+			rep.Checks = append(rep.Checks, check{Name: name, Status: "PLANNED"})
+		}
+		rep.Status = "DRY_RUN_READY"
+		data, _ := json.MarshalIndent(rep, "", "  ")
+		fmt.Println(string(data))
+		return 0, nil
+	}
+
+	checker := &checks{ctx: ctx, report: &rep}
+	checker.localGit("invitro", ".", eval.InVitroBranch)
+	checker.localGit("khala", "../khala", eval.KhalaBranch)
+	checker.localGit("firecracker", "../firecracker", eval.FirecrackerBranch)
+	checker.remoteSource("firecracker", eval.FirecrackerOrigin, eval.FirecrackerBranch, eval.FirecrackerHead)
+	rdmaHead := checker.remoteBranch("rdma", eval.RDMAOrigin, eval.RDMABranch)
+	nodes, nodeErr := eval.KubectlNodes()
+	checker.record("kubernetes_nodes", nodeErr, "")
+	if nodeErr == nil {
+		topologyErr := eval.ValidateLive(nodes, setup, cfg.Profile)
+		checker.record("kubernetes_topology", topologyErr, "")
+		if topologyErr == nil {
+			rep.LiveNodes = nodes
+		}
+	}
+	checker.httpHealth("minio_loader", eval.MinioHealthURL(baseURL))
+	checker.kubernetesWorkloads()
+
+	localInvitro, _ := eval.GitProvenance(".")
+	localKhala, _ := eval.GitProvenance("../khala")
+	for _, ip := range setup.LabeledIPs("loader-nodetype=worker") {
+		target, mapErr := setup.URLForIP(ip)
+		checker.record("worker_url_"+ip, mapErr, target)
+		if mapErr != nil {
+			continue
+		}
+		checker.remoteKVM(target)
+		checker.remoteMinio(target, baseURL)
+		checker.remoteGit("worker_khala", target, remoteHome(target)+"/khala", localKhala.Head, eval.KhalaBranch)
+		checker.remoteGit("worker_firecracker", target, remoteHome(target)+"/firecracker", eval.FirecrackerHead, eval.FirecrackerBranch)
+		checker.workerArtifacts(target)
+	}
+	loaderIPs := setup.LabeledIPs("loader-nodetype=monitoring")
+	if len(loaderIPs) == 1 {
+		loaderTarget, mapErr := setup.URLForIP(loaderIPs[0])
+		checker.record("loader_url", mapErr, loaderTarget)
+		if mapErr == nil {
+			checker.remoteGit("loader_invitro", loaderTarget, remoteHome(loaderTarget)+"/loader", localInvitro.Head, eval.InVitroBranch)
+		}
+	}
+	for _, ip := range setup.LabeledIPs("minio-type=tenant") {
+		target, mapErr := setup.URLForIP(ip)
+		checker.record("tenant_url_"+ip, mapErr, target)
+		if mapErr != nil {
+			continue
+		}
+		checker.remoteGit("tenant_rdma", target, remoteHome(target)+"/rdma-demo", rdmaHead, eval.RDMABranch)
+		checker.remoteRDMA(target)
+	}
+	if cfg.Freeze {
+		checker.smokeEvidence(smokeRoot)
+	}
+
+	failed := checker.failed()
+	switch {
+	case failed:
+		rep.Status = "BLOCKED"
+	case cfg.Freeze:
+		rep.Status = "ACQUISITION_START"
+		rep.AcquisitionStart = time.Now().UTC().Format(time.RFC3339)
+	default:
+		rep.Status = "READY_FOR_SMOKE"
+	}
+	out := filepath.Join(cfg.ResultRoot, "preflight.json")
+	if cfg.Freeze {
+		if cfg.CampaignManifest == "" {
+			checker.record("campaign_manifest", fmt.Errorf("--campaign-manifest is required for freeze"), "")
+			rep.Status = "BLOCKED"
+			failed = true
+		} else {
+			out = cfg.CampaignManifest
+		}
+	}
+	if err := eval.CreateOnly(out, rep); err != nil {
+		return 2, err
+	}
+	if failed {
+		fmt.Printf("PREFLIGHT_BLOCKED result=%s\n", out)
+		return 2, fmt.Errorf("one or more archived preflight checks failed")
+	}
+	fmt.Printf("PREFLIGHT_READY status=%s result=%s\n", rep.Status, out)
+	return 0, nil
+}
+
+type checks struct {
+	ctx    context.Context
+	report *report
+}
+
+func (c *checks) record(name string, err error, detail string) {
+	status := "PASS"
+	if err != nil {
+		status = "FAIL"
+		if detail != "" {
+			detail += ": "
+		}
+		detail += err.Error()
+	}
+	c.report.Checks = append(c.report.Checks, check{Name: name, Status: status, Detail: detail})
+}
+
+func (c *checks) failed() bool {
+	for _, item := range c.report.Checks {
+		if item.Status == "FAIL" {
+			return true
+		}
+	}
+	return false
+}
+
+func (c *checks) localGit(label, path, branch string) {
+	p, err := eval.GitProvenance(path)
+	if err == nil {
+		err = p.ValidateClean()
+		if err == nil && p.Branch != branch {
+			err = fmt.Errorf("branch %s, want %s", p.Branch, branch)
+		}
+		c.report.Provenance = append(c.report.Provenance, p)
+	}
+	c.record("local_git_"+label, err, path)
+}
+
+func (c *checks) remoteSource(label, repository, branch, expectedHead string) {
+	command := exec.CommandContext(c.ctx, "git", "ls-remote", "--heads", repository, "refs/heads/"+branch)
+	command.Env = append(os.Environ(), "GIT_SSH_COMMAND=ssh -o BatchMode=yes -o ConnectTimeout=10")
+	output, err := command.CombinedOutput()
+	fields := strings.Fields(string(output))
+	if err == nil && (len(fields) != 2 || fields[0] != expectedHead) {
+		err = fmt.Errorf("remote HEAD %q, want %s", strings.TrimSpace(string(output)), expectedHead)
+	}
+	if err != nil && len(output) > 0 {
+		err = fmt.Errorf("%w: %s", err, strings.TrimSpace(string(output)))
+	}
+	if err == nil {
+		c.report.Provenance = append(c.report.Provenance, eval.Provenance{Repository: repository, Head: expectedHead, Branch: branch})
+	}
+	c.record("source_"+label, err, repository+" "+branch)
+}
+
+func (c *checks) remoteBranch(label, repository, branch string) string {
+	command := exec.CommandContext(c.ctx, "git", "ls-remote", "--heads", repository, "refs/heads/"+branch)
+	output, err := command.CombinedOutput()
+	fields := strings.Fields(string(output))
+	head := ""
+	if err == nil {
+		if len(fields) != 2 || len(fields[0]) != 40 {
+			err = fmt.Errorf("malformed remote HEAD %q", strings.TrimSpace(string(output)))
+		} else {
+			head = fields[0]
+			c.report.Provenance = append(c.report.Provenance, eval.Provenance{Repository: repository, Head: head, Branch: branch})
+		}
+	}
+	if err != nil && len(output) > 0 {
+		err = fmt.Errorf("%w: %s", err, strings.TrimSpace(string(output)))
+	}
+	c.record("source_"+label, err, repository+" "+branch)
+	return head
+}
+
+func (c *checks) httpHealth(name, endpoint string) {
+	request, err := http.NewRequestWithContext(c.ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		c.record(name, err, endpoint)
+		return
+	}
+	client := http.Client{Timeout: 5 * time.Second}
+	response, err := client.Do(request)
+	if err == nil {
+		defer response.Body.Close()
+		if response.StatusCode != http.StatusOK {
+			err = fmt.Errorf("HTTP %d", response.StatusCode)
+		}
+	}
+	c.record(name, err, endpoint)
+}
+
+func (c *checks) capture(name string, args ...string) (string, error) {
+	out, err := exec.CommandContext(c.ctx, name, args...).CombinedOutput()
+	if err != nil {
+		return strings.TrimSpace(string(out)), fmt.Errorf("%w: %s", err, strings.TrimSpace(string(out)))
+	}
+	return strings.TrimSpace(string(out)), nil
+}
+
+func (c *checks) ssh(target string, command ...string) (string, error) {
+	if !sshTargetPattern.MatchString(target) {
+		return "", fmt.Errorf("invalid SSH target %q", target)
+	}
+	args := []string{"-o", "BatchMode=yes", "-o", "ConnectTimeout=10", target}
+	args = append(args, command...)
+	return c.capture("ssh", args...)
+}
+
+func remoteHome(target string) string { return "/users/" + strings.SplitN(target, "@", 2)[0] }
+
+func (c *checks) remoteKVM(target string) {
+	_, err := c.ssh(target, "test", "-r", "/dev/kvm")
+	if err == nil {
+		_, err = c.ssh(target, "test", "-w", "/dev/kvm")
+	}
+	c.record("worker_kvm_"+target, err, "/dev/kvm")
+}
+
+func (c *checks) remoteMinio(target, baseURL string) {
+	_, err := c.ssh(target, "curl", "-fsS", "--max-time", "5", eval.MinioHealthURL(baseURL))
+	c.record("worker_minio_"+target, err, baseURL)
+}
+
+func (c *checks) remoteGit(role, target, path, wantHead, wantBranch string) {
+	head, err := c.ssh(target, "git", "-C", path, "rev-parse", "HEAD")
+	if err == nil && wantHead != "" && head != wantHead {
+		err = fmt.Errorf("HEAD %s, want %s", head, wantHead)
+	}
+	branch, branchErr := c.ssh(target, "git", "-C", path, "branch", "--show-current")
+	if err == nil {
+		err = branchErr
+	}
+	if err == nil && branch != wantBranch {
+		err = fmt.Errorf("branch %s, want %s", branch, wantBranch)
+	}
+	status, statusErr := c.ssh(target, "git", "-C", path, "status", "--porcelain")
+	if err == nil {
+		err = statusErr
+	}
+	if err == nil && status != "" {
+		err = fmt.Errorf("tree dirty: %s", status)
+	}
+	if err == nil {
+		c.report.Provenance = append(c.report.Provenance, eval.Provenance{Repository: target + ":" + path, Head: head, Branch: branch, Status: status})
+	}
+	c.record(role+"_"+target, err, path)
+}
+
+func (c *checks) workerArtifacts(target string) {
+	configPaths := []string{"configs/vm_orchestrator_config.json", "configs/vm_orchestrator_config_js.json"}
+	configs := make([]vmConfig, 0, len(configPaths))
+	for _, relative := range configPaths {
+		data, err := os.ReadFile(filepath.Join("../khala", relative))
+		if err == nil {
+			var cfg vmConfig
+			err = json.Unmarshal(data, &cfg)
+			if err == nil {
+				configs = append(configs, cfg)
+			}
+		}
+		c.record("local_config_"+filepath.Base(relative), err, relative)
+	}
+	if len(configs) != 2 {
+		return
+	}
+	if configs[0].RootfsPath != configs[1].RootfsPath {
+		c.record("unified_rootfs", fmt.Errorf("config rootfs paths differ"), "")
+		return
+	}
+	c.record("unified_rootfs", nil, configs[0].RootfsPath)
+	paths := []string{configPaths[0], configPaths[1], configs[0].RootfsPath, configs[0].KernelPath,
+		configs[0].FirecrackerPath, configs[0].JailerPath, "bin/kn-integration", "bin/nexus-backend",
+		"bin/hardware-manager", "bin/vm-orchestrator", "bin/khala-command", "bin/kn-integration-tracer",
+		"bin/e4-density"}
+	for _, relative := range paths {
+		full := filepath.Join(remoteHome(target), "khala", relative)
+		output, err := c.ssh(target, "sha256sum", full)
+		digest := ""
+		if err == nil {
+			fields := strings.Fields(output)
+			if len(fields) != 2 || len(fields[0]) != 64 {
+				err = fmt.Errorf("malformed sha256sum output")
+			} else {
+				digest = fields[0]
+				if relative == configs[0].FirecrackerPath && digest != eval.FirecrackerSHA256 {
+					err = fmt.Errorf("Firecracker SHA-256 %s, want %s", digest, eval.FirecrackerSHA256)
+				}
+				if relative == configs[0].KernelPath && digest != eval.KernelSHA256 {
+					err = fmt.Errorf("kernel SHA-256 %s, want %s", digest, eval.KernelSHA256)
+				}
+				c.report.Artifacts = append(c.report.Artifacts, artifact{Role: "worker", Host: target, Path: relative, SHA256: digest})
+			}
+		}
+		c.record("artifact_"+sanitize(target+"_"+relative), err, relative)
+	}
+}
+
+func (c *checks) remoteRDMA(target string) {
+	home := remoteHome(target)
+	binary := home + "/rdma-demo/s3-rdma-server"
+	_, err := c.ssh(target, "test", "-x", binary)
+	c.record("rdma_server_binary_"+target, err, binary)
+	if err == nil {
+		output, hashErr := c.ssh(target, "sha256sum", binary)
+		fields := strings.Fields(output)
+		if hashErr == nil && len(fields) == 2 {
+			c.report.Artifacts = append(c.report.Artifacts, artifact{Role: "tenant", Host: target, Path: "s3-rdma-server", SHA256: fields[0]})
+		}
+		c.record("rdma_server_hash_"+target, hashErr, "s3-rdma-server")
+	}
+	output, err := c.ssh(target, "ibv_devices")
+	if err == nil && len(strings.Fields(output)) < 3 {
+		err = fmt.Errorf("no RDMA device listed")
+	}
+	c.record("rdma_device_"+target, err, output)
+}
+
+func (c *checks) kubernetesWorkloads() {
+	output, err := c.capture("kubectl", "get", "pods", "-A", "-o", "json")
+	if err != nil {
+		c.record("kubernetes_workloads", err, "")
+		return
+	}
+	var pods kubePods
+	if err = json.Unmarshal([]byte(output), &pods); err != nil {
+		c.record("kubernetes_workloads", err, "")
+		return
+	}
+	required := map[string]bool{"istio-system": false, "knative-serving": false, "minio": false}
+	prometheus := false
+	var failures []string
+	for _, pod := range pods.Items {
+		if _, ok := required[pod.Metadata.Namespace]; ok {
+			required[pod.Metadata.Namespace] = true
+		}
+		lower := strings.ToLower(pod.Metadata.Namespace + "/" + pod.Metadata.Name)
+		if strings.Contains(lower, "prometheus") {
+			prometheus = true
+		}
+		if pod.Status.Phase == "Succeeded" {
+			continue
+		}
+		if pod.Status.Phase != "Running" {
+			failures = append(failures, pod.Metadata.Namespace+"/"+pod.Metadata.Name+":"+pod.Status.Phase)
+			continue
+		}
+		for _, status := range pod.Status.ContainerStatuses {
+			if !status.Ready {
+				failures = append(failures, pod.Metadata.Namespace+"/"+pod.Metadata.Name+":not-ready")
+			}
+		}
+	}
+	for namespace, found := range required {
+		if !found {
+			failures = append(failures, "missing namespace workload "+namespace)
+		}
+	}
+	if !prometheus {
+		failures = append(failures, "missing Prometheus pod")
+	}
+	if len(failures) > 0 {
+		sort.Strings(failures)
+		err = errors.New(strings.Join(failures, "; "))
+	}
+	c.record("kubernetes_workloads", err, fmt.Sprintf("pods=%d", len(pods.Items)))
+}
+
+func (c *checks) smokeEvidence(root string) {
+	if root == "" {
+		c.record("guest_minio_smoke", fmt.Errorf("--smoke-root is required for freeze"), "")
+		return
+	}
+	var manifests, e4Cells []string
+	err := filepath.WalkDir(root, func(path string, entry os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if !entry.IsDir() && entry.Name() == "manifest.txt" {
+			manifests = append(manifests, path)
+		}
+		if !entry.IsDir() && strings.HasSuffix(entry.Name(), "-cell.json") {
+			e4Cells = append(e4Cells, path)
+		}
+		return nil
+	})
+	e1, e2, e3 := map[string]bool{}, map[string]bool{}, map[string]bool{}
+	for _, path := range manifests {
+		data, readErr := os.ReadFile(path)
+		if readErr != nil {
+			err = errors.Join(err, readErr)
+			continue
+		}
+		text := string(data)
+		if !strings.Contains(text, "smoke=true\n") || !strings.Contains(text, "exit_status=0\n") {
+			continue
+		}
+		fields := lineFields(text)
+		switch {
+		case strings.HasPrefix(fields["claim_id"], "e1-smoke-"):
+			e1[fields["claim_id"]] = true
+		case fields["phase"] == "collection" && fields["workload"] == "helloworld":
+			e2[fields["mode"]] = true
+		case fields["experiment"] == "e3" && fields["end_scale"] == "1" && fields["claim_bearing"] == "false":
+			e3[fields["mode"]] = true
+		}
+	}
+	e4 := map[string]bool{}
+	for _, path := range e4Cells {
+		data, readErr := os.ReadFile(path)
+		if readErr != nil {
+			err = errors.Join(err, readErr)
+			continue
+		}
+		var manifest struct {
+			Status string `json:"status"`
+			Cell   struct {
+				Workload string `json:"workload"`
+				Mode     string `json:"mode"`
+				Counts   []int  `json:"counts"`
+			} `json:"cell"`
+		}
+		if json.Unmarshal(data, &manifest) == nil && manifest.Status == "complete" && manifest.Cell.Workload == "helloworld" &&
+			len(manifest.Cell.Counts) == 2 && manifest.Cell.Counts[0] == 1 && manifest.Cell.Counts[1] == 2 {
+			e4[manifest.Cell.Mode] = true
+		}
+	}
+	wants := []struct {
+		name string
+		got  map[string]bool
+		keys []string
+	}{
+		{"E1", e1, []string{"e1-smoke-2b", "e1-smoke-4mib"}},
+		{"E2", e2, []string{"invm-py", "nexus-py"}},
+		{"E3", e3, []string{"invm-py", "nexus-py", "nexus-rdma-py"}},
+		{"E4", e4, []string{"invm-py", "nexus-py"}},
+	}
+	for _, want := range wants {
+		for _, key := range want.keys {
+			if !want.got[key] {
+				err = errors.Join(err, fmt.Errorf("missing terminal %s smoke %s", want.name, key))
+			}
+		}
+	}
+	c.record("e1_e4_smoke_evidence", err, root)
+}
+
+func lineFields(text string) map[string]string {
+	result := map[string]string{}
+	for _, line := range strings.Split(text, "\n") {
+		parts := strings.SplitN(line, "=", 2)
+		if len(parts) == 2 {
+			result[parts[0]] = parts[1]
+		}
+	}
+	return result
+}
+
+func sanitize(value string) string {
+	return strings.NewReplacer("/", "_", ":", "_", "@", "_").Replace(value)
+}
+
+func plannedChecks(freeze bool) []string {
+	values := []string{"local_git", "kubernetes_nodes", "kubernetes_topology", "minio_loader", "kubernetes_workloads", "worker_kvm", "worker_minio", "deployed_git", "unified_rootfs", "artifact_hashes", "rdma"}
+	if freeze {
+		values = append(values, "e1_e4_smoke_evidence")
+	}
+	return values
+}
+
+func fail(message string) { fmt.Fprintln(os.Stderr, "preflight:", message); os.Exit(2) }

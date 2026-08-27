@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/vhive-serverless/vHive/scripts/utils"
 )
@@ -36,17 +37,21 @@ type NodeSetup struct {
 }
 
 type SetupConfig struct {
-	HiveRepo         string `json:"VHIVE_REPO"`
-	HiveBranch       string `json:"VHIVE_BRANCH"`
-	LoaderRepo       string `json:"LOADER_REPO"`
-	LoaderBranch     string `json:"LOADER_BRANCH"`
-	KhalaRepo        string `json:"KHALA_REPO"`
-	KhalaBranch      string `json:"KHALA_BRANCH"`
-	ClusterMode      string `json:"CLUSTER_MODE"`
-	PodsPerNode      int    `json:"PODS_PER_NODE"`
-	DeployPrometheus bool   `json:"DEPLOY_PROMETHEUS"`
-	DeployMinio      bool   `json:"DEPLOY_MINIO"`
-	DeployRDMA       bool   `json:"DEPLOY_RDMA"`
+	HiveRepo          string `json:"VHIVE_REPO"`
+	HiveBranch        string `json:"VHIVE_BRANCH"`
+	LoaderRepo        string `json:"LOADER_REPO"`
+	LoaderBranch      string `json:"LOADER_BRANCH"`
+	KhalaRepo         string `json:"KHALA_REPO"`
+	KhalaBranch       string `json:"KHALA_BRANCH"`
+	FirecrackerRepo   string `json:"FIRECRACKER_REPO"`
+	FirecrackerBranch string `json:"FIRECRACKER_BRANCH"`
+	RDMARepo          string `json:"RDMA_REPO"`
+	RDMABranch        string `json:"RDMA_BRANCH"`
+	ClusterMode       string `json:"CLUSTER_MODE"`
+	PodsPerNode       int    `json:"PODS_PER_NODE"`
+	DeployPrometheus  bool   `json:"DEPLOY_PROMETHEUS"`
+	DeployMinio       bool   `json:"DEPLOY_MINIO"`
+	DeployRDMA        bool   `json:"DEPLOY_RDMA"`
 }
 
 type MinioConfig struct {
@@ -225,8 +230,30 @@ func GetSetupJSON(path string) (*SetupConfig, error) {
 	if err != nil {
 		return nil, err
 	}
+	if err := validateSetupConfig(&setupConfig); err != nil {
+		return nil, fmt.Errorf("invalid setup config %q: %w", configPath, err)
+	}
 
 	return &setupConfig, nil
+}
+
+func validateSetupConfig(config *SetupConfig) error {
+	required := map[string]string{
+		"VHIVE_REPO": config.HiveRepo, "VHIVE_BRANCH": config.HiveBranch,
+		"LOADER_REPO": config.LoaderRepo, "LOADER_BRANCH": config.LoaderBranch,
+		"KHALA_REPO": config.KhalaRepo, "KHALA_BRANCH": config.KhalaBranch,
+		"FIRECRACKER_REPO": config.FirecrackerRepo, "FIRECRACKER_BRANCH": config.FirecrackerBranch,
+	}
+	if config.DeployRDMA {
+		required["RDMA_REPO"] = config.RDMARepo
+		required["RDMA_BRANCH"] = config.RDMABranch
+	}
+	for key, value := range required {
+		if strings.TrimSpace(value) == "" {
+			return fmt.Errorf("%s must be non-empty", key)
+		}
+	}
+	return nil
 }
 
 func GetMinioConfig(path string) (*MinioConfig, error) {

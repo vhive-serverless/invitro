@@ -5,11 +5,12 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/vhive-serverless/loader/scripts/setup/configs"
 	loaderUtils "github.com/vhive-serverless/loader/scripts/setup/utils"
 	"github.com/vhive-serverless/vHive/scripts/utils"
 )
 
-func setupRDMA(tenantNodes []string) error {
+func setupRDMA(cfg *configs.SetupConfig, tenantNodes []string) error {
 	var wg sync.WaitGroup
 	var setupErrors []error
 	var errorsMu sync.Mutex
@@ -23,7 +24,7 @@ func setupRDMA(tenantNodes []string) error {
 
 	commandList := []string{
 		"sudo apt-get update",
-		"git clone https://github.com/hyscale-lab/rdma-demo.git",
+		fmt.Sprintf("git clone --branch %s --single-branch %s", cfg.RDMABranch, cfg.RDMARepo),
 		"source /etc/profile && cd rdma-demo && make install-deps && make build-all",
 	}
 

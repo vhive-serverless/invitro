@@ -85,15 +85,30 @@ class TraceModeTest(unittest.TestCase):
             self.assertEqual(set(durations), set(DENSITY_WORKLOADS))
             self.assertEqual(rps[DENSITY_WORKLOADS[0]], 101)
 
-    def test_e2_reference_rejects_right_censored_density_workload(self):
+    def test_e2_reference_accepts_labeled_right_censored_reference(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "reference.csv"
             with path.open("w", newline="", encoding="utf-8") as handle:
-                writer = csv.DictWriter(handle, fieldnames=["workload", "unloaded_average_ms", "rref", "status"])
+                writer = csv.DictWriter(handle, fieldnames=["workload", "unloaded_average_ms", "rref", "status", "reference_kind", "rmax_b0"])
                 writer.writeheader()
                 for workload in DENSITY_WORKLOADS:
                     writer.writerow({"workload": workload, "unloaded_average_ms": 10, "rref": 10,
-                                     "status": "RIGHT_CENSORED" if workload == "rnnserve" else "BOUNDARY_OBSERVED"})
+                                     "status": "RIGHT_CENSORED" if workload == "rnnserve" else "BOUNDARY_OBSERVED",
+                                     "reference_kind": "RIGHT_CENSORED_REFERENCE" if workload == "rnnserve" else "OBSERVED_BOUNDARY_REFERENCE",
+                                     "rmax_b0": "" if workload == "rnnserve" else "20"})
+            rps, _ = read_e2_reference(path)
+            self.assertEqual(rps["rnnserve"], 10)
+
+    def test_e2_reference_rejects_unlabeled_right_censoring(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "reference.csv"
+            with path.open("w", newline="", encoding="utf-8") as handle:
+                writer = csv.DictWriter(handle, fieldnames=["workload", "unloaded_average_ms", "rref", "status", "reference_kind", "rmax_b0"])
+                writer.writeheader()
+                for workload in DENSITY_WORKLOADS:
+                    writer.writerow({"workload": workload, "unloaded_average_ms": 10, "rref": 10,
+                                     "status": "RIGHT_CENSORED" if workload == "rnnserve" else "BOUNDARY_OBSERVED",
+                                     "reference_kind": "", "rmax_b0": ""})
             with self.assertRaisesRegex(ValueError, "rnnserve"):
                 read_e2_reference(path)
 

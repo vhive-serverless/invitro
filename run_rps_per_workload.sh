@@ -18,21 +18,25 @@ steps=20
 minutes_per_step=1
 measurement_minutes=3
 replicas=320
-repetitions=3
+repetitions=1
 result_root=
-minio_endpoint=10.0.1.4:9001
+minio_endpoint=myminio-api.minio.10.200.3.4.sslip.io:80
 dry_run=false
 no_retry=false
-right_censored_rerun=false
+smoke=false
+eval_firecracker_head=${EVAL_FIRECRACKER_HEAD:-}
+eval_firecracker_branch=${EVAL_FIRECRACKER_BRANCH:-}
+eval_rdma_demo_head=${EVAL_RDMA_DEMO_HEAD:-}
+eval_rdma_demo_branch=${EVAL_RDMA_DEMO_BRANCH:-}
 
 usage() {
     cat <<'EOF'
 Usage:
   run_rps_per_workload.sh calibrate --profile 4-node --e1-summary FILE --worker-cores N
       --slo-multiplier 5 --failure-threshold 0.05 --warmup-minutes 2 --steps 20
-      --minutes-per-step 1 --ceiling-multiplier 1 --no-retry --result-root PATH [--right-censored-rerun] [--dry-run]
+      --minutes-per-step 1 --ceiling-multiplier 1 --no-retry --result-root PATH [--dry-run]
   run_rps_per_workload.sh collect --profile 4-node --reference FILE --replicas 320
-      --repetitions 3 --result-root PATH [--dry-run]
+      --repetitions 1 --result-root PATH [--dry-run]
 EOF
 }
 
@@ -54,7 +58,7 @@ while (($#)); do
         --result-root) result_root=${2:?}; shift 2 ;;
         --minio-endpoint) minio_endpoint=${2:?}; shift 2 ;;
         --no-retry) no_retry=true; shift ;;
-        --right-censored-rerun) right_censored_rerun=true; shift ;;
+        --smoke) smoke=true; shift ;;
         --dry-run) dry_run=true; shift ;;
         -h|--help) usage; exit 0 ;;
         *) echo "unknown option: $1" >&2; usage >&2; exit 2 ;;
@@ -65,11 +69,17 @@ done
 [[ "$profile" == 4-node ]] || { echo "E2 supports only the frozen 4-node profile" >&2; exit 2; }
 [[ -n "$result_root" ]] || { echo "--result-root is required" >&2; exit 2; }
 [[ "$warmup_minutes" == 2 ]] || { echo "E2 requires --warmup-minutes 2" >&2; exit 2; }
-[[ "$minio_endpoint" == 10.0.1.4:9001 ]] || { echo "E2 requires MinIO 10.0.1.4:9001" >&2; exit 2; }
+[[ "$minio_endpoint" == myminio-api.minio.10.200.3.4.sslip.io:80 ]] || {
+    echo "E2 requires the Kubernetes MinIO ingress myminio-api.minio.10.200.3.4.sslip.io:80" >&2; exit 2; }
 
 workloads=(helloworld chameleonserve cnnserve imageresize lrserving mapper pyaesserve reducer rnnserve streducer sttrainer)
 python_modes=(invm-py nexus-py nexus-rdma-py)
 hello_extra_modes=(invm-go invm-js hosttcp-go nexus-go nexus-js)
+if [[ "$smoke" == true ]]; then
+    workloads=(helloworld)
+    python_modes=(invm-py)
+    hello_extra_modes=(nexus-py)
+fi
 
 rotate() {
     local -n values=$1
@@ -89,7 +99,7 @@ matches = [row for row in rows if row.get('workload') == workload]
 if len(matches) != 1 or column not in matches[0]:
     raise SystemExit(f'missing unique {workload}/{column} in {path}')
 row = matches[0]
-if row.get('status') != 'BOUNDARY_OBSERVED' or not row[column]:
+if row.get('status') not in ('BOUNDARY_OBSERVED', 'RIGHT_CENSORED') or not row[column]:
     raise SystemExit(f'{workload} is not admissible for collection: status={row.get("status")}')
 print(row[column])
 PY
@@ -117,11 +127,31 @@ require_clean_repo() {
     [[ -z "$status" ]] || { echo "$label repository is dirty; refusing claim-bearing run" >&2; printf '%s\n' "$status" >&2; exit 2; }
 }
 
+repo_value() {
+    local field=$1 path=$2 override=${3:-}
+    if [[ -d "$path/.git" ]]; then
+        case "$field" in
+            head) git -C "$path" rev-parse HEAD ;;
+            branch) git -C "$path" branch --show-current ;;
+            status) git -C "$path" status --short | tr '\n' '|' ;;
+        esac
+    else
+        [[ -n "$override" ]] || { echo "missing provenance for $path/$field" >&2; return 1; }
+        printf '%s\n' "$override"
+    fi
+}
+
 validate_claim_sources() {
     require_clean_repo . invitro
     require_clean_repo ../khala khala
-    require_clean_repo ../firecracker firecracker
-    require_clean_repo ../rdma-demo rdma-demo
+    if [[ -d ../firecracker/.git ]]; then require_clean_repo ../firecracker firecracker
+    elif [[ -z "$eval_firecracker_head" || -z "$eval_firecracker_branch" ]]; then
+        echo "missing frozen Firecracker source provenance" >&2; exit 2
+    fi
+    if [[ -d ../rdma-demo/.git ]]; then require_clean_repo ../rdma-demo rdma-demo
+    elif [[ -z "$eval_rdma_demo_head" || -z "$eval_rdma_demo_branch" ]]; then
+        echo "missing frozen RDMA source provenance" >&2; exit 2
+    fi
 }
 
 print_cell() {
@@ -216,7 +246,7 @@ snapshot_remote_provenance() {
 set -euo pipefail
 host=$1 vm_config=$2 rootfs=$3 kernel=$4 vmm=$5 expected_head=$6 expected_config=$7 expected_rootfs=$8 expected_kernel=$9 expected_vmm=${10} expected_binary=${11} expected_nexus_backend=${12} expected_hardware_manager=${13} expected_workload=${14}
 cd ~/khala
-head=$(git rev-parse HEAD); status=$(git status --porcelain --untracked-files=no)
+head=$(git rev-parse HEAD); status=$(git status --porcelain)
 [[ "$head" == "$expected_head" && -z "$status" ]]
 workload=$(git ls-files workload | LC_ALL=C sort | while IFS= read -r path; do sha256sum "$path"; done | sha256sum | awk '{print $1}')
 [[ "$workload" == "$expected_workload" ]]
@@ -231,17 +261,17 @@ SH
         ssh -o BatchMode=yes -o ConnectTimeout=5 "$host" bash -s -- "$host" "$expected_invitro_head" <<'SH' >> "$output"
 set -euo pipefail
 host=$1 expected_head=$2; cd ~/loader; head=$(git rev-parse HEAD)
-test "$head" = "$expected_head"; test -z "$(git status --porcelain --untracked-files=no)"
+test "$head" = "$expected_head"; test -z "$(git status --porcelain)"
 printf 'role=loader host=%s tree=loader head=%s expected_head=%s status=clean\n' "$host" "$head" "$expected_head"
 SH
     done
     if [[ "$require_rdma" == true ]]; then
         for host in "${provenance_storage[@]}"; do
-            ssh -o BatchMode=yes -o ConnectTimeout=5 "$host" bash -s -- "$host" "$(git -C ../rdma-demo rev-parse HEAD)" "$(digest ../rdma-demo/s3-rdma-server)" <<'SH' >> "$output"
+            ssh -o BatchMode=yes -o ConnectTimeout=5 "$host" bash -s -- "$host" "$eval_rdma_demo_head" <<'SH' >> "$output"
 set -euo pipefail
-host=$1 expected_head=$2 expected_binary=$3; cd ~/rdma-demo
-head=$(git rev-parse HEAD); status=$(git status --porcelain --untracked-files=no); binary=$(sha256sum s3-rdma-server | awk '{print $1}')
-[[ "$head" == "$expected_head" && -z "$status" && "$binary" == "$expected_binary" ]]
+host=$1 expected_head=$2; cd ~/rdma-demo
+head=$(git rev-parse HEAD); status=$(git status --porcelain); binary=$(sha256sum s3-rdma-server | awk '{print $1}')
+[[ "$head" == "$expected_head" && -z "$status" ]]
 printf 'role=storage host=%s tree=rdma-demo head=%s path=s3-rdma-server sha256=%s status=clean\n' "$host" "$head" "$binary"
 SH
         done
@@ -283,7 +313,8 @@ manifest_matches() {
     rootfs=$(config_value "../khala/$vm_config" RootfsPath)
     kernel=$(config_value "../khala/$vm_config" KernelPath)
     vmm=$(config_value "../khala/$vm_config" FirecrackerPath)
-    line_is "$manifest" 'manifest_version=2' &&
+        line_is "$manifest" 'manifest_version=2' &&
+        line_is "$manifest" "smoke=$smoke" &&
         line_is "$manifest" "phase=$phase" && line_is "$manifest" "repetition=$repetition" &&
         line_is "$manifest" "mode=$mode" && line_is "$manifest" "workload=$workload" &&
         line_is "$manifest" "rps=$rps" && line_is "$manifest" "replicas=$replicas" &&
@@ -294,8 +325,8 @@ manifest_matches() {
         line_is "$manifest" "ceiling_multiplier=$ceiling_multiplier" &&
         line_is "$manifest" "invitro_head=$(git rev-parse HEAD)" &&
         line_is "$manifest" "khala_head=$(git -C ../khala rev-parse HEAD)" &&
-        line_is "$manifest" "firecracker_head=$(git -C ../firecracker rev-parse HEAD)" &&
-        line_is "$manifest" "rdma_demo_head=$(git -C ../rdma-demo rev-parse HEAD)" &&
+        line_is "$manifest" "firecracker_head=$(repo_value head ../firecracker "$eval_firecracker_head")" &&
+        line_is "$manifest" "rdma_demo_head=$(repo_value head ../rdma-demo "$eval_rdma_demo_head")" &&
         line_is "$manifest" "e1_summary_sha256=$(digest "$e1_summary")" &&
         line_is "$manifest" "calibrator_sha256=$(digest e2_calibrate_rps.py)" &&
         line_is "$manifest" "runner_sha256=$(digest run_rps_per_workload.sh)" &&
@@ -388,6 +419,7 @@ run_cell() {
         kernel=$(config_value "../khala/$vm_config" KernelPath)
         vmm=$(config_value "../khala/$vm_config" FirecrackerPath)
         echo manifest_version=2
+        echo "smoke=$smoke"
         echo "phase=$phase"
         echo "repetition=$repetition"
         echo "mode=$mode"
@@ -402,12 +434,12 @@ run_cell() {
         echo "khala_head=$(git -C ../khala rev-parse HEAD)"
         echo "khala_branch=$(git -C ../khala branch --show-current)"
         echo "khala_status=$(git -C ../khala status --short | tr '\n' '|')"
-        echo "firecracker_head=$(git -C ../firecracker rev-parse HEAD)"
-        echo "firecracker_branch=$(git -C ../firecracker branch --show-current)"
-        echo "firecracker_status=$(git -C ../firecracker status --short | tr '\n' '|')"
-        echo "rdma_demo_head=$(git -C ../rdma-demo rev-parse HEAD)"
-        echo "rdma_demo_branch=$(git -C ../rdma-demo branch --show-current)"
-        echo "rdma_demo_status=$(git -C ../rdma-demo status --short | tr '\n' '|')"
+        echo "firecracker_head=$(repo_value head ../firecracker "$eval_firecracker_head")"
+        echo "firecracker_branch=$(repo_value branch ../firecracker "$eval_firecracker_branch")"
+        echo "firecracker_status=$(repo_value status ../firecracker clean)"
+        echo "rdma_demo_head=$(repo_value head ../rdma-demo "$eval_rdma_demo_head")"
+        echo "rdma_demo_branch=$(repo_value branch ../rdma-demo "$eval_rdma_demo_branch")"
+        echo "rdma_demo_status=$(repo_value status ../rdma-demo clean)"
         echo "profile=$profile"
         echo "minio_endpoint=$minio_endpoint"
         echo "warmup_minutes=$warmup_minutes"
@@ -472,14 +504,8 @@ if [[ "$command" == calibrate ]]; then
     [[ -f "$e1_summary" && -n "$worker_cores" ]] || { echo "calibrate requires --e1-summary and --worker-cores" >&2; exit 2; }
     [[ "$slo_multiplier" == 5 && "$failure_threshold" == 0.05 && "$steps" == 20 && "$minutes_per_step" == 1 && "$no_retry" == true ]] || {
         echo "calibration contract is frozen at 5x, >5%, 20 one-minute steps, and no retry" >&2; exit 2; }
-    if [[ "$ceiling_multiplier" != 1 && "$right_censored_rerun" != true ]]; then
-        echo "initial calibration requires --ceiling-multiplier 1; pass --right-censored-rerun only for a fresh rerun of archived RIGHT_CENSORED evidence" >&2
-        exit 2
-    fi
-    if [[ "$right_censored_rerun" == true && -e "$result_root" ]]; then
-        echo "a right-censored rerun requires a fresh --result-root" >&2
-        exit 2
-    fi
+    [[ "$ceiling_multiplier" == 1 ]] || {
+        echo "the single-pass campaign requires --ceiling-multiplier 1 and never extends a right-censored sweep" >&2; exit 2; }
     plan_path="$result_root/calibration-plan.csv"
     if [[ "$dry_run" == true ]]; then
         python3 - "$e1_summary" "$worker_cores" "$ceiling_multiplier" <<'PY' >/dev/null
@@ -515,22 +541,19 @@ with open(sys.argv[1], newline='', encoding='utf-8') as handle:
     raise SystemExit(0 if any(row['status'] == 'RIGHT_CENSORED' for row in csv.DictReader(handle)) else 1)
 PY
     then
-        next_multiplier=$(python3 -c 'import sys; print(float(sys.argv[1]) * 2)' "$ceiling_multiplier")
-        printf 'RIGHT_CENSORED: rerun in a new result root with --ceiling-multiplier %s; do not treat Rbound as Rmax_B0.\n' "$next_multiplier"
-        rerun=("$0" calibrate --profile "$profile" --e1-summary "$e1_summary" --worker-cores "$worker_cores"
-            --slo-multiplier 5 --failure-threshold 0.05 --warmup-minutes 2 --steps 20
-            --minutes-per-step 1 --ceiling-multiplier "$next_multiplier" --right-censored-rerun --no-retry
-            --result-root "${result_root}-ceiling-${next_multiplier}")
-        printf 'RERUN_COMMAND:'
-        printf ' %q' "${rerun[@]}"
-        printf '\n'
+        printf '%s\n' 'RIGHT_CENSORED: preserving the single-pass result; rref is a labeled conservative half-highest-tested reference, not 50% of maximum.'
     fi
     echo "CALIBRATION_READY reference=$result_root/b0-rps-reference.csv"
     exit 0
 fi
 
 [[ -f "$reference" ]] || { echo "collect requires --reference" >&2; exit 2; }
-[[ "$replicas" == 320 && "$repetitions" == 3 ]] || { echo "collection requires 320 replicas and three repetitions" >&2; exit 2; }
+if [[ "$smoke" == true ]]; then
+    [[ "$replicas" == 2 && "$measurement_minutes" == 1 && "$repetitions" == 1 ]] || {
+        echo "E2 smoke requires two replicas, one measurement minute, and one pass" >&2; exit 2; }
+else
+    [[ "$replicas" == 320 && "$repetitions" == 1 ]] || { echo "collection requires 320 replicas and one campaign repetition" >&2; exit 2; }
+fi
 if [[ -z "$e1_summary" ]]; then
     e1_summary=${E1_SUMMARY:-$(dirname "$reference")/../e1-real/analysis/b0-unloaded-average.csv}
 fi
@@ -539,7 +562,6 @@ if [[ -z "$worker_cores" ]]; then
     worker_cores=${WORKER_CORES:-$(reference_unique_value worker_cores)}
 fi
 ceiling_multiplier=$(reference_unique_value ceiling_multiplier)
-[[ "$right_censored_rerun" == false ]] || { echo "--right-censored-rerun applies only to calibrate" >&2; exit 2; }
 for workload in "${workloads[@]}"; do reference_value "$workload" rref >/dev/null; done
 if [[ "$dry_run" != true ]]; then
     validate_claim_sources

@@ -345,8 +345,12 @@ def read_e2_reference(path: Path) -> tuple[Dict[str, float], Dict[str, float]]:
     rps, durations = {}, {}
     for workload in DENSITY_WORKLOADS:
         row = by_workload[workload]
-        if row["status"] != "BOUNDARY_OBSERVED":
-            raise ValueError(f"{workload} has inadmissible E2 status {row['status']!r}")
+        status = row["status"]
+        if status == "RIGHT_CENSORED":
+            if row.get("reference_kind") != "RIGHT_CENSORED_REFERENCE" or row.get("rmax_b0"):
+                raise ValueError(f"{workload} has malformed right-censored E2 reference")
+        elif status != "BOUNDARY_OBSERVED":
+            raise ValueError(f"{workload} has inadmissible E2 status {status!r}")
         try:
             rps_value = float(row["rref"])
             duration_value = float(row["unloaded_average_ms"])

@@ -173,15 +173,24 @@ def analyze(plan: dict[str, dict[str, object]], observations: list[dict[str, str
                 break
             last_good = row
         if first_failure is None:
-            status, rmax, rref, first_step, first_rps = "RIGHT_CENSORED", "", "", "", ""
+            # The campaign is intentionally single pass.  Preserve the fact
+            # that the true boundary was not observed, but still provide a
+            # conservative operational load for the downstream matched cells.
+            # This value is not an estimate of 50% of maximum throughput.
+            status, rmax = "RIGHT_CENSORED", ""
+            rref = math.floor(int(rows[-1]["rps"]) / 2)
+            first_step, first_rps = "", ""
+            reference_kind = "RIGHT_CENSORED_REFERENCE"
         elif last_good is None:
             status, rmax, rref = "NO_ADMISSIBLE_LEVEL", "", ""
             first_step, first_rps = first_failure["step"], first_failure["rps"]
+            reference_kind = "NO_REFERENCE"
         else:
             status = "BOUNDARY_OBSERVED"
             rmax = int(last_good["rps"])
             rref = math.floor(rmax / 2)
             first_step, first_rps = first_failure["step"], first_failure["rps"]
+            reference_kind = "OBSERVED_BOUNDARY_REFERENCE"
         output.append({
             "workload": workload,
             "unloaded_average_ms": item["unloaded_average_ms"],
@@ -193,6 +202,7 @@ def analyze(plan: dict[str, dict[str, object]], observations: list[dict[str, str
             "rmax_b0": rmax,
             "rref": rref,
             "status": status,
+            "reference_kind": reference_kind,
         })
     return output
 

@@ -74,7 +74,10 @@ class CalibrationTest(unittest.TestCase):
     def test_no_observed_boundary_is_right_censored(self):
         result = {row["workload"]: row for row in analyze(self.plans, self._observations())}
         self.assertTrue(all(row["status"] == "RIGHT_CENSORED" for row in result.values()))
-        self.assertTrue(all(row["rref"] == "" for row in result.values()))
+        self.assertTrue(all(row["reference_kind"] == "RIGHT_CENSORED_REFERENCE" for row in result.values()))
+        for workload, row in result.items():
+            self.assertEqual(row["rref"], self.plans[workload]["levels"][-1] // 2)
+            self.assertEqual(row["rmax_b0"], "")
 
     def test_e1_summary_rejects_missing_and_duplicate_workloads(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -174,12 +177,12 @@ class CalibrationTest(unittest.TestCase):
             self.assertEqual(sum(line.startswith("CELL ") for line in calibration.stdout.splitlines()), 11)
             collection = subprocess.run([
                 str(script), "collect", "--profile", "4-node", "--reference", str(reference),
-                "--e1-summary", str(averages), "--replicas", "320", "--repetitions", "3",
+                "--e1-summary", str(averages), "--replicas", "320", "--repetitions", "1",
                 "--result-root", str(root / "collection"), "--dry-run",
             ], check=True, capture_output=True, text=True)
             cells = [line for line in collection.stdout.splitlines() if line.startswith("CELL ")]
-            self.assertEqual(len(cells), 114)
-            self.assertEqual(sum("workload=helloworld " in line for line in cells), 24)
+            self.assertEqual(len(cells), 38)
+            self.assertEqual(sum("workload=helloworld " in line for line in cells), 8)
             self.assertIn("E2_DRY_RUN_READY", collection.stdout)
             self.assertFalse((root / "collection").exists())
 
