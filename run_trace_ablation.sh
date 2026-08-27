@@ -1,8 +1,20 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-repo_root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+repo_root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
 cd "$repo_root"
+scratch_root=${EVAL_SCRATCH_ROOT:-/mnt/resources/nexus-evaluation/.scratch/e3}
+[[ "$scratch_root" == /* && "$scratch_root" != "/" ]] || {
+    echo "EVAL_SCRATCH_ROOT must be a non-root absolute path" >&2
+    exit 2
+}
+scratch_root=$(realpath -m -- "$scratch_root")
+case "$scratch_root" in
+    "$repo_root"|"$repo_root"/*)
+        echo "EVAL_SCRATCH_ROOT must be outside the InVitro worktree" >&2
+        exit 2
+        ;;
+esac
 
 profile=
 modes_csv=invm-py,nexus-py,nexus-rdma-py
@@ -369,8 +381,9 @@ manifest_matches() {
 run_cell() {
     local repetition=$1 mode=$2 worker_config=$3
     local run_id="e3-r${repetition}-${mode}"
-    local scratch_trace="data/traces/nexus-e3/$run_id"
-    local scratch_out="data/out/nexus-e3/$run_id"
+    local scratch_cell="$scratch_root/$run_id"
+    local scratch_trace="$scratch_cell/trace"
+    local scratch_out="$scratch_cell/out"
     local destination="$result_root/rep-$repetition/$mode"
     local manifest="$destination/manifest.txt"
     if [[ -e "$destination" ]] && manifest_matches "$manifest" "$repetition" "$mode" "$destination"; then
@@ -378,7 +391,7 @@ run_cell() {
         return
     fi
     [[ ! -e "$destination" ]] || { echo "refusing incomplete cell: $destination" >&2; return 2; }
-    rm -rf -- "$scratch_trace" "$scratch_out"
+    rm -rf -- "$scratch_cell"
     mkdir -p "$scratch_out"
     python3 generate_trace_sweep.py --mode "$mode" --e2-reference "$reference" \
         --divisor "$divisor" --start-scale "$start_scale" --end-scale "$end_scale" \
@@ -479,7 +492,7 @@ run_cell() {
     mkdir -p "$(dirname "$destination")"
     cp -a -- "$scratch_out" "$destination"
     write_archived_output_checksums "$destination"
-    rm -rf -- "$scratch_trace" "$scratch_out"
+    rm -rf -- "$scratch_cell"
     if ((status != 0)); then echo "cell failed; evidence retained at $destination" >&2; return "$status"; fi
     if ((cooldown_seconds > 0)); then sleep "$cooldown_seconds"; fi
 }

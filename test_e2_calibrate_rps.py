@@ -1,4 +1,5 @@
 import csv
+import os
 import subprocess
 import tempfile
 import unittest
@@ -189,6 +190,9 @@ class CalibrationTest(unittest.TestCase):
     def test_runner_uses_archived_worker_config_not_the_checked_in_default(self):
         source = Path(__file__).with_name("run_rps_per_workload.sh").read_text(encoding="utf-8")
         self.assertIn("source /etc/profile", source)
+        self.assertIn("EVAL_SCRATCH_ROOT:-/mnt/resources/nexus-evaluation/.scratch/e2", source)
+        self.assertNotIn("data/traces/nexus-e2", source)
+        self.assertNotIn("data/out/nexus-e2", source)
         self.assertIn('discover_cluster_topology "$result_root/cluster-inventory.txt" "$result_root/worker-node.json"', source)
         self.assertIn('--worker-config "$worker_config"', source)
         self.assertIn('worker_config_sha256=$(digest "$worker_config")', source)
@@ -202,6 +206,19 @@ class CalibrationTest(unittest.TestCase):
         self.assertIn('local output=$1 worker_config=$2 require_rdma=$3', source)
         self.assertIn('snapshot_remote_provenance "$result_root/remote-provenance.txt" "$result_root/worker-node.json" "$require_reference"', source)
         self.assertIn('if [[ "$require_rdma" == true ]]; then', source)
+
+    def test_runner_rejects_scratch_inside_worktree(self):
+        script = Path(__file__).with_name("run_rps_per_workload.sh")
+        environment = os.environ.copy()
+        environment["EVAL_SCRATCH_ROOT"] = str(Path(__file__).resolve().parent / ".tmp" / "e2")
+        result = subprocess.run(
+            [str(script), "calibrate", "--dry-run"],
+            capture_output=True,
+            text=True,
+            env=environment,
+        )
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("must be outside the InVitro worktree", result.stderr)
 
 
 if __name__ == "__main__":

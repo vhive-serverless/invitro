@@ -16,6 +16,20 @@ func TestCleanupUsesTheEvaluatedMinioEndpoint(t *testing.T) {
 	}
 }
 
+func TestWorkerEnvironmentKeepsE4CleanupLocal(t *testing.T) {
+	arguments := workerEnvironment("/users/tester", eval.CanonicalMinioHost)
+	for _, want := range []string{
+		"--chdir=/users/tester/khala",
+		"KHALA_LOCAL_ONLY=1",
+		"KHALA_WORKER_ROOT=/users/tester/khala",
+		"NEXUS_MINIO_URL=http://" + eval.CanonicalMinioHost,
+	} {
+		if !slices.Contains(arguments, want) {
+			t.Fatalf("worker environment missing %q: %v", want, arguments)
+		}
+	}
+}
+
 func TestFrozenPlanAlternatesModeOrder(t *testing.T) {
 	topology := copyTopology(t)
 	o := options{common: eval.Config{Profile: eval.Profile4, TopologyConfig: topology,

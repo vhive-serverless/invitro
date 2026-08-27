@@ -1,4 +1,5 @@
 import csv
+import os
 import subprocess
 import tempfile
 import unittest
@@ -124,6 +125,9 @@ class AblationDryRunTest(unittest.TestCase):
 
     def test_runner_archives_topology_and_sets_workers_for_a_new_root(self):
         source = (ROOT / "run_trace_ablation.sh").read_text(encoding="utf-8")
+        self.assertIn("EVAL_SCRATCH_ROOT:-/mnt/resources/nexus-evaluation/.scratch/e3", source)
+        self.assertNotIn("data/traces/nexus-e3", source)
+        self.assertNotIn("data/out/nexus-e3", source)
         self.assertIn('cluster_inventory_sha256=$(digest "$result_root/cluster-inventory.txt")', source)
         self.assertIn('remote_provenance_sha256=$(digest "$result_root/remote-provenance.txt")', source)
         self.assertIn('kubectl get nodes -o json | jq -S', source)
@@ -141,6 +145,19 @@ class AblationDryRunTest(unittest.TestCase):
         self.assertNotIn('firecracker-memory.csv', source)
         self.assertNotIn('backend-memory.csv', source)
         self.assertNotIn('backend-memory-once.csv', source)
+
+    def test_runner_rejects_scratch_inside_worktree(self):
+        environment = os.environ.copy()
+        environment["EVAL_SCRATCH_ROOT"] = str(ROOT / ".tmp" / "e3")
+        result = subprocess.run(
+            self.command("--dry-run"),
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            env=environment,
+        )
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("must be outside the InVitro worktree", result.stderr)
 
 
 if __name__ == "__main__":

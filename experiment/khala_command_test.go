@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"net"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -366,6 +367,88 @@ func TestDeployKhalaMinIOFailurePreventsRemoteWork(t *testing.T) {
 	mode, _ := resolveExperimentMode(ModeNexusGo, 4_190_208, 256*1024)
 	if err := DeployKhala(WorkerNodeSetup{WorkerNodes: []string{"worker"}, StorageNodes: []string{"storage"}}, "", "go", mode, false); err == nil {
 		t.Fatal("MinIO preparation failure suppressed")
+	}
+}
+
+func TestDeployKhalaWaitsForWorkerReadiness(t *testing.T) {
+	originalLocal, originalServer := localCommandFn, serverExecFn
+	originalCorePool, originalWait := setDefaultCorePoolFn, waitKnIntegrationFn
+	t.Cleanup(func() {
+		localCommandFn, serverExecFn = originalLocal, originalServer
+		setDefaultCorePoolFn, waitKnIntegrationFn = originalCorePool, originalWait
+	})
+
+	localCommandFn = func(string) (string, error) { return "", nil }
+	serverExecFn = func(string, string) (string, error) { return "", nil }
+	ready := false
+	waitKnIntegrationFn = func(node string, timeout time.Duration) error {
+		if node != "worker" || timeout != knIntegrationStartTimeout {
+			t.Fatalf("readiness args = %s, %s", node, timeout)
+		}
+		ready = true
+		return nil
+	}
+	setDefaultCorePoolFn = func(node string) error {
+		if node != "worker" || !ready {
+			t.Fatalf("core pool configured before readiness: node=%s ready=%t", node, ready)
+		}
+		return nil
+	}
+	mode, _ := resolveExperimentMode(ModeInVMPy, 4_190_208, 256*1024)
+	if err := DeployKhala(WorkerNodeSetup{WorkerNodes: []string{"worker"}, StorageNodes: []string{"storage"}}, "", "go", mode, false); err != nil {
+		t.Fatal(err)
+	}
+	if !ready {
+		t.Fatal("deployment returned without a readiness check")
+	}
+}
+
+func TestLoggedKnIntegrationCommandRetainsExitEvidence(t *testing.T) {
+	command := loggedKnIntegrationCommand("cd ~/khala && sudo ./bin/kn-integration")
+	for _, want := range []string{"tmux new-session", "kn-integration.log", "kn-integration.exit", "status=$?"} {
+		if !strings.Contains(command, want) {
+			t.Fatalf("logged command missing %q: %s", want, command)
+		}
+	}
+	if strings.Contains(command, "send-keys") {
+		t.Fatalf("logged command detached from child lifecycle: %s", command)
+	}
+}
+
+func TestKnIntegrationReadinessReportsDetachedChildExit(t *testing.T) {
+	originalServer, originalDial, originalSleep := serverExecFn, dialKnIntegrationFn, sleepFn
+	t.Cleanup(func() {
+		serverExecFn, dialKnIntegrationFn, sleepFn = originalServer, originalDial, originalSleep
+	})
+	dialKnIntegrationFn = func(string, time.Duration) (net.Conn, error) {
+		return nil, errors.New("connection refused")
+	}
+	serverExecFn = func(_ string, command string) (string, error) {
+		if strings.Contains(command, "tmux_alive") {
+			return "tmux_alive=false\nexit_status=2\npanic: injected", nil
+		}
+		return "exit_status=2", errors.New("child exited")
+	}
+	sleepFn = func(time.Duration) { t.Fatal("slept after child exit was observed") }
+	err := waitForKnIntegration("worker", time.Second)
+	if err == nil || !strings.Contains(err.Error(), "exited before readiness") || !strings.Contains(err.Error(), "panic: injected") {
+		t.Fatalf("readiness error = %v", err)
+	}
+}
+
+func TestKnIntegrationReadinessDoesNotMislabelProbeFailureAsChildExit(t *testing.T) {
+	originalServer, originalDial, originalSleep := serverExecFn, dialKnIntegrationFn, sleepFn
+	t.Cleanup(func() {
+		serverExecFn, dialKnIntegrationFn, sleepFn = originalServer, originalDial, originalSleep
+	})
+	dialKnIntegrationFn = func(string, time.Duration) (net.Conn, error) {
+		return nil, errors.New("connection refused")
+	}
+	serverExecFn = func(string, string) (string, error) { return "ssh unavailable", errors.New("transport failure") }
+	sleepFn = func(time.Duration) { t.Fatal("slept after zero timeout") }
+	err := waitForKnIntegration("worker", 0)
+	if err == nil || !strings.Contains(err.Error(), "readiness timed out") || strings.Contains(err.Error(), "exited before readiness") {
+		t.Fatalf("readiness error = %v", err)
 	}
 }
 

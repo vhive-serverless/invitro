@@ -6,6 +6,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"net"
 	"os"
 	"os/exec"
 	"strconv"
@@ -405,11 +406,59 @@ var (
 	setDefaultCorePoolFn  = SetDefaultCorePool
 	createSnapshotsNodeFn = createSnapshotsOnNode
 	sleepFn               = time.Sleep
+	waitKnIntegrationFn   = waitForKnIntegration
+	dialKnIntegrationFn   = func(address string, timeout time.Duration) (net.Conn, error) {
+		return net.DialTimeout("tcp", address, timeout)
+	}
 )
+
+const knIntegrationStartTimeout = 60 * time.Second
 
 func runLocalCommand(command string) (string, error) {
 	output, err := exec.Command("bash", "-c", command).CombinedOutput()
 	return string(output), err
+}
+
+func shellQuote(value string) string {
+	return "'" + strings.ReplaceAll(value, "'", "'\"'\"'") + "'"
+}
+
+func loggedKnIntegrationCommand(command string) string {
+	wrapped := command + ` >> ~/khala/runtime/logs/kn-integration.log 2>&1; status=$?; printf '%s\n' "$status" > ~/khala/runtime/logs/kn-integration.exit`
+	return "tmux new-session -d -s kn-integration -- bash -lc " + shellQuote(wrapped)
+}
+
+func knIntegrationDiagnostics(node string) string {
+	command := `printf 'tmux_alive='; if tmux has-session -t kn-integration 2>/dev/null; then echo true; else echo false; fi; printf 'exit_status='; if test -f ~/khala/runtime/logs/kn-integration.exit; then cat ~/khala/runtime/logs/kn-integration.exit; else echo running; fi; tail -n 80 ~/khala/runtime/logs/kn-integration.log 2>/dev/null || true`
+	output, err := serverExecFn(node, command)
+	if err != nil {
+		return fmt.Sprintf("diagnostic collection failed: %v (output: %s)", err, strings.TrimSpace(output))
+	}
+	return strings.TrimSpace(output)
+}
+
+func waitForKnIntegration(node string, timeout time.Duration) error {
+	deadline := time.Now().Add(timeout)
+	var lastDialErr error
+	for {
+		conn, err := dialKnIntegrationFn(net.JoinHostPort(node, "8000"), time.Second)
+		if err == nil {
+			_ = conn.Close()
+			return nil
+		}
+		lastDialErr = err
+		exitOutput, exitErr := serverExecFn(node, `if test -f ~/khala/runtime/logs/kn-integration.exit; then printf 'exit_status='; cat ~/khala/runtime/logs/kn-integration.exit; exit 1; fi`)
+		if exitErr != nil && strings.Contains(exitOutput, "exit_status=") {
+			return fmt.Errorf("kn-integration exited before readiness on %s: %s; %s", node, strings.TrimSpace(exitOutput), knIntegrationDiagnostics(node))
+		}
+		if exitErr != nil {
+			lastDialErr = fmt.Errorf("dial failed: %v; exit-marker probe failed: %v (output: %s)", lastDialErr, exitErr, strings.TrimSpace(exitOutput))
+		}
+		if time.Now().After(deadline) {
+			return fmt.Errorf("kn-integration readiness timed out on %s after %s: %v; %s", node, timeout, lastDialErr, knIntegrationDiagnostics(node))
+		}
+		sleepFn(250 * time.Millisecond)
+	}
 }
 
 func minioObjectEndpointURL() string {
@@ -466,7 +515,8 @@ func DeployKhala(workerNodeSetup WorkerNodeSetup, corePoolPolicy string, impleme
 	commands := []string{
 		`sudo pkill --signal INT kn-integration 2>/dev/null || true`,
 		`tmux kill-session -t kn-integration 2>/dev/null || true`,
-		`tmux new-session -d -s kn-integration`,
+		`mkdir -p ~/khala/runtime/logs`,
+		`rm -f ~/khala/runtime/logs/kn-integration.log ~/khala/runtime/logs/kn-integration.exit`,
 	}
 
 	var wg sync.WaitGroup
@@ -479,7 +529,7 @@ func DeployKhala(workerNodeSetup WorkerNodeSetup, corePoolPolicy string, impleme
 			nodeCmd := fmt.Sprintf("%s --storage-ip=%s:10191", deploymentCmd, workerNodeSetup.StorageNodes[idx])
 
 			nodeCommands := append([]string(nil), commands...)
-			nodeCommands = append(nodeCommands, fmt.Sprintf(`tmux send-keys -t kn-integration "%s" C-m`, nodeCmd))
+			nodeCommands = append(nodeCommands, loggedKnIntegrationCommand(nodeCmd))
 
 			for _, cmd := range nodeCommands {
 				_, err := serverExecFn(node, cmd)
@@ -488,6 +538,10 @@ func DeployKhala(workerNodeSetup WorkerNodeSetup, corePoolPolicy string, impleme
 					return
 				}
 			}
+			if err := waitKnIntegrationFn(node, knIntegrationStartTimeout); err != nil {
+				workerErrors.add(err)
+				return
+			}
 			log.Infof("Khala deployed on worker node %s", node)
 		}(workerNode, nodeIndex)
 	}
@@ -495,8 +549,6 @@ func DeployKhala(workerNodeSetup WorkerNodeSetup, corePoolPolicy string, impleme
 	if err := workerErrors.joined(); err != nil {
 		return fmt.Errorf("deploy Khala: %w", err)
 	}
-	sleepFn(10 * time.Second)
-
 	var corePoolErrors errorCollector
 	for _, workerNode := range workerNodeSetup.WorkerNodes {
 		err := setDefaultCorePoolFn(workerNode)
@@ -549,6 +601,7 @@ func CleanKhala(workerNodeSetup WorkerNodeSetup, removeSnapshots bool, withRDMA 
 		`tmux kill-session -t kn-integration 2>/dev/null || true`,
 		`sudo rm -rf ~/khala/runtime/overlayfs/*.overlay`,
 		`sudo rm -rf ~/khala/runtime/logs/*.log`,
+		`sudo rm -f ~/khala/runtime/logs/kn-integration.exit`,
 		`sudo rm -rf ~/khala/runtime/metrics/*.metrics`,
 		`sudo rm -rf ~/khala/runtime/uffd_sock/*.sock`,
 		`bash -c 'cd ~/khala && bash cleanup_worker.sh'`,
@@ -570,6 +623,7 @@ func CleanKhala(workerNodeSetup WorkerNodeSetup, removeSnapshots bool, withRDMA 
 		wg.Add(1)
 		go func(node string) {
 			defer wg.Done()
+			log.Infof("kn-integration diagnostics from %s:\n%s", node, knIntegrationDiagnostics(node))
 			conn, err := grpc.NewClient(node+":8000", grpc.WithTransportCredentials(insecure.NewCredentials()))
 			if err != nil {
 				log.Errorf("Failed to connect to nexus endpoint %s: %v", node, err)
@@ -618,38 +672,26 @@ func CleanKhala(workerNodeSetup WorkerNodeSetup, removeSnapshots bool, withRDMA 
 		cleanupErrors.add(fmt.Errorf("clean loader: %w", err))
 	}
 
-	clusterCommands := []string{
-		"kubectl rollout restart daemonset calico-node -n kube-system",
-		"kubectl rollout status daemonset calico-node -n kube-system",
-		"sleep 10",
-		"kubectl rollout restart deployment calico-kube-controllers -n kube-system",
-		"kubectl rollout status deployment calico-kube-controllers -n kube-system",
-		"sleep 10",
-		"kubectl rollout restart daemonset speaker -n metallb-system",
-		"kubectl rollout status daemonset speaker -n metallb-system",
-		"sleep 10",
-	}
-	log.Infof("Khala appears to have died on one or more worker nodes, restarting calico")
-	for _, command := range clusterCommands {
-		cmd := exec.Command("bash", "-c", command)
-		outBytes, err := cmd.CombinedOutput()
-		if err != nil {
-			log.Errorf("Failed to execute command '%s': %v, output: %s", cmd, err, string(outBytes))
-			cleanupErrors.add(fmt.Errorf("restart cluster component: %w", err))
+	if khalaDied.Load() {
+		clusterCommands := []string{
+			"kubectl rollout restart daemonset calico-node -n kube-system",
+			"kubectl rollout status daemonset calico-node -n kube-system",
+			"sleep 10",
+			"kubectl rollout restart deployment calico-kube-controllers -n kube-system",
+			"kubectl rollout status deployment calico-kube-controllers -n kube-system",
+			"sleep 10",
+			"kubectl rollout restart daemonset speaker -n metallb-system",
+			"kubectl rollout status daemonset speaker -n metallb-system",
+			"sleep 10",
 		}
-	}
-	activatorCommands := []string{
-		"kubectl rollout restart -n knative-serving deployment/activator",
-		"kubectl rollout status -n knative-serving deployment/activator",
-		"sleep 10",
-	}
-	log.Infof("Restarting knative activator")
-	for _, command := range activatorCommands {
-		cmd := exec.Command("bash", "-c", command)
-		outBytes, err := cmd.CombinedOutput()
-		if err != nil {
-			log.Errorf("Failed to execute command '%s': %v, output: %s", cmd, err, string(outBytes))
-			cleanupErrors.add(fmt.Errorf("restart activator: %w", err))
+		log.Infof("Khala appears to have died on one or more worker nodes, restarting network components")
+		for _, command := range clusterCommands {
+			cmd := exec.Command("bash", "-c", command)
+			outBytes, err := cmd.CombinedOutput()
+			if err != nil {
+				log.Errorf("Failed to execute command '%s': %v, output: %s", cmd, err, string(outBytes))
+				cleanupErrors.add(fmt.Errorf("restart cluster component: %w", err))
+			}
 		}
 	}
 
@@ -733,7 +775,10 @@ func createSnapshotsOnNode(node string, workloads []string) error {
 	defer conn.Close()
 	client := proto.NewKhalaKnativeIntegrationClient(conn)
 	for _, workload := range workloads {
-		if _, err := client.CreateSnapshot(context.Background(), &proto.CreateSnapshotRequest{Workload: workload}); err != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+		_, err := client.CreateSnapshot(ctx, &proto.CreateSnapshotRequest{Workload: workload})
+		cancel()
+		if err != nil {
 			return fmt.Errorf("create snapshot %s on %s: %w", workload, node, err)
 		}
 		log.Infof("Snapshot created for function %s on nexus endpoint %s", workload, node)

@@ -4,8 +4,20 @@
 source /etc/profile
 set -euo pipefail
 
-repo_root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+repo_root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
 cd "$repo_root"
+scratch_root=${EVAL_SCRATCH_ROOT:-/mnt/resources/nexus-evaluation/.scratch/e2}
+[[ "$scratch_root" == /* && "$scratch_root" != "/" ]] || {
+    echo "EVAL_SCRATCH_ROOT must be a non-root absolute path" >&2
+    exit 2
+}
+scratch_root=$(realpath -m -- "$scratch_root")
+case "$scratch_root" in
+    "$repo_root"|"$repo_root"/*)
+        echo "EVAL_SCRATCH_ROOT must be outside the InVitro worktree" >&2
+        exit 2
+        ;;
+esac
 
 command=${1:-}
 if [[ -n "$command" ]]; then shift; fi
@@ -390,8 +402,9 @@ prepare_cluster_root() {
 run_cell() {
     local phase=$1 repetition=$2 mode=$3 workload=$4 rps=$5 perf=$6 duration=$7 destination=$8 worker_config=$9
     local run_id="e2-${phase}-r${repetition}-${mode}-${workload}"
-    local scratch_trace="data/traces/nexus-e2/$run_id"
-    local scratch_out="data/out/nexus-e2/$run_id"
+    local scratch_cell="$scratch_root/$run_id"
+    local scratch_trace="$scratch_cell/trace"
+    local scratch_out="$scratch_cell/out"
     local config_path="$scratch_out/config.json"
     local manifest="$destination/manifest.txt"
     if [[ -e "$destination" ]] && manifest_matches "$manifest" "$phase" "$repetition" "$mode" "$workload" "$rps" "$perf" "$duration" "$destination"; then
@@ -399,7 +412,7 @@ run_cell() {
         return
     fi
     [[ ! -e "$destination" ]] || { echo "refusing incomplete cell: $destination" >&2; return 2; }
-    rm -rf -- "$scratch_out" "$scratch_trace"
+    rm -rf -- "$scratch_cell"
     mkdir -p "$scratch_out"
     if [[ "$phase" == calibration ]]; then
         python3 e2_calibrate_rps.py --averages "$e1_summary" --cores "$worker_cores" --ceiling-multiplier "$ceiling_multiplier" trace \
@@ -496,7 +509,7 @@ run_cell() {
     mkdir -p "$(dirname "$destination")"
     cp -a -- "$scratch_out" "$destination"
     write_archived_output_checksums "$destination"
-    rm -rf -- "$scratch_out" "$scratch_trace"
+    rm -rf -- "$scratch_cell"
     if ((status != 0)); then
         echo "cell failed; evidence retained at $destination" >&2
         return "$status"

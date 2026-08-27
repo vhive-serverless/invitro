@@ -180,7 +180,7 @@ func runCell(ctx context.Context, o options, item cell, worker, workerHome, work
 	defer logFile.Close()
 	started := time.Now().UTC().Format(time.RFC3339)
 	fmt.Printf("ACQUISITION_START experiment=e4 workload=%s mode=%s worker=%s log=%s\n", item.Workload, item.Mode, worker, logPath)
-	base := []string{"env", "--chdir=" + workerHome + "/khala", "NEXUS_MINIO_URL=http://" + endpoint}
+	base := workerEnvironment(workerHome, endpoint)
 	seedErr := runRemote(ctx, worker, logFile, append(base, "bash", "./scripts/deploy-minio-obj.sh", "http://"+endpoint)...)
 	deployArgs := append(append([]string{}, base...), "./bin/khala-command",
 		"--worker-config=internal/experiment/kn-integration-tracer/worker_node.json",
@@ -234,6 +234,16 @@ func runCell(ctx context.Context, o options, item cell, worker, workerHome, work
 		fmt.Printf("ACQUISITION_COMPLETE experiment=e4 workload=%s mode=%s result=%s\n", item.Workload, item.Mode, root)
 	}
 	return cleanupErr == nil, cellErr
+}
+
+func workerEnvironment(workerHome, endpoint string) []string {
+	return []string{
+		"env",
+		"--chdir=" + workerHome + "/khala",
+		"KHALA_LOCAL_ONLY=1",
+		"KHALA_WORKER_ROOT=" + workerHome + "/khala",
+		"NEXUS_MINIO_URL=http://" + endpoint,
+	}
 }
 
 func cleanupCommand(base []string, item cell, endpoint string) []string {
