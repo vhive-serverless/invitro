@@ -144,6 +144,7 @@ func run(ctx context.Context, cfg eval.Config, smokeRoot string) (int, error) {
 			continue
 		}
 		checker.remoteKVM(target)
+		checker.remoteWorkerTools(target)
 		checker.remoteMinio(target, baseURL)
 		checker.remoteGit("worker_khala", target, remoteHome(target)+"/khala", localKhala.Head, eval.KhalaBranch)
 		checker.remoteGit("worker_firecracker", target, remoteHome(target)+"/firecracker", eval.FirecrackerHead, eval.FirecrackerBranch)
@@ -329,6 +330,19 @@ func (c *checks) remoteKVM(target string) {
 		_, err = c.ssh(target, "test", "-w", "/dev/kvm")
 	}
 	c.record("worker_kvm_"+target, err, "/dev/kvm")
+}
+
+func (c *checks) remoteWorkerTools(target string) {
+	home := remoteHome(target)
+	mcPath := home + "/minio-binaries/mc"
+	mcVersion, mcErr := c.ssh(target, mcPath, "--version")
+	c.record("worker_mc_"+target, mcErr, mcVersion)
+
+	goVersion, goErr := c.ssh(target, "/usr/local/go/bin/go", "version")
+	if goErr == nil {
+		_, goErr = c.ssh(target, "grep", "-Fq", "/usr/local/go/bin", "/etc/profile")
+	}
+	c.record("worker_go_profile_"+target, goErr, goVersion)
 }
 
 func (c *checks) remoteMinio(target, baseURL string) {
@@ -575,7 +589,7 @@ func sanitize(value string) string {
 }
 
 func plannedChecks(freeze bool) []string {
-	values := []string{"local_git", "kubernetes_nodes", "kubernetes_topology", "minio_loader", "kubernetes_workloads", "worker_kvm", "worker_minio", "deployed_git", "unified_rootfs", "artifact_hashes", "rdma"}
+	values := []string{"local_git", "kubernetes_nodes", "kubernetes_topology", "minio_loader", "kubernetes_workloads", "worker_kvm", "worker_tools", "worker_minio", "deployed_git", "unified_rootfs", "artifact_hashes", "rdma"}
 	if freeze {
 		values = append(values, "e1_e4_smoke_evidence")
 	}

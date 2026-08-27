@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# E2 is launched from a non-login shell; cluster setup adds the pinned Go
+# toolchain to PATH through /etc/profile.
+source /etc/profile
 set -euo pipefail
 
 repo_root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)

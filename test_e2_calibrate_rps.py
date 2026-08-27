@@ -188,6 +188,7 @@ class CalibrationTest(unittest.TestCase):
 
     def test_runner_uses_archived_worker_config_not_the_checked_in_default(self):
         source = Path(__file__).with_name("run_rps_per_workload.sh").read_text(encoding="utf-8")
+        self.assertIn("source /etc/profile", source)
         self.assertIn('discover_cluster_topology "$result_root/cluster-inventory.txt" "$result_root/worker-node.json"', source)
         self.assertIn('--worker-config "$worker_config"', source)
         self.assertIn('worker_config_sha256=$(digest "$worker_config")', source)
