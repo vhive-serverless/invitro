@@ -441,12 +441,20 @@ func waitForKnIntegration(node string, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
 	var lastDialErr error
 	for {
-		conn, err := dialKnIntegrationFn(net.JoinHostPort(node, "8000"), time.Second)
-		if err == nil {
+		ready := true
+		for _, port := range []string{"8000", "8002"} {
+			address := net.JoinHostPort(node, port)
+			conn, err := dialKnIntegrationFn(address, time.Second)
+			if err != nil {
+				lastDialErr = fmt.Errorf("dial %s: %w", address, err)
+				ready = false
+				break
+			}
 			_ = conn.Close()
+		}
+		if ready {
 			return nil
 		}
-		lastDialErr = err
 		exitOutput, exitErr := serverExecFn(node, `if test -f ~/khala/runtime/logs/kn-integration.exit; then printf 'exit_status='; cat ~/khala/runtime/logs/kn-integration.exit; exit 1; fi`)
 		if exitErr != nil && strings.Contains(exitOutput, "exit_status=") {
 			return fmt.Errorf("kn-integration exited before readiness on %s: %s; %s", node, strings.TrimSpace(exitOutput), knIntegrationDiagnostics(node))

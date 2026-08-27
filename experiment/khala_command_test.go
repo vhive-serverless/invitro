@@ -452,6 +452,32 @@ func TestKnIntegrationReadinessDoesNotMislabelProbeFailureAsChildExit(t *testing
 	}
 }
 
+func TestKnIntegrationReadinessWaitsForHardwareManager(t *testing.T) {
+	originalServer, originalDial, originalSleep := serverExecFn, dialKnIntegrationFn, sleepFn
+	t.Cleanup(func() {
+		serverExecFn, dialKnIntegrationFn, sleepFn = originalServer, originalDial, originalSleep
+	})
+	serverExecFn = func(string, string) (string, error) { return "", nil }
+	calls := map[string]int{}
+	dialKnIntegrationFn = func(address string, _ time.Duration) (net.Conn, error) {
+		calls[address]++
+		if strings.HasSuffix(address, ":8002") && calls[address] == 1 {
+			return nil, errors.New("hardware manager is still starting")
+		}
+		client, server := net.Pipe()
+		_ = server.Close()
+		return client, nil
+	}
+	sleeps := 0
+	sleepFn = func(time.Duration) { sleeps++ }
+	if err := waitForKnIntegration("worker", time.Second); err != nil {
+		t.Fatal(err)
+	}
+	if calls["worker:8000"] != 2 || calls["worker:8002"] != 2 || sleeps != 1 {
+		t.Fatalf("readiness calls=%v sleeps=%d", calls, sleeps)
+	}
+}
+
 func TestDeployRDMAAggregatesAndStopsNodeSequence(t *testing.T) {
 	originalServer := serverExecFn
 	t.Cleanup(func() { serverExecFn = originalServer })
