@@ -489,7 +489,7 @@ run_cell() {
     } > "$scratch_out/manifest.txt"
     local status=0
     set +e
-    go run experiment/khala_command.go --command deploy --mode "$mode" --vm-config "$vm_config" --worker-config "$worker_config" --workloads "$workload" \
+    go run experiment/khala_command.go --command deploy --mode "$mode" --worker-config "$worker_config" --workloads "$workload" \
         --shmem-ring-bytes 4190208 --shmem-io-quantum 262144 --minio-endpoint "$minio_endpoint" \
         > >(tee "$scratch_out/deploy.log") 2>&1
     status=$?

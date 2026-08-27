@@ -206,6 +206,7 @@ class CalibrationTest(unittest.TestCase):
         self.assertIn('local output=$1 worker_config=$2 require_rdma=$3', source)
         self.assertIn('snapshot_remote_provenance "$result_root/remote-provenance.txt" "$result_root/worker-node.json" "$require_reference"', source)
         self.assertIn('if [[ "$require_rdma" == true ]]; then', source)
+        self.assertNotIn('--vm-config "$vm_config"', source)
 
     def test_runner_rejects_scratch_inside_worktree(self):
         script = Path(__file__).with_name("run_rps_per_workload.sh")
