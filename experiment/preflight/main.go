@@ -357,7 +357,7 @@ func (c *checks) remoteWorkerTools(target string) {
 	if flameGraphErr == nil && head != setup.FlameGraphCommit {
 		flameGraphErr = fmt.Errorf("HEAD %s, want %s", head, setup.FlameGraphCommit)
 	}
-	origin, originErr := c.ssh(target, "git", "-C", flameGraphPath, "remote", "get-url", "origin")
+	origin, originErr := c.ssh(target, "git", "-C", flameGraphPath, "config", "--get", "remote.origin.url")
 	if flameGraphErr == nil {
 		flameGraphErr = originErr
 	}

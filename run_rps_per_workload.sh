@@ -258,7 +258,7 @@ snapshot_remote_provenance() {
 set -euo pipefail
 host=$1 expected_repo=$2 expected_commit=$3
 head=$(git -C ~/FlameGraph rev-parse HEAD)
-origin=$(git -C ~/FlameGraph remote get-url origin)
+origin=$(git -C ~/FlameGraph config --get remote.origin.url)
 status=$(git -C ~/FlameGraph status --porcelain)
 test "$head" = "$expected_commit"
 test "$origin" = "$expected_repo"
