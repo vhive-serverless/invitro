@@ -24,7 +24,12 @@
 # SOFTWARE.
 #
 
-if [ `kubectl get statefulset -A | grep prometheus-prometheus-kube-prometheus-prometheus | wc -l` -ne "0" ]
-then
-	kubectl rollout restart statefulset prometheus-prometheus-kube-prometheus-prometheus -n monitoring
+set -euo pipefail
+
+statefulset=${PROMETHEUS_STATEFULSET:-prometheus-prometheus-kube-prometheus-prometheus}
+namespace=${PROMETHEUS_NAMESPACE:-monitoring}
+
+if kubectl get statefulset "$statefulset" -n "$namespace" >/dev/null 2>&1; then
+	kubectl rollout restart "statefulset/$statefulset" -n "$namespace"
+	"$(dirname -- "${BASH_SOURCE[0]}")/wait_prometheus_ready.sh"
 fi

@@ -9,6 +9,8 @@
     "FIRECRACKER_BRANCH": "firecracker-v1.14-nexus-shmem-vsock",
     "RDMA_REPO": "https://github.com/hyscale-lab/rdma-demo.git",
     "RDMA_BRANCH": "jy/nexus-rdma-eval",
+    "FLAMEGRAPH_REPO": "https://github.com/brendangregg/FlameGraph.git",
+    "FLAMEGRAPH_COMMIT": "41fee1f99f9276008b7cd112fca19dc3ea84ac32",
     "CLUSTER_MODE": "container",
     "PODS_PER_NODE": 240,
     "DEPLOY_PROMETHEUS": true,

@@ -47,6 +47,8 @@ type SetupConfig struct {
 	FirecrackerBranch string `json:"FIRECRACKER_BRANCH"`
 	RDMARepo          string `json:"RDMA_REPO"`
 	RDMABranch        string `json:"RDMA_BRANCH"`
+	FlameGraphRepo    string `json:"FLAMEGRAPH_REPO"`
+	FlameGraphCommit  string `json:"FLAMEGRAPH_COMMIT"`
 	ClusterMode       string `json:"CLUSTER_MODE"`
 	PodsPerNode       int    `json:"PODS_PER_NODE"`
 	DeployPrometheus  bool   `json:"DEPLOY_PROMETHEUS"`
@@ -243,6 +245,7 @@ func validateSetupConfig(config *SetupConfig) error {
 		"LOADER_REPO": config.LoaderRepo, "LOADER_BRANCH": config.LoaderBranch,
 		"KHALA_REPO": config.KhalaRepo, "KHALA_BRANCH": config.KhalaBranch,
 		"FIRECRACKER_REPO": config.FirecrackerRepo, "FIRECRACKER_BRANCH": config.FirecrackerBranch,
+		"FLAMEGRAPH_REPO": config.FlameGraphRepo, "FLAMEGRAPH_COMMIT": config.FlameGraphCommit,
 	}
 	if config.DeployRDMA {
 		required["RDMA_REPO"] = config.RDMARepo
@@ -252,6 +255,9 @@ func validateSetupConfig(config *SetupConfig) error {
 		if strings.TrimSpace(value) == "" {
 			return fmt.Errorf("%s must be non-empty", key)
 		}
+	}
+	if len(config.FlameGraphCommit) != 40 || strings.Trim(config.FlameGraphCommit, "0123456789abcdef") != "" {
+		return fmt.Errorf("FLAMEGRAPH_COMMIT must be a lowercase 40-character Git commit")
 	}
 	return nil
 }

@@ -3,12 +3,19 @@ package cluster
 import (
 	"errors"
 	"fmt"
+	"strconv"
 	"sync"
 
 	"github.com/vhive-serverless/loader/scripts/setup/configs"
 	loaderUtils "github.com/vhive-serverless/loader/scripts/setup/utils"
 	"github.com/vhive-serverless/vHive/scripts/utils"
 )
+
+func flameGraphProvisionCommand(cfg *configs.SetupConfig) string {
+	repository := strconv.Quote(cfg.FlameGraphRepo)
+	commit := strconv.Quote(cfg.FlameGraphCommit)
+	return fmt.Sprintf("git clone --filter=blob:none %s FlameGraph && git -C FlameGraph checkout --detach %s && test \"$(git -C FlameGraph rev-parse HEAD)\" = %s && test -x FlameGraph/stackcollapse-perf.pl && test -x FlameGraph/flamegraph.pl", repository, commit, commit)
+}
 
 func setupKhala(cfg *configs.SetupConfig, masterNode string, loaderNode string, workerNodes []string) error {
 	var wg sync.WaitGroup
@@ -91,6 +98,11 @@ func setupKhala(cfg *configs.SetupConfig, masterNode string, loaderNode string, 
 			_, err := loaderUtils.ServerExec(node, fmt.Sprintf("git clone --branch %s --single-branch %s firecracker", cfg.FirecrackerBranch, cfg.FirecrackerRepo))
 			if !utils.CheckErrorWithMsg(err, "Failed to clone Firecracker source on node %s: %v\n", node, err) {
 				addError(fmt.Errorf("clone Firecracker on %s: %w", node, err))
+				return
+			}
+			_, err = loaderUtils.ServerExec(node, flameGraphProvisionCommand(cfg))
+			if !utils.CheckErrorWithMsg(err, "Failed to provision pinned FlameGraph on node %s: %v\n", node, err) {
+				addError(fmt.Errorf("provision FlameGraph on %s: %w", node, err))
 				return
 			}
 			// cd khala && bash scripts/setup_knative.sh

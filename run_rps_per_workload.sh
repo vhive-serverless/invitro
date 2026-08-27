@@ -238,9 +238,12 @@ discover_cluster_topology() {
 
 snapshot_remote_provenance() {
     local output=$1 worker_config=$2 require_rdma=$3 expected_head expected_invitro_head expected_workload host vm_config rootfs kernel vmm
+    local flamegraph_repo flamegraph_commit
     expected_head=$(git -C ../khala rev-parse HEAD)
     expected_invitro_head=$(git rev-parse HEAD)
     expected_workload=$(tracked_workload_sha)
+    flamegraph_repo=$(config_value scripts/setup/configs/setup.json FLAMEGRAPH_REPO)
+    flamegraph_commit=$(config_value scripts/setup/configs/setup.json FLAMEGRAPH_COMMIT)
     : > "$output"
     mapfile -t provenance_workers < <(jq -r '.worker_nodes[]' "$worker_config" | LC_ALL=C sort)
     mapfile -t provenance_loaders < <(jq -r '.loader_nodes[]' "$worker_config" | LC_ALL=C sort)
@@ -251,6 +254,21 @@ snapshot_remote_provenance() {
         ((${#provenance_storage[@]} == 1)) || { echo "E2 collection expected one label-discovered RDMA storage node" >&2; return 2; }
     fi
     for host in "${provenance_workers[@]}"; do
+        ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=5 "$host" bash -s -- "$host" "$flamegraph_repo" "$flamegraph_commit" <<'SH' >> "$output"
+set -euo pipefail
+host=$1 expected_repo=$2 expected_commit=$3
+head=$(git -C ~/FlameGraph rev-parse HEAD)
+origin=$(git -C ~/FlameGraph remote get-url origin)
+status=$(git -C ~/FlameGraph status --porcelain)
+test "$head" = "$expected_commit"
+test "$origin" = "$expected_repo"
+test -z "$status"
+test -x ~/FlameGraph/stackcollapse-perf.pl
+test -x ~/FlameGraph/flamegraph.pl
+collapse_sha=$(sha256sum ~/FlameGraph/stackcollapse-perf.pl | awk '{print $1}')
+flamegraph_sha=$(sha256sum ~/FlameGraph/flamegraph.pl | awk '{print $1}')
+printf 'role=worker host=%s tree=flamegraph head=%s stackcollapse_sha256=%s flamegraph_sha256=%s status=clean\n' "$host" "$head" "$collapse_sha" "$flamegraph_sha"
+SH
         for vm_config in configs/vm_orchestrator_config.json configs/vm_orchestrator_config_js.json; do
             rootfs=$(config_value "../khala/$vm_config" RootfsPath)
             kernel=$(config_value "../khala/$vm_config" KernelPath)
@@ -322,7 +340,7 @@ archived_output_matches() {
 
 manifest_matches() {
     local manifest=$1 phase=$2 repetition=$3 mode=$4 workload=$5 rps=$6 perf=$7 duration=$8 destination=$9
-    local vm_config rootfs kernel vmm
+    local vm_config rootfs kernel vmm worker_count expected_perf_artifacts
     [[ -f "$manifest" ]] || return 1
     vm_config=$(mode_vm_config "$mode")
     rootfs=$(config_value "../khala/$vm_config" RootfsPath)
@@ -345,6 +363,7 @@ manifest_matches() {
         line_is "$manifest" "e1_summary_sha256=$(digest "$e1_summary")" &&
         line_is "$manifest" "calibrator_sha256=$(digest e2_calibrate_rps.py)" &&
         line_is "$manifest" "runner_sha256=$(digest run_rps_per_workload.sh)" &&
+        line_is "$manifest" "evidence_validator_sha256=$(digest experiment/e2/validate_evidence.py)" &&
         line_is "$manifest" "config_template_sha256=$(digest cmd/config_khala_trace_template.json)" &&
         line_is "$manifest" "vm_config_path=$vm_config" &&
         line_is "$manifest" "vm_config_sha256=$(khala_artifact_hash "$vm_config")" &&
@@ -355,7 +374,13 @@ manifest_matches() {
         line_is "$manifest" "remote_provenance_sha256=$(digest "$result_root/remote-provenance.txt")" &&
         line_is "$manifest" "cluster_inventory_sha256=$(digest "$result_root/cluster-inventory.txt")" &&
         line_is "$manifest" "worker_config_sha256=$(digest "$result_root/worker-node.json")" &&
+        line_is "$manifest" 'evidence_status=0' &&
         line_is "$manifest" 'exit_status=0' || return 1
+    worker_count=$(jq '.worker_nodes | length' "$destination/worker-node.json")
+    expected_perf_artifacts=0
+    if [[ "$perf" == true ]]; then expected_perf_artifacts=$((worker_count * 4)); fi
+    line_is "$manifest" "perf_artifact_count=$expected_perf_artifacts" || return 1
+    line_is "$manifest" "evidence_validation_sha256=$(digest "$destination/evidence-validation.txt")" || return 1
     if [[ "$phase" == collection ]]; then
         line_is "$manifest" "reference_sha256=$(digest "$reference")" || return 1
         cmp --silent "$reference" "$result_root/b0-rps-reference.csv" || return 1
@@ -468,6 +493,7 @@ run_cell() {
         echo "e1_summary_sha256=$(digest "$e1_summary")"
         echo "calibrator_sha256=$(digest e2_calibrate_rps.py)"
         echo "runner_sha256=$(digest run_rps_per_workload.sh)"
+        echo "evidence_validator_sha256=$(digest experiment/e2/validate_evidence.py)"
         echo "config_template_sha256=$(digest cmd/config_khala_trace_template.json)"
         echo "trace_modes_sha256=$(digest trace_modes.py)"
         echo "trace_invocations_sha256=$(digest "$scratch_trace/invocations.csv")"
@@ -488,6 +514,7 @@ run_cell() {
         if [[ -f "$reference" ]]; then echo "reference_sha256=$(digest "$reference")"; fi
     } > "$scratch_out/manifest.txt"
     local status=0
+    local evidence_status=1 perf_artifact_count=0
     set +e
     go run experiment/khala_command.go --command deploy --mode "$mode" --worker-config "$worker_config" --workloads "$workload" \
         --shmem-ring-bytes 4190208 --shmem-io-quantum 262144 --minio-endpoint "$minio_endpoint" \
@@ -497,12 +524,26 @@ run_cell() {
         go run cmd/loader.go --config "$config_path" > >(tee "$scratch_out/loader.log") 2>&1
         status=$?
     fi
+    if [[ -f "$scratch_out/loader.log" ]]; then
+        python3 experiment/e2/validate_evidence.py --output-prefix "$scratch_out/experiment" \
+            --loader-log "$scratch_out/loader.log" --worker-config "$worker_config" --perf-enabled "$perf" \
+            > "$scratch_out/evidence-validation.txt" 2>&1
+        evidence_status=$?
+    else
+        printf '%s\n' 'evidence_status=FAIL reason=loader did not run' > "$scratch_out/evidence-validation.txt"
+    fi
+    perf_artifact_count=$(awk -F= '$1 == "perf_artifact_count" {print $2}' "$scratch_out/evidence-validation.txt")
+    perf_artifact_count=${perf_artifact_count:-0}
+    if ((status == 0 && evidence_status != 0)); then status=$evidence_status; fi
     go run experiment/khala_command.go --command clean --mode "$mode" --worker-config "$worker_config" --minio-endpoint "$minio_endpoint" \
         --remove-snapshots=false > "$scratch_out/clean.log" 2>&1
     clean_status=$?
     if ((status == 0 && clean_status != 0)); then status=$clean_status; fi
     set -e
     {
+        echo "evidence_status=$evidence_status"
+        echo "perf_artifact_count=$perf_artifact_count"
+        echo "evidence_validation_sha256=$(digest "$scratch_out/evidence-validation.txt")"
         echo "end_utc=$(date -u --iso-8601=seconds)"
         echo "exit_status=$status"
     } >> "$scratch_out/manifest.txt"
@@ -537,6 +578,7 @@ PY
     fi
     validate_claim_sources
     prepare_cluster_root false
+    scripts/util/wait_prometheus_ready.sh
     python3 e2_calibrate_rps.py --averages "$e1_summary" --cores "$worker_cores" --ceiling-multiplier "$ceiling_multiplier" plan --output "$plan_path"
     observations=()
     for workload in "${workloads[@]}"; do
@@ -582,6 +624,7 @@ for workload in "${workloads[@]}"; do reference_value "$workload" rref >/dev/nul
 if [[ "$dry_run" != true ]]; then
     validate_claim_sources
     prepare_cluster_root true
+    scripts/util/wait_prometheus_ready.sh
 fi
 
 for ((repetition=0; repetition<repetitions; repetition++)); do

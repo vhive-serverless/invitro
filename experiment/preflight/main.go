@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/vhive-serverless/loader/experiment/eval"
+	setupConfigs "github.com/vhive-serverless/loader/scripts/setup/configs"
 )
 
 type check struct {
@@ -134,6 +135,8 @@ func run(ctx context.Context, cfg eval.Config, smokeRoot string) (int, error) {
 	}
 	checker.httpHealth("minio_loader", eval.MinioHealthURL(baseURL))
 	checker.kubernetesWorkloads()
+	prometheusOutput, prometheusErr := checker.capture("scripts/util/wait_prometheus_ready.sh")
+	checker.record("prometheus_api_ready", prometheusErr, prometheusOutput)
 
 	localInvitro, _ := eval.GitProvenance(".")
 	localKhala, _ := eval.GitProvenance("../khala")
@@ -343,6 +346,49 @@ func (c *checks) remoteWorkerTools(target string) {
 		_, goErr = c.ssh(target, "grep", "-Fq", "/usr/local/go/bin", "/etc/profile")
 	}
 	c.record("worker_go_profile_"+target, goErr, goVersion)
+
+	setup, setupErr := setupConfigs.GetSetupJSON("scripts/setup/configs")
+	c.record("worker_flamegraph_config_"+target, setupErr, "scripts/setup/configs/setup.json")
+	if setupErr != nil {
+		return
+	}
+	flameGraphPath := home + "/FlameGraph"
+	head, flameGraphErr := c.ssh(target, "git", "-C", flameGraphPath, "rev-parse", "HEAD")
+	if flameGraphErr == nil && head != setup.FlameGraphCommit {
+		flameGraphErr = fmt.Errorf("HEAD %s, want %s", head, setup.FlameGraphCommit)
+	}
+	origin, originErr := c.ssh(target, "git", "-C", flameGraphPath, "remote", "get-url", "origin")
+	if flameGraphErr == nil {
+		flameGraphErr = originErr
+	}
+	if flameGraphErr == nil && origin != setup.FlameGraphRepo {
+		flameGraphErr = fmt.Errorf("origin %s, want %s", origin, setup.FlameGraphRepo)
+	}
+	status, statusErr := c.ssh(target, "git", "-C", flameGraphPath, "status", "--porcelain")
+	if flameGraphErr == nil {
+		flameGraphErr = statusErr
+	}
+	if flameGraphErr == nil && status != "" {
+		flameGraphErr = fmt.Errorf("tree dirty: %s", status)
+	}
+	for _, script := range []string{"stackcollapse-perf.pl", "flamegraph.pl"} {
+		full := filepath.Join(flameGraphPath, script)
+		_, scriptErr := c.ssh(target, "test", "-x", full)
+		if flameGraphErr == nil {
+			flameGraphErr = scriptErr
+		}
+		if scriptErr == nil {
+			output, hashErr := c.ssh(target, "sha256sum", full)
+			fields := strings.Fields(output)
+			if hashErr == nil && len(fields) == 2 {
+				c.report.Artifacts = append(c.report.Artifacts, artifact{Role: "worker", Host: target, Path: "FlameGraph/" + script, SHA256: fields[0]})
+			}
+			if flameGraphErr == nil {
+				flameGraphErr = hashErr
+			}
+		}
+	}
+	c.record("worker_flamegraph_"+target, flameGraphErr, flameGraphPath)
 }
 
 func (c *checks) remoteMinio(target, baseURL string) {
@@ -589,7 +635,7 @@ func sanitize(value string) string {
 }
 
 func plannedChecks(freeze bool) []string {
-	values := []string{"local_git", "kubernetes_nodes", "kubernetes_topology", "minio_loader", "kubernetes_workloads", "worker_kvm", "worker_tools", "worker_minio", "deployed_git", "unified_rootfs", "artifact_hashes", "rdma"}
+	values := []string{"local_git", "kubernetes_nodes", "kubernetes_topology", "minio_loader", "kubernetes_workloads", "prometheus_api_ready", "worker_kvm", "worker_tools", "worker_flamegraph", "worker_minio", "deployed_git", "unified_rootfs", "artifact_hashes", "rdma"}
 	if freeze {
 		values = append(values, "e1_e4_smoke_evidence")
 	}

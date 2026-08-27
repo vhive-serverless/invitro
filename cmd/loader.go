@@ -234,7 +234,9 @@ func runTraceMode(cfg *config.LoaderConfiguration, readIATFromFile bool, writeIA
 		return
 	}
 
-	experimentDriver.RunExperiment()
+	if err := experimentDriver.RunExperiment(); err != nil {
+		log.Fatal(err)
+	}
 }
 
 func runRPSMode(cfg *config.LoaderConfiguration, readIATFromFile bool, writeIATsToFile bool) {
@@ -284,5 +286,7 @@ func runRPSMode(cfg *config.LoaderConfiguration, readIATFromFile bool, writeIATs
 	}
 
 	experimentDriver.ReadOrWriteFileSpecification(writeIATsToFile, readIATFromFile)
-	experimentDriver.RunExperiment()
+	if err := experimentDriver.RunExperiment(); err != nil {
+		log.Fatal(err)
+	}
 }

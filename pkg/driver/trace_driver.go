@@ -363,7 +363,7 @@ func (d *Driver) startBackgroundProcesses(allRecordsWritten *sync.WaitGroup) (*s
 	return auxiliaryProcessBarrier, globalMetricsCollector, totalIssuedChannel, finishCh
 }
 
-func (d *Driver) internalRun() {
+func (d *Driver) internalRun() error {
 	var successfulInvocations int64
 	var failedInvocations int64
 	var invocationsIssued int64
@@ -380,7 +380,11 @@ func (d *Driver) internalRun() {
 	var perfCollectionCtx *PerfCollectionContext
 	if d.Configuration.LoaderConfiguration.EnablePerfCollection {
 		perfContext := context.Background()
-		perfCollectionCtx = StartPerfCollection(*d.Configuration, perfContext)
+		var err error
+		perfCollectionCtx, err = StartPerfCollection(*d.Configuration, perfContext)
+		if err != nil {
+			return err
+		}
 	}
 
 	if d.Configuration.LoaderConfiguration.DAGMode {
@@ -419,8 +423,9 @@ func (d *Driver) internalRun() {
 
 	allIndividualDriversCompleted.Wait()
 
+	var perfCollectionErr error
 	if perfCollectionCtx != nil {
-		StopPerfCollection(perfCollectionCtx)
+		perfCollectionErr = StopPerfCollection(perfCollectionCtx)
 	}
 
 	if atomic.LoadInt64(&successfulInvocations)+atomic.LoadInt64(&failedInvocations) != 0 {
@@ -459,6 +464,7 @@ func (d *Driver) internalRun() {
 	log.Infof("Number of failed invocations: \t%d", statFailed)
 	log.Infof("Total invocations: \t\t\t%d", statSuccess+statFailed)
 	log.Infof("Failure rate: \t\t\t%.2f%%", float64(statFailed)*100.0/float64(statSuccess+statFailed))
+	return perfCollectionErr
 }
 
 func (d *Driver) GenerateSpecification() {
@@ -517,7 +523,7 @@ func (d *Driver) ReadOrWriteFileSpecification(writeIATsToFile bool, readIATsFrom
 	}
 }
 
-func (d *Driver) RunExperiment() {
+func (d *Driver) RunExperiment() error {
 	// if d.Configuration.WithWarmup() {
 	// 	trace.DoStaticTraceProfiling(d.Configuration.Functions)
 	// }
@@ -532,8 +538,12 @@ func (d *Driver) RunExperiment() {
 	// wait for the system to stabilize
 	time.Sleep(10 * time.Second)
 	// Generate load
-	d.internalRun()
+	if err := d.internalRun(); err != nil {
+		deployer.Clean()
+		return err
+	}
 
 	// Clean up
 	deployer.Clean()
+	return nil
 }
