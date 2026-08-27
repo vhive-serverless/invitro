@@ -63,3 +63,12 @@ func TestSmokeEvidenceRequiresAllFourExperimentSmokes(t *testing.T) {
 		t.Fatalf("valid smoke rejected: %#v", rep.Checks)
 	}
 }
+
+func TestParseRemoteHeadIgnoresSSHFirstContactWarning(t *testing.T) {
+	output := "Warning: Permanently added 'github.com' (ED25519) to the list of known hosts.\r\n" +
+		"d507e07db22243bbb58710345b63991ceb84ba88\trefs/heads/jy/nexus-rdma-eval\n"
+	head, err := parseRemoteHead(output, "jy/nexus-rdma-eval")
+	if err != nil || head != "d507e07db22243bbb58710345b63991ceb84ba88" {
+		t.Fatalf("parseRemoteHead = %q, %v", head, err)
+	}
+}

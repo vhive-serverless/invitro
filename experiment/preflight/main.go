@@ -243,9 +243,12 @@ func (c *checks) remoteSource(label, repository, branch, expectedHead string) {
 	command := exec.CommandContext(c.ctx, "git", "ls-remote", "--heads", repository, "refs/heads/"+branch)
 	command.Env = append(os.Environ(), "GIT_SSH_COMMAND=ssh -o BatchMode=yes -o ConnectTimeout=10")
 	output, err := command.CombinedOutput()
-	fields := strings.Fields(string(output))
-	if err == nil && (len(fields) != 2 || fields[0] != expectedHead) {
-		err = fmt.Errorf("remote HEAD %q, want %s", strings.TrimSpace(string(output)), expectedHead)
+	head := ""
+	if err == nil {
+		head, err = parseRemoteHead(string(output), branch)
+	}
+	if err == nil && head != expectedHead {
+		err = fmt.Errorf("remote HEAD %q, want %s", head, expectedHead)
 	}
 	if err != nil && len(output) > 0 {
 		err = fmt.Errorf("%w: %s", err, strings.TrimSpace(string(output)))
@@ -259,13 +262,10 @@ func (c *checks) remoteSource(label, repository, branch, expectedHead string) {
 func (c *checks) remoteBranch(label, repository, branch string) string {
 	command := exec.CommandContext(c.ctx, "git", "ls-remote", "--heads", repository, "refs/heads/"+branch)
 	output, err := command.CombinedOutput()
-	fields := strings.Fields(string(output))
 	head := ""
 	if err == nil {
-		if len(fields) != 2 || len(fields[0]) != 40 {
-			err = fmt.Errorf("malformed remote HEAD %q", strings.TrimSpace(string(output)))
-		} else {
-			head = fields[0]
+		head, err = parseRemoteHead(string(output), branch)
+		if err == nil {
 			c.report.Provenance = append(c.report.Provenance, eval.Provenance{Repository: repository, Head: head, Branch: branch})
 		}
 	}
@@ -274,6 +274,17 @@ func (c *checks) remoteBranch(label, repository, branch string) string {
 	}
 	c.record("source_"+label, err, repository+" "+branch)
 	return head
+}
+
+func parseRemoteHead(output, branch string) (string, error) {
+	wantRef := "refs/heads/" + branch
+	for _, line := range strings.Split(output, "\n") {
+		fields := strings.Fields(line)
+		if len(fields) == 2 && len(fields[0]) == 40 && fields[1] == wantRef {
+			return fields[0], nil
+		}
+	}
+	return "", fmt.Errorf("malformed remote HEAD %q", strings.TrimSpace(output))
 }
 
 func (c *checks) httpHealth(name, endpoint string) {
