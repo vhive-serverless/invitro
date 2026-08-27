@@ -205,7 +205,7 @@ snapshot_remote_provenance() {
     : > "$output"
     remote_khala() {
         local host=$1 role=$2
-        ssh -o BatchMode=yes -o ConnectTimeout=5 "$host" bash -s -- "$host" "$role" "$vm_config" "$rootfs" "$kernel" "$vmm" \
+        ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=5 "$host" bash -s -- "$host" "$role" "$vm_config" "$rootfs" "$kernel" "$vmm" \
             "$expected_head" "$(khala_artifact_hash "$vm_config")" "$(khala_artifact_hash "$rootfs")" \
             "$(khala_artifact_hash "$kernel")" "$(khala_artifact_hash "$vmm")" "$(khala_artifact_hash bin/kn-integration)" "$(khala_artifact_hash bin/nexus-backend)" "$(khala_artifact_hash bin/hardware-manager)" "$expected_workload" <<'SH' >> "$output"
 set -euo pipefail
@@ -226,7 +226,7 @@ SH
     mapfile -t provenance_loaders < <(jq -r '.loader_nodes[]' "$worker_config" | LC_ALL=C sort)
     for host in "${provenance_workers[@]}"; do remote_khala "$host" worker; done
     for host in "${provenance_loaders[@]}"; do
-        ssh -o BatchMode=yes -o ConnectTimeout=5 "$host" bash -s -- "$host" "$expected_invitro_head" <<'SH' >> "$output"
+        ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=5 "$host" bash -s -- "$host" "$expected_invitro_head" <<'SH' >> "$output"
 set -euo pipefail
 host=$1
 expected_head=$2
@@ -240,7 +240,7 @@ SH
     if [[ "$mode" == nexus-rdma-py ]]; then
         mapfile -t provenance_storage < <(jq -r '.storage_nodes[]' "$worker_config" | LC_ALL=C sort)
         for host in "${provenance_storage[@]}"; do
-            ssh -o BatchMode=yes -o ConnectTimeout=5 "$host" bash -s -- "$host" "$eval_rdma_demo_head" <<'SH' >> "$output"
+            ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=5 "$host" bash -s -- "$host" "$eval_rdma_demo_head" <<'SH' >> "$output"
 set -euo pipefail
 host=$1 expected_head=$2
 cd ~/rdma-demo
@@ -457,7 +457,7 @@ run_cell() {
 
     local status=0 clean_status=0
     set +e
-    go run experiment/khala_command.go --command deploy --mode "$mode" --vm-config "$vm_config" --worker-config "$worker_config" \
+    go run experiment/khala_command.go --command deploy --mode "$mode" --worker-config "$worker_config" \
         --shmem-ring-bytes 4190208 --shmem-io-quantum 262144 --minio-endpoint "$minio_endpoint" \
         > >(tee "$scratch_out/deploy.log") 2>&1
     status=$?

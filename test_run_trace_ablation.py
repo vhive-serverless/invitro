@@ -133,6 +133,8 @@ class AblationDryRunTest(unittest.TestCase):
         self.assertIn('expected_invitro_head=$(git rev-parse HEAD)', source)
         self.assertIn('test "$head" = "$expected_head"', source)
         self.assertNotIn('remote_khala "$host" loader', source)
+        self.assertNotIn('--vm-config "$vm_config"', source)
+        self.assertIn('StrictHostKeyChecking=accept-new', source)
         self.assertNotIn('collect_e4_memory.py', source)
         self.assertNotIn('memory_sampler_sha256', source)
         self.assertNotIn('memory-sampler.log', source)
