@@ -1,6 +1,7 @@
 package cluster
 
 import (
+	"errors"
 	"fmt"
 	"sync"
 
@@ -12,6 +13,15 @@ import (
 func setupKhala(cfg *configs.SetupConfig, masterNode string, loaderNode string, workerNodes []string) error {
 	var wg sync.WaitGroup
 	var err error
+	var setupErrors []error
+	var errorsMu sync.Mutex
+	addError := func(err error) {
+		if err != nil {
+			errorsMu.Lock()
+			setupErrors = append(setupErrors, err)
+			errorsMu.Unlock()
+		}
+	}
 
 	// clone local keys and gitconfig to master node
 	// rsync -Pav ~/.gitconfig ${SERVER}:.
@@ -42,15 +52,20 @@ func setupKhala(cfg *configs.SetupConfig, masterNode string, loaderNode string, 
 		// rsync -Pav -e 'ssh -o StrictHostKeyChecking=no' ~/.ssh "$i":~/ &
 		_, err := loaderUtils.ServerExec(masterNode, fmt.Sprintf("rsync -Pav -e 'ssh -o StrictHostKeyChecking=no' ~/.ssh %s:~/", node))
 		if !utils.CheckErrorWithMsg(err, "Failed to rsync SSH keys to node %s: %v\n", node, err) {
+			addError(fmt.Errorf("rsync SSH keys to %s: %w", node, err))
 		}
 
 		// rsync -Pav -e 'ssh -o StrictHostKeyChecking=no' ~/.gitconfig "$i":~/ &
 		_, err = loaderUtils.ServerExec(masterNode, fmt.Sprintf("rsync -Pav -e 'ssh -o StrictHostKeyChecking=no' ~/.gitconfig %s:~/", node))
 		if !utils.CheckErrorWithMsg(err, "Failed to rsync gitconfig to node %s: %v\n", node, err) {
+			addError(fmt.Errorf("rsync gitconfig to %s: %w", node, err))
 		}
 	}
 
 	wg.Wait()
+	if err := errors.Join(setupErrors...); err != nil {
+		return fmt.Errorf("distribute node credentials: %w", err)
+	}
 
 	// distribute keys from master node to all nodes (including loader and worker nodes)
 	for _, node := range workerNodes {
@@ -59,10 +74,14 @@ func setupKhala(cfg *configs.SetupConfig, masterNode string, loaderNode string, 
 		// rsync -Pav -e 'ssh -o StrictHostKeyChecking=no' ~/.ssh "$i":~/ &
 		_, err := loaderUtils.ServerExec(masterNode, fmt.Sprintf("rsync -Pav -e 'ssh -o StrictHostKeyChecking=no' ~/khala %s:~/", node))
 		if !utils.CheckErrorWithMsg(err, "Failed to rsync Khala to node %s: %v\n", node, err) {
+			addError(fmt.Errorf("rsync Khala to %s: %w", node, err))
 		}
 	}
 
 	wg.Wait()
+	if err := errors.Join(setupErrors...); err != nil {
+		return fmt.Errorf("distribute Khala: %w", err)
+	}
 
 	for _, node := range workerNodes {
 		wg.Add(1)
@@ -72,6 +91,7 @@ func setupKhala(cfg *configs.SetupConfig, masterNode string, loaderNode string, 
 			// cd khala && bash scripts/setup_knative.sh
 			_, err := loaderUtils.ServerExec(node, "cd khala && bash scripts/setup_knative.sh && source /etc/profile && make build-all && sudo mkdir -p /mnt/resources/jailer")
 			if !utils.CheckErrorWithMsg(err, "Failed to set up Khala on node %s: %v\n", node, err) {
+				addError(fmt.Errorf("set up Khala on %s: %w", node, err))
 				return
 			}
 		}(node)
@@ -81,5 +101,5 @@ func setupKhala(cfg *configs.SetupConfig, masterNode string, loaderNode string, 
 
 	// ssh -oStrictHostKeyChecking=no "$i" "cd khala && bash scripts/setup_knative.sh"
 
-	return nil
+	return errors.Join(setupErrors...)
 }

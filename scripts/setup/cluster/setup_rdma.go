@@ -1,6 +1,8 @@
 package cluster
 
 import (
+	"errors"
+	"fmt"
 	"sync"
 
 	loaderUtils "github.com/vhive-serverless/loader/scripts/setup/utils"
@@ -9,6 +11,15 @@ import (
 
 func setupRDMA(tenantNodes []string) error {
 	var wg sync.WaitGroup
+	var setupErrors []error
+	var errorsMu sync.Mutex
+	addError := func(err error) {
+		if err != nil {
+			errorsMu.Lock()
+			setupErrors = append(setupErrors, err)
+			errorsMu.Unlock()
+		}
+	}
 
 	commandList := []string{
 		"sudo apt-get update",
@@ -24,11 +35,12 @@ func setupRDMA(tenantNodes []string) error {
 			for _, cmd := range commandList {
 				_, err := loaderUtils.ServerExec(node, cmd)
 				if !utils.CheckErrorWithMsg(err, "Failed to execute %s on node %s: %v\n", cmd, node, err) {
+					addError(fmt.Errorf("execute %q on %s: %w", cmd, node, err))
 					return
 				}
 			}
 		}(node)
 	}
 	wg.Wait()
-	return nil
+	return errors.Join(setupErrors...)
 }

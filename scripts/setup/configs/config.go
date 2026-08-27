@@ -2,6 +2,7 @@ package configs
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -122,6 +123,9 @@ func GetNodeSetup(path string, configName string) (*NodeSetup, *NodeSetup, error
 	if err != nil {
 		return nil, nil, err
 	}
+	if err := validateNodeSetup(&intNodeSetup); err != nil {
+		return nil, nil, fmt.Errorf("invalid node setup %q: %w", configPath, err)
+	}
 
 	// Map internal IPs to real world URLs
 	ipToURL := mapNodeURLs(&intNodeSetup)
@@ -138,6 +142,75 @@ func GetNodeSetup(path string, configName string) (*NodeSetup, *NodeSetup, error
 	}
 
 	return &intNodeSetup, &extlNodeSetup, nil
+}
+
+func validateNodeSetup(nodeSetup *NodeSetup) error {
+	roles := nodeSetup.NodeSetup
+	if len(roles.MasterNode) != 1 {
+		return fmt.Errorf("NODE_SETUP.MASTER_NODE must contain exactly one node")
+	}
+	if len(roles.LoaderNode) != 1 {
+		return fmt.Errorf("NODE_SETUP.LOADER_NODE must contain exactly one node")
+	}
+	if len(roles.WorkerNode) == 0 || len(roles.MinioTenantNode) == 0 {
+		return fmt.Errorf("NODE_SETUP.WORKER_NODE and NODE_SETUP.MINIO_TENANT_NODE must be non-empty")
+	}
+	if len(roles.MinioOperatorNode) == 0 {
+		return fmt.Errorf("NODE_SETUP.MINIO_OPERATOR_NODE must be non-empty")
+	}
+	if len(nodeSetup.NodeURL) == 0 {
+		return fmt.Errorf("NODE_URL must be non-empty")
+	}
+	seenURLs := make(map[string]struct{}, len(nodeSetup.NodeURL))
+	for _, url := range nodeSetup.NodeURL {
+		if url == "" {
+			return fmt.Errorf("NODE_URL must not contain empty entries")
+		}
+		if _, exists := seenURLs[url]; exists {
+			return fmt.Errorf("NODE_URL contains duplicate %q", url)
+		}
+		seenURLs[url] = struct{}{}
+	}
+	knownIPs := make(map[string]struct{}, len(nodeSetup.NodeURL))
+	for i := range nodeSetup.NodeURL {
+		knownIPs["10.0.1."+strconv.Itoa(i+1)] = struct{}{}
+	}
+	for name, nodes := range map[string][]string{
+		"MASTER_NODE": roles.MasterNode, "LOADER_NODE": roles.LoaderNode,
+		"WORKER_NODE": roles.WorkerNode, "MINIO_OPERATOR_NODE": roles.MinioOperatorNode,
+		"MINIO_TENANT_NODE": roles.MinioTenantNode,
+	} {
+		for _, node := range nodes {
+			if _, ok := knownIPs[node]; !ok {
+				return fmt.Errorf("NODE_SETUP.%s references unmapped node %q", name, node)
+			}
+		}
+	}
+	requiredLabels := []string{
+		"loader-nodetype=master", "loader-nodetype=monitoring",
+		"loader-nodetype=worker", "minio-type=operator", "minio-type=tenant",
+	}
+	for _, label := range requiredLabels {
+		nodes, ok := nodeSetup.NodeLabel[label]
+		if !ok || len(nodes) == 0 {
+			return fmt.Errorf("NODE_LABEL[%q] must be present and non-empty", label)
+		}
+		for _, node := range nodes {
+			if _, ok := knownIPs[node]; !ok {
+				return fmt.Errorf("NODE_LABEL[%q] references unmapped node %q", label, node)
+			}
+		}
+	}
+	workers := make(map[string]struct{}, len(nodeSetup.NodeLabel["loader-nodetype=worker"]))
+	for _, node := range nodeSetup.NodeLabel["loader-nodetype=worker"] {
+		workers[node] = struct{}{}
+	}
+	for _, node := range nodeSetup.NodeLabel["minio-type=tenant"] {
+		if _, overlaps := workers[node]; overlaps {
+			return fmt.Errorf("worker and MinIO tenant labels overlap on %q", node)
+		}
+	}
+	return nil
 }
 
 func GetSetupJSON(path string) (*SetupConfig, error) {
