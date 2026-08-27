@@ -1,6 +1,10 @@
 package eval
 
-import "testing"
+import (
+	"context"
+	"slices"
+	"testing"
+)
 
 func TestValidateResultRoot(t *testing.T) {
 	if err := ValidateResultRoot("/mnt/resources/nexus-evaluation/run/e1"); err != nil {
@@ -20,5 +24,15 @@ func TestRemoteHome(t *testing.T) {
 	}
 	if _, err := RemoteHome("bad target"); err == nil {
 		t.Fatal("invalid target accepted")
+	}
+}
+
+func TestSSHCommandAcceptsAndPinsFirstSeenHostKey(t *testing.T) {
+	command, err := SSHCommand(context.Background(), "nehalem@10.0.1.3", "true")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Contains(command.Args, "StrictHostKeyChecking=accept-new") {
+		t.Fatalf("SSH options do not enroll an ephemeral cluster host key: %v", command.Args)
 	}
 }

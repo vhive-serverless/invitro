@@ -240,7 +240,7 @@ snapshot_remote_provenance() {
             rootfs=$(config_value "../khala/$vm_config" RootfsPath)
             kernel=$(config_value "../khala/$vm_config" KernelPath)
             vmm=$(config_value "../khala/$vm_config" FirecrackerPath)
-            ssh -o BatchMode=yes -o ConnectTimeout=5 "$host" bash -s -- "$host" "$vm_config" "$rootfs" "$kernel" "$vmm" \
+            ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=5 "$host" bash -s -- "$host" "$vm_config" "$rootfs" "$kernel" "$vmm" \
                 "$expected_head" "$(khala_artifact_hash "$vm_config")" "$(khala_artifact_hash "$rootfs")" \
                 "$(khala_artifact_hash "$kernel")" "$(khala_artifact_hash "$vmm")" "$(khala_artifact_hash bin/kn-integration)" "$(khala_artifact_hash bin/nexus-backend)" "$(khala_artifact_hash bin/hardware-manager)" "$expected_workload" <<'SH' >> "$output"
 set -euo pipefail
@@ -258,7 +258,7 @@ SH
         done
     done
     for host in "${provenance_loaders[@]}"; do
-        ssh -o BatchMode=yes -o ConnectTimeout=5 "$host" bash -s -- "$host" "$expected_invitro_head" <<'SH' >> "$output"
+        ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=5 "$host" bash -s -- "$host" "$expected_invitro_head" <<'SH' >> "$output"
 set -euo pipefail
 host=$1 expected_head=$2; cd ~/loader; head=$(git rev-parse HEAD)
 test "$head" = "$expected_head"; test -z "$(git status --porcelain)"
@@ -267,7 +267,7 @@ SH
     done
     if [[ "$require_rdma" == true ]]; then
         for host in "${provenance_storage[@]}"; do
-            ssh -o BatchMode=yes -o ConnectTimeout=5 "$host" bash -s -- "$host" "$eval_rdma_demo_head" <<'SH' >> "$output"
+            ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=5 "$host" bash -s -- "$host" "$eval_rdma_demo_head" <<'SH' >> "$output"
 set -euo pipefail
 host=$1 expected_head=$2; cd ~/rdma-demo
 head=$(git rev-parse HEAD); status=$(git status --porcelain); binary=$(sha256sum s3-rdma-server | awk '{print $1}')

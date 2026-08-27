@@ -316,7 +316,7 @@ func (c *checks) ssh(target string, command ...string) (string, error) {
 	if !sshTargetPattern.MatchString(target) {
 		return "", fmt.Errorf("invalid SSH target %q", target)
 	}
-	args := []string{"-o", "BatchMode=yes", "-o", "ConnectTimeout=10", target}
+	args := []string{"-o", "BatchMode=yes", "-o", "StrictHostKeyChecking=accept-new", "-o", "ConnectTimeout=10", target}
 	args = append(args, command...)
 	return c.capture("ssh", args...)
 }

@@ -34,7 +34,7 @@ func SSHCommand(ctx context.Context, target string, command ...string) (*exec.Cm
 	if _, err := RemoteHome(target); err != nil {
 		return nil, err
 	}
-	args := []string{"-o", "BatchMode=yes", "-o", "ConnectTimeout=10", target}
+	args := []string{"-o", "BatchMode=yes", "-o", "StrictHostKeyChecking=accept-new", "-o", "ConnectTimeout=10", target}
 	args = append(args, command...)
 	return exec.CommandContext(ctx, "ssh", args...), nil
 }
@@ -54,7 +54,7 @@ func CopyRemoteTree(ctx context.Context, target, path string, output io.Writer) 
 	if _, err := RemoteHome(target); err != nil {
 		return err
 	}
-	command := exec.CommandContext(ctx, "scp", "-r", target+":"+path, filepath.Dir(path))
+	command := exec.CommandContext(ctx, "scp", "-o", "BatchMode=yes", "-o", "StrictHostKeyChecking=accept-new", "-o", "ConnectTimeout=10", "-r", target+":"+path, filepath.Dir(path))
 	command.Stdout, command.Stderr = output, output
 	if err := command.Run(); err != nil {
 		return fmt.Errorf("copy remote result: %w", err)
