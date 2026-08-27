@@ -3,10 +3,18 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"github.com/vhive-serverless/loader/experiment/eval"
 )
+
+func TestCleanupUsesTheEvaluatedMinioEndpoint(t *testing.T) {
+	arguments := cleanupCommand([]string{"env"}, cell{Mode: "invm-py"}, eval.CanonicalMinioHost)
+	if !slices.Contains(arguments, "--minio-endpoint="+eval.CanonicalMinioHost) {
+		t.Fatalf("cleanup arguments = %v", arguments)
+	}
+}
 
 func TestFrozenPlanAlternatesModeOrder(t *testing.T) {
 	topology := copyTopology(t)

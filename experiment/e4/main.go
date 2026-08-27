@@ -207,10 +207,7 @@ func runCell(ctx context.Context, o options, item cell, worker, workerHome, work
 			"--instance-counts="+renderCounts(item.Counts), "--warmup-successes-per-vm=1", "--sample-seconds=10",
 			"--result-root="+root)...)
 	}
-	cleanupErr := runRemote(ctx, worker, logFile, append(base, "./bin/khala-command",
-		"--worker-config=internal/experiment/kn-integration-tracer/worker_node.json",
-		"--vm-config=configs/vm_orchestrator_config.json", "--command=clean", "--mode="+item.Mode,
-		"--remove-snapshots=true", "--debug=false")...)
+	cleanupErr := runRemote(ctx, worker, logFile, cleanupCommand(base, item, endpoint)...)
 	copyErr := eval.CopyRemoteTree(ctx, worker, root, logFile)
 	cellErr := errors.Join(seedErr, deployErr, snapshotErr, densityErr, cleanupErr, copyErr)
 	artifacts := map[string]string{}
@@ -237,6 +234,13 @@ func runCell(ctx context.Context, o options, item cell, worker, workerHome, work
 		fmt.Printf("ACQUISITION_COMPLETE experiment=e4 workload=%s mode=%s result=%s\n", item.Workload, item.Mode, root)
 	}
 	return cleanupErr == nil, cellErr
+}
+
+func cleanupCommand(base []string, item cell, endpoint string) []string {
+	return append(append([]string{}, base...), "./bin/khala-command",
+		"--worker-config=internal/experiment/kn-integration-tracer/worker_node.json",
+		"--vm-config=configs/vm_orchestrator_config.json", "--command=clean", "--mode="+item.Mode,
+		"--remove-snapshots=true", "--debug=false", "--minio-endpoint="+endpoint)
 }
 
 func runRemote(ctx context.Context, worker string, output io.Writer, args ...string) error {
