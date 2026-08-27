@@ -94,7 +94,7 @@ func setupKhala(cfg *configs.SetupConfig, masterNode string, loaderNode string, 
 				return
 			}
 			// cd khala && bash scripts/setup_knative.sh
-			_, err = loaderUtils.ServerExec(node, "cd khala && bash scripts/setup_knative.sh && source /etc/profile && make build-all build-nexus-backend-rdma && sudo mkdir -p /mnt/resources/jailer /mnt/resources/nexus-evaluation")
+			_, err = loaderUtils.ServerExec(node, `cd khala && bash scripts/setup_knative.sh && source /etc/profile && make build-all build-nexus-backend-rdma && sudo install -d -o "$USER" -g "$(id -gn)" /mnt/resources/jailer /mnt/resources/nexus-evaluation`)
 			if !utils.CheckErrorWithMsg(err, "Failed to set up Khala on node %s: %v\n", node, err) {
 				addError(fmt.Errorf("set up Khala on %s: %w", node, err))
 				return
