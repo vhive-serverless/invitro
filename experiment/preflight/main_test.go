@@ -72,3 +72,15 @@ func TestParseRemoteHeadIgnoresSSHFirstContactWarning(t *testing.T) {
 		t.Fatalf("parseRemoteHead = %q, %v", head, err)
 	}
 }
+
+func TestMatchingSHA256RequiresLoaderWorkerParity(t *testing.T) {
+	const digest = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+	local, remote, err := matchingSHA256(digest+"  ../khala/bin/nexus-backend", digest+"  /users/nehalem/khala/bin/nexus-backend")
+	if err != nil || local != digest || remote != digest {
+		t.Fatalf("matchingSHA256 match = %q, %q, %v", local, remote, err)
+	}
+	const other = "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789"
+	if _, _, err := matchingSHA256(digest+"  local", other+"  remote"); err == nil {
+		t.Fatal("matchingSHA256 accepted mismatched loader/worker artifacts")
+	}
+}

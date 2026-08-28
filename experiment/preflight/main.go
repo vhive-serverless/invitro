@@ -448,15 +448,20 @@ func (c *checks) workerArtifacts(target string) {
 		"bin/hardware-manager", "bin/vm-orchestrator", "bin/khala-command", "bin/kn-integration-tracer",
 		"bin/e4-density"}
 	for _, relative := range paths {
+		localPath := filepath.Join("../khala", relative)
 		full := filepath.Join(remoteHome(target), "khala", relative)
-		output, err := c.ssh(target, "sha256sum", full)
+		localOutput, err := c.capture("sha256sum", localPath)
+		output := ""
+		if err == nil {
+			output, err = c.ssh(target, "sha256sum", full)
+		}
 		digest := ""
 		if err == nil {
-			fields := strings.Fields(output)
-			if len(fields) != 2 || len(fields[0]) != 64 {
-				err = fmt.Errorf("malformed sha256sum output")
-			} else {
-				digest = fields[0]
+			localDigest, remoteDigest, matchErr := matchingSHA256(localOutput, output)
+			err = matchErr
+			if err == nil {
+				digest = remoteDigest
+				c.report.Artifacts = append(c.report.Artifacts, artifact{Role: "loader-reference", Host: "local", Path: relative, SHA256: localDigest})
 				if relative == configs[0].FirecrackerPath && digest != eval.FirecrackerSHA256 {
 					err = fmt.Errorf("Firecracker SHA-256 %s, want %s", digest, eval.FirecrackerSHA256)
 				}
@@ -468,6 +473,28 @@ func (c *checks) workerArtifacts(target string) {
 		}
 		c.record("artifact_"+sanitize(target+"_"+relative), err, relative)
 	}
+}
+
+func matchingSHA256(localOutput, remoteOutput string) (string, string, error) {
+	parse := func(label, output string) (string, error) {
+		fields := strings.Fields(output)
+		if len(fields) != 2 || len(fields[0]) != 64 {
+			return "", fmt.Errorf("malformed %s sha256sum output", label)
+		}
+		return fields[0], nil
+	}
+	localDigest, err := parse("local", localOutput)
+	if err != nil {
+		return "", "", err
+	}
+	remoteDigest, err := parse("remote", remoteOutput)
+	if err != nil {
+		return "", "", err
+	}
+	if localDigest != remoteDigest {
+		return localDigest, remoteDigest, fmt.Errorf("worker SHA-256 %s, loader reference %s", remoteDigest, localDigest)
+	}
+	return localDigest, remoteDigest, nil
 }
 
 func (c *checks) remoteRDMA(target string) {
