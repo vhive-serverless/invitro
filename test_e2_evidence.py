@@ -79,6 +79,11 @@ class E2EvidenceTest(unittest.TestCase):
         self.assertEqual(result.returncode, 1)
         self.assertIn("no hardware-manager sample", result.stdout)
 
+    def test_runner_cleanup_removes_snapshots(self):
+        source = Path(__file__).with_name("run_rps_per_workload.sh").read_text(encoding="utf-8")
+        self.assertIn("--remove-snapshots=true", source)
+        self.assertNotIn("--remove-snapshots=false", source)
+
 
 if __name__ == "__main__":
     unittest.main()

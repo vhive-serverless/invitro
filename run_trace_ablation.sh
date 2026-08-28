@@ -480,7 +480,7 @@ run_cell() {
     fi
     kubectl logs deployment/activator -n knative-serving > "$scratch_out/activator.log" 2>&1
     go run experiment/khala_command.go --command clean --mode "$mode" --worker-config "$worker_config" \
-        --minio-endpoint "$minio_endpoint" --remove-snapshots=false > "$scratch_out/clean.log" 2>&1
+        --minio-endpoint "$minio_endpoint" --remove-snapshots=true > "$scratch_out/clean.log" 2>&1
     clean_status=$?
     if ((status == 0 && clean_status != 0)); then status=$clean_status; fi
     set -e

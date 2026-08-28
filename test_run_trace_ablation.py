@@ -145,6 +145,8 @@ class AblationDryRunTest(unittest.TestCase):
         self.assertNotIn('firecracker-memory.csv', source)
         self.assertNotIn('backend-memory.csv', source)
         self.assertNotIn('backend-memory-once.csv', source)
+        self.assertIn('--remove-snapshots=true', source)
+        self.assertNotIn('--remove-snapshots=false', source)
 
     def test_runner_rejects_scratch_inside_worktree(self):
         environment = os.environ.copy()
