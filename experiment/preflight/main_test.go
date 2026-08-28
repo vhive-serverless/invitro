@@ -49,6 +49,9 @@ func TestSmokeEvidenceRequiresAllFourExperimentSmokes(t *testing.T) {
 		if err := os.WriteFile(filepath.Join(dir, "manifest.txt"), []byte(content), 0644); err != nil {
 			t.Fatal(err)
 		}
+		if name[:2] == "e2" || name[:2] == "e3" {
+			writeChecksumFixture(t, dir)
+		}
 	}
 	for _, mode := range []string{"invm-py", "nexus-py"} {
 		content := fmt.Sprintf(`{"status":"complete","cell":{"workload":"helloworld","mode":%q,"counts":[1,2]}}`, mode)
@@ -61,6 +64,45 @@ func TestSmokeEvidenceRequiresAllFourExperimentSmokes(t *testing.T) {
 	c.smokeEvidence(root)
 	if c.failed() {
 		t.Fatalf("valid smoke rejected: %#v", rep.Checks)
+	}
+	if rep.QualificationRoot != root || len(rep.QualificationSHA256) != 64 {
+		t.Fatalf("qualification binding = %q, %q", rep.QualificationRoot, rep.QualificationSHA256)
+	}
+}
+
+func TestArchivedOutputChecksumsRejectHeaderOnlyAndCorruption(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "archived-output-checksums.csv"), []byte("path,sha256\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := validateArchivedOutputChecksums(dir); err == nil {
+		t.Fatal("accepted a header-only checksum archive")
+	}
+	writeChecksumFixture(t, dir)
+	if err := validateArchivedOutputChecksums(dir); err != nil {
+		t.Fatalf("valid checksum archive rejected: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "payload.txt"), []byte("changed\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := validateArchivedOutputChecksums(dir); err == nil {
+		t.Fatal("accepted a corrupted archived payload")
+	}
+}
+
+func writeChecksumFixture(t *testing.T, dir string) {
+	t.Helper()
+	payload := filepath.Join(dir, "payload.txt")
+	if err := os.WriteFile(payload, []byte("qualification\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	digest, err := eval.SHA256File(payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	content := "path,sha256\npayload.txt," + digest + "\n"
+	if err := os.WriteFile(filepath.Join(dir, "archived-output-checksums.csv"), []byte(content), 0644); err != nil {
+		t.Fatal(err)
 	}
 }
 

@@ -2,10 +2,14 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/csv"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"os/exec"
@@ -33,16 +37,18 @@ type artifact struct {
 }
 
 type report struct {
-	Profile          eval.Profile      `json:"profile"`
-	MinioEndpoint    string            `json:"minio_endpoint"`
-	Topology         eval.Setup        `json:"topology"`
-	LiveNodes        []eval.LiveNode   `json:"live_nodes,omitempty"`
-	TopologySHA256   string            `json:"topology_sha256"`
-	Status           string            `json:"status"`
-	AcquisitionStart string            `json:"acquisition_start,omitempty"`
-	Checks           []check           `json:"checks"`
-	Provenance       []eval.Provenance `json:"provenance,omitempty"`
-	Artifacts        []artifact        `json:"artifacts,omitempty"`
+	Profile             eval.Profile      `json:"profile"`
+	MinioEndpoint       string            `json:"minio_endpoint"`
+	Topology            eval.Setup        `json:"topology"`
+	LiveNodes           []eval.LiveNode   `json:"live_nodes,omitempty"`
+	TopologySHA256      string            `json:"topology_sha256"`
+	Status              string            `json:"status"`
+	AcquisitionStart    string            `json:"acquisition_start,omitempty"`
+	QualificationRoot   string            `json:"qualification_root,omitempty"`
+	QualificationSHA256 string            `json:"qualification_sha256,omitempty"`
+	Checks              []check           `json:"checks"`
+	Provenance          []eval.Provenance `json:"provenance,omitempty"`
+	Artifacts           []artifact        `json:"artifacts,omitempty"`
 }
 
 type vmConfig struct {
@@ -601,9 +607,17 @@ func (c *checks) smokeEvidence(root string) {
 		case strings.HasPrefix(fields["claim_id"], "e1-smoke-"):
 			e1[fields["claim_id"]] = true
 		case fields["phase"] == "collection" && fields["workload"] == "helloworld":
-			e2[fields["mode"]] = true
+			if checksumErr := validateArchivedOutputChecksums(filepath.Dir(path)); checksumErr != nil {
+				err = errors.Join(err, fmt.Errorf("E2 %s: %w", fields["mode"], checksumErr))
+			} else {
+				e2[fields["mode"]] = true
+			}
 		case fields["experiment"] == "e3" && fields["end_scale"] == "1" && fields["claim_bearing"] == "false":
-			e3[fields["mode"]] = true
+			if checksumErr := validateArchivedOutputChecksums(filepath.Dir(path)); checksumErr != nil {
+				err = errors.Join(err, fmt.Errorf("E3 %s: %w", fields["mode"], checksumErr))
+			} else {
+				e3[fields["mode"]] = true
+			}
 		}
 	}
 	e4 := map[string]bool{}
@@ -643,7 +657,99 @@ func (c *checks) smokeEvidence(root string) {
 			}
 		}
 	}
+	c.report.QualificationRoot = root
+	treeDigest, digestErr := directorySHA256(root)
+	if digestErr != nil {
+		err = errors.Join(err, fmt.Errorf("qualification tree digest: %w", digestErr))
+	} else {
+		c.report.QualificationSHA256 = treeDigest
+	}
 	c.record("e1_e4_smoke_evidence", err, root)
+}
+
+func validateArchivedOutputChecksums(directory string) error {
+	path := filepath.Join(directory, "archived-output-checksums.csv")
+	handle, err := os.Open(path)
+	if err != nil {
+		return fmt.Errorf("open %s: %w", path, err)
+	}
+	defer handle.Close()
+	reader := csv.NewReader(handle)
+	header, err := reader.Read()
+	if err != nil || len(header) != 2 || header[0] != "path" || header[1] != "sha256" {
+		return fmt.Errorf("%s has invalid header", path)
+	}
+	seen := map[string]bool{}
+	count := 0
+	for {
+		row, readErr := reader.Read()
+		if errors.Is(readErr, io.EOF) {
+			break
+		}
+		if readErr != nil || len(row) != 2 {
+			return fmt.Errorf("%s has a malformed row", path)
+		}
+		relative := filepath.Clean(row[0])
+		if relative == "." || filepath.IsAbs(relative) || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
+			return fmt.Errorf("%s has unsafe path %q", path, row[0])
+		}
+		if seen[relative] {
+			return fmt.Errorf("%s repeats path %q", path, relative)
+		}
+		seen[relative] = true
+		if len(row[1]) != sha256.Size*2 {
+			return fmt.Errorf("%s has invalid digest for %q", path, relative)
+		}
+		actual, hashErr := eval.SHA256File(filepath.Join(directory, relative))
+		if hashErr != nil {
+			return fmt.Errorf("%s cannot hash %q: %w", path, relative, hashErr)
+		}
+		if actual != row[1] {
+			return fmt.Errorf("%s digest mismatch for %q", path, relative)
+		}
+		count++
+	}
+	if count == 0 {
+		return fmt.Errorf("%s contains no artifact rows", path)
+	}
+	return nil
+}
+
+func directorySHA256(root string) (string, error) {
+	var records []string
+	err := filepath.WalkDir(root, func(path string, entry os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.Type()&os.ModeSymlink != 0 {
+			return fmt.Errorf("qualification tree contains symlink %s", path)
+		}
+		if entry.IsDir() {
+			return nil
+		}
+		relative, err := filepath.Rel(root, path)
+		if err != nil {
+			return err
+		}
+		digest, err := eval.SHA256File(path)
+		if err != nil {
+			return err
+		}
+		records = append(records, digest+"  "+filepath.ToSlash(relative)+"\n")
+		return nil
+	})
+	if err != nil {
+		return "", err
+	}
+	if len(records) == 0 {
+		return "", fmt.Errorf("qualification tree %s has no files", root)
+	}
+	sort.Strings(records)
+	digest := sha256.New()
+	for _, record := range records {
+		_, _ = io.WriteString(digest, record)
+	}
+	return hex.EncodeToString(digest.Sum(nil)), nil
 }
 
 func lineFields(text string) map[string]string {
