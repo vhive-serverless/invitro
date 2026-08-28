@@ -125,6 +125,7 @@ class AblationDryRunTest(unittest.TestCase):
 
     def test_runner_archives_topology_and_sets_workers_for_a_new_root(self):
         source = (ROOT / "run_trace_ablation.sh").read_text(encoding="utf-8")
+        self.assertIn("source /etc/profile", source)
         self.assertIn("EVAL_SCRATCH_ROOT:-/mnt/resources/nexus-evaluation/.scratch/e3", source)
         self.assertNotIn("data/traces/nexus-e3", source)
         self.assertNotIn("data/out/nexus-e3", source)

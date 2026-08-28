@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# The Go wrapper may invoke this through a non-login SSH shell.  Cluster setup
+# publishes the pinned Go toolchain through /etc/profile.
+source /etc/profile
 set -euo pipefail
 
 repo_root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
