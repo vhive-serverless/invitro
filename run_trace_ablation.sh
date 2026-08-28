@@ -315,7 +315,7 @@ write_archived_output_checksums() {
         cd "$directory"
         printf 'path,sha256\n' > "$checksum_file"
         while IFS= read -r -d '' path; do
-            printf '%s,%s\n' "$path" "$(sha256sum "$path" | awk '{print $1}')"
+            printf '%s,%s\n' "$path" "$(sha256sum "$path" | awk '{print $1}')" >> "$checksum_file"
         done < <(find . -type f ! -name manifest.txt ! -name "$checksum_file" -printf '%P\0' | LC_ALL=C sort -z)
     )
 }

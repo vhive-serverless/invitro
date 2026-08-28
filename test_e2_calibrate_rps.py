@@ -1,4 +1,5 @@
 import csv
+import hashlib
 import os
 import subprocess
 import tempfile
@@ -214,6 +215,43 @@ class CalibrationTest(unittest.TestCase):
         self.assertIn('snapshot_remote_provenance "$result_root/remote-provenance.txt" "$result_root/worker-node.json" "$require_reference"', source)
         self.assertIn('if [[ "$require_rdma" == true ]]; then', source)
         self.assertNotIn('--vm-config "$vm_config"', source)
+
+    def test_e2_and_e3_archive_writers_persist_sorted_checksums(self):
+        for script_name in ("run_rps_per_workload.sh", "run_trace_ablation.sh"):
+            with self.subTest(script=script_name), tempfile.TemporaryDirectory() as directory:
+                result = Path(directory)
+                (result / "nested").mkdir()
+                payloads = {
+                    "a.txt": b"alpha\n",
+                    "nested/b.bin": bytes(range(32)),
+                }
+                for relative, payload in payloads.items():
+                    (result / relative).write_bytes(payload)
+                (result / "manifest.txt").write_text("excluded\n", encoding="utf-8")
+
+                source = Path(__file__).with_name(script_name).read_text(encoding="utf-8")
+                start = source.index("write_archived_output_checksums() {")
+                end = source.index("\n}\n\narchived_output_matches()", start) + 3
+                function = source[start:end]
+                subprocess.run(
+                    ["bash", "-c", function + '\nwrite_archived_output_checksums "$1"',
+                     "checksum-test", str(result)],
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                )
+
+                with (result / "archived-output-checksums.csv").open(
+                    newline="", encoding="utf-8"
+                ) as handle:
+                    rows = list(csv.reader(handle))
+                self.assertEqual(rows[0], ["path", "sha256"])
+                self.assertEqual([row[0] for row in rows[1:]], sorted(payloads))
+                self.assertEqual(
+                    {path: digest for path, digest in rows[1:]},
+                    {path: hashlib.sha256(payload).hexdigest()
+                     for path, payload in payloads.items()},
+                )
 
     def test_runner_rejects_scratch_inside_worktree(self):
         script = Path(__file__).with_name("run_rps_per_workload.sh")
