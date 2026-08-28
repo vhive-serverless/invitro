@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/vhive-serverless/loader/experiment/eval"
@@ -124,5 +125,38 @@ func TestMatchingSHA256RequiresLoaderWorkerParity(t *testing.T) {
 	const other = "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789"
 	if _, _, err := matchingSHA256(digest+"  local", other+"  remote"); err == nil {
 		t.Fatal("matchingSHA256 accepted mismatched loader/worker artifacts")
+	}
+}
+
+func TestParseRuntimeSnapshotsOutputAllowsGitkeepOnly(t *testing.T) {
+	path := "/users/nehalem/khala/runtime/snapshots"
+	output := "Warning: Permanently added 'worker' (ED25519) to the list of known hosts.\n" + path + "/.gitkeep\n"
+	if err := parseRuntimeSnapshotsOutput(output, path); err != nil {
+		t.Fatalf(".gitkeep-only snapshots rejected: %v", err)
+	}
+	if err := parseRuntimeSnapshotsOutput("", path); err != nil {
+		t.Fatalf("empty snapshots directory rejected: %v", err)
+	}
+}
+
+func TestParseRuntimeSnapshotsOutputRejectsStaleEntry(t *testing.T) {
+	path := "/users/nehalem/khala/runtime/snapshots"
+	err := parseRuntimeSnapshotsOutput(path+"/stale.snapshot\n", path)
+	if err == nil || !strings.Contains(err.Error(), "stale.snapshot") {
+		t.Fatalf("stale snapshots accepted or poorly reported: %v", err)
+	}
+}
+
+func TestRuntimeSnapshotsCommandQuotesPathAndUsesMissingAsPass(t *testing.T) {
+	path := "/users/worker name/khala/runtime/snapshots;unexpected"
+	args := runtimeSnapshotsCommand(path)
+	if len(args) != 5 || args[0] != "sh" || args[1] != "-c" || args[3] != "preflight-runtime-snapshots" {
+		t.Fatalf("runtime snapshots command = %#v", args)
+	}
+	if !strings.Contains(args[2], `if [ ! -d "$1" ]; then exit 0; fi`) || !strings.Contains(args[2], `find "$1"`) {
+		t.Fatalf("runtime snapshots command does not guard/find through positional path: %q", args[2])
+	}
+	if args[4] != "'/users/worker name/khala/runtime/snapshots;unexpected'" {
+		t.Fatalf("runtime snapshots path is not shell-quoted: %q", args[4])
 	}
 }

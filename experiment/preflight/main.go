@@ -157,6 +157,7 @@ func run(ctx context.Context, cfg eval.Config, smokeRoot string) (int, error) {
 		checker.remoteMinio(target, baseURL)
 		checker.remoteGit("worker_khala", target, remoteHome(target)+"/khala", localKhala.Head, eval.KhalaBranch)
 		checker.remoteGit("worker_firecracker", target, remoteHome(target)+"/firecracker", eval.FirecrackerHead, eval.FirecrackerBranch)
+		checker.remoteRuntimeSnapshots(target)
 		checker.workerArtifacts(target)
 	}
 	loaderIPs := setup.LabeledIPs("loader-nodetype=monitoring")
@@ -332,6 +333,49 @@ func (c *checks) ssh(target string, command ...string) (string, error) {
 }
 
 func remoteHome(target string) string { return "/users/" + strings.SplitN(target, "@", 2)[0] }
+
+const runtimeSnapshotsCheckScript = `if [ ! -d "$1" ]; then exit 0; fi
+find "$1" -mindepth 1 ! -path "$1/.gitkeep" -print -quit`
+
+func runtimeSnapshotsCommand(path string) []string {
+	return []string{"sh", "-c", shellQuote(runtimeSnapshotsCheckScript), "preflight-runtime-snapshots", shellQuote(path)}
+}
+
+func shellQuote(value string) string {
+	return "'" + strings.ReplaceAll(value, "'", "'\"'\"'") + "'"
+}
+
+func parseRuntimeSnapshotsOutput(output, path string) error {
+	path = strings.TrimRight(path, "/")
+	allowed := path + "/.gitkeep"
+	var stale []string
+	for _, raw := range strings.Split(output, "\n") {
+		line := strings.TrimSuffix(raw, "\r")
+		if line == "" || strings.HasPrefix(line, "Warning: Permanently added ") {
+			continue
+		}
+		if line == allowed {
+			continue
+		}
+		if !strings.HasPrefix(line, path+"/") {
+			return fmt.Errorf("unexpected runtime snapshots output %q", line)
+		}
+		stale = append(stale, line)
+	}
+	if len(stale) > 0 {
+		return fmt.Errorf("runtime snapshots directory contains stale entries: %s", strings.Join(stale, ", "))
+	}
+	return nil
+}
+
+func (c *checks) remoteRuntimeSnapshots(target string) {
+	path := remoteHome(target) + "/khala/runtime/snapshots"
+	output, err := c.ssh(target, runtimeSnapshotsCommand(path)...)
+	if err == nil {
+		err = parseRuntimeSnapshotsOutput(output, path)
+	}
+	c.record("worker_runtime_snapshots_"+target, err, path)
+}
 
 func (c *checks) remoteKVM(target string) {
 	_, err := c.ssh(target, "test", "-r", "/dev/kvm")
@@ -768,7 +812,7 @@ func sanitize(value string) string {
 }
 
 func plannedChecks(freeze bool) []string {
-	values := []string{"local_git", "kubernetes_nodes", "kubernetes_topology", "minio_loader", "kubernetes_workloads", "prometheus_api_ready", "worker_kvm", "worker_tools", "worker_flamegraph", "worker_minio", "deployed_git", "unified_rootfs", "artifact_hashes", "rdma"}
+	values := []string{"local_git", "kubernetes_nodes", "kubernetes_topology", "minio_loader", "kubernetes_workloads", "prometheus_api_ready", "worker_kvm", "worker_tools", "worker_flamegraph", "worker_minio", "worker_runtime_snapshots", "deployed_git", "unified_rootfs", "artifact_hashes", "rdma"}
 	if freeze {
 		values = append(values, "e1_e4_smoke_evidence")
 	}
