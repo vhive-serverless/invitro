@@ -16,6 +16,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -649,15 +650,23 @@ func (c *checks) smokeEvidence(root string) {
 		fields := lineFields(text)
 		switch {
 		case strings.HasPrefix(fields["claim_id"], "e1-smoke-"):
-			e1[fields["claim_id"]] = true
+			if lifecycleErr := validateE1LifecycleSmokeManifest(fields); lifecycleErr != nil {
+				err = errors.Join(err, fmt.Errorf("E1 %s: %w", fields["claim_id"], lifecycleErr))
+			} else {
+				e1[fields["claim_id"]] = true
+			}
 		case fields["phase"] == "collection" && fields["workload"] == "helloworld":
-			if checksumErr := validateArchivedOutputChecksums(filepath.Dir(path)); checksumErr != nil {
+			if lifecycleErr := validateLifecycleSmokeManifest(fields, "E2"); lifecycleErr != nil {
+				err = errors.Join(err, fmt.Errorf("E2 %s: %w", fields["mode"], lifecycleErr))
+			} else if checksumErr := validateArchivedOutputChecksums(filepath.Dir(path)); checksumErr != nil {
 				err = errors.Join(err, fmt.Errorf("E2 %s: %w", fields["mode"], checksumErr))
 			} else {
 				e2[fields["mode"]] = true
 			}
 		case fields["experiment"] == "e3" && fields["end_scale"] == "1" && fields["claim_bearing"] == "false":
-			if checksumErr := validateArchivedOutputChecksums(filepath.Dir(path)); checksumErr != nil {
+			if lifecycleErr := validateLifecycleSmokeManifest(fields, "E3"); lifecycleErr != nil {
+				err = errors.Join(err, fmt.Errorf("E3 %s: %w", fields["mode"], lifecycleErr))
+			} else if checksumErr := validateArchivedOutputChecksums(filepath.Dir(path)); checksumErr != nil {
 				err = errors.Join(err, fmt.Errorf("E3 %s: %w", fields["mode"], checksumErr))
 			} else {
 				e3[fields["mode"]] = true
@@ -672,14 +681,19 @@ func (c *checks) smokeEvidence(root string) {
 			continue
 		}
 		var manifest struct {
-			Status string `json:"status"`
-			Cell   struct {
+			ManifestVersion    int    `json:"manifest_version"`
+			Status             string `json:"status"`
+			Phase              string `json:"phase"`
+			SetupAttempts      int    `json:"setup_attempts"`
+			AcquisitionStarted bool   `json:"acquisition_started"`
+			Cell               struct {
 				Workload string `json:"workload"`
 				Mode     string `json:"mode"`
 				Counts   []int  `json:"counts"`
 			} `json:"cell"`
 		}
-		if json.Unmarshal(data, &manifest) == nil && manifest.Status == "complete" && manifest.Cell.Workload == "helloworld" &&
+		if json.Unmarshal(data, &manifest) == nil && manifest.ManifestVersion == 2 && manifest.Status == "complete" && manifest.Phase == "verify" &&
+			manifest.SetupAttempts >= 1 && manifest.SetupAttempts <= 2 && manifest.AcquisitionStarted && manifest.Cell.Workload == "helloworld" &&
 			len(manifest.Cell.Counts) == 2 && manifest.Cell.Counts[0] == 1 && manifest.Cell.Counts[1] == 2 {
 			e4[manifest.Cell.Mode] = true
 		}
@@ -709,6 +723,62 @@ func (c *checks) smokeEvidence(root string) {
 		c.report.QualificationSHA256 = treeDigest
 	}
 	c.record("e1_e4_smoke_evidence", err, root)
+}
+
+func validateE1LifecycleSmokeManifest(fields map[string]string) error {
+	if fields["manifest_version"] != "9" {
+		return fmt.Errorf("manifest_version=%q, want 9", fields["manifest_version"])
+	}
+	if fields["cell_status_sequence"] != "started,complete" || fields["acquisition_retry"] != "false" ||
+		fields["independent_continuation"] != "true" || fields["contamination_stop"] != "true" {
+		return fmt.Errorf("incomplete E1 lifecycle contract")
+	}
+	if fields["fixture_setup_max_attempts"] != "2" || fields["cell_setup_max_attempts"] != "2" {
+		return fmt.Errorf("unbounded E1 setup contract")
+	}
+	attempts, err := strconv.Atoi(fields["fixture_setup_attempts"])
+	if err != nil || attempts < 1 || attempts > 2 {
+		return fmt.Errorf("fixture_setup_attempts=%q, want an integer in [1,2]", fields["fixture_setup_attempts"])
+	}
+	return nil
+}
+
+// validateLifecycleSmokeManifest admits only a terminal cell manifest.  The
+// setup/deploy retry is bounded to two attempts, while loader/acquisition is
+// single-shot; a successful cleanup and explicit final marker prove that the
+// archive is not a pre-loader or partially finalized cell.
+func validateLifecycleSmokeManifest(fields map[string]string, experiment string) error {
+	if fields["manifest_version"] != "2" {
+		return fmt.Errorf("manifest_version=%q, want 2", fields["manifest_version"])
+	}
+	if fields["lifecycle_phase"] != "final" {
+		return fmt.Errorf("lifecycle_phase=%q, want final", fields["lifecycle_phase"])
+	}
+	if fields["loader_started"] != "true" {
+		return fmt.Errorf("loader_started=%q, want true", fields["loader_started"])
+	}
+	if fields["cleanup_exit_status"] != "0" {
+		return fmt.Errorf("cleanup_exit_status=%q, want 0", fields["cleanup_exit_status"])
+	}
+	if fields["exit_status"] != "0" {
+		return fmt.Errorf("exit_status=%q, want 0", fields["exit_status"])
+	}
+	if experiment == "E2" && fields["evidence_status"] != "0" {
+		return fmt.Errorf("evidence_status=%q, want 0", fields["evidence_status"])
+	}
+	for _, key := range []string{"setup_attempts", "deploy_attempts", "deploy_invocations"} {
+		value, err := strconv.Atoi(fields[key])
+		if err != nil || value < 1 || value > 2 {
+			return fmt.Errorf("%s=%q, want an integer in [1,2]", key, fields[key])
+		}
+	}
+	setupAttempts, _ := strconv.Atoi(fields["setup_attempts"])
+	deployAttempts, _ := strconv.Atoi(fields["deploy_attempts"])
+	deployInvocations, _ := strconv.Atoi(fields["deploy_invocations"])
+	if deployAttempts != deployInvocations || deployInvocations > setupAttempts {
+		return fmt.Errorf("deploy attempts/invocations inconsistent: setup=%d deploy=%d invocations=%d", setupAttempts, deployAttempts, deployInvocations)
+	}
+	return nil
 }
 
 func validateArchivedOutputChecksums(directory string) error {

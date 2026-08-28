@@ -34,13 +34,13 @@ func TestDryRunPlansWithoutWriting(t *testing.T) {
 func TestSmokeEvidenceRequiresAllFourExperimentSmokes(t *testing.T) {
 	root := t.TempDir()
 	manifests := map[string]string{
-		"e1-2b":   "smoke=true\nclaim_id=e1-smoke-2b\nexit_status=0\n",
-		"e1-4mib": "smoke=true\nclaim_id=e1-smoke-4mib\nexit_status=0\n",
-		"e2-b0":   "smoke=true\nphase=collection\nworkload=helloworld\nmode=invm-py\nexit_status=0\n",
-		"e2-n4":   "smoke=true\nphase=collection\nworkload=helloworld\nmode=nexus-py\nexit_status=0\n",
-		"e3-b0":   "smoke=true\nexperiment=e3\nend_scale=1\nclaim_bearing=false\nmode=invm-py\nexit_status=0\n",
-		"e3-n4":   "smoke=true\nexperiment=e3\nend_scale=1\nclaim_bearing=false\nmode=nexus-py\nexit_status=0\n",
-		"e3-n5":   "smoke=true\nexperiment=e3\nend_scale=1\nclaim_bearing=false\nmode=nexus-rdma-py\nexit_status=0\n",
+		"e1-2b":   "smoke=true\nmanifest_version=9\nclaim_id=e1-smoke-2b\ncell_status_sequence=started,complete\nfixture_setup_max_attempts=2\nfixture_setup_attempts=1\ncell_setup_max_attempts=2\nacquisition_retry=false\nindependent_continuation=true\ncontamination_stop=true\nexit_status=0\n",
+		"e1-4mib": "smoke=true\nmanifest_version=9\nclaim_id=e1-smoke-4mib\ncell_status_sequence=started,complete\nfixture_setup_max_attempts=2\nfixture_setup_attempts=1\ncell_setup_max_attempts=2\nacquisition_retry=false\nindependent_continuation=true\ncontamination_stop=true\nexit_status=0\n",
+		"e2-b0":   "smoke=true\nmanifest_version=2\nphase=collection\nworkload=helloworld\nmode=invm-py\nevidence_status=0\nsetup_attempts=1\ndeploy_attempts=1\ndeploy_invocations=1\nloader_started=true\ncleanup_exit_status=0\nlifecycle_phase=final\nexit_status=0\n",
+		"e2-n4":   "smoke=true\nmanifest_version=2\nphase=collection\nworkload=helloworld\nmode=nexus-py\nevidence_status=0\nsetup_attempts=1\ndeploy_attempts=1\ndeploy_invocations=1\nloader_started=true\ncleanup_exit_status=0\nlifecycle_phase=final\nexit_status=0\n",
+		"e3-b0":   "smoke=true\nmanifest_version=2\nexperiment=e3\nend_scale=1\nclaim_bearing=false\nmode=invm-py\nsetup_attempts=1\ndeploy_attempts=1\ndeploy_invocations=1\nloader_started=true\ncleanup_exit_status=0\nlifecycle_phase=final\nexit_status=0\n",
+		"e3-n4":   "smoke=true\nmanifest_version=2\nexperiment=e3\nend_scale=1\nclaim_bearing=false\nmode=nexus-py\nsetup_attempts=1\ndeploy_attempts=1\ndeploy_invocations=1\nloader_started=true\ncleanup_exit_status=0\nlifecycle_phase=final\nexit_status=0\n",
+		"e3-n5":   "smoke=true\nmanifest_version=2\nexperiment=e3\nend_scale=1\nclaim_bearing=false\nmode=nexus-rdma-py\nsetup_attempts=1\ndeploy_attempts=1\ndeploy_invocations=1\nloader_started=true\ncleanup_exit_status=0\nlifecycle_phase=final\nexit_status=0\n",
 	}
 	for name, content := range manifests {
 		dir := filepath.Join(root, name)
@@ -55,7 +55,7 @@ func TestSmokeEvidenceRequiresAllFourExperimentSmokes(t *testing.T) {
 		}
 	}
 	for _, mode := range []string{"invm-py", "nexus-py"} {
-		content := fmt.Sprintf(`{"status":"complete","cell":{"workload":"helloworld","mode":%q,"counts":[1,2]}}`, mode)
+		content := fmt.Sprintf(`{"manifest_version":2,"status":"complete","phase":"verify","setup_attempts":1,"acquisition_started":true,"cell":{"workload":"helloworld","mode":%q,"counts":[1,2]}}`, mode)
 		if err := os.WriteFile(filepath.Join(root, "e4-"+mode+"-cell.json"), []byte(content), 0644); err != nil {
 			t.Fatal(err)
 		}

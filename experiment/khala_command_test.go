@@ -500,6 +500,50 @@ func TestDeployRDMAAggregatesAndStopsNodeSequence(t *testing.T) {
 	}
 }
 
+func TestCleanKhalaTreatsUnavailableDestroyAllAsBestEffort(t *testing.T) {
+	originalServer, originalLocal, originalDestroy := serverExecFn, cleanupLocalCommandFn, destroyAllFn
+	t.Cleanup(func() {
+		serverExecFn, cleanupLocalCommandFn, destroyAllFn = originalServer, originalLocal, originalDestroy
+	})
+	destroyAllFn = func(string) error { return errors.New("injected unavailable RPC") }
+	cleanupLocalCommandFn = func(string) (string, error) { return "", nil }
+	var commands []string
+	serverExecFn = func(_ string, command string) (string, error) {
+		commands = append(commands, command)
+		return "", nil
+	}
+	if err := CleanKhala(WorkerNodeSetup{WorkerNodes: []string{"worker"}}, true, false); err != nil {
+		t.Fatalf("unavailable DestroyAll made forced cleanup fail: %v", err)
+	}
+	if !strings.Contains(strings.Join(commands, "\n"), "snapshots/*.snapshot") {
+		t.Fatalf("forced snapshot cleanup was not attempted: %v", commands)
+	}
+	for _, forbidden := range []string{"rollout restart", "cleanup_minio", "redeploy_minio"} {
+		if strings.Contains(strings.Join(commands, "\n"), forbidden) {
+			t.Fatalf("cleanup performed forbidden recovery %q: %v", forbidden, commands)
+		}
+	}
+}
+
+func TestCleanKhalaKeepsForcedSnapshotCleanupFatal(t *testing.T) {
+	originalServer, originalLocal, originalDestroy := serverExecFn, cleanupLocalCommandFn, destroyAllFn
+	t.Cleanup(func() {
+		serverExecFn, cleanupLocalCommandFn, destroyAllFn = originalServer, originalLocal, originalDestroy
+	})
+	destroyAllFn = func(string) error { return errors.New("injected unavailable RPC") }
+	cleanupLocalCommandFn = func(string) (string, error) { return "", nil }
+	serverExecFn = func(_ string, command string) (string, error) {
+		if strings.Contains(command, "snapshots/*.snapshot") {
+			return "snapshot permission denied", errors.New("injected snapshot failure")
+		}
+		return "", nil
+	}
+	err := CleanKhala(WorkerNodeSetup{WorkerNodes: []string{"worker"}}, true, false)
+	if err == nil || !strings.Contains(err.Error(), "snapshot failure") {
+		t.Fatalf("forced snapshot cleanup failure was suppressed: %v", err)
+	}
+}
+
 func TestCreateSnapshotsPropagatesAllWorkerFailures(t *testing.T) {
 	originalCreate := createSnapshotsNodeFn
 	t.Cleanup(func() { createSnapshotsNodeFn = originalCreate })

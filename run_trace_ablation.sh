@@ -3,6 +3,7 @@
 # publishes the pinned Go toolchain through /etc/profile.
 source /etc/profile
 set -euo pipefail
+source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)/scripts/util/cell_lifecycle.sh"
 
 repo_root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
 cd "$repo_root"
@@ -324,17 +325,7 @@ write_archived_output_checksums() {
 }
 
 archived_output_matches() {
-    local directory=$1 row path expected actual count=0
-    [[ -s "$directory/archived-output-checksums.csv" ]] || return 1
-    IFS= read -r row < "$directory/archived-output-checksums.csv"
-    [[ "$row" == 'path,sha256' ]] || return 1
-    while IFS=, read -r path expected; do
-        [[ "$expected" =~ ^[0-9a-f]{64}$ && -n "$path" && -f "$directory/$path" ]] || return 1
-        actual=$(digest "$directory/$path")
-        [[ "$actual" == "$expected" ]] || return 1
-        ((count+=1))
-    done < <(tail -n +2 "$directory/archived-output-checksums.csv")
-    ((count > 0))
+    lifecycle_archived_output_matches "$1"
 }
 
 manifest_matches() {
@@ -373,12 +364,68 @@ manifest_matches() {
         line_is "$manifest" "worker_config_sha256=$(digest "$result_root/worker-node.json")" &&
         line_is "$manifest" "remote_provenance_sha256=$(digest "$result_root/remote-provenance.txt")" &&
         line_is "$manifest" 'exit_status=0' || return 1
+    lifecycle_success_manifest_matches "$manifest" || return 1
     cmp --silent "$reference" "$result_root/b0-rps-reference.csv" || return 1
     cmp --silent "$destination/remote-provenance.txt" "$result_root/remote-provenance.txt" || return 1
     cmp --silent "$destination/cluster-inventory.txt" "$result_root/cluster-inventory.txt" || return 1
     cmp --silent "$destination/worker-node.json" "$result_root/worker-node.json" || return 1
     cmp --silent "$destination/b0-rps-reference.csv" "$reference" || return 1
     archived_output_matches "$destination"
+}
+
+initial_cleanup_matches() {
+    local destination=$1 manifest="$destination/manifest.txt"
+    [[ -f "$manifest" ]] || return 1
+    line_is "$manifest" 'manifest_version=1' &&
+        line_is "$manifest" 'initial_cleanup=true' &&
+        line_is "$manifest" 'cleanup_mode=nexus-rdma-py' &&
+        line_is "$manifest" 'remove_snapshots=true' &&
+        line_is "$manifest" "worker_config_sha256=$(digest "$result_root/worker-node.json")" &&
+        line_is "$manifest" "cluster_inventory_sha256=$(digest "$result_root/cluster-inventory.txt")" &&
+        line_is "$manifest" "remote_provenance_sha256=$(digest "$result_root/remote-provenance.txt")" &&
+        line_is "$manifest" "runner_sha256=$(digest run_trace_ablation.sh)" &&
+        line_is "$manifest" 'exit_status=0' || return 1
+    archived_output_matches "$destination"
+}
+
+run_initial_cleanup() {
+    local destination="$result_root/initial-cleanup" scratch status started
+    if [[ -e "$destination" ]]; then
+        initial_cleanup_matches "$destination" || {
+            echo "initial cleanup evidence is incomplete or tampered: $destination" >&2
+            return 2
+        }
+        echo "RESUME verified initial cleanup"
+        return 0
+    fi
+    mkdir -p "$scratch_root"
+    scratch=$(mktemp -d "$scratch_root/initial-cleanup.XXXXXX")
+    started=$(date -u --iso-8601=seconds)
+    set +e
+    go run experiment/khala_command.go --command clean --mode nexus-rdma-py --worker-config "$result_root/worker-node.json" \
+        --minio-endpoint "$minio_endpoint" --remove-snapshots=true > "$scratch/clean.log" 2>&1
+    status=$?
+    set -e
+    {
+        echo manifest_version=1
+        echo initial_cleanup=true
+        echo cleanup_mode=nexus-rdma-py
+        echo remove_snapshots=true
+        echo "start_utc=$started"
+        echo "end_utc=$(date -u --iso-8601=seconds)"
+        echo "worker_config_sha256=$(digest "$result_root/worker-node.json")"
+        echo "cluster_inventory_sha256=$(digest "$result_root/cluster-inventory.txt")"
+        echo "remote_provenance_sha256=$(digest "$result_root/remote-provenance.txt")"
+        echo "runner_sha256=$(digest run_trace_ablation.sh)"
+        echo "exit_status=$status"
+    } > "$scratch/manifest.txt"
+    mkdir -- "$destination" || { rm -rf -- "$scratch"; return 2; }
+    cp -a -- "$scratch/." "$destination/"
+    write_archived_output_checksums "$destination"
+    rm -rf -- "$scratch"
+    archived_output_matches "$destination" || { echo "initial cleanup archive verification failed" >&2; return 2; }
+    ((status == 0)) || return "$status"
+    initial_cleanup_matches "$destination"
 }
 
 run_cell() {
@@ -394,20 +441,37 @@ run_cell() {
         return
     fi
     [[ ! -e "$destination" ]] || { echo "refusing incomplete cell: $destination" >&2; return 2; }
-    rm -rf -- "$scratch_cell"
-    mkdir -p "$scratch_out"
-    python3 generate_trace_sweep.py --mode "$mode" --e2-reference "$reference" \
-        --divisor "$divisor" --start-scale "$start_scale" --end-scale "$end_scale" \
-        --step "$step" --shift-step "$shift_step" --warmup-duration "$warmup_minutes" \
-        --warmup-scale 1 --output "$scratch_trace" > "$scratch_out/trace-generator.log" 2>&1
-    cp -a -- "$scratch_trace" "$scratch_out/trace"
-    cp -- "$worker_config" "$scratch_out/worker-node.json"
-    cp -- "$result_root/cluster-inventory.txt" "$scratch_out/cluster-inventory.txt"
-    cp -- "$result_root/remote-provenance.txt" "$scratch_out/remote-provenance.txt"
-    cp -- "$reference" "$scratch_out/b0-rps-reference.csv"
     local config_path="$scratch_out/config.json"
-    write_config "$run_id" "$scratch_trace" "$scratch_out/experiment" "$config_path"
-    {
+    lifecycle_setup() {
+        local attempt=$1
+        if ((attempt == 1)); then
+            # Keep the pre-cell cleanup log as part of the eventual archive;
+            # discard only stale setup/acquisition artifacts.
+            if [[ -d "$scratch_cell" ]]; then
+                find "$scratch_cell" -mindepth 1 -maxdepth 1 ! -name out -exec rm -rf -- {} +
+            fi
+            if [[ -d "$scratch_out" ]]; then
+                find "$scratch_out" -mindepth 1 -maxdepth 1 ! -name clean-pre-cell.log -exec rm -rf -- {} +
+            fi
+            mkdir -p "$scratch_out"
+        else
+            local previous_attempt=$((attempt - 1)) preserved="$scratch_out/setup-attempt-$previous_attempt"
+            mkdir -p "$preserved"
+            find "$scratch_out" -mindepth 1 -maxdepth 1 ! -name 'setup-attempt-*' -exec cp -a -- {} "$preserved" \;
+            rm -rf -- "$scratch_trace" "$scratch_out/trace"
+            rm -f -- "$scratch_out/trace-generator.log" "$config_path" "$scratch_out/manifest.txt"
+        fi
+        python3 generate_trace_sweep.py --mode "$mode" --e2-reference "$reference" \
+            --divisor "$divisor" --start-scale "$start_scale" --end-scale "$end_scale" \
+            --step "$step" --shift-step "$shift_step" --warmup-duration "$warmup_minutes" \
+            --warmup-scale 1 --output "$scratch_trace" > "$scratch_out/trace-generator.log" 2>&1
+        cp -a -- "$scratch_trace" "$scratch_out/trace"
+        cp -- "$worker_config" "$scratch_out/worker-node.json"
+        cp -- "$result_root/cluster-inventory.txt" "$scratch_out/cluster-inventory.txt"
+        cp -- "$result_root/remote-provenance.txt" "$scratch_out/remote-provenance.txt"
+        cp -- "$reference" "$scratch_out/b0-rps-reference.csv"
+        write_config "$run_id" "$scratch_trace" "$scratch_out/experiment" "$config_path"
+        {
         vm_config=$(mode_vm_config "$mode")
         rootfs=$(config_value "../khala/$vm_config" RootfsPath)
         kernel=$(config_value "../khala/$vm_config" KernelPath)
@@ -469,39 +533,80 @@ run_cell() {
         echo "vmm_path=$vmm"
         echo "vmm_sha256=$(khala_artifact_hash "$vmm")"
         echo "workload_sha256=$(tracked_workload_sha)"
-    } > "$scratch_out/manifest.txt"
-
-    local status=0 clean_status=0
-    set +e
-    go run experiment/khala_command.go --command deploy --mode "$mode" --worker-config "$worker_config" \
-        --shmem-ring-bytes 4190208 --shmem-io-quantum 262144 --minio-endpoint "$minio_endpoint" \
-        > >(tee "$scratch_out/deploy.log") 2>&1
-    status=$?
-    if ((status == 0)); then
+        } > "$scratch_out/manifest.txt"
+    }
+    lifecycle_deploy() {
+        local attempt=$1
+        go run experiment/khala_command.go --command deploy --mode "$mode" --worker-config "$worker_config" \
+            --shmem-ring-bytes 4190208 --shmem-io-quantum 262144 --minio-endpoint "$minio_endpoint" \
+            2>&1 | tee "$scratch_out/deploy-attempt-$attempt.log"
+        local status=${PIPESTATUS[0]}
+        cat "$scratch_out/deploy-attempt-$attempt.log" >> "$scratch_out/deploy.log"
+        return "$status"
+    }
+    lifecycle_run() {
         go run cmd/loader.go --config "$config_path" > >(tee "$scratch_out/loader.log") 2>&1
+        local status=$?
+        kubectl logs deployment/activator -n knative-serving > "$scratch_out/activator.log" 2>&1
+        local activator_status=$?
+        if ((status == 0 && activator_status != 0)); then status=$activator_status; fi
+        return "$status"
+    }
+    lifecycle_cleanup() {
+        local cleanup_phase=$1
+        go run experiment/khala_command.go --command clean --mode "$mode" --worker-config "$worker_config" \
+            --minio-endpoint "$minio_endpoint" --remove-snapshots=true > "$scratch_out/clean-$cleanup_phase.log" 2>&1
+        local status=$?
+        cat "$scratch_out/clean-$cleanup_phase.log" >> "$scratch_out/clean.log"
+        return "$status"
+    }
+    lifecycle_finalize() {
+        local status=$1 clean_status=$2 setup_attempts=$3 deploy_invocations=$4 loader_started=$5
+        {
+        echo "end_utc=$(date -u --iso-8601=seconds)"
+        echo "setup_attempts=$setup_attempts"
+        echo "deploy_attempts=$deploy_invocations"
+        echo "deploy_invocations=$deploy_invocations"
+        echo "loader_started=$loader_started"
+        echo "cleanup_exit_status=$clean_status"
+        if [[ "$loader_started" == true ]]; then echo 'lifecycle_phase=final'; else echo 'lifecycle_phase=setup'; fi
+        echo "exit_status=$status"
+        } >> "$scratch_out/manifest.txt"
+        mkdir -p "$(dirname "$destination")"
+        cp -a -- "$scratch_out" "$destination"
+        write_archived_output_checksums "$destination"
+        rm -rf -- "$scratch_cell"
+    }
+    lifecycle_verify() {
+        manifest_matches "$manifest" "$repetition" "$mode" "$destination"
+    }
+    mkdir -p "$scratch_out"
+    local status
+    if lifecycle_preclean; then
+        :
+    else
+        status=$?
+        lifecycle_finalize "$status" "$LIFECYCLE_PRECLEAN_STATUS" 0 0 false
+        echo "pre-cell cleanup failed; refusing acquisition; immutable evidence retained at $destination" >&2
+        return "$status"
+    fi
+    if lifecycle_execute; then
+        if ((cooldown_seconds > 0)); then sleep "$cooldown_seconds"; fi
+        return 0
+    else
         status=$?
     fi
-    kubectl logs deployment/activator -n knative-serving > "$scratch_out/activator.log" 2>&1
-    go run experiment/khala_command.go --command clean --mode "$mode" --worker-config "$worker_config" \
-        --minio-endpoint "$minio_endpoint" --remove-snapshots=true > "$scratch_out/clean.log" 2>&1
-    clean_status=$?
-    if ((status == 0 && clean_status != 0)); then status=$clean_status; fi
-    set -e
-    {
-        echo "end_utc=$(date -u --iso-8601=seconds)"
-        echo "cleanup_exit_status=$clean_status"
-        echo "exit_status=$status"
-    } >> "$scratch_out/manifest.txt"
-    mkdir -p "$(dirname "$destination")"
-    cp -a -- "$scratch_out" "$destination"
-    write_archived_output_checksums "$destination"
-    rm -rf -- "$scratch_cell"
-    if ((status != 0)); then echo "cell failed; evidence retained at $destination" >&2; return "$status"; fi
-    if ((cooldown_seconds > 0)); then sleep "$cooldown_seconds"; fi
+    if [[ "$LIFECYCLE_CLEANUP_FAILED" == true ]]; then
+        echo "cleanup failed; aborting to avoid cross-cell contamination; evidence retained at $destination" >&2
+    else
+        echo "cell failed; evidence retained at $destination" >&2
+    fi
+    return "$status"
 }
 
 function_count=$((10 * end_scale))
 total_minutes=$((warmup_minutes + end_scale))
+suite_failed=false
 for ((repetition=0; repetition<repetitions; repetition++)); do
     read -r -a rotated_modes <<< "$(rotate modes "$repetition")"
     for mode in "${rotated_modes[@]}"; do
@@ -562,10 +667,22 @@ else
     snapshot_remote_provenance "$result_root/remote-provenance.txt" "$result_root/worker-node.json" nexus-rdma-py
 fi
 
+run_initial_cleanup || { status=$?; echo "initial cleanup failed; refusing E3 acquisition" >&2; exit "$status"; }
+
 for ((repetition=0; repetition<repetitions; repetition++)); do
     read -r -a rotated_modes <<< "$(rotate modes "$repetition")"
     for mode in "${rotated_modes[@]}"; do
-        run_cell "$repetition" "$mode" "$result_root/worker-node.json"
+        if run_cell "$repetition" "$mode" "$result_root/worker-node.json"; then
+            :
+        else
+            status=$?
+            [[ "$LIFECYCLE_CLEANUP_FAILED" != true ]] || exit "$status"
+            suite_failed=true
+        fi
     done
 done
+if [[ "$suite_failed" == true ]]; then
+    echo "E3_ACQUISITION_FAILED result_root=$result_root" >&2
+    exit 1
+fi
 echo "E3_ACQUISITION_READY result_root=$result_root"

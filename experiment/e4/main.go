@@ -33,14 +33,41 @@ type cell struct {
 }
 
 type cellManifest struct {
-	Cell           cell              `json:"cell"`
-	Status         string            `json:"status"`
-	Worker         string            `json:"worker"`
-	CampaignSHA256 string            `json:"campaign_sha256,omitempty"`
-	Started        string            `json:"started_utc"`
-	Finished       string            `json:"finished_utc"`
-	Artifacts      map[string]string `json:"artifacts,omitempty"`
-	Error          string            `json:"error,omitempty"`
+	ManifestVersion int               `json:"manifest_version"`
+	Cell            cell              `json:"cell"`
+	Status          string            `json:"status"`
+	Phase           string            `json:"phase"`
+	Worker          string            `json:"worker"`
+	CampaignSHA256  string            `json:"campaign_sha256,omitempty"`
+	SetupAttempts   int               `json:"setup_attempts"`
+	Acquisition     bool              `json:"acquisition_started"`
+	Started         string            `json:"started_utc"`
+	Finished        string            `json:"finished_utc"`
+	Artifacts       map[string]string `json:"artifacts,omitempty"`
+	Error           string            `json:"error,omitempty"`
+}
+
+// cellOps is the narrow execution boundary for the E4 cell lifecycle.  It is
+// deliberately local to E4: tests inject failures without changing the shared
+// evaluator or contacting a worker.
+type cellOps struct {
+	remoteAbsent func(context.Context, string, string) error
+	runRemote    func(context.Context, string, io.Writer, ...string) error
+	copyTree     func(context.Context, string, string, io.Writer) error
+	verifyCount  func(string, int) (string, string, error)
+	createOnly   func(string, any) error
+	now          func() time.Time
+}
+
+func defaultCellOps() cellOps {
+	return cellOps{
+		remoteAbsent: eval.RemoteAbsent,
+		runRemote:    runRemote,
+		copyTree:     eval.CopyRemoteTree,
+		verifyCount:  verifyCount,
+		createOnly:   eval.CreateOnly,
+		now:          time.Now,
+	}
 }
 
 func main() {
@@ -104,17 +131,7 @@ func run(ctx context.Context, o options) error {
 	if err != nil {
 		return err
 	}
-	var failures []error
-	for _, item := range plan {
-		cleanupOK, err := runCell(ctx, o, item, worker, workerHome, workerIPs[0], endpoint, campaignHash)
-		if err != nil {
-			failures = append(failures, fmt.Errorf("%s/%s: %w", item.Workload, item.Mode, err))
-			if !cleanupOK {
-				return errors.Join(failures...)
-			}
-		}
-	}
-	return errors.Join(failures...)
+	return runCells(ctx, o, plan, worker, workerHome, workerIPs[0], endpoint, campaignHash, defaultCellOps())
 }
 
 func makePlan(o options) ([]cell, eval.Setup, string, error) {
@@ -164,24 +181,69 @@ func makePlan(o options) ([]cell, eval.Setup, string, error) {
 	return plan, setup, endpoint, nil
 }
 
+func runCells(ctx context.Context, o options, plan []cell, worker, workerHome, workerIP, endpoint, campaignHash string, ops cellOps) error {
+	var failures []error
+	for _, item := range plan {
+		cleanupOK, err := runCellWith(ctx, o, item, worker, workerHome, workerIP, endpoint, campaignHash, ops)
+		if err == nil {
+			continue
+		}
+		failures = append(failures, fmt.Errorf("%s/%s: %w", item.Workload, item.Mode, err))
+		if !cleanupOK {
+			return errors.Join(failures...)
+		}
+	}
+	return errors.Join(failures...)
+}
+
 func runCell(ctx context.Context, o options, item cell, worker, workerHome, workerIP, endpoint, campaignHash string) (bool, error) {
+	return runCellWith(ctx, o, item, worker, workerHome, workerIP, endpoint, campaignHash, defaultCellOps())
+}
+
+// runCellWith enforces E4's contamination boundary.  A cell may make one
+// recovery attempt while it is still in setup.  Density is never retried: once
+// it begins, the cell always cleans up and then either verifies or records its
+// terminal failure.
+func runCellWith(ctx context.Context, o options, item cell, worker, workerHome, workerIP, endpoint, campaignHash string, ops cellOps) (bool, error) {
 	root := filepath.Join(o.common.ResultRoot, item.Workload, item.Mode)
-	if err := eval.RemoteAbsent(ctx, worker, root); err != nil {
-		return true, err
+	started := ops.now().UTC().Format(time.RFC3339)
+	manifest := cellManifest{ManifestVersion: 2, Cell: item, Worker: worker, CampaignSHA256: campaignHash, Started: started}
+	record := func(phase string, setupAttempts int, acquisition bool, artifacts map[string]string, cellErr error) error {
+		manifest.Status = "failed"
+		manifest.Phase = phase
+		manifest.SetupAttempts = setupAttempts
+		manifest.Acquisition = acquisition
+		manifest.Artifacts = artifacts
+		manifest.Error = cellErr.Error()
+		manifest.Finished = ops.now().UTC().Format(time.RFC3339)
+		return errors.Join(cellErr, ops.createOnly(root+"-cell.json", manifest))
+	}
+
+	// Remote availability is setup state.  It consumes the same single recovery
+	// budget as seed/deploy/snapshot failures, but does not invoke cleanup because
+	// this process has not changed worker state.
+	setupAttempts := 0
+	for {
+		setupAttempts++
+		if err := ops.remoteAbsent(ctx, worker, root); err != nil {
+			if setupAttempts == 1 {
+				continue
+			}
+			return true, record("setup", setupAttempts, false, nil, fmt.Errorf("remote result root unavailable after recovery: %w", err))
+		}
+		break
 	}
 	if err := os.MkdirAll(filepath.Dir(root), 0755); err != nil {
-		return true, err
+		return true, record("dispatch", setupAttempts, false, nil, err)
 	}
 	logPath := root + "-dispatch.log"
 	logFile, err := os.OpenFile(logPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
 	if err != nil {
-		return true, err
+		return true, record("dispatch", setupAttempts, false, nil, err)
 	}
 	defer logFile.Close()
-	started := time.Now().UTC().Format(time.RFC3339)
-	fmt.Printf("ACQUISITION_START experiment=e4 workload=%s mode=%s worker=%s log=%s\n", item.Workload, item.Mode, worker, logPath)
+
 	base := workerEnvironment(workerHome, endpoint)
-	seedErr := runRemote(ctx, worker, logFile, append(base, "bash", "./scripts/deploy-minio-obj.sh", "http://"+endpoint)...)
 	deployArgs := append(append([]string{}, base...), "./bin/khala-command",
 		"--worker-config=internal/experiment/kn-integration-tracer/worker_node.json",
 		"--vm-config=configs/vm_orchestrator_config.json", "--command=deploy", "--mode="+item.Mode,
@@ -189,51 +251,92 @@ func runCell(ctx context.Context, o options, item cell, worker, workerHome, work
 	if item.Mode == "nexus-py" {
 		deployArgs = append(deployArgs, "--vm-shmem-bytes=4194304", "--shmem-ring-bytes=4190208", "--shmem-io-quantum=262144")
 	}
-	deployErr := error(nil)
-	if seedErr == nil {
-		deployErr = runRemote(ctx, worker, logFile, deployArgs...)
-	}
-	snapshotErr := error(nil)
-	if seedErr == nil && deployErr == nil {
-		snapshotErr = runRemote(ctx, worker, logFile, append(base, "./bin/khala-command",
-			"--worker-config=internal/experiment/kn-integration-tracer/worker_node.json",
-			"--vm-config=configs/vm_orchestrator_config.json", "--command=create-snapshots", "--mode="+item.Mode,
-			"--workload="+item.Workload, "--debug=false")...)
-	}
-	densityErr := error(nil)
-	if seedErr == nil && deployErr == nil && snapshotErr == nil {
-		densityErr = runRemote(ctx, worker, logFile, append(base, "sudo", "-n", "./bin/e4-density",
-			"--workload="+item.Workload, "--mode="+item.Mode, "--worker-ip="+workerIP,
-			"--instance-counts="+renderCounts(item.Counts), "--warmup-successes-per-vm=1", "--sample-seconds=10",
-			"--result-root="+root)...)
-	}
-	cleanupErr := runRemote(ctx, worker, logFile, cleanupCommand(base, item, endpoint)...)
-	copyErr := eval.CopyRemoteTree(ctx, worker, root, logFile)
-	cellErr := errors.Join(seedErr, deployErr, snapshotErr, densityErr, cleanupErr, copyErr)
-	artifacts := map[string]string{}
-	if copyErr == nil {
-		for _, count := range item.Counts {
-			manifestPath, manifestHash, verifyErr := verifyCount(root, count)
-			if verifyErr != nil {
-				cellErr = errors.Join(cellErr, verifyErr)
-				continue
-			}
-			artifacts[filepath.Base(manifestPath)] = manifestHash
+	for {
+		// The pre-clean is the first worker-mutating setup action for every
+		// attempt.  Its failure is a contamination risk, so it is never retried.
+		if cleanupErr := ops.runRemote(ctx, worker, logFile, cleanupCommand(base, item, endpoint)...); cleanupErr != nil {
+			return false, record("cleanup", setupAttempts, false, nil, cleanupErr)
+		}
+		seedErr := ops.runRemote(ctx, worker, logFile, append(base, "bash", "./scripts/deploy-minio-obj.sh", "http://"+endpoint)...)
+		deployErr := error(nil)
+		if seedErr == nil {
+			deployErr = ops.runRemote(ctx, worker, logFile, deployArgs...)
+		}
+		snapshotErr := error(nil)
+		if seedErr == nil && deployErr == nil {
+			snapshotErr = ops.runRemote(ctx, worker, logFile, append(base, "./bin/khala-command",
+				"--worker-config=internal/experiment/kn-integration-tracer/worker_node.json",
+				"--vm-config=configs/vm_orchestrator_config.json", "--command=create-snapshots", "--mode="+item.Mode,
+				"--workload="+item.Workload, "--debug=false")...)
+		}
+		setupErr := errors.Join(seedErr, deployErr, snapshotErr)
+		if setupErr == nil {
+			break
+		}
+		cleanupErr := ops.runRemote(ctx, worker, logFile, cleanupCommand(base, item, endpoint)...)
+		if cleanupErr != nil {
+			return false, record("cleanup", setupAttempts, false, nil, errors.Join(setupErr, cleanupErr))
+		}
+		if setupAttempts == 2 {
+			return true, record("setup", setupAttempts, false, nil, setupErr)
+		}
+		setupAttempts++
+		if err := ops.remoteAbsent(ctx, worker, root); err != nil {
+			return true, record("setup", setupAttempts, false, nil, fmt.Errorf("remote result root unavailable during recovery: %w", err))
 		}
 	}
-	status, message := "complete", ""
-	if cellErr != nil {
-		status, message = "failed", cellErr.Error()
+
+	fmt.Printf("ACQUISITION_START experiment=e4 workload=%s mode=%s worker=%s log=%s\n", item.Workload, item.Mode, worker, logPath)
+	densityErr := ops.runRemote(ctx, worker, logFile, append(base, "sudo", "-n", "./bin/e4-density",
+		"--workload="+item.Workload, "--mode="+item.Mode, "--worker-ip="+workerIP,
+		"--instance-counts="+renderCounts(item.Counts), "--warmup-successes-per-vm=1", "--sample-seconds=10",
+		"--result-root="+root)...)
+	cleanupErr := ops.runRemote(ctx, worker, logFile, cleanupCommand(base, item, endpoint)...)
+	if cleanupErr != nil {
+		return false, record("cleanup", setupAttempts, true, nil, errors.Join(densityErr, cleanupErr))
 	}
-	manifest := cellManifest{Cell: item, Status: status, Worker: worker, CampaignSHA256: campaignHash,
-		Started: started, Finished: time.Now().UTC().Format(time.RFC3339), Artifacts: artifacts, Error: message}
-	if err := eval.CreateOnly(root+"-cell.json", manifest); err != nil {
-		cellErr = errors.Join(cellErr, err)
+	artifacts, verifyErr := collectArtifacts(ctx, worker, root, logFile, item.Counts, ops)
+	if densityErr != nil {
+		// A failed acquisition may still have written complete early-count
+		// artifacts.  Preserve what verifies after cleanup, but never retry
+		// density.
+		return true, record("run", setupAttempts, true, artifacts, errors.Join(densityErr, verifyErr))
 	}
-	if cellErr == nil {
-		fmt.Printf("ACQUISITION_COMPLETE experiment=e4 workload=%s mode=%s result=%s\n", item.Workload, item.Mode, root)
+	if verifyErr != nil {
+		return true, record("verify", setupAttempts, true, artifacts, verifyErr)
 	}
-	return cleanupErr == nil, cellErr
+	manifest.Status = "complete"
+	manifest.Phase = "verify"
+	manifest.SetupAttempts = setupAttempts
+	manifest.Acquisition = true
+	manifest.Finished = ops.now().UTC().Format(time.RFC3339)
+	manifest.Artifacts = artifacts
+	if err := ops.createOnly(root+"-cell.json", manifest); err != nil {
+		return true, err
+	}
+	fmt.Printf("ACQUISITION_COMPLETE experiment=e4 workload=%s mode=%s result=%s\n", item.Workload, item.Mode, root)
+	return true, nil
+}
+
+// collectArtifacts copies the worker tree and validates every requested count.
+// It deliberately continues after an invalid count so a terminal run failure
+// can retain hashes for every complete count produced before that failure.
+func collectArtifacts(ctx context.Context, worker, root string, logFile io.Writer, counts []int, ops cellOps) (map[string]string, error) {
+	copyErr := ops.copyTree(ctx, worker, root, logFile)
+	if copyErr != nil {
+		return nil, copyErr
+	}
+	artifacts := map[string]string{}
+	var verifyErrs []error
+	for _, count := range counts {
+		manifestPath, manifestHash, verifyErr := ops.verifyCount(root, count)
+		if verifyErr != nil {
+			verifyErrs = append(verifyErrs, verifyErr)
+			continue
+		}
+		artifacts[filepath.Base(manifestPath)] = manifestHash
+	}
+	return artifacts, errors.Join(verifyErrs...)
 }
 
 func workerEnvironment(workerHome, endpoint string) []string {

@@ -3,6 +3,7 @@
 # toolchain to PATH through /etc/profile.
 source /etc/profile
 set -euo pipefail
+source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)/scripts/util/cell_lifecycle.sh"
 
 repo_root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
 cd "$repo_root"
@@ -325,17 +326,7 @@ write_archived_output_checksums() {
 }
 
 archived_output_matches() {
-    local directory=$1 row path expected actual count=0
-    [[ -s "$directory/archived-output-checksums.csv" ]] || return 1
-    IFS= read -r row < "$directory/archived-output-checksums.csv"
-    [[ "$row" == 'path,sha256' ]] || return 1
-    while IFS=, read -r path expected; do
-        [[ "$expected" =~ ^[0-9a-f]{64}$ && -n "$path" && -f "$directory/$path" ]] || return 1
-        actual=$(digest "$directory/$path")
-        [[ "$actual" == "$expected" ]] || return 1
-        ((count+=1))
-    done < <(tail -n +2 "$directory/archived-output-checksums.csv")
-    ((count > 0))
+    lifecycle_archived_output_matches "$1"
 }
 
 manifest_matches() {
@@ -376,6 +367,7 @@ manifest_matches() {
         line_is "$manifest" "worker_config_sha256=$(digest "$result_root/worker-node.json")" &&
         line_is "$manifest" 'evidence_status=0' &&
         line_is "$manifest" 'exit_status=0' || return 1
+    lifecycle_success_manifest_matches "$manifest" || return 1
     worker_count=$(jq '.worker_nodes | length' "$destination/worker-node.json")
     expected_perf_artifacts=0
     if [[ "$perf" == true ]]; then expected_perf_artifacts=$((worker_count * 4)); fi
@@ -424,6 +416,61 @@ prepare_cluster_root() {
     fi
 }
 
+initial_cleanup_matches() {
+    local destination=$1 manifest="$destination/manifest.txt"
+    [[ -f "$manifest" ]] || return 1
+    line_is "$manifest" 'manifest_version=1' &&
+        line_is "$manifest" 'initial_cleanup=true' &&
+        line_is "$manifest" 'cleanup_mode=nexus-rdma-py' &&
+        line_is "$manifest" 'remove_snapshots=true' &&
+        line_is "$manifest" "worker_config_sha256=$(digest "$result_root/worker-node.json")" &&
+        line_is "$manifest" "cluster_inventory_sha256=$(digest "$result_root/cluster-inventory.txt")" &&
+        line_is "$manifest" "remote_provenance_sha256=$(digest "$result_root/remote-provenance.txt")" &&
+        line_is "$manifest" "runner_sha256=$(digest run_rps_per_workload.sh)" &&
+        line_is "$manifest" 'exit_status=0' || return 1
+    archived_output_matches "$destination"
+}
+
+run_initial_cleanup() {
+    local destination="$result_root/initial-cleanup" scratch status started
+    if [[ -e "$destination" ]]; then
+        initial_cleanup_matches "$destination" || {
+            echo "initial cleanup evidence is incomplete or tampered: $destination" >&2
+            return 2
+        }
+        echo "RESUME verified initial cleanup"
+        return 0
+    fi
+    mkdir -p "$scratch_root"
+    scratch=$(mktemp -d "$scratch_root/initial-cleanup.XXXXXX")
+    started=$(date -u --iso-8601=seconds)
+    set +e
+    go run experiment/khala_command.go --command clean --mode nexus-rdma-py --worker-config "$result_root/worker-node.json" \
+        --minio-endpoint "$minio_endpoint" --remove-snapshots=true > "$scratch/clean.log" 2>&1
+    status=$?
+    set -e
+    {
+        echo manifest_version=1
+        echo initial_cleanup=true
+        echo cleanup_mode=nexus-rdma-py
+        echo remove_snapshots=true
+        echo "start_utc=$started"
+        echo "end_utc=$(date -u --iso-8601=seconds)"
+        echo "worker_config_sha256=$(digest "$result_root/worker-node.json")"
+        echo "cluster_inventory_sha256=$(digest "$result_root/cluster-inventory.txt")"
+        echo "remote_provenance_sha256=$(digest "$result_root/remote-provenance.txt")"
+        echo "runner_sha256=$(digest run_rps_per_workload.sh)"
+        echo "exit_status=$status"
+    } > "$scratch/manifest.txt"
+    mkdir -- "$destination" || { rm -rf -- "$scratch"; return 2; }
+    cp -a -- "$scratch/." "$destination/"
+    write_archived_output_checksums "$destination"
+    rm -rf -- "$scratch"
+    archived_output_matches "$destination" || { echo "initial cleanup archive verification failed" >&2; return 2; }
+    ((status == 0)) || return "$status"
+    initial_cleanup_matches "$destination"
+}
+
 run_cell() {
     local phase=$1 repetition=$2 mode=$3 workload=$4 rps=$5 perf=$6 duration=$7 destination=$8 worker_config=$9
     local run_id="e2-${phase}-r${repetition}-${mode}-${workload}"
@@ -437,24 +484,42 @@ run_cell() {
         return
     fi
     [[ ! -e "$destination" ]] || { echo "refusing incomplete cell: $destination" >&2; return 2; }
-    rm -rf -- "$scratch_cell"
-    mkdir -p "$scratch_out"
-    if [[ "$phase" == calibration ]]; then
-        python3 e2_calibrate_rps.py --averages "$e1_summary" --cores "$worker_cores" --ceiling-multiplier "$ceiling_multiplier" trace \
-            --workload "$workload" --warmup-minutes "$warmup_minutes" --output "$scratch_trace"
-    else
-        python3 e2_calibrate_rps.py --averages "$e1_summary" --cores "$worker_cores" --ceiling-multiplier "$ceiling_multiplier" fixed-trace \
-            --workload "$workload" --mode "$mode" --rps "$rps" --warmup-minutes "$warmup_minutes" \
-            --measurement-minutes "$duration" --output "$scratch_trace"
-    fi
-    write_config "$run_id" "$duration" "$perf" "$replicas" "$scratch_trace" "$scratch_out/experiment" "$config_path"
-    cp -a -- "$scratch_trace" "$scratch_out/trace"
-    cp -- "$result_root/remote-provenance.txt" "$scratch_out/remote-provenance.txt"
-    cp -- "$result_root/cluster-inventory.txt" "$scratch_out/cluster-inventory.txt"
-    cp -- "$worker_config" "$scratch_out/worker-node.json"
-    cp -- "$e1_summary" "$scratch_out/e1-b0-unloaded-average.csv"
-    if [[ "$phase" == collection ]]; then cp -- "$reference" "$scratch_out/b0-rps-reference.csv"; fi
-    {
+    local evidence_status=1 perf_artifact_count=0
+    lifecycle_setup() {
+        local attempt=$1
+        if ((attempt == 1)); then
+            # Keep the pre-cell cleanup log as part of the eventual archive;
+            # discard only stale setup/acquisition artifacts.
+            if [[ -d "$scratch_cell" ]]; then
+                find "$scratch_cell" -mindepth 1 -maxdepth 1 ! -name out -exec rm -rf -- {} +
+            fi
+            if [[ -d "$scratch_out" ]]; then
+                find "$scratch_out" -mindepth 1 -maxdepth 1 ! -name clean-pre-cell.log -exec rm -rf -- {} +
+            fi
+            mkdir -p "$scratch_out"
+        else
+            local previous_attempt=$((attempt - 1)) preserved="$scratch_out/setup-attempt-$previous_attempt"
+            mkdir -p "$preserved"
+            find "$scratch_out" -mindepth 1 -maxdepth 1 ! -name 'setup-attempt-*' -exec cp -a -- {} "$preserved" \;
+            rm -rf -- "$scratch_trace" "$scratch_out/trace"
+            rm -f -- "$scratch_out/trace-generator.log" "$config_path" "$scratch_out/manifest.txt"
+        fi
+        if [[ "$phase" == calibration ]]; then
+            python3 e2_calibrate_rps.py --averages "$e1_summary" --cores "$worker_cores" --ceiling-multiplier "$ceiling_multiplier" trace \
+                --workload "$workload" --warmup-minutes "$warmup_minutes" --output "$scratch_trace"
+        else
+            python3 e2_calibrate_rps.py --averages "$e1_summary" --cores "$worker_cores" --ceiling-multiplier "$ceiling_multiplier" fixed-trace \
+                --workload "$workload" --mode "$mode" --rps "$rps" --warmup-minutes "$warmup_minutes" \
+                --measurement-minutes "$duration" --output "$scratch_trace"
+        fi
+        write_config "$run_id" "$duration" "$perf" "$replicas" "$scratch_trace" "$scratch_out/experiment" "$config_path"
+        cp -a -- "$scratch_trace" "$scratch_out/trace"
+        cp -- "$result_root/remote-provenance.txt" "$scratch_out/remote-provenance.txt"
+        cp -- "$result_root/cluster-inventory.txt" "$scratch_out/cluster-inventory.txt"
+        cp -- "$worker_config" "$scratch_out/worker-node.json"
+        cp -- "$e1_summary" "$scratch_out/e1-b0-unloaded-average.csv"
+        if [[ "$phase" == collection ]]; then cp -- "$reference" "$scratch_out/b0-rps-reference.csv"; fi
+        {
         vm_config=$(mode_vm_config "$mode")
         rootfs=$(config_value "../khala/$vm_config" RootfsPath)
         kernel=$(config_value "../khala/$vm_config" KernelPath)
@@ -512,49 +577,84 @@ run_cell() {
         echo "cluster_inventory_sha256=$(digest "$result_root/cluster-inventory.txt")"
         echo "worker_config_sha256=$(digest "$worker_config")"
         if [[ -f "$reference" ]]; then echo "reference_sha256=$(digest "$reference")"; fi
-    } > "$scratch_out/manifest.txt"
-    local status=0
-    local evidence_status=1 perf_artifact_count=0
-    set +e
-    go run experiment/khala_command.go --command deploy --mode "$mode" --worker-config "$worker_config" --workloads "$workload" \
-        --shmem-ring-bytes 4190208 --shmem-io-quantum 262144 --minio-endpoint "$minio_endpoint" \
-        > >(tee "$scratch_out/deploy.log") 2>&1
-    status=$?
-    if ((status == 0)); then
+        } > "$scratch_out/manifest.txt"
+    }
+    lifecycle_deploy() {
+        local attempt=$1
+        go run experiment/khala_command.go --command deploy --mode "$mode" --worker-config "$worker_config" --workloads "$workload" \
+            --shmem-ring-bytes 4190208 --shmem-io-quantum 262144 --minio-endpoint "$minio_endpoint" \
+            2>&1 | tee "$scratch_out/deploy-attempt-$attempt.log"
+        local status=${PIPESTATUS[0]}
+        cat "$scratch_out/deploy-attempt-$attempt.log" >> "$scratch_out/deploy.log"
+        return "$status"
+    }
+    lifecycle_run() {
         go run cmd/loader.go --config "$config_path" > >(tee "$scratch_out/loader.log") 2>&1
-        status=$?
-    fi
-    if [[ -f "$scratch_out/loader.log" ]]; then
+        local status=$?
         python3 experiment/e2/validate_evidence.py --output-prefix "$scratch_out/experiment" \
             --loader-log "$scratch_out/loader.log" --worker-config "$worker_config" --perf-enabled "$perf" \
             > "$scratch_out/evidence-validation.txt" 2>&1
         evidence_status=$?
-    else
-        printf '%s\n' 'evidence_status=FAIL reason=loader did not run' > "$scratch_out/evidence-validation.txt"
-    fi
-    perf_artifact_count=$(awk -F= '$1 == "perf_artifact_count" {print $2}' "$scratch_out/evidence-validation.txt")
-    perf_artifact_count=${perf_artifact_count:-0}
-    if ((status == 0 && evidence_status != 0)); then status=$evidence_status; fi
-    go run experiment/khala_command.go --command clean --mode "$mode" --worker-config "$worker_config" --minio-endpoint "$minio_endpoint" \
-        --remove-snapshots=true > "$scratch_out/clean.log" 2>&1
-    clean_status=$?
-    if ((status == 0 && clean_status != 0)); then status=$clean_status; fi
-    set -e
-    {
-        echo "evidence_status=$evidence_status"
-        echo "perf_artifact_count=$perf_artifact_count"
-        echo "evidence_validation_sha256=$(digest "$scratch_out/evidence-validation.txt")"
+        perf_artifact_count=$(awk -F= '$1 == "perf_artifact_count" {print $2}' "$scratch_out/evidence-validation.txt")
+        perf_artifact_count=${perf_artifact_count:-0}
+        if ((status == 0 && evidence_status != 0)); then status=$evidence_status; fi
+        return "$status"
+    }
+    lifecycle_cleanup() {
+        local cleanup_phase=$1
+        go run experiment/khala_command.go --command clean --mode "$mode" --worker-config "$worker_config" --minio-endpoint "$minio_endpoint" \
+            --remove-snapshots=true > "$scratch_out/clean-$cleanup_phase.log" 2>&1
+        local status=$?
+        cat "$scratch_out/clean-$cleanup_phase.log" >> "$scratch_out/clean.log"
+        return "$status"
+    }
+    lifecycle_finalize() {
+        local status=$1 clean_status=$2 setup_attempts=$3 deploy_invocations=$4 loader_started=$5
+        if [[ ! -f "$scratch_out/evidence-validation.txt" ]]; then
+            printf '%s\n' 'evidence_status=FAIL reason=loader did not run' > "$scratch_out/evidence-validation.txt"
+        fi
+        {
+            echo "evidence_status=$evidence_status"
+            echo "perf_artifact_count=$perf_artifact_count"
+            echo "evidence_validation_sha256=$(digest "$scratch_out/evidence-validation.txt")"
+            echo "setup_attempts=$setup_attempts"
+            echo "deploy_attempts=$deploy_invocations"
+            echo "deploy_invocations=$deploy_invocations"
+            echo "loader_started=$loader_started"
+            echo "cleanup_exit_status=$clean_status"
+            if [[ "$loader_started" == true ]]; then echo 'lifecycle_phase=final'; else echo 'lifecycle_phase=setup'; fi
         echo "end_utc=$(date -u --iso-8601=seconds)"
         echo "exit_status=$status"
-    } >> "$scratch_out/manifest.txt"
-    mkdir -p "$(dirname "$destination")"
-    cp -a -- "$scratch_out" "$destination"
-    write_archived_output_checksums "$destination"
-    rm -rf -- "$scratch_cell"
-    if ((status != 0)); then
-        echo "cell failed; evidence retained at $destination" >&2
+        } >> "$scratch_out/manifest.txt"
+        mkdir -p "$(dirname "$destination")"
+        cp -a -- "$scratch_out" "$destination"
+        write_archived_output_checksums "$destination"
+        rm -rf -- "$scratch_cell"
+    }
+    lifecycle_verify() {
+        manifest_matches "$manifest" "$phase" "$repetition" "$mode" "$workload" "$rps" "$perf" "$duration" "$destination"
+    }
+    mkdir -p "$scratch_out"
+    local status
+    if lifecycle_preclean; then
+        :
+    else
+        status=$?
+        lifecycle_finalize "$status" "$LIFECYCLE_PRECLEAN_STATUS" 0 0 false
+        echo "pre-cell cleanup failed; refusing acquisition; immutable evidence retained at $destination" >&2
         return "$status"
     fi
+    if lifecycle_execute; then
+        return 0
+    else
+        status=$?
+    fi
+    if [[ "$LIFECYCLE_CLEANUP_FAILED" == true ]]; then
+        echo "cleanup failed; aborting to avoid cross-cell contamination; evidence retained at $destination" >&2
+    else
+        echo "cell failed; evidence retained at $destination" >&2
+    fi
+    return "$status"
 }
 
 if [[ "$command" == calibrate ]]; then
@@ -579,18 +679,35 @@ PY
     validate_claim_sources
     prepare_cluster_root false
     scripts/util/wait_prometheus_ready.sh
+    run_initial_cleanup || { status=$?; echo "initial cleanup failed; refusing E2 acquisition" >&2; exit "$status"; }
     python3 e2_calibrate_rps.py --averages "$e1_summary" --cores "$worker_cores" --ceiling-multiplier "$ceiling_multiplier" plan --output "$plan_path"
     observations=()
+    suite_failed=false
     for workload in "${workloads[@]}"; do
         cell="$result_root/cells/$workload"
-        run_cell calibration 0 invm-py "$workload" sweep false 20 "$cell" "$result_root/worker-node.json"
+        if run_cell calibration 0 invm-py "$workload" sweep false 20 "$cell" "$result_root/worker-node.json"; then
+            :
+        else
+            status=$?
+            [[ "$LIFECYCLE_CLEANUP_FAILED" != true ]] || exit "$status"
+            suite_failed=true
+            continue
+        fi
         duration_csv=$(find "$cell" -maxdepth 1 -name 'experiment_duration_*.csv' -print -quit)
-        [[ -n "$duration_csv" ]] || { echo "missing duration CSV for $workload" >&2; exit 2; }
+        if [[ -z "$duration_csv" ]]; then
+            echo "missing duration CSV for $workload" >&2
+            suite_failed=true
+            continue
+        fi
         observation="$cell/observations.csv"
         python3 e2_calibrate_rps.py --averages "$e1_summary" --cores "$worker_cores" --ceiling-multiplier "$ceiling_multiplier" observe \
             --workload "$workload" --duration-csv "$duration_csv" --output "$observation"
         observations+=("$observation")
     done
+    if [[ "$suite_failed" == true ]]; then
+        echo "E2_CALIBRATION_FAILED result_root=$result_root" >&2
+        exit 1
+    fi
     python3 e2_calibrate_rps.py --averages "$e1_summary" --cores "$worker_cores" --ceiling-multiplier "$ceiling_multiplier" finalize \
         --observations "${observations[@]}" --output "$result_root/b0-rps-reference.csv"
     if python3 - "$result_root/b0-rps-reference.csv" <<'PY'
@@ -625,8 +742,10 @@ if [[ "$dry_run" != true ]]; then
     validate_claim_sources
     prepare_cluster_root true
     scripts/util/wait_prometheus_ready.sh
+    run_initial_cleanup || { status=$?; echo "initial cleanup failed; refusing E2 acquisition" >&2; exit "$status"; }
 fi
 
+suite_failed=false
 for ((repetition=0; repetition<repetitions; repetition++)); do
     read -r -a rotated_python <<< "$(rotate python_modes "$repetition")"
     read -r -a rotated_workloads <<< "$(rotate workloads "$repetition")"
@@ -637,7 +756,13 @@ for ((repetition=0; repetition<repetitions; repetition++)); do
             if [[ "$dry_run" == true ]]; then
                 print_cell collection "$repetition" "$mode" "$workload" "$rps" "$replicas" true "$warmup_minutes" "$measurement_minutes" "$destination"
             else
-                run_cell collection "$repetition" "$mode" "$workload" "$rps" true "$measurement_minutes" "$destination" "$result_root/worker-node.json"
+                if run_cell collection "$repetition" "$mode" "$workload" "$rps" true "$measurement_minutes" "$destination" "$result_root/worker-node.json"; then
+                    :
+                else
+                    status=$?
+                    [[ "$LIFECYCLE_CLEANUP_FAILED" != true ]] || exit "$status"
+                    suite_failed=true
+                fi
             fi
         done
     done
@@ -648,12 +773,21 @@ for ((repetition=0; repetition<repetitions; repetition++)); do
         if [[ "$dry_run" == true ]]; then
             print_cell collection "$repetition" "$mode" helloworld "$hello_rps" "$replicas" true "$warmup_minutes" "$measurement_minutes" "$destination"
         else
-            run_cell collection "$repetition" "$mode" helloworld "$hello_rps" true "$measurement_minutes" "$destination" "$result_root/worker-node.json"
+            if run_cell collection "$repetition" "$mode" helloworld "$hello_rps" true "$measurement_minutes" "$destination" "$result_root/worker-node.json"; then
+                :
+            else
+                status=$?
+                [[ "$LIFECYCLE_CLEANUP_FAILED" != true ]] || exit "$status"
+                suite_failed=true
+            fi
         fi
     done
 done
 if [[ "$dry_run" == true ]]; then
     echo "E2_DRY_RUN_READY result_root=$result_root"
+elif [[ "$suite_failed" == true ]]; then
+    echo "E2_COLLECTION_FAILED result_root=$result_root" >&2
+    exit 1
 else
     echo "E2_COLLECTION_READY result_root=$result_root"
 fi
