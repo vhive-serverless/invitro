@@ -369,7 +369,13 @@ manifest_matches() {
         line_is "$manifest" "remote_provenance_sha256=$(digest "$result_root/remote-provenance.txt")" &&
         line_is "$manifest" "cluster_inventory_sha256=$(digest "$result_root/cluster-inventory.txt")" &&
         line_is "$manifest" "worker_config_sha256=$(digest "$result_root/worker-node.json")" &&
+        line_is "$manifest" "worker_map_sha256=$(digest "$result_root/worker-node.json")" &&
         line_is "$manifest" 'evidence_status=0' &&
+        line_is "$manifest" 'admission_status=0' &&
+        line_is "$manifest" "admission_expected_replicas=$replicas" &&
+        line_is "$manifest" 'snapshot_status=0' &&
+        line_is "$manifest" 'snapshot_workload_count=1' &&
+        line_is "$manifest" 'acquisition_started=true' &&
         line_is "$manifest" 'exit_status=0' || return 1
     lifecycle_success_manifest_matches "$manifest" || return 1
     snapshot_cleanup_policy_matches "$manifest" || return 1
@@ -378,6 +384,9 @@ manifest_matches() {
     if [[ "$perf" == true ]]; then expected_perf_artifacts=$((worker_count * 4)); fi
     line_is "$manifest" "perf_artifact_count=$expected_perf_artifacts" || return 1
     line_is "$manifest" "evidence_validation_sha256=$(digest "$destination/evidence-validation.txt")" || return 1
+    line_is "$manifest" "admission_evidence_sha256=$(digest "$destination/admission-validation.txt")" || return 1
+    line_is "$manifest" "admission_readiness_sha256=$(digest "$destination/admission.csv")" || return 1
+    line_is "$manifest" "archive_checksums_sha256=$(digest "$destination/archived-output-checksums.csv")" || return 1
     if [[ "$phase" == collection ]]; then
         line_is "$manifest" "reference_sha256=$(digest "$reference")" || return 1
         cmp --silent "$reference" "$result_root/b0-rps-reference.csv" || return 1
@@ -489,7 +498,10 @@ run_cell() {
         return
     fi
     [[ ! -e "$destination" ]] || { echo "refusing incomplete cell: $destination" >&2; return 2; }
-    local evidence_status=1 perf_artifact_count=0 stale_scratch=false snapshot_cleanup_policy=
+    local evidence_status=1 perf_artifact_count=0 admission_status=1 admission_function_count=0
+    local admission_aggregate_expected=0 admission_aggregate_ready=0 snapshot_status=1
+    local stale_scratch=false snapshot_cleanup_policy=
+    local acquisition_marker="$scratch_out/acquisition-started.marker"
     if [[ -e "$scratch_cell" ]]; then stale_scratch=true; fi
     lifecycle_setup() {
         local attempt=$1
@@ -509,6 +521,8 @@ run_cell() {
             find "$scratch_out" -mindepth 1 -maxdepth 1 ! -name 'setup-attempt-*' -exec cp -a -- {} "$preserved" \;
             rm -rf -- "$scratch_trace" "$scratch_out/trace"
             rm -f -- "$scratch_out/trace-generator.log" "$config_path" "$scratch_out/manifest.txt"
+            rm -f -- "$acquisition_marker" "$scratch_out/admission.csv" "$scratch_out/admission-validation.txt" \
+                "$scratch_out/admission-deployments.json" "$scratch_out/admission-poll.txt"
         fi
         if [[ "$phase" == calibration ]]; then
             python3 e2_calibrate_rps.py --averages "$e1_summary" --cores "$worker_cores" --ceiling-multiplier "$ceiling_multiplier" trace \
@@ -592,11 +606,33 @@ run_cell() {
             2>&1 | tee "$scratch_out/deploy-attempt-$attempt.log"
         local status=${PIPESTATUS[0]}
         cat "$scratch_out/deploy-attempt-$attempt.log" >> "$scratch_out/deploy.log"
+        if ((status == 0)); then
+            go run experiment/khala_command.go --command create-snapshots --mode "$mode" \
+                --worker-config "$worker_config" --workloads "$workload" \
+                2>&1 | tee "$scratch_out/snapshot-attempt-$attempt.log"
+            local snapshot_result=${PIPESTATUS[0]}
+            cat "$scratch_out/snapshot-attempt-$attempt.log" >> "$scratch_out/snapshot.log"
+            snapshot_status=$snapshot_result
+            if ((snapshot_result != 0)); then status=$snapshot_result; fi
+        fi
         return "$status"
     }
     lifecycle_run() {
-        go run cmd/loader.go --config "$config_path" > >(tee "$scratch_out/loader.log") 2>&1
+        rm -f -- "$acquisition_marker"
+        go run cmd/loader.go --config "$config_path" \
+            --e2-admission-workload "$workload" --e2-admission-replicas "$replicas" \
+            --e2-admission-output "$scratch_out/admission" --e2-acquisition-marker "$acquisition_marker" \
+            > >(tee "$scratch_out/loader.log") 2>&1
         local status=$?
+        if [[ -f "$acquisition_marker" ]]; then LIFECYCLE_ACQUISITION_STARTED=true; else LIFECYCLE_ACQUISITION_STARTED=false; fi
+        admission_status=1
+        if grep -Fqx 'admission_status=PASS' "$scratch_out/admission-validation.txt" 2>/dev/null; then admission_status=0; fi
+        admission_function_count=$(awk -F= '$1 == "admission_function_count" {print $2}' "$scratch_out/admission-validation.txt" 2>/dev/null || true)
+        admission_aggregate_expected=$(awk -F= '$1 == "admission_aggregate_expected_replicas" {print $2}' "$scratch_out/admission-validation.txt" 2>/dev/null || true)
+        admission_aggregate_ready=$(awk -F= '$1 == "admission_aggregate_ready_replicas" {print $2}' "$scratch_out/admission-validation.txt" 2>/dev/null || true)
+        admission_function_count=${admission_function_count:-0}
+        admission_aggregate_expected=${admission_aggregate_expected:-0}
+        admission_aggregate_ready=${admission_aggregate_ready:-0}
         python3 experiment/e2/validate_evidence.py --output-prefix "$scratch_out/experiment" \
             --loader-log "$scratch_out/loader.log" --worker-config "$worker_config" --perf-enabled "$perf" \
             > "$scratch_out/evidence-validation.txt" 2>&1
@@ -631,6 +667,8 @@ run_cell() {
     }
     lifecycle_finalize() {
         local status=$1 clean_status=$2 setup_attempts=$3 deploy_invocations=$4 loader_started=$5
+        local manifest_status=$status
+        if ((clean_status != 0)); then manifest_status=$LIFECYCLE_CLEANUP_ABORT; fi
         if [[ ! -f "$scratch_out/evidence-validation.txt" ]]; then
             printf '%s\n' 'evidence_status=FAIL reason=loader did not run' > "$scratch_out/evidence-validation.txt"
         fi
@@ -638,19 +676,44 @@ run_cell() {
             echo "evidence_status=$evidence_status"
             echo "perf_artifact_count=$perf_artifact_count"
             echo "evidence_validation_sha256=$(digest "$scratch_out/evidence-validation.txt")"
+            if [[ -f "$scratch_out/admission-validation.txt" ]]; then
+                echo "admission_evidence_sha256=$(digest "$scratch_out/admission-validation.txt")"
+            else
+                echo 'admission_evidence_sha256='
+            fi
+            if [[ -f "$scratch_out/admission.csv" ]]; then
+                echo "admission_readiness_sha256=$(digest "$scratch_out/admission.csv")"
+            else
+                echo 'admission_readiness_sha256='
+            fi
+            echo "admission_status=$admission_status"
+            echo "admission_expected_replicas=$replicas"
+            echo "admission_function_count=$admission_function_count"
+            echo "admission_aggregate_expected_replicas=$admission_aggregate_expected"
+            echo "admission_aggregate_ready_replicas=$admission_aggregate_ready"
+            echo "snapshot_status=$snapshot_status"
+            echo 'snapshot_workload_count=1'
+            echo "snapshot_workloads=$workload"
             echo "setup_attempts=$setup_attempts"
             echo "deploy_attempts=$deploy_invocations"
             echo "deploy_invocations=$deploy_invocations"
             echo "loader_started=$loader_started"
+            echo "acquisition_started=$LIFECYCLE_ACQUISITION_STARTED"
             echo "cleanup_exit_status=$clean_status"
             echo "snapshot_cleanup_policy=$snapshot_cleanup_policy"
+            echo 'acquisition_retry=false'
+            echo 'independent_continuation=true'
             if [[ "$loader_started" == true ]]; then echo 'lifecycle_phase=final'; else echo 'lifecycle_phase=setup'; fi
         echo "end_utc=$(date -u --iso-8601=seconds)"
-        echo "exit_status=$status"
+        echo "exit_status=$manifest_status"
         } >> "$scratch_out/manifest.txt"
         mkdir -p "$(dirname "$destination")"
         cp -a -- "$scratch_out" "$destination"
         write_archived_output_checksums "$destination"
+        printf 'archive_checksums_sha256=%s\n' "$(digest "$destination/archived-output-checksums.csv")" >> "$destination/manifest.txt"
+        printf 'archived_output_checksums_sha256=%s\n' "$(digest "$destination/archived-output-checksums.csv")" >> "$destination/manifest.txt"
+        printf '%s\n' 'worker_map_path=worker-node.json' 'archive_checksums_path=archived-output-checksums.csv' >> "$destination/manifest.txt"
+        echo "worker_map_sha256=$(digest "$worker_config")" >> "$destination/manifest.txt"
         rm -rf -- "$scratch_cell"
     }
     lifecycle_verify() {

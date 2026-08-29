@@ -1,9 +1,10 @@
 // Command campaign-bundle makes reuse provenance and campaign bundles
-// independently inspectable.  It intentionally has no dependencies outside
-// the Go standard library.
+// independently inspectable. Lifecycle validation is shared with experiment
+// runners through experiment/eval.
 package main
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/csv"
 	"encoding/hex"
@@ -14,6 +15,7 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
 	"sort"
@@ -21,6 +23,8 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"github.com/vhive-serverless/loader/experiment/eval"
 )
 
 const (
@@ -28,6 +32,7 @@ const (
 	materializationName = "reuse-materialization.json"
 	indexName           = "bundle-index.csv"
 	sealName            = "bundle-seal.json"
+	finalLeakCheckName  = "campaign-final-leak-check.json"
 )
 
 type record struct {
@@ -84,14 +89,15 @@ type materialization struct {
 }
 
 type bundleSeal struct {
-	Version          int    `json:"version"`
-	Status           string `json:"status"`
-	CreatedUTC       string `json:"created_utc"`
-	CampaignSHA256   string `json:"campaign_sha256"`
-	IndexSHA256      string `json:"index_sha256"`
-	CanonicalTreeSHA string `json:"canonical_tree_sha256"`
-	RegularFileCount int64  `json:"regular_file_count"`
-	TotalBytes       int64  `json:"total_bytes"`
+	Version           int    `json:"version"`
+	Status            string `json:"status"`
+	CreatedUTC        string `json:"created_utc"`
+	CampaignSHA256    string `json:"campaign_sha256"`
+	FinalLeakCheckSHA string `json:"final_leak_check_sha256"`
+	IndexSHA256       string `json:"index_sha256"`
+	CanonicalTreeSHA  string `json:"canonical_tree_sha256"`
+	RegularFileCount  int64  `json:"regular_file_count"`
+	TotalBytes        int64  `json:"total_bytes"`
 }
 
 type entryFlags []string
@@ -115,6 +121,8 @@ func main() {
 		err = commandPlan(os.Args[2:])
 	case "materialize-reuse":
 		err = commandMaterialize(os.Args[2:])
+	case "leak-check":
+		err = commandLeakCheck(os.Args[2:])
 	case "seal":
 		err = commandSeal(os.Args[2:])
 	case "verify":
@@ -125,6 +133,19 @@ func main() {
 	if err != nil {
 		fail("%s", err)
 	}
+}
+
+func commandLeakCheck(args []string) error {
+	fs := flag.NewFlagSet("leak-check", flag.ContinueOnError)
+	fs.SetOutput(os.Stderr)
+	root := fs.String("campaign-root", "", "frozen campaign root")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *root == "" {
+		return errors.New("--campaign-root is required")
+	}
+	return captureFinalLeakCheck(context.Background(), *root)
 }
 
 func fail(format string, args ...any) {
@@ -429,7 +450,7 @@ func planReuse(qPath, campaignPath string, specs []string) error {
 		if dests[dest] {
 			return fmt.Errorf("duplicate destination: %s", dest)
 		}
-		if !strings.Contains(dest, "/") && (dest == ledgerName || dest == materializationName || dest == indexName || dest == sealName) {
+		if !strings.Contains(dest, "/") && (dest == ledgerName || dest == materializationName || dest == indexName || dest == sealName || dest == finalLeakCheckName) {
 			return fmt.Errorf("destination is reserved: %s", dest)
 		}
 		dests[dest] = true
@@ -522,12 +543,17 @@ func manifestBinding(path string) (string, string, error) {
 		AcquisitionStart    string `json:"acquisition_start"`
 		QualificationRoot   string `json:"qualification_root"`
 		QualificationSHA256 string `json:"qualification_sha256"`
+		ActivatorUID        string `json:"activator_uid"`
+		ActivatorGeneration int64  `json:"activator_generation"`
 	}
 	if err := json.Unmarshal(b, &m); err != nil {
 		return "", "", fmt.Errorf("invalid campaign manifest: %w", err)
 	}
 	if m.Status != "ACQUISITION_START" || m.AcquisitionStart == "" {
 		return "", "", errors.New("campaign manifest is not frozen at ACQUISITION_START")
+	}
+	if err := (eval.ActivatorIdentity{UID: m.ActivatorUID, Generation: m.ActivatorGeneration}).Validate(); err != nil {
+		return "", "", fmt.Errorf("campaign activator baseline: %w", err)
 	}
 	return m.QualificationRoot, m.QualificationSHA256, nil
 }
@@ -768,14 +794,297 @@ func campaignInRoot(root string) (string, string, error) {
 		return "", "", err
 	}
 	var campaign struct {
-		Status           string `json:"status"`
-		AcquisitionStart string `json:"acquisition_start"`
+		Status              string `json:"status"`
+		AcquisitionStart    string `json:"acquisition_start"`
+		ActivatorUID        string `json:"activator_uid"`
+		ActivatorGeneration int64  `json:"activator_generation"`
 	}
 	if err := json.Unmarshal(b, &campaign); err != nil || campaign.Status != "ACQUISITION_START" || campaign.AcquisitionStart == "" {
 		return "", "", errors.New("campaign.json is not frozen at ACQUISITION_START")
 	}
+	if err := (eval.ActivatorIdentity{UID: campaign.ActivatorUID, Generation: campaign.ActivatorGeneration}).Validate(); err != nil {
+		return "", "", fmt.Errorf("campaign activator baseline: %w", err)
+	}
 	h, _, err := hashFile(p)
 	return p, h, err
+}
+
+func campaignBaseline(root string) (eval.ActivatorIdentity, error) {
+	p := filepath.Join(root, "campaign.json")
+	b, err := os.ReadFile(p)
+	if err != nil {
+		return eval.ActivatorIdentity{}, err
+	}
+	var campaign struct {
+		ActivatorUID        string `json:"activator_uid"`
+		ActivatorGeneration int64  `json:"activator_generation"`
+	}
+	if err := json.Unmarshal(b, &campaign); err != nil {
+		return eval.ActivatorIdentity{}, fmt.Errorf("invalid campaign manifest: %w", err)
+	}
+	identity := eval.ActivatorIdentity{UID: campaign.ActivatorUID, Generation: campaign.ActivatorGeneration}
+	if err := identity.Validate(); err != nil {
+		return eval.ActivatorIdentity{}, fmt.Errorf("campaign activator baseline: %w", err)
+	}
+	return identity, nil
+}
+
+type frozenCampaign struct {
+	Status              string     `json:"status"`
+	AcquisitionStart    string     `json:"acquisition_start"`
+	ActivatorUID        string     `json:"activator_uid"`
+	ActivatorGeneration int64      `json:"activator_generation"`
+	Topology            eval.Setup `json:"topology"`
+}
+
+func readFrozenCampaign(root string) (frozenCampaign, error) {
+	path := filepath.Join(root, "campaign.json")
+	if _, err := regularFile(path); err != nil {
+		return frozenCampaign{}, fmt.Errorf("campaign.json: %w", err)
+	}
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return frozenCampaign{}, err
+	}
+	var campaign frozenCampaign
+	if err := json.Unmarshal(b, &campaign); err != nil {
+		return frozenCampaign{}, fmt.Errorf("invalid campaign manifest: %w", err)
+	}
+	if campaign.Status != "ACQUISITION_START" || campaign.AcquisitionStart == "" {
+		return frozenCampaign{}, errors.New("campaign manifest is not frozen at ACQUISITION_START")
+	}
+	if err := (eval.ActivatorIdentity{UID: campaign.ActivatorUID, Generation: campaign.ActivatorGeneration}).Validate(); err != nil {
+		return frozenCampaign{}, fmt.Errorf("campaign activator baseline: %w", err)
+	}
+	return campaign, nil
+}
+
+func frozenTargets(setup eval.Setup, label string) ([]string, error) {
+	ips := setup.LabeledIPs(label)
+	if len(ips) == 0 {
+		return nil, fmt.Errorf("campaign topology has no %s nodes", label)
+	}
+	targets := make([]string, 0, len(ips))
+	for _, ip := range ips {
+		target, err := setup.URLForIP(ip)
+		if err != nil {
+			return nil, err
+		}
+		if _, err := eval.RemoteHome(target); err != nil {
+			return nil, err
+		}
+		targets = append(targets, target)
+	}
+	return targets, nil
+}
+
+func workerProcessProbeCommand() []string  { return []string{"ps", "-eo", "pid=,args="} }
+func storageProcessProbeCommand() []string { return []string{"ps", "-eo", "pid=,args="} }
+func storageSessionProbeCommand() []string { return []string{"ss", "-Htanp"} }
+func ksvcProbeCommand() []string           { return []string{"kubectl", "get", "ksvc", "-A", "-o", "name"} }
+func snapshotListProbeCommand(path string) []string {
+	return []string{"find", path, "-mindepth", "1", "!", "-name", ".gitkeep", "-print"}
+}
+func snapshotSizeProbeCommand(path string) []string { return []string{"stat", "-c", "%s", "--", path} }
+
+var (
+	readonlySSHProbe       = readonlySSH
+	activatorIdentityProbe = eval.CaptureActivatorIdentity
+	ksvcProbe              = probeKSVC
+)
+
+func probeKSVC(ctx context.Context) (string, error) {
+	args := ksvcProbeCommand()
+	cmd := exec.CommandContext(ctx, args[0], args[1:]...)
+	output, err := cmd.CombinedOutput()
+	return string(output), err
+}
+
+func readonlySSH(ctx context.Context, target string, args ...string) (string, error) {
+	cmd, err := eval.SSHCommand(ctx, target, args...)
+	if err != nil {
+		return "", err
+	}
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return strings.TrimSpace(string(output)), fmt.Errorf("read-only SSH probe %s: %w: %s", target, err, strings.TrimSpace(string(output)))
+	}
+	return strings.TrimSpace(string(output)), nil
+}
+
+func processMatches(output string, names ...string) []string {
+	var matches []string
+	for _, line := range strings.Split(output, "\n") {
+		line = strings.TrimSpace(line)
+		lower := strings.ToLower(line)
+		for _, name := range names {
+			if strings.Contains(lower, strings.ToLower(name)) {
+				matches = append(matches, line)
+				break
+			}
+		}
+	}
+	return matches
+}
+
+func nonEmptyLines(output string) []string {
+	var lines []string
+	for _, line := range strings.Split(strings.TrimSpace(output), "\n") {
+		if line = strings.TrimSpace(line); line != "" {
+			lines = append(lines, line)
+		}
+	}
+	return lines
+}
+
+func parseSnapshotSize(output string) (int64, error) {
+	value := strings.TrimSpace(output)
+	bytes, err := strconv.ParseInt(value, 10, 64)
+	if err != nil || bytes < 0 {
+		return 0, fmt.Errorf("malformed snapshot byte count %q", value)
+	}
+	return bytes, nil
+}
+
+func captureFinalLeakCheck(ctx context.Context, root string) error {
+	campaign, err := readFrozenCampaign(root)
+	if err != nil {
+		return err
+	}
+	baseline := eval.ActivatorIdentity{UID: campaign.ActivatorUID, Generation: campaign.ActivatorGeneration}
+	workers, err := frozenTargets(campaign.Topology, "loader-nodetype=worker")
+	if err != nil {
+		return fmt.Errorf("worker targets: %w", err)
+	}
+	storage, err := frozenTargets(campaign.Topology, "minio-type=tenant")
+	if err != nil {
+		return fmt.Errorf("storage targets: %w", err)
+	}
+	check := eval.FinalLeakCheck{Version: 1, Status: "PASS", CapturedUTC: time.Now().UTC().Format(time.RFC3339Nano),
+		Worker:     eval.WorkerLeakEvidence{Firecracker: []string{}, KnIntegration: []string{}, NexusBackend: []string{}},
+		Storage:    eval.StorageLeakEvidence{RDMAServer: []string{}, RDMASessions: []string{}},
+		Kubernetes: eval.KubernetesLeakEvidence{KSVCCount: 0}, Snapshots: eval.SnapshotLeakEvidence{Entries: []string{}, Bytes: 0}, Activator: baseline}
+	var probeErrs []error
+	for _, target := range workers {
+		output, probeErr := readonlySSHProbe(ctx, target, workerProcessProbeCommand()...)
+		if probeErr != nil {
+			probeErrs = append(probeErrs, probeErr)
+			check.Errors = append(check.Errors, probeErr.Error())
+			continue
+		}
+		check.Worker.Firecracker = append(check.Worker.Firecracker, processMatches(output, "firecracker")...)
+		check.Worker.KnIntegration = append(check.Worker.KnIntegration, processMatches(output, "kn-integration")...)
+		check.Worker.NexusBackend = append(check.Worker.NexusBackend, processMatches(output, "nexus-backend")...)
+		home, homeErr := eval.RemoteHome(target)
+		if homeErr != nil {
+			probeErrs = append(probeErrs, homeErr)
+			check.Errors = append(check.Errors, homeErr.Error())
+			continue
+		}
+		probeOutput, snapshotErr := readonlySSHProbe(ctx, target, snapshotListProbeCommand(filepath.Join(home, "khala/runtime/snapshots"))...)
+		if snapshotErr != nil {
+			probeErrs = append(probeErrs, snapshotErr)
+			check.Errors = append(check.Errors, snapshotErr.Error())
+			continue
+		}
+		for _, entry := range nonEmptyLines(probeOutput) {
+			check.Snapshots.Entries = append(check.Snapshots.Entries, target+":"+entry)
+			sizeOutput, sizeErr := readonlySSHProbe(ctx, target, snapshotSizeProbeCommand(entry)...)
+			if sizeErr != nil {
+				probeErrs = append(probeErrs, sizeErr)
+				check.Errors = append(check.Errors, sizeErr.Error())
+				continue
+			}
+			bytes, parseErr := parseSnapshotSize(sizeOutput)
+			if parseErr != nil {
+				probeErrs = append(probeErrs, parseErr)
+				check.Errors = append(check.Errors, parseErr.Error())
+				continue
+			}
+			check.Snapshots.Bytes += bytes
+		}
+	}
+	for _, target := range storage {
+		output, probeErr := readonlySSHProbe(ctx, target, storageProcessProbeCommand()...)
+		if probeErr != nil {
+			probeErrs = append(probeErrs, probeErr)
+			check.Errors = append(check.Errors, probeErr.Error())
+			continue
+		}
+		check.Storage.RDMAServer = append(check.Storage.RDMAServer, processMatches(output, "s3-rdma-server")...)
+		sessions, sessionErr := readonlySSHProbe(ctx, target, storageSessionProbeCommand()...)
+		if sessionErr != nil {
+			probeErrs = append(probeErrs, sessionErr)
+			check.Errors = append(check.Errors, sessionErr.Error())
+		} else {
+			check.Storage.RDMASessions = append(check.Storage.RDMASessions, processMatches(sessions, "s3-rdma-server", "rdma", ":10090", ":10191")...)
+		}
+	}
+	ksvcOutput, ksvcErr := ksvcProbe(ctx)
+	if ksvcErr != nil {
+		probeErrs = append(probeErrs, ksvcErr)
+		check.Errors = append(check.Errors, fmt.Sprintf("kubectl ksvc probe: %v", ksvcErr))
+	} else {
+		for _, line := range strings.Split(strings.TrimSpace(string(ksvcOutput)), "\n") {
+			if strings.TrimSpace(line) != "" {
+				check.Kubernetes.KSVCCount++
+			}
+		}
+	}
+	finalActivator, activatorErr := activatorIdentityProbe(ctx)
+	if activatorErr != nil {
+		probeErrs = append(probeErrs, activatorErr)
+		check.Errors = append(check.Errors, activatorErr.Error())
+	} else {
+		check.Activator = finalActivator
+	}
+	cleanErr := check.ValidateFinalLeakCheck(baseline)
+	if len(probeErrs) > 0 && cleanErr == nil {
+		cleanErr = errors.New("one or more final leak-check probes failed")
+	}
+	if cleanErr != nil {
+		check.Status = "FAIL"
+	}
+	path := filepath.Join(root, finalLeakCheckName)
+	writeErr := eval.WriteFinalLeakCheckEvidence(path, check)
+	if writeErr != nil {
+		probeErrs = append(probeErrs, cleanErr, writeErr)
+		return errors.Join(probeErrs...)
+	}
+	if cleanErr != nil {
+		probeErrs = append(probeErrs, cleanErr)
+		return errors.Join(probeErrs...)
+	}
+	fmt.Printf("captured %s\n", path)
+	return nil
+}
+
+func readFinalLeakCheck(root string, baseline eval.ActivatorIdentity) error {
+	path := filepath.Join(root, finalLeakCheckName)
+	if _, err := regularFile(path); err != nil {
+		return fmt.Errorf("final leak-check evidence: %w", err)
+	}
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("final leak-check evidence: %w", err)
+	}
+	var check eval.FinalLeakCheck
+	if err := json.Unmarshal(b, &check); err != nil {
+		return fmt.Errorf("invalid final leak-check evidence: %w", err)
+	}
+	if err := check.ValidateFinalLeakCheck(baseline); err != nil {
+		return fmt.Errorf("final leak-check evidence: %w", err)
+	}
+	return nil
+}
+
+func finalLeakCheckHash(root string, baseline eval.ActivatorIdentity) (string, error) {
+	if err := readFinalLeakCheck(root, baseline); err != nil {
+		return "", err
+	}
+	path := filepath.Join(root, finalLeakCheckName)
+	hash, _, err := hashFile(path)
+	return hash, err
 }
 
 func sealBundle(campaignRoot string) error {
@@ -794,6 +1103,14 @@ func sealBundle(campaignRoot string) error {
 	if err != nil {
 		return err
 	}
+	baseline, err := campaignBaseline(root)
+	if err != nil {
+		return err
+	}
+	leakCheckSHA, err := finalLeakCheckHash(root, baseline)
+	if err != nil {
+		return err
+	}
 	inv, err := scan(root, map[string]bool{indexName: true, sealName: true})
 	if err != nil {
 		return err
@@ -805,7 +1122,7 @@ func sealBundle(campaignRoot string) error {
 	if err := writeCreate(filepath.Join(root, indexName), indexBytes, 0444); err != nil {
 		return err
 	}
-	seal := bundleSeal{Version: 1, Status: "IMMUTABLE_COMPLETE", CreatedUTC: time.Now().UTC().Format(time.RFC3339Nano), CampaignSHA256: campaignSHA, IndexSHA256: sha256Hex(indexBytes), CanonicalTreeSHA: inv.TreeSHA, RegularFileCount: int64(len(inv.Records)), TotalBytes: inv.Bytes}
+	seal := bundleSeal{Version: 1, Status: "IMMUTABLE_COMPLETE", CreatedUTC: time.Now().UTC().Format(time.RFC3339Nano), CampaignSHA256: campaignSHA, FinalLeakCheckSHA: leakCheckSHA, IndexSHA256: sha256Hex(indexBytes), CanonicalTreeSHA: inv.TreeSHA, RegularFileCount: int64(len(inv.Records)), TotalBytes: inv.Bytes}
 	b, err := jsonBytes(seal)
 	if err != nil {
 		return err
@@ -877,11 +1194,22 @@ func verifyBundle(campaignRoot string) error {
 	if err != nil {
 		return err
 	}
+	baseline, err := campaignBaseline(root)
+	if err != nil {
+		return err
+	}
+	leakCheckSHA, err := finalLeakCheckHash(root, baseline)
+	if err != nil {
+		return err
+	}
 	if campaignSHA != seal.CampaignSHA256 {
 		return errors.New("campaign hash mismatch")
 	}
 	if sha256Hex(idxBytes) != seal.IndexSHA256 {
 		return errors.New("index hash mismatch")
+	}
+	if seal.FinalLeakCheckSHA == "" || leakCheckSHA != seal.FinalLeakCheckSHA {
+		return errors.New("final leak-check hash mismatch")
 	}
 	want, err := parseIndex(idxBytes)
 	if err != nil {

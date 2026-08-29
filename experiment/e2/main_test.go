@@ -60,8 +60,10 @@ func TestRealCollectCapacityGatePrecedesRunner(t *testing.T) {
 	}
 	campaign := filepath.Join(dir, "campaign.json")
 	campaignData, err := json.Marshal(eval.Campaign{
-		Status:           "ACQUISITION_START",
-		AcquisitionStart: "2026-01-01T00:00:00Z",
+		Status:              "ACQUISITION_START",
+		AcquisitionStart:    "2026-01-01T00:00:00Z",
+		ActivatorUID:        "9e6e2b67-8b3f-4841-9029-5f1957a561b0",
+		ActivatorGeneration: 7,
 		Provenance: []eval.Provenance{
 			{Branch: eval.KhalaBranch, Head: "khala"},
 			{Branch: eval.InVitroBranch, Head: "invitro"},

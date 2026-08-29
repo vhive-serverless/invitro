@@ -47,6 +47,12 @@ import (
 	"github.com/vhive-serverless/loader/pkg/trace"
 )
 
+// PreAcquisitionHook runs after deployment and before any failure scheduling
+// or load generation. AcquisitionMarker is called immediately before load.
+// A nil hook preserves ordinary RunExperiment behavior.
+type PreAcquisitionHook func() error
+type AcquisitionMarker func() error
+
 type Driver struct {
 	Configuration          *config.Configuration
 	SpecificationGenerator *generator.SpecificationGenerator
@@ -55,6 +61,8 @@ type Driver struct {
 	AsyncRecords          *common.LockFreeQueue[*mc.ExecutionRecord]
 	readOpenWhiskMetadata sync.Mutex
 	allFunctionsInvoked   sync.WaitGroup
+	PreAcquisition        PreAcquisitionHook
+	MarkAcquisitionStart  AcquisitionMarker
 }
 
 func NewDriver(driverConfig *config.Configuration) *Driver {
@@ -532,11 +540,23 @@ func (d *Driver) RunExperiment() error {
 
 	deployer := deployment.CreateDeployer(d.Configuration)
 	deployer.Deploy(d.Configuration)
+	if d.PreAcquisition != nil {
+		if err := d.PreAcquisition(); err != nil {
+			deployer.Clean()
+			return err
+		}
+	}
 
 	go failure.ScheduleFailure(d.Configuration.LoaderConfiguration.Platform, d.Configuration.FailureConfiguration)
 
 	// wait for the system to stabilize
 	time.Sleep(10 * time.Second)
+	if d.MarkAcquisitionStart != nil {
+		if err := d.MarkAcquisitionStart(); err != nil {
+			deployer.Clean()
+			return err
+		}
+	}
 	// Generate load
 	if err := d.internalRun(); err != nil {
 		deployer.Clean()

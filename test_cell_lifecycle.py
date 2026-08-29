@@ -113,6 +113,29 @@ if lifecycle_preclean; then exit 1; else status=$?; fi
         )
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
+    def test_preacquisition_marker_allows_one_recovery_but_post_marker_is_not_retried(self):
+        result = self.run_script(
+            f'''source "{HELPER}"
+setups=0
+runs=0
+cleanups=0
+lifecycle_setup() {{ ((setups+=1)); }}
+lifecycle_deploy() {{ :; }}
+lifecycle_run() {{
+  ((runs+=1))
+  if [[ "$runs" -eq 1 ]]; then LIFECYCLE_ACQUISITION_STARTED=false; return 9; fi
+  LIFECYCLE_ACQUISITION_STARTED=true
+  return 11
+}}
+lifecycle_cleanup() {{ ((cleanups+=1)); }}
+lifecycle_finalize() {{ :; }}
+lifecycle_verify() {{ :; }}
+if lifecycle_execute; then exit 1; fi
+[[ "$setups" -eq 2 && "$runs" -eq 2 && "$cleanups" -eq 2 ]]
+'''
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
     def test_runners_archive_create_only_initial_cleanup_evidence(self):
         for runner in ("run_rps_per_workload.sh", "run_trace_ablation.sh"):
             with self.subTest(runner=runner):

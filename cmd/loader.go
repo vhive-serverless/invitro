@@ -28,6 +28,9 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/vhive-serverless/loader/pkg/generator"
@@ -48,12 +51,17 @@ const (
 )
 
 var (
-	configPath    = flag.String("config", "cmd/config_knative_trace.json", "Path to loader configuration file")
-	failurePath   = flag.String("failureConfig", "cmd/failure.json", "Path to the failure configuration file")
-	verbosity     = flag.String("verbosity", "info", "Logging verbosity - choose from [info, debug, trace]")
-	iatGeneration = flag.Bool("iatGeneration", false, "Generate IATs only or run invocations as well")
-	iatFromFile   = flag.Bool("generated", false, "True if iats were already generated")
-	dryRun        = flag.Bool("dryRun", false, "Dry run mode - do not deploy functions or generate invocations")
+	configPath                = flag.String("config", "cmd/config_knative_trace.json", "Path to loader configuration file")
+	failurePath               = flag.String("failureConfig", "cmd/failure.json", "Path to the failure configuration file")
+	verbosity                 = flag.String("verbosity", "info", "Logging verbosity - choose from [info, debug, trace]")
+	iatGeneration             = flag.Bool("iatGeneration", false, "Generate IATs only or run invocations as well")
+	iatFromFile               = flag.Bool("generated", false, "True if iats were already generated")
+	dryRun                    = flag.Bool("dryRun", false, "Dry run mode - do not deploy functions or generate invocations")
+	e2AdmissionWorkload       = flag.String("e2-admission-workload", "", "E2 canonical workload to admit before acquisition")
+	e2AdmissionReplicas       = flag.Int("e2-admission-replicas", 0, "E2 expected Ready replicas per function")
+	e2AdmissionOutput         = flag.String("e2-admission-output", "", "E2 admission evidence output prefix")
+	e2AcquisitionMarker       = flag.String("e2-acquisition-marker", "", "E2 acquisition-start marker path")
+	e2AdmissionTimeoutSeconds = flag.Int("e2-admission-timeout-seconds", 300, "E2 admission stabilization timeout")
 )
 
 func init() {
@@ -175,6 +183,78 @@ func parseTraceGranularity(cfg *config.LoaderConfiguration) common.TraceGranular
 	return common.MinuteGranularity
 }
 
+type e2AdmissionGate struct {
+	workload, outputPrefix, marker   string
+	expectedReplicas, timeoutSeconds int
+}
+
+func (g e2AdmissionGate) probe() error {
+	if g.workload == "" || g.outputPrefix == "" || g.marker == "" || g.expectedReplicas <= 0 || g.timeoutSeconds <= 0 {
+		return fmt.Errorf("incomplete E2 admission gate configuration")
+	}
+	if err := os.MkdirAll(filepath.Dir(g.outputPrefix), 0755); err != nil {
+		return err
+	}
+	pollPath := g.outputPrefix + "-poll.txt"
+	_ = os.Remove(g.outputPrefix + "-deployments.json")
+	_ = os.Remove(g.outputPrefix + ".csv")
+	_ = os.Remove(g.outputPrefix + "-validation.txt")
+	deadline := time.Now().Add(time.Duration(g.timeoutSeconds) * time.Second)
+	for attempt := 1; ; attempt++ {
+		deploymentsPath := g.outputPrefix + "-deployments.json"
+		started := time.Now().UTC().Format(time.RFC3339)
+		output, kubectlErr := exec.Command("kubectl", "get", "deployments", "-n", "default", "-o", "json").Output()
+		_ = os.WriteFile(deploymentsPath, output, 0644)
+		validationOutput := ""
+		var validationErr error
+		if kubectlErr == nil {
+			_ = os.Remove(g.outputPrefix + ".csv")
+			validator := exec.Command("python3", "experiment/e2/validate_admission.py",
+				"--deployments", deploymentsPath, "--workload", g.workload,
+				"--expected-replicas", fmt.Sprint(g.expectedReplicas), "--output", g.outputPrefix+".csv")
+			var validationBytes []byte
+			validationBytes, validationErr = validator.CombinedOutput()
+			validationOutput = strings.TrimSpace(string(validationBytes))
+		} else {
+			validationErr = kubectlErr
+			validationOutput = kubectlErr.Error()
+		}
+		pollLine := fmt.Sprintf("attempt=%d utc=%s kubectl_status=%t validation_status=%t detail=%s\n", attempt, started, kubectlErr == nil, validationErr == nil, validationOutput)
+		pollHandle, err := os.OpenFile(pollPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+		if err != nil {
+			return err
+		}
+		_, _ = pollHandle.WriteString(pollLine)
+		_ = pollHandle.Close()
+		if validationErr == nil {
+			_ = os.WriteFile(g.outputPrefix+"-validation.txt", []byte(validationOutput+"\n"), 0644)
+			return nil
+		}
+		_ = os.WriteFile(g.outputPrefix+"-validation.txt", []byte(validationOutput+"\n"), 0644)
+		if time.Now().After(deadline) {
+			return fmt.Errorf("E2 admission did not stabilize within %ds: %s", g.timeoutSeconds, validationOutput)
+		}
+		time.Sleep(1 * time.Second)
+	}
+}
+
+func (g e2AdmissionGate) mark() error {
+	if err := os.MkdirAll(filepath.Dir(g.marker), 0755); err != nil {
+		return err
+	}
+	return os.WriteFile(g.marker, []byte("acquisition_started=true\nutc="+time.Now().UTC().Format(time.RFC3339)+"\n"), 0644)
+}
+
+func configureE2AdmissionGate(d *driver.Driver) {
+	if *e2AdmissionWorkload == "" {
+		return
+	}
+	gate := e2AdmissionGate{workload: *e2AdmissionWorkload, outputPrefix: *e2AdmissionOutput,
+		marker: *e2AcquisitionMarker, expectedReplicas: *e2AdmissionReplicas, timeoutSeconds: *e2AdmissionTimeoutSeconds}
+	d.PreAcquisition = gate.probe
+	d.MarkAcquisitionStart = gate.mark
+}
+
 func runTraceMode(cfg *config.LoaderConfiguration, readIATFromFile bool, writeIATsToFile bool) {
 	durationToParse := determineDurationToParse(cfg.ExperimentDuration, cfg.WarmupDuration)
 	yamlPath := parseYAMLSpecification(cfg)
@@ -219,6 +299,7 @@ func runTraceMode(cfg *config.LoaderConfiguration, readIATFromFile bool, writeIA
 
 		Functions: functions,
 	})
+	configureE2AdmissionGate(experimentDriver)
 
 	log.Infof("Using %s as a service YAML specification file.\n", yamlPath)
 
@@ -275,6 +356,7 @@ func runRPSMode(cfg *config.LoaderConfiguration, readIATFromFile bool, writeIATs
 
 		Functions: generator.CreateRPSFunctions(cfg, dirigentConfig, warmFunctions, warmStartCounts, coldFunctions, coldStartCount, yamlPath),
 	})
+	configureE2AdmissionGate(experimentDriver)
 
 	if experimentDriver.Configuration.WithWarmup() {
 		trace.DoStaticTraceProfiling(experimentDriver.Configuration.Functions, cfg.FixedReplicaCount)

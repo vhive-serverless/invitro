@@ -100,6 +100,7 @@ fi
 
 IFS=',' read -r -a modes <<< "$modes_csv"
 expected_modes=(invm-py nexus-py nexus-rdma-py)
+snapshot_workloads=chameleonserve,cnnserve,imageresize,lrserving,mapper,pyaesserve,reducer,rnnserve,streducer,sttrainer
 [[ ${#modes[@]} -eq 3 ]] || { echo "E3 requires exactly B0/N4/N5" >&2; exit 2; }
 for expected in "${expected_modes[@]}"; do
     [[ ",$modes_csv," == *",$expected,"* ]] || { echo "missing E3 mode $expected" >&2; exit 2; }
@@ -364,9 +365,16 @@ manifest_matches() {
         line_is "$manifest" "kernel_path=$kernel" && line_is "$manifest" "kernel_sha256=$(khala_artifact_hash "$kernel")" &&
         line_is "$manifest" "vmm_path=$vmm" && line_is "$manifest" "vmm_sha256=$(khala_artifact_hash "$vmm")" &&
         line_is "$manifest" "workload_sha256=$(tracked_workload_sha)" &&
+        line_is "$manifest" "worker_map_sha256=$(digest "$result_root/worker-node.json")" &&
         line_is "$manifest" "cluster_inventory_sha256=$(digest "$result_root/cluster-inventory.txt")" &&
         line_is "$manifest" "worker_config_sha256=$(digest "$result_root/worker-node.json")" &&
         line_is "$manifest" "remote_provenance_sha256=$(digest "$result_root/remote-provenance.txt")" &&
+        line_is "$manifest" "archive_checksums_sha256=$(digest "$destination/archived-output-checksums.csv")" &&
+        line_is "$manifest" 'evidence_status=0' &&
+        line_is "$manifest" 'scientific_status=ACCEPTED' &&
+        line_is "$manifest" "evidence_validation_sha256=$(digest "$destination/evidence-validation.txt")" &&
+        line_is "$manifest" 'snapshot_status=0' &&
+        line_is "$manifest" 'snapshot_workload_count=10' &&
         line_is "$manifest" 'exit_status=0' || return 1
     lifecycle_success_manifest_matches "$manifest" || return 1
     snapshot_cleanup_policy_matches "$manifest" || return 1
@@ -447,6 +455,7 @@ run_cell() {
     fi
     [[ ! -e "$destination" ]] || { echo "refusing incomplete cell: $destination" >&2; return 2; }
     local config_path="$scratch_out/config.json" stale_scratch=false snapshot_cleanup_policy=
+    local evidence_status=1 scientific_status=FAILED success_count=0 failure_count=0 failure_fraction=0 snapshot_status=1
     if [[ -e "$scratch_cell" ]]; then stale_scratch=true; fi
     lifecycle_setup() {
         local attempt=$1
@@ -544,18 +553,46 @@ run_cell() {
     lifecycle_deploy() {
         local attempt=$1
         go run experiment/khala_command.go --command deploy --mode "$mode" --worker-config "$worker_config" \
+            --workloads "$snapshot_workloads" \
             --shmem-ring-bytes 4190208 --shmem-io-quantum 262144 --minio-endpoint "$minio_endpoint" \
             2>&1 | tee "$scratch_out/deploy-attempt-$attempt.log"
         local status=${PIPESTATUS[0]}
         cat "$scratch_out/deploy-attempt-$attempt.log" >> "$scratch_out/deploy.log"
+        if ((status == 0)); then
+            # Snapshot creation is an explicit setup boundary.  It runs for
+            # every canonical Python workload before the loader can start;
+            # failures remain eligible for the single setup-only recovery.
+            go run experiment/khala_command.go --command create-snapshots --mode "$mode" \
+                --worker-config "$worker_config" --workloads "$snapshot_workloads" \
+                2>&1 | tee "$scratch_out/snapshot-attempt-$attempt.log"
+            local snapshot_result=${PIPESTATUS[0]}
+            cat "$scratch_out/snapshot-attempt-$attempt.log" >> "$scratch_out/snapshot.log"
+            snapshot_status=$snapshot_result
+            if ((snapshot_result != 0)); then status=$snapshot_result; fi
+        fi
         return "$status"
     }
     lifecycle_run() {
         go run cmd/loader.go --config "$config_path" > >(tee "$scratch_out/loader.log") 2>&1
         local status=$?
+        # Parse duration evidence even when the loader exits nonzero.  The
+        # started acquisition is never replayed; its evidence is archived and
+        # classified before the mandatory final cleanup.
+        python3 experiment/e3/validate_evidence.py --output-prefix "$scratch_out/experiment" \
+            > "$scratch_out/evidence-validation.txt" 2>&1
+        evidence_status=$?
+        scientific_status=FAILED
+        if ((evidence_status == 0)); then scientific_status=ACCEPTED; fi
+        success_count=$(awk -F= '$1 == "success_count" {print $2}' "$scratch_out/evidence-validation.txt")
+        failure_count=$(awk -F= '$1 == "failure_count" {print $2}' "$scratch_out/evidence-validation.txt")
+        failure_fraction=$(awk -F= '$1 == "failure_fraction" {print $2}' "$scratch_out/evidence-validation.txt")
+        success_count=${success_count:-0}
+        failure_count=${failure_count:-0}
+        failure_fraction=${failure_fraction:-0}
         kubectl logs deployment/activator -n knative-serving > "$scratch_out/activator.log" 2>&1
         local activator_status=$?
         if ((status == 0 && activator_status != 0)); then status=$activator_status; fi
+        if ((status == 0 && evidence_status != 0)); then status=$evidence_status; fi
         return "$status"
     }
     lifecycle_cleanup() {
@@ -583,20 +620,52 @@ run_cell() {
     }
     lifecycle_finalize() {
         local status=$1 clean_status=$2 setup_attempts=$3 deploy_invocations=$4 loader_started=$5
+        local manifest_status=$status
+        if ((clean_status != 0)); then manifest_status=$LIFECYCLE_CLEANUP_ABORT; fi
+        if [[ ! -f "$scratch_out/evidence-validation.txt" ]]; then
+            printf '%s\n' 'evidence_status=FAIL scientific_status=FAILED reason=loader did not run' > "$scratch_out/evidence-validation.txt"
+        fi
         {
         echo "end_utc=$(date -u --iso-8601=seconds)"
         echo "setup_attempts=$setup_attempts"
         echo "deploy_attempts=$deploy_invocations"
         echo "deploy_invocations=$deploy_invocations"
         echo "loader_started=$loader_started"
+        echo "acquisition_started=$LIFECYCLE_ACQUISITION_STARTED"
         echo "cleanup_exit_status=$clean_status"
         echo "snapshot_cleanup_policy=$snapshot_cleanup_policy"
+        echo "evidence_validation_sha256=$(digest "$scratch_out/evidence-validation.txt")"
+        echo "evidence_status=$evidence_status"
+        echo "scientific_status=$scientific_status"
+        echo "success_count=$success_count"
+        echo "failure_count=$failure_count"
+        echo "failure_fraction=$failure_fraction"
+        echo "snapshot_status=$snapshot_status"
+        echo 'snapshot_workload_count=10'
+        echo "snapshot_workloads=$snapshot_workloads"
+        echo 'acquisition_retry=false'
+        echo 'independent_continuation=true'
+        if ((clean_status != 0)); then
+            echo 'cell_status=OPERATIONAL_CLEANUP_FAILED'
+        elif ((status != 0 && evidence_status != 0)); then
+            echo 'cell_status=SCIENTIFIC_FAILED'
+        elif ((status != 0)); then
+            echo 'cell_status=ACQUISITION_FAILED'
+        elif [[ "$loader_started" != true ]]; then
+            echo 'cell_status=OPERATIONAL_SETUP_FAILED'
+        else
+            echo 'cell_status=COMPLETE'
+        fi
         if [[ "$loader_started" == true ]]; then echo 'lifecycle_phase=final'; else echo 'lifecycle_phase=setup'; fi
-        echo "exit_status=$status"
+        echo "exit_status=$manifest_status"
         } >> "$scratch_out/manifest.txt"
         mkdir -p "$(dirname "$destination")"
         cp -a -- "$scratch_out" "$destination"
         write_archived_output_checksums "$destination"
+        printf 'archive_checksums_sha256=%s\n' "$(digest "$destination/archived-output-checksums.csv")" >> "$destination/manifest.txt"
+        printf 'archived_output_checksums_sha256=%s\n' "$(digest "$destination/archived-output-checksums.csv")" >> "$destination/manifest.txt"
+        printf '%s\n' 'worker_map_path=worker-node.json' 'archive_checksums_path=archived-output-checksums.csv' >> "$destination/manifest.txt"
+        echo "worker_map_sha256=$(digest "$worker_config")" >> "$destination/manifest.txt"
         rm -rf -- "$scratch_cell"
     }
     lifecycle_verify() {

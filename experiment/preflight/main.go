@@ -45,6 +45,8 @@ type report struct {
 	TopologySHA256      string            `json:"topology_sha256"`
 	Status              string            `json:"status"`
 	AcquisitionStart    string            `json:"acquisition_start,omitempty"`
+	ActivatorUID        string            `json:"activator_uid,omitempty"`
+	ActivatorGeneration int64             `json:"activator_generation,omitempty"`
 	QualificationRoot   string            `json:"qualification_root,omitempty"`
 	QualificationSHA256 string            `json:"qualification_sha256,omitempty"`
 	Checks              []check           `json:"checks"`
@@ -70,6 +72,8 @@ type kubePods struct {
 }
 
 var sshTargetPattern = regexp.MustCompile(`^[A-Za-z0-9._-]+@[A-Za-z0-9.-]+$`)
+
+var captureActivatorIdentity = eval.CaptureActivatorIdentity
 
 const e4SnapshotCleanupPolicy = "initial-purge;normal-preserve;setup-recovery-purge;campaign-final-purge"
 
@@ -182,6 +186,11 @@ func run(ctx context.Context, cfg eval.Config, smokeRoot string) (int, error) {
 	}
 	if cfg.Freeze {
 		checker.smokeEvidence(smokeRoot)
+		// Capture the Deployment metadata immediately before freezing.  This is
+		// read-only and becomes the authoritative identity for final teardown;
+		// a missing or malformed response must block acquisition.
+		identityErr := captureCampaignActivatorBaseline(ctx, &rep)
+		checker.record("activator_baseline", identityErr, "deployment/activator -n knative-serving")
 	}
 
 	failed := checker.failed()
@@ -213,6 +222,19 @@ func run(ctx context.Context, cfg eval.Config, smokeRoot string) (int, error) {
 	}
 	fmt.Printf("PREFLIGHT_READY status=%s result=%s\n", rep.Status, out)
 	return 0, nil
+}
+
+func captureCampaignActivatorBaseline(ctx context.Context, rep *report) error {
+	identity, err := captureActivatorIdentity(ctx)
+	if err != nil {
+		return err
+	}
+	if err := identity.Validate(); err != nil {
+		return err
+	}
+	rep.ActivatorUID = identity.UID
+	rep.ActivatorGeneration = identity.Generation
+	return nil
 }
 
 type checks struct {
@@ -924,7 +946,7 @@ func sanitize(value string) string {
 func plannedChecks(freeze bool) []string {
 	values := []string{"local_git", "kubernetes_nodes", "kubernetes_topology", "minio_loader", "kubernetes_workloads", "prometheus_api_ready", "worker_kvm", "worker_tools", "worker_flamegraph", "worker_minio", "worker_runtime_snapshots", "deployed_git", "unified_rootfs", "artifact_hashes", "rdma"}
 	if freeze {
-		values = append(values, "e1_e4_smoke_evidence")
+		values = append(values, "e1_e4_smoke_evidence", "activator_baseline")
 	}
 	return values
 }

@@ -7,9 +7,11 @@ import (
 )
 
 type Campaign struct {
-	Status           string       `json:"status"`
-	AcquisitionStart string       `json:"acquisition_start"`
-	Provenance       []Provenance `json:"provenance"`
+	Status              string       `json:"status"`
+	AcquisitionStart    string       `json:"acquisition_start"`
+	ActivatorUID        string       `json:"activator_uid"`
+	ActivatorGeneration int64        `json:"activator_generation"`
+	Provenance          []Provenance `json:"provenance"`
 }
 
 func RequireCampaign(path string) (Campaign, error) {
@@ -27,7 +29,15 @@ func RequireCampaign(path string) (Campaign, error) {
 	if campaign.AcquisitionStart == "" || campaign.Status != "ACQUISITION_START" {
 		return Campaign{}, fmt.Errorf("campaign manifest is not frozen at ACQUISITION_START")
 	}
+	if err := campaign.ActivatorIdentity().Validate(); err != nil {
+		return Campaign{}, fmt.Errorf("campaign manifest activator baseline: %w", err)
+	}
 	return campaign, nil
+}
+
+// ActivatorIdentity returns the authoritative baseline persisted by freeze.
+func (c Campaign) ActivatorIdentity() ActivatorIdentity {
+	return ActivatorIdentity{UID: c.ActivatorUID, Generation: c.ActivatorGeneration}
 }
 
 func (c Campaign) HeadForBranch(branch string) (string, error) {

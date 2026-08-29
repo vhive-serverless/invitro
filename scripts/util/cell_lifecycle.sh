@@ -7,6 +7,7 @@
 
 LIFECYCLE_CLEANUP_FAILED=false
 LIFECYCLE_LOADER_STARTED=false
+LIFECYCLE_ACQUISITION_STARTED=false
 LIFECYCLE_SETUP_ATTEMPTS=0
 LIFECYCLE_DEPLOY_INVOCATIONS=0
 LIFECYCLE_PRECLEAN_STATUS=0
@@ -83,6 +84,7 @@ lifecycle_execute() {
     local attempt=1 status=0 cleanup_status=0 run_status=0
     LIFECYCLE_CLEANUP_FAILED=false
     LIFECYCLE_LOADER_STARTED=false
+    LIFECYCLE_ACQUISITION_STARTED=false
     LIFECYCLE_SETUP_ATTEMPTS=0
     LIFECYCLE_DEPLOY_INVOCATIONS=0
     set +e
@@ -95,43 +97,66 @@ lifecycle_execute() {
             lifecycle_deploy "$attempt"
             status=$?
         fi
-        if ((status == 0)); then
-            break
+        if ((status != 0)); then
+            lifecycle_cleanup "recovery-$attempt"
+            cleanup_status=$?
+            if ((cleanup_status != 0)); then
+                LIFECYCLE_CLEANUP_FAILED=true
+                lifecycle_finalize "$status" "$cleanup_status" "$LIFECYCLE_SETUP_ATTEMPTS" "$LIFECYCLE_DEPLOY_INVOCATIONS" false
+                set -e
+                return "$LIFECYCLE_CLEANUP_ABORT"
+            fi
+            if ((attempt == 2)); then
+                lifecycle_finalize "$status" 0 "$LIFECYCLE_SETUP_ATTEMPTS" "$LIFECYCLE_DEPLOY_INVOCATIONS" false
+                set -e
+                return "$status"
+            fi
+            ((attempt+=1))
+            continue
         fi
 
-        lifecycle_cleanup "recovery-$attempt"
+        # Loader invocation is a setup-stage probe until its acquisition
+        # marker is observed. This permits exactly one recovery for a failed
+        # pre-acquisition admission gate, while preserving the no-retry rule
+        # once acquisition has started.
+        LIFECYCLE_LOADER_STARTED=true
+        LIFECYCLE_ACQUISITION_STARTED=true
+        lifecycle_run
+        run_status=$?
+        if [[ "$LIFECYCLE_ACQUISITION_STARTED" != true ]]; then
+            lifecycle_cleanup "recovery-$attempt"
+            cleanup_status=$?
+            if ((cleanup_status != 0)); then
+                LIFECYCLE_CLEANUP_FAILED=true
+                lifecycle_finalize "$run_status" "$cleanup_status" "$LIFECYCLE_SETUP_ATTEMPTS" "$LIFECYCLE_DEPLOY_INVOCATIONS" false
+                set -e
+                return "$LIFECYCLE_CLEANUP_ABORT"
+            fi
+            if ((attempt == 2)); then
+                lifecycle_finalize "$run_status" 0 "$LIFECYCLE_SETUP_ATTEMPTS" "$LIFECYCLE_DEPLOY_INVOCATIONS" false
+                set -e
+                return "$run_status"
+            fi
+            ((attempt+=1))
+            continue
+        fi
+        lifecycle_cleanup final
         cleanup_status=$?
+        lifecycle_finalize "$run_status" "$cleanup_status" "$LIFECYCLE_SETUP_ATTEMPTS" "$LIFECYCLE_DEPLOY_INVOCATIONS" true
         if ((cleanup_status != 0)); then
             LIFECYCLE_CLEANUP_FAILED=true
-            lifecycle_finalize "$status" "$cleanup_status" "$LIFECYCLE_SETUP_ATTEMPTS" "$LIFECYCLE_DEPLOY_INVOCATIONS" false
             set -e
             return "$LIFECYCLE_CLEANUP_ABORT"
         fi
-        if ((attempt == 2)); then
-            lifecycle_finalize "$status" 0 "$LIFECYCLE_SETUP_ATTEMPTS" "$LIFECYCLE_DEPLOY_INVOCATIONS" false
+        if ((run_status != 0)); then
             set -e
-            return "$status"
+            return "$run_status"
         fi
-        ((attempt+=1))
+        lifecycle_verify
+        status=$?
+        set -e
+        return "$status"
     done
-
-    LIFECYCLE_LOADER_STARTED=true
-    lifecycle_run
-    run_status=$?
-    lifecycle_cleanup final
-    cleanup_status=$?
-    lifecycle_finalize "$run_status" "$cleanup_status" "$LIFECYCLE_SETUP_ATTEMPTS" "$LIFECYCLE_DEPLOY_INVOCATIONS" true
-    if ((cleanup_status != 0)); then
-        LIFECYCLE_CLEANUP_FAILED=true
-        set -e
-        return "$LIFECYCLE_CLEANUP_ABORT"
-    fi
-    if ((run_status != 0)); then
-        set -e
-        return "$run_status"
-    fi
-    lifecycle_verify
-    status=$?
     set -e
-    return "$status"
+    return "$run_status"
 }

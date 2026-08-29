@@ -31,6 +31,31 @@ func TestDryRunPlansWithoutWriting(t *testing.T) {
 	}
 }
 
+func TestFreezeCapturesActivatorBaselineFailClosed(t *testing.T) {
+	old := captureActivatorIdentity
+	defer func() { captureActivatorIdentity = old }()
+	rep := report{}
+	captureActivatorIdentity = func(context.Context) (eval.ActivatorIdentity, error) {
+		return eval.ActivatorIdentity{UID: "activator-uid", Generation: 9}, nil
+	}
+	if err := captureCampaignActivatorBaseline(context.Background(), &rep); err != nil {
+		t.Fatal(err)
+	}
+	if rep.ActivatorUID != "activator-uid" || rep.ActivatorGeneration != 9 {
+		t.Fatalf("baseline = %q/%d", rep.ActivatorUID, rep.ActivatorGeneration)
+	}
+	captureActivatorIdentity = func(context.Context) (eval.ActivatorIdentity, error) {
+		return eval.ActivatorIdentity{}, nil
+	}
+	rep = report{}
+	if err := captureCampaignActivatorBaseline(context.Background(), &rep); err == nil {
+		t.Fatal("malformed activator baseline accepted")
+	}
+	if rep.ActivatorUID != "" || rep.ActivatorGeneration != 0 {
+		t.Fatalf("malformed baseline was persisted: %q/%d", rep.ActivatorUID, rep.ActivatorGeneration)
+	}
+}
+
 func TestSmokeEvidenceRequiresAllFourExperimentSmokes(t *testing.T) {
 	root := t.TempDir()
 	cleanupLog := filepath.Join(root, "initial-cleanup.log")

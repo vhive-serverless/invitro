@@ -1,11 +1,15 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/vhive-serverless/loader/experiment/eval"
 )
 
 func putFile(t *testing.T, path, body string) {
@@ -29,6 +33,21 @@ func restoreWritable(path string) {
 		}
 		return nil
 	})
+}
+
+func putCleanFinalLeakCheck(t *testing.T, root, uid string, generation int64) {
+	t.Helper()
+	check := eval.FinalLeakCheck{
+		Version: 1, Status: "PASS", CapturedUTC: time.Now().UTC().Format(time.RFC3339Nano),
+		Worker:     eval.WorkerLeakEvidence{Firecracker: []string{}, KnIntegration: []string{}, NexusBackend: []string{}},
+		Storage:    eval.StorageLeakEvidence{RDMAServer: []string{}, RDMASessions: []string{}},
+		Kubernetes: eval.KubernetesLeakEvidence{KSVCCount: 0},
+		Snapshots:  eval.SnapshotLeakEvidence{Entries: []string{}, Bytes: 0},
+		Activator:  eval.ActivatorIdentity{UID: uid, Generation: generation},
+	}
+	if err := eval.WriteFinalLeakCheck(filepath.Join(root, finalLeakCheckName), check, check.Activator); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestTreeDigestDeterministic(t *testing.T) {
@@ -110,7 +129,9 @@ func TestPlanMaterializeSealVerifyAndTamper(t *testing.T) {
 		AcquisitionStart    string `json:"acquisition_start"`
 		QualificationRoot   string `json:"qualification_root"`
 		QualificationSHA256 string `json:"qualification_sha256"`
-	}{"ACQUISITION_START", "2026-08-29T00:00:00Z", q, qInv.TreeSHA}
+		ActivatorUID        string `json:"activator_uid"`
+		ActivatorGeneration int64  `json:"activator_generation"`
+	}{"ACQUISITION_START", "2026-08-29T00:00:00Z", q, qInv.TreeSHA, "activator-uid", 7}
 	mb, _ := json.Marshal(manifest)
 	putFile(t, newCampaignPath, string(mb))
 	if err := materializeReuse(ledgerPath, newCampaignPath, newRoot); err != nil {
@@ -124,6 +145,7 @@ func TestPlanMaterializeSealVerifyAndTamper(t *testing.T) {
 	if !sameInventory(srcInv, dstInv) {
 		t.Fatal("materialized tree differs from source")
 	}
+	putCleanFinalLeakCheck(t, newRoot, "activator-uid", 7)
 	if err := sealBundle(newRoot); err != nil {
 		t.Fatal(err)
 	}
@@ -166,8 +188,9 @@ func TestMaterializeRejectsQualificationBinding(t *testing.T) {
 func TestVerifyRejectsUnindexedExtra(t *testing.T) {
 	d := t.TempDir()
 	defer restoreWritable(d)
-	putFile(t, filepath.Join(d, "campaign.json"), `{"status":"ACQUISITION_START","acquisition_start":"2026-08-29T00:00:00Z"}`)
+	putFile(t, filepath.Join(d, "campaign.json"), `{"status":"ACQUISITION_START","acquisition_start":"2026-08-29T00:00:00Z","activator_uid":"activator-uid","activator_generation":7}`)
 	putFile(t, filepath.Join(d, "x"), `x`)
+	putCleanFinalLeakCheck(t, d, "activator-uid", 7)
 	if err := sealBundle(d); err != nil {
 		t.Fatal(err)
 	}
@@ -177,5 +200,94 @@ func TestVerifyRejectsUnindexedExtra(t *testing.T) {
 	putFile(t, filepath.Join(d, "extra"), `extra`)
 	if err := verifyBundle(d); err == nil {
 		t.Fatal("verify accepted unindexed extra")
+	}
+}
+
+func TestSealRequiresFinalLeakCheck(t *testing.T) {
+	d := t.TempDir()
+	defer restoreWritable(d)
+	putFile(t, filepath.Join(d, "campaign.json"), `{"status":"ACQUISITION_START","acquisition_start":"2026-08-29T00:00:00Z","activator_uid":"activator-uid","activator_generation":7}`)
+	putFile(t, filepath.Join(d, "x"), `x`)
+	if err := sealBundle(d); err == nil || !strings.Contains(err.Error(), "final leak-check") {
+		t.Fatalf("seal without cleanup evidence: %v", err)
+	}
+}
+
+func TestSealRejectsCleanupLeak(t *testing.T) {
+	d := t.TempDir()
+	defer restoreWritable(d)
+	putFile(t, filepath.Join(d, "campaign.json"), `{"status":"ACQUISITION_START","acquisition_start":"2026-08-29T00:00:00Z","activator_uid":"activator-uid","activator_generation":7}`)
+	putFile(t, filepath.Join(d, "x"), `x`)
+	check := eval.FinalLeakCheck{
+		Version: 1, Status: "PASS", CapturedUTC: time.Now().UTC().Format(time.RFC3339Nano),
+		Worker:     eval.WorkerLeakEvidence{Firecracker: []string{"pid=9 firecracker"}, KnIntegration: []string{}, NexusBackend: []string{}},
+		Storage:    eval.StorageLeakEvidence{RDMAServer: []string{}, RDMASessions: []string{}},
+		Kubernetes: eval.KubernetesLeakEvidence{}, Snapshots: eval.SnapshotLeakEvidence{Entries: []string{}, Bytes: 0},
+		Activator: eval.ActivatorIdentity{UID: "activator-uid", Generation: 7},
+	}
+	data, err := json.Marshal(check)
+	if err != nil {
+		t.Fatal(err)
+	}
+	putFile(t, filepath.Join(d, finalLeakCheckName), string(data))
+	if err := sealBundle(d); err == nil || !strings.Contains(err.Error(), "leak") {
+		t.Fatalf("seal with cleanup leak: %v", err)
+	}
+}
+
+func TestLeakCheckFixtureInvokesOnlyReadOnlyProbes(t *testing.T) {
+	root := t.TempDir()
+	setup := eval.Setup{NodeLabel: map[string][]string{
+		"loader-nodetype=worker": {"10.0.1.3"}, "minio-type=tenant": {"10.0.1.4"},
+	}, NodeURL: []string{"nehalem@master", "nehalem@loader", "nehalem@worker", "nehalem@storage"}}
+	campaign := frozenCampaign{Status: "ACQUISITION_START", AcquisitionStart: "2026-08-29T00:00:00Z", ActivatorUID: "activator-uid", ActivatorGeneration: 7, Topology: setup}
+	data, err := json.Marshal(campaign)
+	if err != nil {
+		t.Fatal(err)
+	}
+	putFile(t, filepath.Join(root, "campaign.json"), string(data))
+
+	oldSSH, oldActivator, oldKSVC := readonlySSHProbe, activatorIdentityProbe, ksvcProbe
+	defer func() { readonlySSHProbe, activatorIdentityProbe, ksvcProbe = oldSSH, oldActivator, oldKSVC }()
+	var commands [][]string
+	readonlySSHProbe = func(_ context.Context, target string, args ...string) (string, error) {
+		commands = append(commands, append([]string{target}, args...))
+		return "", nil
+	}
+	activatorIdentityProbe = func(context.Context) (eval.ActivatorIdentity, error) {
+		return eval.ActivatorIdentity{UID: "activator-uid", Generation: 7}, nil
+	}
+	ksvcProbe = func(context.Context) (string, error) { return "", nil }
+	if err := captureFinalLeakCheck(context.Background(), root); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(root, finalLeakCheckName)); err != nil {
+		t.Fatal(err)
+	}
+	for _, command := range commands {
+		joined := strings.Join(command, " ")
+		for _, forbidden := range []string{"delete", "patch", "restart", "rollout", "apply", "create", "replace"} {
+			if strings.Contains(strings.ToLower(joined), forbidden) {
+				t.Fatalf("mutating token %q in probe command %q", forbidden, joined)
+			}
+		}
+	}
+	for _, command := range [][]string{workerProcessProbeCommand(), storageProcessProbeCommand(), storageSessionProbeCommand(), snapshotListProbeCommand("/safe/path"), snapshotSizeProbeCommand("/safe/path/file"), ksvcProbeCommand()} {
+		joined := strings.Join(command, " ")
+		if strings.Contains(joined, "delete") || strings.Contains(joined, "restart") || strings.Contains(joined, "patch") {
+			t.Fatalf("mutating command constructed: %q", joined)
+		}
+	}
+}
+
+func TestSnapshotProbeParsers(t *testing.T) {
+	if lines := nonEmptyLines("\n/users/nehalem/khala/runtime/snapshots/mapper.mem\n"); len(lines) != 1 {
+		t.Fatalf("snapshot entries = %v", lines)
+	}
+	if bytes, err := parseSnapshotSize("12\n"); err != nil || bytes != 12 {
+		t.Fatalf("snapshot size = %d, %v", bytes, err)
+	}
+	if _, err := parseSnapshotSize("not-a-size"); err == nil {
+		t.Fatal("malformed snapshot size accepted")
 	}
 }
