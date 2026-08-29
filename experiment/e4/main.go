@@ -15,9 +15,11 @@ import (
 	"github.com/vhive-serverless/loader/experiment/eval"
 )
 
-var workloads = []string{"helloworld", "chameleonserve", "cnnserve", "imageresize", "lrserving", "mapper", "pyaesserve", "reducer", "rnnserve", "streducer", "sttrainer"}
+var workloads = []string{"chameleonserve", "cnnserve", "imageresize", "lrserving", "mapper", "pyaesserve", "reducer", "rnnserve", "streducer", "sttrainer"}
 var modes = []string{"invm-py", "nexus-py"}
 var counts = []int{1, 2, 4, 6, 8, 10, 20, 30, 40}
+
+const snapshotCleanupPolicy = "initial-purge;normal-preserve;setup-recovery-purge;campaign-final-purge"
 
 type options struct {
 	common                       eval.Config
@@ -27,24 +29,40 @@ type options struct {
 }
 
 type cell struct {
-	Workload string `json:"workload"`
-	Mode     string `json:"mode"`
-	Counts   []int  `json:"counts"`
+	Workloads            []string `json:"workloads"`
+	Mode                 string   `json:"mode"`
+	InstancesPerWorkload []int    `json:"instances_per_workload"`
 }
 
 type cellManifest struct {
-	ManifestVersion int               `json:"manifest_version"`
-	Cell            cell              `json:"cell"`
-	Status          string            `json:"status"`
-	Phase           string            `json:"phase"`
-	Worker          string            `json:"worker"`
-	CampaignSHA256  string            `json:"campaign_sha256,omitempty"`
-	SetupAttempts   int               `json:"setup_attempts"`
-	Acquisition     bool              `json:"acquisition_started"`
-	Started         string            `json:"started_utc"`
-	Finished        string            `json:"finished_utc"`
-	Artifacts       map[string]string `json:"artifacts,omitempty"`
-	Error           string            `json:"error,omitempty"`
+	ManifestVersion  int               `json:"manifest_version"`
+	Cell             cell              `json:"cell"`
+	Status           string            `json:"status"`
+	Phase            string            `json:"phase"`
+	Worker           string            `json:"worker"`
+	CampaignSHA256   string            `json:"campaign_sha256,omitempty"`
+	SetupAttempts    int               `json:"setup_attempts"`
+	Acquisition      bool              `json:"acquisition_started"`
+	CleanupSucceeded bool              `json:"cleanup_succeeded"`
+	VerificationDone bool              `json:"verification_completed"`
+	SnapshotPolicy   string            `json:"snapshot_cleanup_policy"`
+	Started          string            `json:"started_utc"`
+	Finished         string            `json:"finished_utc"`
+	Artifacts        map[string]string `json:"artifacts,omitempty"`
+	Error            string            `json:"error,omitempty"`
+}
+
+type initialCleanupManifest struct {
+	ManifestVersion int    `json:"manifest_version"`
+	Status          string `json:"status"`
+	Worker          string `json:"worker"`
+	CampaignSHA256  string `json:"campaign_sha256,omitempty"`
+	LogSHA256       string `json:"log_sha256,omitempty"`
+	RemoveSnapshots bool   `json:"remove_snapshots"`
+	SnapshotPolicy  string `json:"snapshot_cleanup_policy"`
+	Started         string `json:"started_utc"`
+	Finished        string `json:"finished_utc"`
+	Error           string `json:"error,omitempty"`
 }
 
 // cellOps is the narrow execution boundary for the E4 cell lifecycle.  It is
@@ -77,7 +95,7 @@ func main() {
 	eval.AddFlags(fs, &o.common)
 	fs.StringVar(&o.workloads, "workloads", o.workloads, "exact E4 workload list")
 	fs.StringVar(&o.modes, "modes", o.modes, "exact E4 B0/N4 modes")
-	fs.StringVar(&o.countsText, "instance-counts", o.countsText, "strictly increasing instance counts")
+	fs.StringVar(&o.countsText, "instances-per-workload", o.countsText, "strictly increasing instances per workload")
 	fs.IntVar(&o.warmup, "warmup-successes-per-vm", 1, "fresh successes required per live VM and count")
 	fs.IntVar(&o.sampleSeconds, "sample-seconds", 10, "steady invocation window before PSS sample")
 	fs.BoolVar(&o.smoke, "smoke", false, "bounded non-claiming HelloWorld counts 1,2")
@@ -95,7 +113,8 @@ func run(ctx context.Context, o options) error {
 		return err
 	}
 	for index, item := range plan {
-		fmt.Printf("CELL ordinal=%d workload=%s mode=%s counts=%s\n", index, item.Workload, item.Mode, renderCounts(item.Counts))
+		fmt.Printf("CELL ordinal=%d workloads=%s mode=%s instances_per_workload=%s\n", index,
+			strings.Join(item.Workloads, ","), item.Mode, renderCounts(item.InstancesPerWorkload))
 	}
 	fmt.Printf("PLAN experiment=e4 profile=%s cells=%d smoke=%t\n", o.common.Profile, len(plan), o.smoke)
 	if o.common.DryRun {
@@ -131,7 +150,41 @@ func run(ctx context.Context, o options) error {
 	if err != nil {
 		return err
 	}
-	return runCells(ctx, o, plan, worker, workerHome, workerIPs[0], endpoint, campaignHash, defaultCellOps())
+	if err := os.MkdirAll(o.common.ResultRoot, 0755); err != nil {
+		return err
+	}
+	ops := defaultCellOps()
+	if err := runInitialCleanup(ctx, o, worker, workerHome, endpoint, campaignHash, ops); err != nil {
+		return err
+	}
+	return runCells(ctx, o, plan, worker, workerHome, workerIPs[0], endpoint, campaignHash, ops)
+}
+
+func runInitialCleanup(ctx context.Context, o options, worker, workerHome, endpoint, campaignHash string, ops cellOps) error {
+	logPath := filepath.Join(o.common.ResultRoot, "initial-cleanup.log")
+	logFile, err := os.OpenFile(logPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
+	if err != nil {
+		return err
+	}
+	started := ops.now().UTC().Format(time.RFC3339)
+	item := cell{Mode: "nexus-py"}
+	cleanupErr := ops.runRemote(ctx, worker, logFile,
+		cleanupCommand(workerEnvironment(workerHome, endpoint), item, endpoint, true)...)
+	closeErr := logFile.Close()
+	logHash, hashErr := eval.SHA256File(logPath)
+	cleanupErr = errors.Join(cleanupErr, closeErr, hashErr)
+	manifest := initialCleanupManifest{ManifestVersion: 1, Status: "complete", Worker: worker,
+		CampaignSHA256: campaignHash, LogSHA256: logHash, RemoveSnapshots: true, SnapshotPolicy: snapshotCleanupPolicy,
+		Started: started, Finished: ops.now().UTC().Format(time.RFC3339)}
+	if cleanupErr != nil {
+		manifest.Status = "failed"
+		manifest.Error = cleanupErr.Error()
+	}
+	manifestErr := ops.createOnly(filepath.Join(o.common.ResultRoot, "initial-cleanup.json"), manifest)
+	if cleanupErr != nil {
+		return errors.Join(fmt.Errorf("E4 initial cleanup: %w", cleanupErr), manifestErr)
+	}
+	return manifestErr
 }
 
 func makePlan(o options) ([]cell, eval.Setup, string, error) {
@@ -163,20 +216,15 @@ func makePlan(o options) ([]cell, eval.Setup, string, error) {
 	}
 	if o.smoke {
 		if !equal(requestedWorkloads, []string{"helloworld"}) || !equal(requestedModes, modes) || !equalInts(requestedCounts, []int{1, 2}) {
-			return nil, eval.Setup{}, "", fmt.Errorf("E4 smoke requires helloworld, both modes, and counts 1,2")
+			return nil, eval.Setup{}, "", fmt.Errorf("E4 smoke requires helloworld, both modes, and instances per workload 1,2")
 		}
 	} else if !equal(requestedWorkloads, workloads) || !equal(requestedModes, modes) || !equalInts(requestedCounts, counts) {
 		return nil, eval.Setup{}, "", fmt.Errorf("E4 claim run requires the frozen workloads, modes, and counts")
 	}
-	plan := make([]cell, 0, len(requestedWorkloads)*2)
-	for index, workload := range requestedWorkloads {
-		order := requestedModes
-		if index%2 == 1 {
-			order = []string{requestedModes[1], requestedModes[0]}
-		}
-		for _, mode := range order {
-			plan = append(plan, cell{Workload: workload, Mode: mode, Counts: append([]int(nil), requestedCounts...)})
-		}
+	plan := make([]cell, 0, len(requestedModes))
+	for _, mode := range requestedModes {
+		plan = append(plan, cell{Workloads: append([]string(nil), requestedWorkloads...), Mode: mode,
+			InstancesPerWorkload: append([]int(nil), requestedCounts...)})
 	}
 	return plan, setup, endpoint, nil
 }
@@ -188,7 +236,7 @@ func runCells(ctx context.Context, o options, plan []cell, worker, workerHome, w
 		if err == nil {
 			continue
 		}
-		failures = append(failures, fmt.Errorf("%s/%s: %w", item.Workload, item.Mode, err))
+		failures = append(failures, fmt.Errorf("%s: %w", item.Mode, err))
 		if !cleanupOK {
 			return errors.Join(failures...)
 		}
@@ -205,14 +253,18 @@ func runCell(ctx context.Context, o options, item cell, worker, workerHome, work
 // it begins, the cell always cleans up and then either verifies or records its
 // terminal failure.
 func runCellWith(ctx context.Context, o options, item cell, worker, workerHome, workerIP, endpoint, campaignHash string, ops cellOps) (bool, error) {
-	root := filepath.Join(o.common.ResultRoot, item.Workload, item.Mode)
+	root := filepath.Join(o.common.ResultRoot, item.Mode)
 	started := ops.now().UTC().Format(time.RFC3339)
-	manifest := cellManifest{ManifestVersion: 2, Cell: item, Worker: worker, CampaignSHA256: campaignHash, Started: started}
-	record := func(phase string, setupAttempts int, acquisition bool, artifacts map[string]string, cellErr error) error {
+	manifest := cellManifest{ManifestVersion: 3, Cell: item, Worker: worker, CampaignSHA256: campaignHash,
+		SnapshotPolicy: snapshotCleanupPolicy, Started: started}
+	record := func(phase string, setupAttempts int, acquisition, cleanupSucceeded, verificationDone bool,
+		artifacts map[string]string, cellErr error) error {
 		manifest.Status = "failed"
 		manifest.Phase = phase
 		manifest.SetupAttempts = setupAttempts
 		manifest.Acquisition = acquisition
+		manifest.CleanupSucceeded = cleanupSucceeded
+		manifest.VerificationDone = verificationDone
 		manifest.Artifacts = artifacts
 		manifest.Error = cellErr.Error()
 		manifest.Finished = ops.now().UTC().Format(time.RFC3339)
@@ -229,17 +281,18 @@ func runCellWith(ctx context.Context, o options, item cell, worker, workerHome, 
 			if setupAttempts == 1 {
 				continue
 			}
-			return true, record("setup", setupAttempts, false, nil, fmt.Errorf("remote result root unavailable after recovery: %w", err))
+			return true, record("setup", setupAttempts, false, true, false, nil,
+				fmt.Errorf("remote result root unavailable after recovery: %w", err))
 		}
 		break
 	}
 	if err := os.MkdirAll(filepath.Dir(root), 0755); err != nil {
-		return true, record("dispatch", setupAttempts, false, nil, err)
+		return true, record("dispatch", setupAttempts, false, true, false, nil, err)
 	}
 	logPath := root + "-dispatch.log"
 	logFile, err := os.OpenFile(logPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
 	if err != nil {
-		return true, record("dispatch", setupAttempts, false, nil, err)
+		return true, record("dispatch", setupAttempts, false, true, false, nil, err)
 	}
 	defer logFile.Close()
 
@@ -252,69 +305,74 @@ func runCellWith(ctx context.Context, o options, item cell, worker, workerHome, 
 		deployArgs = append(deployArgs, "--vm-shmem-bytes=4194304", "--shmem-ring-bytes=4190208", "--shmem-io-quantum=262144")
 	}
 	for {
-		// The pre-clean is the first worker-mutating setup action for every
-		// attempt.  Its failure is a contamination risk, so it is never retried.
-		if cleanupErr := ops.runRemote(ctx, worker, logFile, cleanupCommand(base, item, endpoint)...); cleanupErr != nil {
-			return false, record("cleanup", setupAttempts, false, nil, cleanupErr)
-		}
 		seedErr := ops.runRemote(ctx, worker, logFile, append(base, "bash", "./scripts/deploy-minio-obj.sh", "http://"+endpoint)...)
 		deployErr := error(nil)
 		if seedErr == nil {
 			deployErr = ops.runRemote(ctx, worker, logFile, deployArgs...)
 		}
-		snapshotErr := error(nil)
+		var snapshotErr error
 		if seedErr == nil && deployErr == nil {
-			snapshotErr = ops.runRemote(ctx, worker, logFile, append(base, "./bin/khala-command",
-				"--worker-config=internal/experiment/kn-integration-tracer/worker_node.json",
-				"--vm-config=configs/vm_orchestrator_config.json", "--command=create-snapshots", "--mode="+item.Mode,
-				"--workload="+item.Workload, "--debug=false")...)
+			for _, workload := range item.Workloads {
+				if err := ops.runRemote(ctx, worker, logFile, append(base, "./bin/khala-command",
+					"--worker-config=internal/experiment/kn-integration-tracer/worker_node.json",
+					"--vm-config=configs/vm_orchestrator_config.json", "--command=create-snapshots", "--mode="+item.Mode,
+					"--workload="+workload, "--debug=false")...); err != nil {
+					snapshotErr = err
+					break
+				}
+			}
 		}
 		setupErr := errors.Join(seedErr, deployErr, snapshotErr)
 		if setupErr == nil {
 			break
 		}
-		cleanupErr := ops.runRemote(ctx, worker, logFile, cleanupCommand(base, item, endpoint)...)
+		cleanupErr := ops.runRemote(ctx, worker, logFile, cleanupCommand(base, item, endpoint, true)...)
 		if cleanupErr != nil {
-			return false, record("cleanup", setupAttempts, false, nil, errors.Join(setupErr, cleanupErr))
+			return false, record("cleanup", setupAttempts, false, false, false, nil, errors.Join(setupErr, cleanupErr))
 		}
 		if setupAttempts == 2 {
-			return true, record("setup", setupAttempts, false, nil, setupErr)
+			return true, record("setup", setupAttempts, false, true, false, nil, setupErr)
 		}
 		setupAttempts++
 		if err := ops.remoteAbsent(ctx, worker, root); err != nil {
-			return true, record("setup", setupAttempts, false, nil, fmt.Errorf("remote result root unavailable during recovery: %w", err))
+			return true, record("setup", setupAttempts, false, true, false, nil,
+				fmt.Errorf("remote result root unavailable during recovery: %w", err))
 		}
 	}
 
-	fmt.Printf("ACQUISITION_START experiment=e4 workload=%s mode=%s worker=%s log=%s\n", item.Workload, item.Mode, worker, logPath)
+	fmt.Printf("ACQUISITION_START experiment=e4 workloads=%s mode=%s worker=%s log=%s\n",
+		strings.Join(item.Workloads, ","), item.Mode, worker, logPath)
 	densityErr := ops.runRemote(ctx, worker, logFile, append(base, "sudo", "-n", "./bin/e4-density",
-		"--workload="+item.Workload, "--mode="+item.Mode, "--worker-ip="+workerIP,
-		"--instance-counts="+renderCounts(item.Counts), "--warmup-successes-per-vm=1", "--sample-seconds=10",
+		"--workloads="+strings.Join(item.Workloads, ","), "--mode="+item.Mode, "--worker-ip="+workerIP,
+		"--instances-per-workload="+renderCounts(item.InstancesPerWorkload), "--warmup-successes-per-vm=1", "--sample-seconds=10",
 		"--result-root="+root)...)
-	cleanupErr := ops.runRemote(ctx, worker, logFile, cleanupCommand(base, item, endpoint)...)
+	cleanupErr := ops.runRemote(ctx, worker, logFile, cleanupCommand(base, item, endpoint, false)...)
 	if cleanupErr != nil {
-		return false, record("cleanup", setupAttempts, true, nil, errors.Join(densityErr, cleanupErr))
+		return false, record("cleanup", setupAttempts, true, false, false, nil, errors.Join(densityErr, cleanupErr))
 	}
-	artifacts, verifyErr := collectArtifacts(ctx, worker, root, logFile, item.Counts, ops)
+	artifacts, verifyErr := collectArtifacts(ctx, worker, root, logFile, item.InstancesPerWorkload, ops)
 	if densityErr != nil {
 		// A failed acquisition may still have written complete early-count
 		// artifacts.  Preserve what verifies after cleanup, but never retry
 		// density.
-		return true, record("run", setupAttempts, true, artifacts, errors.Join(densityErr, verifyErr))
+		return true, record("run", setupAttempts, true, true, verifyErr == nil, artifacts, errors.Join(densityErr, verifyErr))
 	}
 	if verifyErr != nil {
-		return true, record("verify", setupAttempts, true, artifacts, verifyErr)
+		return true, record("verify", setupAttempts, true, true, false, artifacts, verifyErr)
 	}
 	manifest.Status = "complete"
 	manifest.Phase = "verify"
 	manifest.SetupAttempts = setupAttempts
 	manifest.Acquisition = true
+	manifest.CleanupSucceeded = true
+	manifest.VerificationDone = true
 	manifest.Finished = ops.now().UTC().Format(time.RFC3339)
 	manifest.Artifacts = artifacts
 	if err := ops.createOnly(root+"-cell.json", manifest); err != nil {
 		return true, err
 	}
-	fmt.Printf("ACQUISITION_COMPLETE experiment=e4 workload=%s mode=%s result=%s\n", item.Workload, item.Mode, root)
+	fmt.Printf("ACQUISITION_COMPLETE experiment=e4 workloads=%s mode=%s result=%s\n",
+		strings.Join(item.Workloads, ","), item.Mode, root)
 	return true, nil
 }
 
@@ -349,11 +407,11 @@ func workerEnvironment(workerHome, endpoint string) []string {
 	}
 }
 
-func cleanupCommand(base []string, item cell, endpoint string) []string {
+func cleanupCommand(base []string, item cell, endpoint string, removeSnapshots bool) []string {
 	return append(append([]string{}, base...), "./bin/khala-command",
 		"--worker-config=internal/experiment/kn-integration-tracer/worker_node.json",
 		"--vm-config=configs/vm_orchestrator_config.json", "--command=clean", "--mode="+item.Mode,
-		"--remove-snapshots=true", "--debug=false", "--minio-endpoint="+endpoint)
+		"--remove-snapshots="+strconv.FormatBool(removeSnapshots), "--debug=false", "--minio-endpoint="+endpoint)
 }
 
 func runRemote(ctx context.Context, worker string, output io.Writer, args ...string) error {

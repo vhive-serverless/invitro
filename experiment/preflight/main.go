@@ -71,6 +71,8 @@ type kubePods struct {
 
 var sshTargetPattern = regexp.MustCompile(`^[A-Za-z0-9._-]+@[A-Za-z0-9.-]+$`)
 
+const e4SnapshotCleanupPolicy = "initial-purge;normal-preserve;setup-recovery-purge;campaign-final-purge"
+
 func main() {
 	args := os.Args[1:]
 	freezeSubcommand := false
@@ -623,7 +625,7 @@ func (c *checks) smokeEvidence(root string) {
 		c.record("guest_minio_smoke", fmt.Errorf("--smoke-root is required for freeze"), "")
 		return
 	}
-	var manifests, e4Cells []string
+	var manifests, e4Cells, e4InitialCleanups []string
 	err := filepath.WalkDir(root, func(path string, entry os.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
@@ -633,6 +635,9 @@ func (c *checks) smokeEvidence(root string) {
 		}
 		if !entry.IsDir() && strings.HasSuffix(entry.Name(), "-cell.json") {
 			e4Cells = append(e4Cells, path)
+		}
+		if !entry.IsDir() && entry.Name() == "initial-cleanup.json" {
+			e4InitialCleanups = append(e4InitialCleanups, path)
 		}
 		return nil
 	})
@@ -686,16 +691,48 @@ func (c *checks) smokeEvidence(root string) {
 			Phase              string `json:"phase"`
 			SetupAttempts      int    `json:"setup_attempts"`
 			AcquisitionStarted bool   `json:"acquisition_started"`
+			CleanupSucceeded   bool   `json:"cleanup_succeeded"`
+			VerificationDone   bool   `json:"verification_completed"`
+			SnapshotPolicy     string `json:"snapshot_cleanup_policy"`
 			Cell               struct {
-				Workload string `json:"workload"`
-				Mode     string `json:"mode"`
-				Counts   []int  `json:"counts"`
+				Workloads            []string `json:"workloads"`
+				Mode                 string   `json:"mode"`
+				InstancesPerWorkload []int    `json:"instances_per_workload"`
 			} `json:"cell"`
 		}
-		if json.Unmarshal(data, &manifest) == nil && manifest.ManifestVersion == 2 && manifest.Status == "complete" && manifest.Phase == "verify" &&
-			manifest.SetupAttempts >= 1 && manifest.SetupAttempts <= 2 && manifest.AcquisitionStarted && manifest.Cell.Workload == "helloworld" &&
-			len(manifest.Cell.Counts) == 2 && manifest.Cell.Counts[0] == 1 && manifest.Cell.Counts[1] == 2 {
+		if json.Unmarshal(data, &manifest) == nil && manifest.ManifestVersion == 3 && manifest.Status == "complete" && manifest.Phase == "verify" &&
+			manifest.SetupAttempts >= 1 && manifest.SetupAttempts <= 2 && manifest.AcquisitionStarted &&
+			manifest.CleanupSucceeded && manifest.VerificationDone &&
+			manifest.SnapshotPolicy == e4SnapshotCleanupPolicy &&
+			len(manifest.Cell.Workloads) == 1 && manifest.Cell.Workloads[0] == "helloworld" &&
+			manifest.Cell.Mode != "" && len(manifest.Cell.InstancesPerWorkload) == 2 &&
+			manifest.Cell.InstancesPerWorkload[0] == 1 && manifest.Cell.InstancesPerWorkload[1] == 2 {
 			e4[manifest.Cell.Mode] = true
+		}
+	}
+	e4InitialCleanup := false
+	if len(e4InitialCleanups) != 1 {
+		err = errors.Join(err, fmt.Errorf("expected one E4 initial cleanup record, got %d", len(e4InitialCleanups)))
+	} else {
+		path := e4InitialCleanups[0]
+		data, readErr := os.ReadFile(path)
+		var manifest struct {
+			ManifestVersion int    `json:"manifest_version"`
+			Status          string `json:"status"`
+			LogSHA256       string `json:"log_sha256"`
+			RemoveSnapshots bool   `json:"remove_snapshots"`
+			SnapshotPolicy  string `json:"snapshot_cleanup_policy"`
+		}
+		if readErr != nil || json.Unmarshal(data, &manifest) != nil || manifest.ManifestVersion != 1 ||
+			manifest.Status != "complete" || !manifest.RemoveSnapshots || manifest.SnapshotPolicy != e4SnapshotCleanupPolicy {
+			err = errors.Join(err, fmt.Errorf("invalid E4 initial cleanup record %s", path))
+		} else {
+			logHash, hashErr := eval.SHA256File(filepath.Join(filepath.Dir(path), "initial-cleanup.log"))
+			if hashErr != nil || manifest.LogSHA256 != logHash {
+				err = errors.Join(err, fmt.Errorf("invalid E4 initial cleanup log binding %s", path))
+			} else {
+				e4InitialCleanup = true
+			}
 		}
 	}
 	wants := []struct {
@@ -714,6 +751,9 @@ func (c *checks) smokeEvidence(root string) {
 				err = errors.Join(err, fmt.Errorf("missing terminal %s smoke %s", want.name, key))
 			}
 		}
+	}
+	if !e4InitialCleanup {
+		err = errors.Join(err, fmt.Errorf("missing terminal E4 initial cleanup evidence"))
 	}
 	c.report.QualificationRoot = root
 	treeDigest, digestErr := directorySHA256(root)

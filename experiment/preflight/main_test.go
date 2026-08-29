@@ -33,6 +33,18 @@ func TestDryRunPlansWithoutWriting(t *testing.T) {
 
 func TestSmokeEvidenceRequiresAllFourExperimentSmokes(t *testing.T) {
 	root := t.TempDir()
+	cleanupLog := filepath.Join(root, "initial-cleanup.log")
+	if err := os.WriteFile(cleanupLog, []byte("COMMAND cleanup\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	cleanupHash, err := eval.SHA256File(cleanupLog)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cleanupRecord := fmt.Sprintf(`{"manifest_version":1,"status":"complete","log_sha256":%q,"remove_snapshots":true,"snapshot_cleanup_policy":%q}`, cleanupHash, e4SnapshotCleanupPolicy)
+	if err := os.WriteFile(filepath.Join(root, "initial-cleanup.json"), []byte(cleanupRecord), 0644); err != nil {
+		t.Fatal(err)
+	}
 	manifests := map[string]string{
 		"e1-2b":   "smoke=true\nmanifest_version=9\nclaim_id=e1-smoke-2b\ncell_status_sequence=started,complete\nfixture_setup_max_attempts=2\nfixture_setup_attempts=1\ncell_setup_max_attempts=2\nacquisition_retry=false\nindependent_continuation=true\ncontamination_stop=true\nexit_status=0\n",
 		"e1-4mib": "smoke=true\nmanifest_version=9\nclaim_id=e1-smoke-4mib\ncell_status_sequence=started,complete\nfixture_setup_max_attempts=2\nfixture_setup_attempts=1\ncell_setup_max_attempts=2\nacquisition_retry=false\nindependent_continuation=true\ncontamination_stop=true\nexit_status=0\n",
@@ -55,7 +67,7 @@ func TestSmokeEvidenceRequiresAllFourExperimentSmokes(t *testing.T) {
 		}
 	}
 	for _, mode := range []string{"invm-py", "nexus-py"} {
-		content := fmt.Sprintf(`{"manifest_version":2,"status":"complete","phase":"verify","setup_attempts":1,"acquisition_started":true,"cell":{"workload":"helloworld","mode":%q,"counts":[1,2]}}`, mode)
+		content := fmt.Sprintf(`{"manifest_version":3,"status":"complete","phase":"verify","setup_attempts":1,"acquisition_started":true,"cleanup_succeeded":true,"verification_completed":true,"snapshot_cleanup_policy":"initial-purge;normal-preserve;setup-recovery-purge;campaign-final-purge","cell":{"workloads":["helloworld"],"mode":%q,"instances_per_workload":[1,2]}}`, mode)
 		if err := os.WriteFile(filepath.Join(root, "e4-"+mode+"-cell.json"), []byte(content), 0644); err != nil {
 			t.Fatal(err)
 		}

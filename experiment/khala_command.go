@@ -671,7 +671,7 @@ func CleanKhala(workerNodeSetup WorkerNodeSetup, removeSnapshots bool, withRDMA 
 		cleanupErrors.add(fmt.Errorf("clean etcd: %w", err))
 	}
 
-	out, err = cleanupLocalCommandFn("cd ~/loader && make clean && sleep 1 && make clean")
+	out, err = cleanupLocalCommandFn("cd ~/loader && make clean-evaluation-cell")
 	if err != nil {
 		log.Errorf("Failed to clean loader: %v, output: %s", err, out)
 		cleanupErrors.add(fmt.Errorf("clean loader: %w", err))

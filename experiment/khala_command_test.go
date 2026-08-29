@@ -544,6 +544,32 @@ func TestCleanKhalaKeepsForcedSnapshotCleanupFatal(t *testing.T) {
 	}
 }
 
+func TestCleanKhalaUsesEvaluationCellLoaderReset(t *testing.T) {
+	originalServer, originalLocal, originalDestroy := serverExecFn, cleanupLocalCommandFn, destroyAllFn
+	t.Cleanup(func() {
+		serverExecFn, cleanupLocalCommandFn, destroyAllFn = originalServer, originalLocal, originalDestroy
+	})
+	serverExecFn = func(string, string) (string, error) { return "", nil }
+	destroyAllFn = func(string) error { return nil }
+	var localCommands []string
+	cleanupLocalCommandFn = func(command string) (string, error) {
+		localCommands = append(localCommands, command)
+		return "", nil
+	}
+	if err := CleanKhala(WorkerNodeSetup{WorkerNodes: []string{"worker"}}, false, false); err != nil {
+		t.Fatal(err)
+	}
+	joined := strings.Join(localCommands, "\n")
+	if !strings.Contains(joined, "cd ~/loader && make clean-evaluation-cell") {
+		t.Fatalf("evaluation-cell loader reset was not invoked: %q", joined)
+	}
+	for _, forbidden := range []string{"clean_prometheus.sh", "activator", "go mod tidy"} {
+		if strings.Contains(joined, forbidden) {
+			t.Fatalf("evaluation-cell cleanup invoked forbidden %q: %q", forbidden, joined)
+		}
+	}
+}
+
 func TestCreateSnapshotsPropagatesAllWorkerFailures(t *testing.T) {
 	originalCreate := createSnapshotsNodeFn
 	t.Cleanup(func() { createSnapshotsNodeFn = originalCreate })

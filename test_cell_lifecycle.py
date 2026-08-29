@@ -130,6 +130,17 @@ if lifecycle_preclean; then exit 1; else status=$?; fi
                 )
                 self.assertIn("immutable evidence retained at $destination", source)
 
+    def test_evaluation_cell_make_target_is_local_only(self):
+        source = (ROOT / "Makefile").read_text(encoding="utf-8")
+        target = source.split("clean-evaluation-cell:", 1)[1].split("\n\n", 1)[0]
+        self.assertIn("kn service delete --all", target)
+        self.assertIn("kubectl delete --all deployments,replicasets,pods,jobs,podautoscalers -n default", target)
+        self.assertNotIn("kubectl delete --all all", target)
+        self.assertIn("reset_kn_global.sh", target)
+        self.assertIn("rm -f loader", target)
+        for forbidden in ("clean_prometheus.sh", "activator", "go mod tidy"):
+            self.assertNotIn(forbidden, target)
+
     def test_success_manifest_requires_bounded_attempts_and_clean_teardown(self):
         with tempfile.TemporaryDirectory() as directory:
             manifest = Path(directory) / "manifest.txt"

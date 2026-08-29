@@ -87,10 +87,15 @@ class E2EvidenceTest(unittest.TestCase):
         self.assertEqual(result.returncode, 1)
         self.assertIn("no hardware-manager sample", result.stdout)
 
-    def test_runner_cleanup_removes_snapshots(self):
+    def test_runner_cleanup_has_phase_snapshot_policy(self):
         source = Path(__file__).with_name("run_rps_per_workload.sh").read_text(encoding="utf-8")
         self.assertIn("--remove-snapshots=true", source)
-        self.assertNotIn("--remove-snapshots=false", source)
+        self.assertIn('pre-cell)', source)
+        self.assertIn('recovery-1|recovery-2)', source)
+        self.assertIn('policy=invalidate-stale-scratch', source)
+        self.assertIn('policy=invalidate', source)
+        self.assertIn('policy=preserve', source)
+        self.assertIn('snapshot_cleanup_policy=', source)
 
 
 if __name__ == "__main__":

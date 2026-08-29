@@ -1,4 +1,4 @@
-.PHONY : proto clean build run trace-firecracker trace-container wimpy
+.PHONY : proto clean clean-evaluation-cell build run trace-firecracker trace-container wimpy
 
 proto:
 	protoc \
@@ -32,6 +32,14 @@ clean:
 	rm -f loader
 # 	rm -f *.log
 	go mod tidy
+
+# Reset only the state owned by an evaluation cell.  Keep the legacy `clean`
+# target above unchanged: it is intentionally broader and refreshes telemetry.
+clean-evaluation-cell:
+	kn service delete --all
+	kubectl delete --all deployments,replicasets,pods,jobs,podautoscalers -n default --grace-period=0
+	bash scripts/warmup/reset_kn_global.sh
+	rm -f loader
 
 rm-results:
 	rm data/out/*.csv

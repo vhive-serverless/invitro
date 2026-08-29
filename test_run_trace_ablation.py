@@ -147,7 +147,12 @@ class AblationDryRunTest(unittest.TestCase):
         self.assertNotIn('backend-memory.csv', source)
         self.assertNotIn('backend-memory-once.csv', source)
         self.assertIn('--remove-snapshots=true', source)
-        self.assertNotIn('--remove-snapshots=false', source)
+        self.assertIn('pre-cell)', source)
+        self.assertIn('recovery-1|recovery-2)', source)
+        self.assertIn('policy=invalidate-stale-scratch', source)
+        self.assertIn('policy=invalidate', source)
+        self.assertIn('policy=preserve', source)
+        self.assertIn('snapshot_cleanup_policy=', source)
 
     def test_runner_rejects_scratch_inside_worktree(self):
         environment = os.environ.copy()

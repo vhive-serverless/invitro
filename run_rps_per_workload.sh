@@ -186,6 +186,10 @@ digest() { sha256sum "$1" | awk '{print $1}'; }
 
 line_is() { grep -Fqx "$2" "$1"; }
 
+snapshot_cleanup_policy_matches() {
+    grep -Eq '^snapshot_cleanup_policy=pre-cell=(preserve|invalidate-stale-scratch);(recovery-[12]=invalidate;)*final=preserve$' "$1"
+}
+
 mode_vm_config() {
     case "$1" in
         invm-js|nexus-js) printf '%s\n' configs/vm_orchestrator_config_js.json ;;
@@ -368,6 +372,7 @@ manifest_matches() {
         line_is "$manifest" 'evidence_status=0' &&
         line_is "$manifest" 'exit_status=0' || return 1
     lifecycle_success_manifest_matches "$manifest" || return 1
+    snapshot_cleanup_policy_matches "$manifest" || return 1
     worker_count=$(jq '.worker_nodes | length' "$destination/worker-node.json")
     expected_perf_artifacts=0
     if [[ "$perf" == true ]]; then expected_perf_artifacts=$((worker_count * 4)); fi
@@ -484,7 +489,8 @@ run_cell() {
         return
     fi
     [[ ! -e "$destination" ]] || { echo "refusing incomplete cell: $destination" >&2; return 2; }
-    local evidence_status=1 perf_artifact_count=0
+    local evidence_status=1 perf_artifact_count=0 stale_scratch=false snapshot_cleanup_policy=
+    if [[ -e "$scratch_cell" ]]; then stale_scratch=true; fi
     lifecycle_setup() {
         local attempt=$1
         if ((attempt == 1)); then
@@ -601,9 +607,24 @@ run_cell() {
         return "$status"
     }
     lifecycle_cleanup() {
-        local cleanup_phase=$1
+        local cleanup_phase=$1 policy remove_snapshots=false
+        case "$cleanup_phase" in
+            pre-cell)
+                if [[ "$stale_scratch" == true ]]; then
+                    policy=invalidate-stale-scratch
+                    remove_snapshots=true
+                else
+                    policy=preserve
+                fi
+                ;;
+            recovery-1|recovery-2) policy=invalidate; remove_snapshots=true ;;
+            final) policy=preserve ;;
+            *) echo "unknown lifecycle cleanup phase: $cleanup_phase" >&2; return 2 ;;
+        esac
+        if [[ -n "$snapshot_cleanup_policy" ]]; then snapshot_cleanup_policy+=';'; fi
+        snapshot_cleanup_policy+="$cleanup_phase=$policy"
         go run experiment/khala_command.go --command clean --mode "$mode" --worker-config "$worker_config" --minio-endpoint "$minio_endpoint" \
-            --remove-snapshots=true > "$scratch_out/clean-$cleanup_phase.log" 2>&1
+            --remove-snapshots="$remove_snapshots" > "$scratch_out/clean-$cleanup_phase.log" 2>&1
         local status=$?
         cat "$scratch_out/clean-$cleanup_phase.log" >> "$scratch_out/clean.log"
         return "$status"
@@ -622,6 +643,7 @@ run_cell() {
             echo "deploy_invocations=$deploy_invocations"
             echo "loader_started=$loader_started"
             echo "cleanup_exit_status=$clean_status"
+            echo "snapshot_cleanup_policy=$snapshot_cleanup_policy"
             if [[ "$loader_started" == true ]]; then echo 'lifecycle_phase=final'; else echo 'lifecycle_phase=setup'; fi
         echo "end_utc=$(date -u --iso-8601=seconds)"
         echo "exit_status=$status"
