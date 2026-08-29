@@ -203,8 +203,8 @@ func setupWorkers(workerNodes []string, joinToken string, cfg *configs.SetupConf
 				return
 			}
 
-			// Configure maxPods
-			_, err = loaderUtils.ServerExec(node, fmt.Sprintf("echo \"maxPods: %d\" | sudo tee -a /var/lib/kubelet/config.yaml >/dev/null", cfg.PodsPerNode))
+			// Configure maxPods idempotently; Calico owns pod CIDR allocation.
+			_, err = loaderUtils.ServerExec(node, workerMaxPodsCommand(cfg.PodsPerNode))
 			if !utils.CheckErrorWithMsg(err, "Failed to set maxPods on worker %s: %v\n", node, err) {
 				errChan <- err
 				return
@@ -240,68 +240,6 @@ func setupWorkers(workerNodes []string, joinToken string, cfg *configs.SetupConf
 	for err := range errChan {
 		return err
 	}
-	return nil
-}
-
-func extendCIDR(masterNode string, workerNodes []string, joinToken string) error {
-	utils.InfoPrintf("Extending CIDR for all nodes...\n")
-
-	// Get node names first
-	nodeList, err := loaderUtils.ServerExec(masterNode, "kubectl get no | tail -n +2 | awk '{print $1}'")
-	if !utils.CheckErrorWithMsg(err, "Failed to get node names from master node %s: %v\n", masterNode, err) {
-		return err
-	}
-	nodeNames := strings.Fields(nodeList)
-	if len(nodeNames) == 0 {
-		return fmt.Errorf("could not retrieve any node names")
-	}
-
-	var wg sync.WaitGroup
-	errChan := make(chan error, len(nodeNames))
-
-	for i, nodeName := range nodeNames {
-		wg.Add(1)
-		go func(nodeName string, i int) {
-			defer wg.Done()
-			subnet := i*4 + 4
-			// Get node JSON, modify podCIDR, and save to node.yaml
-			getNodeCmd := fmt.Sprintf("kubectl get node %s -o json | jq '.spec.podCIDR |= \"10.168.%d.0/22\"' > node.yaml", nodeName, subnet)
-			_, err := loaderUtils.ServerExec(masterNode, getNodeCmd)
-			if !utils.CheckErrorWithMsg(err, "Failed to get and modify node %s JSON on master node %s: %v\n", nodeName, masterNode, err) {
-				errChan <- err
-				return
-			}
-
-			// Delete the node
-			deleteNodeCmd := fmt.Sprintf("kubectl delete node %s", nodeName)
-			_, err = loaderUtils.ServerExec(masterNode, deleteNodeCmd)
-			if !utils.CheckErrorWithMsg(err, "Failed to delete node %s on master node %s: %v\n", nodeName, masterNode, err) {
-				errChan <- err
-				return
-			}
-
-			// Create the node with updated CIDR
-			createNodeCmd := "kubectl create -f node.yaml"
-			_, err = loaderUtils.ServerExec(masterNode, createNodeCmd)
-			if !utils.CheckErrorWithMsg(err, "Failed to create node %s with updated CIDR on master node %s: %v\n", nodeName, masterNode, err) {
-				errChan <- err
-				return
-			}
-			utils.InfoPrintf("Changed pod CIDR for node %s to 10.168.%d.0/22\n", nodeName, subnet)
-		}(nodeName, i)
-	}
-
-	wg.Wait()
-	close(errChan)
-	for err := range errChan {
-		return err
-	}
-
-	// Rejoin the cluster for the 3rd time
-	for _, node := range workerNodes {
-		_, _ = loaderUtils.ServerExec(node, joinToken)
-	}
-
 	return nil
 }
 

@@ -22,6 +22,8 @@ type options struct {
 	noRetry, smoke                                           bool
 }
 
+const workerPodReserve = 40
+
 func main() {
 	if len(os.Args) < 2 || (os.Args[1] != "calibrate" && os.Args[1] != "collect" && os.Args[1] != "smoke") {
 		fail("usage: go run ./experiment/e2 calibrate|collect|smoke [flags]")
@@ -62,6 +64,10 @@ func defaultOptions(action string) options {
 }
 
 func run(ctx context.Context, action string, o options) error {
+	return runWithWorkerPodDiscovery(ctx, action, o, discoverWorkerPods)
+}
+
+func runWithWorkerPodDiscovery(ctx context.Context, action string, o options, discoverPods func(context.Context) (int, error)) error {
 	if o.common.Profile != eval.Profile4 {
 		return fmt.Errorf("E2 requires profile 4-node")
 	}
@@ -147,6 +153,11 @@ func run(ctx context.Context, action string, o options) error {
 	if o.common.DryRun {
 		args = append(args, "--dry-run")
 	}
+	if !o.common.DryRun && !o.smoke {
+		if err := requireWorkerPodCapacity(ctx, o.replicas, discoverPods); err != nil {
+			return err
+		}
+	}
 	return (eval.Runner{DryRun: false}).Run(ctx, eval.Command{Name: filepath.Join(root, "run_rps_per_workload.sh"), Args: args, Dir: root, Env: commandEnv})
 }
 
@@ -209,6 +220,34 @@ func discoverWorkerCores(ctx context.Context) (int, error) {
 	value, err := strconv.Atoi(raw)
 	if err != nil || value <= 0 {
 		return 0, fmt.Errorf("invalid allocatable CPU %q", raw)
+	}
+	return value, nil
+}
+
+func requireWorkerPodCapacity(ctx context.Context, replicas int, discover func(context.Context) (int, error)) error {
+	capacity, err := discover(ctx)
+	if err != nil {
+		return err
+	}
+	required := replicas + workerPodReserve
+	if capacity < required {
+		return fmt.Errorf("worker allocatable pod capacity %d < required %d (%d replicas + %d reserve)", capacity, required, replicas, workerPodReserve)
+	}
+	return nil
+}
+
+func discoverWorkerPods(ctx context.Context) (int, error) {
+	out, err := exec.CommandContext(ctx, "kubectl", "get", "nodes", "-l", "loader-nodetype=worker", "-o", "jsonpath={range .items[*]}{.status.allocatable.pods}{'\\n'}{end}").Output()
+	if err != nil {
+		return 0, fmt.Errorf("discover worker pod capacity: %w", err)
+	}
+	lines := strings.Fields(string(out))
+	if len(lines) != 1 {
+		return 0, fmt.Errorf("expected one worker allocatable pod value, got %q", strings.TrimSpace(string(out)))
+	}
+	value, err := strconv.Atoi(lines[0])
+	if err != nil || value <= 0 {
+		return 0, fmt.Errorf("invalid worker allocatable pod value %q", lines[0])
 	}
 	return value, nil
 }

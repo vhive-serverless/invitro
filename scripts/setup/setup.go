@@ -19,12 +19,17 @@ func main() {
 
 	availableCmds := []string{
 		"create_multinode_cluster",
+		"set_worker_pod_capacity",
 	}
 
 	switch *Setup {
 	case "create_multinode_cluster":
 		cluster.CreateMultiNodeSetup("configs", *configName)
 		// Call the function to create a multinode cluster
+	case "set_worker_pod_capacity":
+		if err := cluster.SetWorkerPodCapacity("configs", *configName); err != nil {
+			utils.FatalPrintf("Failed to set worker pod capacity: %v\n", err)
+		}
 	case "redeploy_minio":
 		cluster.RedeployMinio("configs", *configName)
 		// Call the function to redeploy MinIO

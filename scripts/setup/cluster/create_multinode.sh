@@ -52,12 +52,6 @@ else
     exit 1
 fi
 
-if [ $PODS_PER_NODE -gt 1022 ]; then
-    # CIDR range limitation exceeded
-    echo "Pods per node cannot be greater than 1022. Cluster deployment has been aborted."
-    exit 1
-fi
-
 server_exec() {
     ssh -oStrictHostKeyChecking=no -p 22 "$1" "$2";
 }
@@ -142,10 +136,11 @@ function setup_workers() {
         server_exec $node "sudo ${LOGIN_TOKEN}"
         echo "Worker node $node has joined the cluster."
 
-        # Stretch the capacity of the worker node to 240 (k8s default: 110)
-        # Empirically, this gives us a max. #pods being 240-40=200
+        # Stretch the capacity of the worker node to 360 (k8s default: 110)
+        # With the historical 40-pod system overhead, this leaves room for 320 replicas.
         echo "Stretching node capacity for $node."
-        server_exec $node "echo \"maxPods: ${PODS_PER_NODE}\" > >(sudo tee -a /var/lib/kubelet/config.yaml >/dev/null)"
+        # Calico owns pod CIDR allocation; only update kubelet capacity here.
+        server_exec $node "sudo sed -i '/^[[:space:]]*maxPods:/d' /var/lib/kubelet/config.yaml && echo \"maxPods: ${PODS_PER_NODE}\" | sudo tee -a /var/lib/kubelet/config.yaml >/dev/null"
         server_exec $node "echo \"containerLogMaxSize: 512Mi\" > >(sudo tee -a /var/lib/kubelet/config.yaml >/dev/null)"
         server_exec $node 'sudo systemctl restart kubelet'
         server_exec $node 'sleep 10'
@@ -161,38 +156,6 @@ function setup_workers() {
     done
 
     wait
-}
-
-function extend_CIDR() {
-    #* Get node name list.
-    readarray -t NODE_NAMES < <(server_exec $MASTER_NODE 'kubectl get no' | tail -n +2 | awk '{print $1}')
-
-    if [ ${#NODE_NAMES[@]} -gt 63 ]; then
-        echo "Cannot extend CIDR range for more than 63 nodes. Cluster deployment has been aborted."
-        exit 1
-    fi
-
-    for i in "${!NODE_NAMES[@]}"; do
-        NODE_NAME=${NODE_NAMES[i]}
-        #* Compute subnet: 00001010.10101000.000000 00.00000000 -> about 1022 IPs per worker.
-        #* To be safe, we change both master and workers with an offset of 0.0.4.0 (4 * 2^8)
-        # (NB: zsh indices start from 1.)
-        #* Assume less than 63 nodes in total.
-        let SUBNET=i*4+4
-        #* Extend pod ip range, delete and create again.
-        server_exec $MASTER_NODE "kubectl get node $NODE_NAME -o json | jq '.spec.podCIDR |= \"10.168.$SUBNET.0/22\"' > node.yaml"
-        server_exec $MASTER_NODE "kubectl delete node $NODE_NAME && kubectl create -f node.yaml"
-
-        echo "Changed pod CIDR for worker $NODE_NAME to 10.168.$SUBNET.0/22"
-        sleep 5
-    done
-
-    #* Join the cluster for the 3rd time.
-    for node in "$@"
-    do
-        server_exec $node "sudo ${LOGIN_TOKEN} > /dev/null 2>&1"
-        echo "Worker node $node joined the cluster (again^2 :D)."
-    done
 }
 
 function clone_loader() {
@@ -253,9 +216,8 @@ function distribute_loader_ssh_key() {
     setup_master
     setup_workers "$@"
 
-    if [ $PODS_PER_NODE -gt 240 ]; then
-        extend_CIDR "$@"
-    fi
+    # Calico dynamically allocates pod CIDR blocks from its /16 pool; do not
+    # rewrite Node.spec.podCIDR or delete/recreate Kubernetes Node objects.
 
     # Untaint master to schedule knative control plane there
     server_exec $MASTER_NODE "kubectl taint nodes \$(hostname) node-role.kubernetes.io/control-plane-"

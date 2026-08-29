@@ -57,14 +57,8 @@ func CreateMultiNodeSetup(configDir string, configName string) {
 
 	time.Sleep(5 * time.Second) // Wait for nodes to stabilize
 
-	// Extend CIDR if necessary
-	if cfg.SetupCfg.PodsPerNode > 240 {
-		utils.InfoPrintf("Extending CIDR range...\n")
-		if err := extendCIDR(cfg.MasterNode, cfg.WorkerNodes, joinToken); err != nil {
-			utils.FatalPrintf("Failed to extend CIDR range: %v\n", err)
-		}
-		utils.InfoPrintf("CIDR range extended.\n")
-	}
+	// Calico owns pod CIDR allocation from its cluster pool; maxPods does not
+	// require rewriting Kubernetes Node.spec.podCIDR or recreating Node objects.
 
 	time.Sleep(5 * time.Second) // Wait for nodes to stabilize
 

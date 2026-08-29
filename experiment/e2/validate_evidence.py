@@ -9,6 +9,10 @@ import json
 from pathlib import Path
 
 
+DEPLOYMENT_ERROR_MARKERS = (
+    "failed to deploy function",
+)
+
 TELEMETRY_ERROR_MARKERS = (
     "error querying prometheus",
     "fail to parse cluster usage",
@@ -36,6 +40,9 @@ def read_csv(path: Path) -> list[dict[str, str]]:
 
 def validate_metrics(prefix: Path, loader_log: Path) -> tuple[int, int, int, int]:
     log_text = loader_log.read_text(encoding="utf-8", errors="replace").lower()
+    deployment_failures = [marker for marker in DEPLOYMENT_ERROR_MARKERS if marker in log_text]
+    if deployment_failures:
+        raise ValueError("loader recorded function deployment failure: " + ", ".join(deployment_failures))
     found = [marker for marker in TELEMETRY_ERROR_MARKERS if marker in log_text]
     if found:
         raise ValueError("loader recorded telemetry transport/parser errors: " + ", ".join(found))

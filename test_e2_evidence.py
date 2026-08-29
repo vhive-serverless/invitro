@@ -71,6 +71,14 @@ class E2EvidenceTest(unittest.TestCase):
         self.assertEqual(result.returncode, 1)
         self.assertIn("telemetry transport/parser errors", result.stdout)
 
+    def test_rejects_function_deployment_failure(self):
+        self.loader_log.write_text(
+            "Failed to deploy function helloworld: exit status 1\n", encoding="utf-8"
+        )
+        result = self._run()
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("loader recorded function deployment failure", result.stdout)
+
     def test_rejects_sentinel_only_cluster_metrics(self):
         (self.root / "experiment_cluster_usage_3.csv").write_text(
             json.dumps({"cpu": None, "hardware_metrics": None}) + "\n", encoding="utf-8"
