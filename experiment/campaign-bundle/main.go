@@ -593,10 +593,28 @@ func copyTree(src, dst string, expected inventory) error {
 	if err != nil {
 		return err
 	}
-	defer os.RemoveAll(tmp)
+	defer func() {
+		_ = filepath.Walk(tmp, func(path string, info os.FileInfo, walkErr error) error {
+			if walkErr == nil && info.IsDir() {
+				_ = os.Chmod(path, info.Mode().Perm()|0700)
+			}
+			return nil
+		})
+		_ = os.RemoveAll(tmp)
+	}()
+	sourceRoot, err := os.Stat(src)
+	if err != nil {
+		return err
+	}
+	type directoryMode struct {
+		path string
+		mode os.FileMode
+	}
+	var directories []directoryMode
 	// Recreate directory entries too, including empty directories.  The
-	// inventory hashes regular files, but byte-for-byte tree reuse must not
-	// silently discard the source layout.
+	// inventory hashes regular files, but controlled reuse must not silently
+	// discard the source layout.  Use temporary owner-write permissions while
+	// populating descendants, then restore source modes bottom-up.
 	if err := filepath.WalkDir(src, func(path string, d fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
@@ -616,9 +634,11 @@ func copyTree(src, dst string, expected inventory) error {
 			if err != nil {
 				return err
 			}
-			if err := os.MkdirAll(filepath.Join(tmp, rel), info.Mode().Perm()); err != nil {
+			destination := filepath.Join(tmp, rel)
+			if err := os.MkdirAll(destination, info.Mode().Perm()|0700); err != nil {
 				return err
 			}
+			directories = append(directories, directoryMode{path: destination, mode: info.Mode().Perm()})
 		}
 		return nil
 	}); err != nil {
@@ -638,7 +658,7 @@ func copyTree(src, dst string, expected inventory) error {
 		if err != nil {
 			return err
 		}
-		out, err := os.OpenFile(d, os.O_WRONLY|os.O_CREATE|os.O_EXCL, info.Mode().Perm())
+		out, err := os.OpenFile(d, os.O_WRONLY|os.O_CREATE|os.O_EXCL, info.Mode().Perm()|0600)
 		if err != nil {
 			in.Close()
 			return err
@@ -655,6 +675,17 @@ func copyTree(src, dst string, expected inventory) error {
 		if closeInErr != nil {
 			return closeInErr
 		}
+		if err := os.Chmod(d, info.Mode().Perm()); err != nil {
+			return err
+		}
+	}
+	for i := len(directories) - 1; i >= 0; i-- {
+		if err := os.Chmod(directories[i].path, directories[i].mode); err != nil {
+			return err
+		}
+	}
+	if err := os.Chmod(tmp, sourceRoot.Mode().Perm()); err != nil {
+		return err
 	}
 	if err := os.Rename(tmp, dst); err != nil {
 		return err

@@ -96,6 +96,53 @@ func TestScanRejectsHardlinkOutsideTree(t *testing.T) {
 	}
 }
 
+func TestCopyTreePopulatesThenRestoresReadOnlyModes(t *testing.T) {
+	base := t.TempDir()
+	defer restoreWritable(base)
+	src := filepath.Join(base, "src")
+	dst := filepath.Join(base, "dst")
+	file := filepath.Join(src, "readonly", "nested", "payload")
+	putFile(t, file, "payload")
+	if err := os.Chmod(file, 0444); err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range []string{filepath.Join(src, "readonly", "nested"), filepath.Join(src, "readonly"), src} {
+		if err := os.Chmod(path, 0555); err != nil {
+			t.Fatal(err)
+		}
+	}
+	expected, err := scan(src, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := copyTree(src, dst, expected); err != nil {
+		t.Fatal(err)
+	}
+	actual, err := scan(dst, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !sameInventory(expected, actual) {
+		t.Fatal("read-only materialization changed the byte inventory")
+	}
+	for _, path := range []string{dst, filepath.Join(dst, "readonly"), filepath.Join(dst, "readonly", "nested")} {
+		info, err := os.Stat(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if info.Mode().Perm() != 0555 {
+			t.Fatalf("%s mode = %o, want 0555", path, info.Mode().Perm())
+		}
+	}
+	info, err := os.Stat(filepath.Join(dst, "readonly", "nested", "payload"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode().Perm() != 0444 {
+		t.Fatalf("payload mode = %o, want 0444", info.Mode().Perm())
+	}
+}
+
 func TestPlanMaterializeSealVerifyAndTamper(t *testing.T) {
 	base := t.TempDir()
 	defer restoreWritable(base)
