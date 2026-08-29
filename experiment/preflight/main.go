@@ -683,7 +683,7 @@ func (c *checks) smokeEvidence(root string) {
 				e1[fields["claim_id"]] = true
 			}
 		case fields["phase"] == "collection" && fields["workload"] == "helloworld":
-			if lifecycleErr := validateLifecycleSmokeManifest(fields, "E2"); lifecycleErr != nil {
+			if lifecycleErr := validateLifecycleSmokeManifest(fields, "E2", filepath.Dir(path)); lifecycleErr != nil {
 				err = errors.Join(err, fmt.Errorf("E2 %s: %w", fields["mode"], lifecycleErr))
 			} else if checksumErr := validateArchivedOutputChecksums(filepath.Dir(path)); checksumErr != nil {
 				err = errors.Join(err, fmt.Errorf("E2 %s: %w", fields["mode"], checksumErr))
@@ -691,7 +691,7 @@ func (c *checks) smokeEvidence(root string) {
 				e2[fields["mode"]] = true
 			}
 		case fields["experiment"] == "e3" && fields["end_scale"] == "1" && fields["claim_bearing"] == "false":
-			if lifecycleErr := validateLifecycleSmokeManifest(fields, "E3"); lifecycleErr != nil {
+			if lifecycleErr := validateLifecycleSmokeManifest(fields, "E3", filepath.Dir(path)); lifecycleErr != nil {
 				err = errors.Join(err, fmt.Errorf("E3 %s: %w", fields["mode"], lifecycleErr))
 			} else if checksumErr := validateArchivedOutputChecksums(filepath.Dir(path)); checksumErr != nil {
 				err = errors.Join(err, fmt.Errorf("E3 %s: %w", fields["mode"], checksumErr))
@@ -809,7 +809,7 @@ func validateE1LifecycleSmokeManifest(fields map[string]string) error {
 // setup/deploy retry is bounded to two attempts, while loader/acquisition is
 // single-shot; a successful cleanup and explicit final marker prove that the
 // archive is not a pre-loader or partially finalized cell.
-func validateLifecycleSmokeManifest(fields map[string]string, experiment string) error {
+func validateLifecycleSmokeManifest(fields map[string]string, experiment, directory string) error {
 	if fields["manifest_version"] != "2" {
 		return fmt.Errorf("manifest_version=%q, want 2", fields["manifest_version"])
 	}
@@ -825,8 +825,11 @@ func validateLifecycleSmokeManifest(fields map[string]string, experiment string)
 	if fields["exit_status"] != "0" {
 		return fmt.Errorf("exit_status=%q, want 0", fields["exit_status"])
 	}
-	if experiment == "E2" && fields["evidence_status"] != "0" {
-		return fmt.Errorf("evidence_status=%q, want 0", fields["evidence_status"])
+	if fields["acquisition_started"] != "true" || fields["acquisition_retry"] != "false" || fields["independent_continuation"] != "true" {
+		return fmt.Errorf("incomplete acquisition lifecycle contract")
+	}
+	if fields["snapshot_status"] != "0" {
+		return fmt.Errorf("snapshot_status=%q, want 0", fields["snapshot_status"])
 	}
 	for _, key := range []string{"setup_attempts", "deploy_attempts", "deploy_invocations"} {
 		value, err := strconv.Atoi(fields[key])
@@ -839,6 +842,102 @@ func validateLifecycleSmokeManifest(fields map[string]string, experiment string)
 	deployInvocations, _ := strconv.Atoi(fields["deploy_invocations"])
 	if deployAttempts != deployInvocations || deployInvocations > setupAttempts {
 		return fmt.Errorf("deploy attempts/invocations inconsistent: setup=%d deploy=%d invocations=%d", setupAttempts, deployAttempts, deployInvocations)
+	}
+	if err := validateManifestFileHash(fields, "evidence_validation_sha256", directory, "evidence-validation.txt"); err != nil {
+		return err
+	}
+	switch experiment {
+	case "E2":
+		if fields["evidence_status"] != "0" || fields["admission_status"] != "0" {
+			return fmt.Errorf("E2 evidence/admission status is not PASS")
+		}
+		expected, err := positiveManifestInt(fields, "admission_expected_replicas")
+		if err != nil {
+			return err
+		}
+		functions, err := positiveManifestInt(fields, "admission_function_count")
+		if err != nil {
+			return err
+		}
+		aggregateExpected, err := positiveManifestInt(fields, "admission_aggregate_expected_replicas")
+		if err != nil {
+			return err
+		}
+		aggregateReady, err := positiveManifestInt(fields, "admission_aggregate_ready_replicas")
+		if err != nil {
+			return err
+		}
+		if aggregateExpected != expected*functions || aggregateReady != aggregateExpected {
+			return fmt.Errorf("E2 admission aggregate mismatch: replicas=%d functions=%d expected=%d ready=%d", expected, functions, aggregateExpected, aggregateReady)
+		}
+		if fields["snapshot_workload_count"] != "1" {
+			return fmt.Errorf("snapshot_workload_count=%q, want 1", fields["snapshot_workload_count"])
+		}
+		if err := validateManifestFileHash(fields, "admission_evidence_sha256", directory, "admission-validation.txt"); err != nil {
+			return err
+		}
+		if err := validateManifestFileHash(fields, "admission_readiness_sha256", directory, "admission.csv"); err != nil {
+			return err
+		}
+	case "E3":
+		if fields["evidence_status"] != "0" || fields["scientific_status"] != "ACCEPTED" {
+			return fmt.Errorf("E3 scientific evidence is not accepted")
+		}
+		successes, err := positiveManifestInt(fields, "success_count")
+		if err != nil {
+			return err
+		}
+		failures, err := nonNegativeManifestInt(fields, "failure_count")
+		if err != nil {
+			return err
+		}
+		if failures*100 > (successes+failures)*5 {
+			return fmt.Errorf("E3 failure fraction exceeds 5%%")
+		}
+		fraction, err := strconv.ParseFloat(fields["failure_fraction"], 64)
+		if err != nil {
+			return fmt.Errorf("failure_fraction=%q is malformed", fields["failure_fraction"])
+		}
+		expectedFraction := float64(failures) / float64(successes+failures)
+		if fraction < expectedFraction-1e-12 || fraction > expectedFraction+1e-12 {
+			return fmt.Errorf("failure_fraction=%q disagrees with success/failure counts", fields["failure_fraction"])
+		}
+		if fields["snapshot_workload_count"] != "10" {
+			return fmt.Errorf("snapshot_workload_count=%q, want 10", fields["snapshot_workload_count"])
+		}
+	default:
+		return fmt.Errorf("unknown lifecycle smoke experiment %q", experiment)
+	}
+	return nil
+}
+
+func positiveManifestInt(fields map[string]string, key string) (int, error) {
+	value, err := strconv.Atoi(fields[key])
+	if err != nil || value <= 0 {
+		return 0, fmt.Errorf("%s=%q, want a positive integer", key, fields[key])
+	}
+	return value, nil
+}
+
+func nonNegativeManifestInt(fields map[string]string, key string) (int, error) {
+	value, err := strconv.Atoi(fields[key])
+	if err != nil || value < 0 {
+		return 0, fmt.Errorf("%s=%q, want a non-negative integer", key, fields[key])
+	}
+	return value, nil
+}
+
+func validateManifestFileHash(fields map[string]string, key, directory, name string) error {
+	expected := fields[key]
+	if len(expected) != sha256.Size*2 {
+		return fmt.Errorf("%s is missing or malformed", key)
+	}
+	actual, err := eval.SHA256File(filepath.Join(directory, name))
+	if err != nil {
+		return fmt.Errorf("%s: %w", name, err)
+	}
+	if actual != expected {
+		return fmt.Errorf("%s digest mismatch", name)
 	}
 	return nil
 }
@@ -887,6 +986,34 @@ func validateArchivedOutputChecksums(directory string) error {
 	}
 	if count == 0 {
 		return fmt.Errorf("%s contains no artifact rows", path)
+	}
+	actualFiles := map[string]bool{}
+	if err := filepath.WalkDir(directory, func(candidate string, entry os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() {
+			return nil
+		}
+		relative, err := filepath.Rel(directory, candidate)
+		if err != nil {
+			return err
+		}
+		relative = filepath.ToSlash(relative)
+		if relative != "manifest.txt" && relative != "archived-output-checksums.csv" {
+			actualFiles[relative] = true
+		}
+		return nil
+	}); err != nil {
+		return err
+	}
+	if len(actualFiles) != len(seen) {
+		return fmt.Errorf("%s is incomplete: listed=%d actual=%d", path, len(seen), len(actualFiles))
+	}
+	for relative := range actualFiles {
+		if !seen[relative] {
+			return fmt.Errorf("%s omits %q", path, relative)
+		}
 	}
 	return nil
 }

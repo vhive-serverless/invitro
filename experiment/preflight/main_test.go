@@ -73,16 +73,26 @@ func TestSmokeEvidenceRequiresAllFourExperimentSmokes(t *testing.T) {
 	manifests := map[string]string{
 		"e1-2b":   "smoke=true\nmanifest_version=9\nclaim_id=e1-smoke-2b\ncell_status_sequence=started,complete\nfixture_setup_max_attempts=2\nfixture_setup_attempts=1\ncell_setup_max_attempts=2\nacquisition_retry=false\nindependent_continuation=true\ncontamination_stop=true\nexit_status=0\n",
 		"e1-4mib": "smoke=true\nmanifest_version=9\nclaim_id=e1-smoke-4mib\ncell_status_sequence=started,complete\nfixture_setup_max_attempts=2\nfixture_setup_attempts=1\ncell_setup_max_attempts=2\nacquisition_retry=false\nindependent_continuation=true\ncontamination_stop=true\nexit_status=0\n",
-		"e2-b0":   "smoke=true\nmanifest_version=2\nphase=collection\nworkload=helloworld\nmode=invm-py\nevidence_status=0\nsetup_attempts=1\ndeploy_attempts=1\ndeploy_invocations=1\nloader_started=true\ncleanup_exit_status=0\nlifecycle_phase=final\nexit_status=0\n",
-		"e2-n4":   "smoke=true\nmanifest_version=2\nphase=collection\nworkload=helloworld\nmode=nexus-py\nevidence_status=0\nsetup_attempts=1\ndeploy_attempts=1\ndeploy_invocations=1\nloader_started=true\ncleanup_exit_status=0\nlifecycle_phase=final\nexit_status=0\n",
-		"e3-b0":   "smoke=true\nmanifest_version=2\nexperiment=e3\nend_scale=1\nclaim_bearing=false\nmode=invm-py\nsetup_attempts=1\ndeploy_attempts=1\ndeploy_invocations=1\nloader_started=true\ncleanup_exit_status=0\nlifecycle_phase=final\nexit_status=0\n",
-		"e3-n4":   "smoke=true\nmanifest_version=2\nexperiment=e3\nend_scale=1\nclaim_bearing=false\nmode=nexus-py\nsetup_attempts=1\ndeploy_attempts=1\ndeploy_invocations=1\nloader_started=true\ncleanup_exit_status=0\nlifecycle_phase=final\nexit_status=0\n",
-		"e3-n5":   "smoke=true\nmanifest_version=2\nexperiment=e3\nend_scale=1\nclaim_bearing=false\nmode=nexus-rdma-py\nsetup_attempts=1\ndeploy_attempts=1\ndeploy_invocations=1\nloader_started=true\ncleanup_exit_status=0\nlifecycle_phase=final\nexit_status=0\n",
+		"e2-b0":   "smoke=true\nmanifest_version=2\nphase=collection\nworkload=helloworld\nmode=invm-py\nevidence_status=0\nadmission_status=0\nadmission_expected_replicas=2\nadmission_function_count=1\nadmission_aggregate_expected_replicas=2\nadmission_aggregate_ready_replicas=2\nsnapshot_status=0\nsnapshot_workload_count=1\nacquisition_started=true\nacquisition_retry=false\nindependent_continuation=true\nsetup_attempts=1\ndeploy_attempts=1\ndeploy_invocations=1\nloader_started=true\ncleanup_exit_status=0\nlifecycle_phase=final\nexit_status=0\n",
+		"e2-n4":   "smoke=true\nmanifest_version=2\nphase=collection\nworkload=helloworld\nmode=nexus-py\nevidence_status=0\nadmission_status=0\nadmission_expected_replicas=2\nadmission_function_count=1\nadmission_aggregate_expected_replicas=2\nadmission_aggregate_ready_replicas=2\nsnapshot_status=0\nsnapshot_workload_count=1\nacquisition_started=true\nacquisition_retry=false\nindependent_continuation=true\nsetup_attempts=1\ndeploy_attempts=1\ndeploy_invocations=1\nloader_started=true\ncleanup_exit_status=0\nlifecycle_phase=final\nexit_status=0\n",
+		"e3-b0":   "smoke=true\nmanifest_version=2\nexperiment=e3\nend_scale=1\nclaim_bearing=false\nmode=invm-py\nevidence_status=0\nscientific_status=ACCEPTED\nsuccess_count=19\nfailure_count=1\nfailure_fraction=0.05\nsnapshot_status=0\nsnapshot_workload_count=10\nacquisition_started=true\nacquisition_retry=false\nindependent_continuation=true\nsetup_attempts=1\ndeploy_attempts=1\ndeploy_invocations=1\nloader_started=true\ncleanup_exit_status=0\nlifecycle_phase=final\nexit_status=0\n",
+		"e3-n4":   "smoke=true\nmanifest_version=2\nexperiment=e3\nend_scale=1\nclaim_bearing=false\nmode=nexus-py\nevidence_status=0\nscientific_status=ACCEPTED\nsuccess_count=19\nfailure_count=1\nfailure_fraction=0.05\nsnapshot_status=0\nsnapshot_workload_count=10\nacquisition_started=true\nacquisition_retry=false\nindependent_continuation=true\nsetup_attempts=1\ndeploy_attempts=1\ndeploy_invocations=1\nloader_started=true\ncleanup_exit_status=0\nlifecycle_phase=final\nexit_status=0\n",
+		"e3-n5":   "smoke=true\nmanifest_version=2\nexperiment=e3\nend_scale=1\nclaim_bearing=false\nmode=nexus-rdma-py\nevidence_status=0\nscientific_status=ACCEPTED\nsuccess_count=19\nfailure_count=1\nfailure_fraction=0.05\nsnapshot_status=0\nsnapshot_workload_count=10\nacquisition_started=true\nacquisition_retry=false\nindependent_continuation=true\nsetup_attempts=1\ndeploy_attempts=1\ndeploy_invocations=1\nloader_started=true\ncleanup_exit_status=0\nlifecycle_phase=final\nexit_status=0\n",
 	}
 	for name, content := range manifests {
 		dir := filepath.Join(root, name)
 		if err := os.MkdirAll(dir, 0755); err != nil {
 			t.Fatal(err)
+		}
+		if name[:2] == "e2" || name[:2] == "e3" {
+			evidenceHash := writeQualificationFile(t, dir, "evidence-validation.txt", "evidence_status=PASS\n")
+			content += "evidence_validation_sha256=" + evidenceHash + "\n"
+		}
+		if name[:2] == "e2" {
+			admissionHash := writeQualificationFile(t, dir, "admission-validation.txt", "admission_status=PASS\n")
+			readinessHash := writeQualificationFile(t, dir, "admission.csv", "function,ready_replicas\nhelloworld,2\n")
+			content += "admission_evidence_sha256=" + admissionHash + "\n"
+			content += "admission_readiness_sha256=" + readinessHash + "\n"
 		}
 		if err := os.WriteFile(filepath.Join(dir, "manifest.txt"), []byte(content), 0644); err != nil {
 			t.Fatal(err)
@@ -126,19 +136,51 @@ func TestArchivedOutputChecksumsRejectHeaderOnlyAndCorruption(t *testing.T) {
 	if err := validateArchivedOutputChecksums(dir); err == nil {
 		t.Fatal("accepted a corrupted archived payload")
 	}
+	writeChecksumFixture(t, dir)
+	if err := os.WriteFile(filepath.Join(dir, "unlisted.txt"), []byte("unlisted\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := validateArchivedOutputChecksums(dir); err == nil {
+		t.Fatal("accepted an unlisted archived payload")
+	}
+}
+
+func writeQualificationFile(t *testing.T, dir, name, content string) string {
+	t.Helper()
+	path := filepath.Join(dir, name)
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+	digest, err := eval.SHA256File(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return digest
 }
 
 func writeChecksumFixture(t *testing.T, dir string) {
 	t.Helper()
 	payload := filepath.Join(dir, "payload.txt")
-	if err := os.WriteFile(payload, []byte("qualification\n"), 0644); err != nil {
-		t.Fatal(err)
+	if _, err := os.Stat(payload); os.IsNotExist(err) {
+		if err := os.WriteFile(payload, []byte("qualification\n"), 0644); err != nil {
+			t.Fatal(err)
+		}
 	}
-	digest, err := eval.SHA256File(payload)
+	entries, err := os.ReadDir(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
-	content := "path,sha256\npayload.txt," + digest + "\n"
+	content := "path,sha256\n"
+	for _, entry := range entries {
+		if entry.IsDir() || entry.Name() == "manifest.txt" || entry.Name() == "archived-output-checksums.csv" {
+			continue
+		}
+		digest, err := eval.SHA256File(filepath.Join(dir, entry.Name()))
+		if err != nil {
+			t.Fatal(err)
+		}
+		content += entry.Name() + "," + digest + "\n"
+	}
 	if err := os.WriteFile(filepath.Join(dir, "archived-output-checksums.csv"), []byte(content), 0644); err != nil {
 		t.Fatal(err)
 	}
