@@ -231,8 +231,13 @@ func makePlan(o options) ([]cell, eval.Setup, string, error) {
 
 func runCells(ctx context.Context, o options, plan []cell, worker, workerHome, workerIP, endpoint, campaignHash string, ops cellOps) error {
 	var failures []error
-	for _, item := range plan {
-		cleanupOK, err := runCellWith(ctx, o, item, worker, workerHome, workerIP, endpoint, campaignHash, ops)
+	for index, item := range plan {
+		// Snapshots are reusable only while another E4 cell remains.  The last
+		// cell implements the campaign-final-purge promised by
+		// snapshotCleanupPolicy so a successful campaign is immediately ready
+		// for the immutable final leak check.
+		finalCell := index == len(plan)-1
+		cleanupOK, err := runCellWith(ctx, o, item, worker, workerHome, workerIP, endpoint, campaignHash, finalCell, ops)
 		if err == nil {
 			continue
 		}
@@ -245,14 +250,14 @@ func runCells(ctx context.Context, o options, plan []cell, worker, workerHome, w
 }
 
 func runCell(ctx context.Context, o options, item cell, worker, workerHome, workerIP, endpoint, campaignHash string) (bool, error) {
-	return runCellWith(ctx, o, item, worker, workerHome, workerIP, endpoint, campaignHash, defaultCellOps())
+	return runCellWith(ctx, o, item, worker, workerHome, workerIP, endpoint, campaignHash, true, defaultCellOps())
 }
 
 // runCellWith enforces E4's contamination boundary.  A cell may make one
 // recovery attempt while it is still in setup.  Density is never retried: once
 // it begins, the cell always cleans up and then either verifies or records its
 // terminal failure.
-func runCellWith(ctx context.Context, o options, item cell, worker, workerHome, workerIP, endpoint, campaignHash string, ops cellOps) (bool, error) {
+func runCellWith(ctx context.Context, o options, item cell, worker, workerHome, workerIP, endpoint, campaignHash string, finalCell bool, ops cellOps) (bool, error) {
 	root := filepath.Join(o.common.ResultRoot, item.Mode)
 	started := ops.now().UTC().Format(time.RFC3339)
 	manifest := cellManifest{ManifestVersion: 3, Cell: item, Worker: worker, CampaignSHA256: campaignHash,
@@ -346,7 +351,7 @@ func runCellWith(ctx context.Context, o options, item cell, worker, workerHome, 
 		"--workloads="+strings.Join(item.Workloads, ","), "--mode="+item.Mode, "--worker-ip="+workerIP,
 		"--instances-per-workload="+renderCounts(item.InstancesPerWorkload), "--warmup-successes-per-vm=1", "--sample-seconds=10",
 		"--result-root="+root)...)
-	cleanupErr := ops.runRemote(ctx, worker, logFile, cleanupCommand(base, item, endpoint, false)...)
+	cleanupErr := ops.runRemote(ctx, worker, logFile, cleanupCommand(base, item, endpoint, finalCell)...)
 	if cleanupErr != nil {
 		return false, record("cleanup", setupAttempts, true, false, false, nil, errors.Join(densityErr, cleanupErr))
 	}

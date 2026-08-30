@@ -98,7 +98,7 @@ func TestInitialCleanupPurgesSnapshotsAndIsCreateOnly(t *testing.T) {
 func TestSuccessfulAggregateCellSetsUpOnceAndPreservesSnapshots(t *testing.T) {
 	fixture := newLifecycleFixture(t)
 	item := testCell("invm-py")
-	cleanupOK, err := runCellWith(context.Background(), fixture.options(), item, workerURL, workerHome, workerIP, eval.CanonicalMinioHost, "campaign", fixture.ops())
+	cleanupOK, err := runCellWith(context.Background(), fixture.options(), item, workerURL, workerHome, workerIP, eval.CanonicalMinioHost, "campaign", false, fixture.ops())
 	if err != nil || !cleanupOK {
 		t.Fatalf("cell = cleanup=%t err=%v", cleanupOK, err)
 	}
@@ -110,6 +110,33 @@ func TestSuccessfulAggregateCellSetsUpOnceAndPreservesSnapshots(t *testing.T) {
 	readJSON(t, filepath.Join(fixture.root, "invm-py-cell.json"), &manifest)
 	if manifest.ManifestVersion != 3 || manifest.Status != "complete" || manifest.Phase != "verify" || !manifest.Acquisition || !manifest.CleanupSucceeded || !manifest.VerificationDone || manifest.SnapshotPolicy != snapshotCleanupPolicy {
 		t.Fatalf("complete manifest = %#v", manifest)
+	}
+}
+
+func TestSuccessfulPlanPurgesSnapshotsOnlyAfterFinalCell(t *testing.T) {
+	fixture := newLifecycleFixture(t)
+	if err := runCells(context.Background(), fixture.options(), testPlan(), workerURL, workerHome, workerIP, eval.CanonicalMinioHost, "campaign", fixture.ops()); err != nil {
+		t.Fatal(err)
+	}
+	if fixture.count("invm-py/cleanup-preserve") != 1 || fixture.count("invm-py/cleanup-purge") != 0 {
+		t.Fatalf("non-final cleanup policy = %v", fixture.events)
+	}
+	if fixture.count("nexus-py/cleanup-purge") != 1 || fixture.count("nexus-py/cleanup-preserve") != 0 {
+		t.Fatalf("final cleanup policy = %v", fixture.events)
+	}
+}
+
+func TestFinalSnapshotPurgeFailurePreventsSuccessfulCampaign(t *testing.T) {
+	fixture := newLifecycleFixture(t)
+	fixture.failures["nexus-py/cleanup-purge"] = []error{errors.New("snapshot purge")}
+	err := runCells(context.Background(), fixture.options(), testPlan(), workerURL, workerHome, workerIP, eval.CanonicalMinioHost, "campaign", fixture.ops())
+	if err == nil || fixture.count("nexus-py/density") != 1 || fixture.count("nexus-py/cleanup-purge") != 1 {
+		t.Fatalf("final purge failure did not fail campaign: err=%v events=%v", err, fixture.events)
+	}
+	var manifest cellManifest
+	readJSON(t, filepath.Join(fixture.root, "nexus-py-cell.json"), &manifest)
+	if manifest.Phase != "cleanup" || manifest.CleanupSucceeded {
+		t.Fatalf("final purge failure manifest = %#v", manifest)
 	}
 }
 
@@ -175,13 +202,13 @@ func TestRecoverablePreCellAndVerificationFailuresRemainIndependent(t *testing.T
 func TestCellArtifactsAreCreateOnly(t *testing.T) {
 	fixture := newLifecycleFixture(t)
 	item := testCell("invm-py")
-	if ok, err := runCellWith(context.Background(), fixture.options(), item, workerURL, workerHome, workerIP, eval.CanonicalMinioHost, "campaign", fixture.ops()); err != nil || !ok {
+	if ok, err := runCellWith(context.Background(), fixture.options(), item, workerURL, workerHome, workerIP, eval.CanonicalMinioHost, "campaign", false, fixture.ops()); err != nil || !ok {
 		t.Fatalf("first cell = cleanup=%t err=%v", ok, err)
 	}
 	path := filepath.Join(fixture.root, "invm-py-cell.json")
 	before, _ := os.ReadFile(path)
 	second := newLifecycleFixtureAt(t, fixture.root)
-	ok, err := runCellWith(context.Background(), second.options(), item, workerURL, workerHome, workerIP, eval.CanonicalMinioHost, "campaign", second.ops())
+	ok, err := runCellWith(context.Background(), second.options(), item, workerURL, workerHome, workerIP, eval.CanonicalMinioHost, "campaign", false, second.ops())
 	if err == nil || !ok || second.count("invm-py/seed") != 0 {
 		t.Fatalf("second cell = cleanup=%t err=%v events=%v", ok, err, second.events)
 	}

@@ -282,6 +282,63 @@ func TestSealRejectsCleanupLeak(t *testing.T) {
 	}
 }
 
+func TestSealAcceptsAppendOnlyCleanupRecovery(t *testing.T) {
+	d := t.TempDir()
+	defer restoreWritable(d)
+	putFile(t, filepath.Join(d, "campaign.json"), `{"status":"ACQUISITION_START","acquisition_start":"2026-08-29T00:00:00Z","activator_uid":"activator-uid","activator_generation":7}`)
+	putFile(t, filepath.Join(d, "x"), `x`)
+	baseline := eval.ActivatorIdentity{UID: "activator-uid", Generation: 7}
+	failed := eval.FinalLeakCheck{
+		Version: 1, Status: "FAIL", CapturedUTC: time.Now().UTC().Format(time.RFC3339Nano),
+		Worker:     eval.WorkerLeakEvidence{Firecracker: []string{}, KnIntegration: []string{}, NexusBackend: []string{}},
+		Storage:    eval.StorageLeakEvidence{RDMAServer: []string{}, RDMASessions: []string{}},
+		Kubernetes: eval.KubernetesLeakEvidence{},
+		Snapshots:  eval.SnapshotLeakEvidence{Entries: []string{"worker:/snapshot.mem"}, Bytes: 1},
+		Activator:  baseline,
+	}
+	initialPath := filepath.Join(d, finalLeakCheckName)
+	if err := eval.WriteFinalLeakCheckEvidence(initialPath, failed); err != nil {
+		t.Fatal(err)
+	}
+	initialBytes, err := os.ReadFile(initialPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if next, err := leakCheckOutputPath(d, true); err != nil || filepath.Base(next) != recoveryLeakCheckName(1) {
+		t.Fatalf("recovery path = %q, %v", next, err)
+	}
+	clean := failed
+	clean.Status = "PASS"
+	clean.Snapshots = eval.SnapshotLeakEvidence{Entries: []string{}, Bytes: 0}
+	if err := eval.WriteFinalLeakCheck(filepath.Join(d, recoveryLeakCheckName(1)), clean, baseline); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := leakCheckOutputPath(d, true); err == nil {
+		t.Fatal("recovery was permitted after PASS evidence")
+	}
+	if err := sealBundle(d); err != nil {
+		t.Fatal(err)
+	}
+	if err := verifyBundle(d); err != nil {
+		t.Fatal(err)
+	}
+	after, err := os.ReadFile(initialPath)
+	if err != nil || string(after) != string(initialBytes) {
+		t.Fatal("failed leak-check evidence changed during recovery")
+	}
+	sealBytes, err := os.ReadFile(filepath.Join(d, sealName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var seal bundleSeal
+	if err := json.Unmarshal(sealBytes, &seal); err != nil {
+		t.Fatal(err)
+	}
+	if seal.FinalLeakCheckPath != recoveryLeakCheckName(1) {
+		t.Fatalf("seal recovery path = %q", seal.FinalLeakCheckPath)
+	}
+}
+
 func TestLeakCheckFixtureInvokesOnlyReadOnlyProbes(t *testing.T) {
 	root := t.TempDir()
 	setup := eval.Setup{NodeLabel: map[string][]string{
@@ -305,7 +362,7 @@ func TestLeakCheckFixtureInvokesOnlyReadOnlyProbes(t *testing.T) {
 		return eval.ActivatorIdentity{UID: "activator-uid", Generation: 7}, nil
 	}
 	ksvcProbe = func(context.Context) (string, error) { return "", nil }
-	if err := captureFinalLeakCheck(context.Background(), root); err != nil {
+	if err := captureFinalLeakCheck(context.Background(), root, false); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(filepath.Join(root, finalLeakCheckName)); err != nil {

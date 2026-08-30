@@ -3,6 +3,7 @@ analysis
 .vscode/
 .idea
 tmp
+/.tmp/
 data/out
 data/azure
 !data/traces/example/

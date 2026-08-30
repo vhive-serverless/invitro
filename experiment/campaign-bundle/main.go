@@ -33,6 +33,7 @@ const (
 	indexName           = "bundle-index.csv"
 	sealName            = "bundle-seal.json"
 	finalLeakCheckName  = "campaign-final-leak-check.json"
+	finalLeakRecovery   = "campaign-final-leak-check-recovery-"
 )
 
 type record struct {
@@ -89,15 +90,16 @@ type materialization struct {
 }
 
 type bundleSeal struct {
-	Version           int    `json:"version"`
-	Status            string `json:"status"`
-	CreatedUTC        string `json:"created_utc"`
-	CampaignSHA256    string `json:"campaign_sha256"`
-	FinalLeakCheckSHA string `json:"final_leak_check_sha256"`
-	IndexSHA256       string `json:"index_sha256"`
-	CanonicalTreeSHA  string `json:"canonical_tree_sha256"`
-	RegularFileCount  int64  `json:"regular_file_count"`
-	TotalBytes        int64  `json:"total_bytes"`
+	Version            int    `json:"version"`
+	Status             string `json:"status"`
+	CreatedUTC         string `json:"created_utc"`
+	CampaignSHA256     string `json:"campaign_sha256"`
+	FinalLeakCheckPath string `json:"final_leak_check_path"`
+	FinalLeakCheckSHA  string `json:"final_leak_check_sha256"`
+	IndexSHA256        string `json:"index_sha256"`
+	CanonicalTreeSHA   string `json:"canonical_tree_sha256"`
+	RegularFileCount   int64  `json:"regular_file_count"`
+	TotalBytes         int64  `json:"total_bytes"`
 }
 
 type entryFlags []string
@@ -139,13 +141,14 @@ func commandLeakCheck(args []string) error {
 	fs := flag.NewFlagSet("leak-check", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
 	root := fs.String("campaign-root", "", "frozen campaign root")
+	recovery := fs.Bool("recovery", false, "append a recovery observation after a preserved failed final leak check")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 	if *root == "" {
 		return errors.New("--campaign-root is required")
 	}
-	return captureFinalLeakCheck(context.Background(), *root)
+	return captureFinalLeakCheck(context.Background(), *root, *recovery)
 }
 
 func fail(format string, args ...any) {
@@ -977,7 +980,11 @@ func parseSnapshotSize(output string) (int64, error) {
 	return bytes, nil
 }
 
-func captureFinalLeakCheck(ctx context.Context, root string) error {
+func captureFinalLeakCheck(ctx context.Context, root string, recovery bool) error {
+	path, err := leakCheckOutputPath(root, recovery)
+	if err != nil {
+		return err
+	}
 	campaign, err := readFrozenCampaign(root)
 	if err != nil {
 		return err
@@ -1076,7 +1083,6 @@ func captureFinalLeakCheck(ctx context.Context, root string) error {
 	if cleanErr != nil {
 		check.Status = "FAIL"
 	}
-	path := filepath.Join(root, finalLeakCheckName)
 	writeErr := eval.WriteFinalLeakCheckEvidence(path, check)
 	if writeErr != nil {
 		probeErrs = append(probeErrs, cleanErr, writeErr)
@@ -1090,18 +1096,111 @@ func captureFinalLeakCheck(ctx context.Context, root string) error {
 	return nil
 }
 
-func readFinalLeakCheck(root string, baseline eval.ActivatorIdentity) error {
-	path := filepath.Join(root, finalLeakCheckName)
+func recoveryLeakCheckName(attempt int) string {
+	return fmt.Sprintf("%s%04d.json", finalLeakRecovery, attempt)
+}
+
+func readLeakCheckEvidence(path string) (eval.FinalLeakCheck, error) {
 	if _, err := regularFile(path); err != nil {
-		return fmt.Errorf("final leak-check evidence: %w", err)
+		return eval.FinalLeakCheck{}, err
 	}
 	b, err := os.ReadFile(path)
 	if err != nil {
-		return fmt.Errorf("final leak-check evidence: %w", err)
+		return eval.FinalLeakCheck{}, err
 	}
 	var check eval.FinalLeakCheck
 	if err := json.Unmarshal(b, &check); err != nil {
-		return fmt.Errorf("invalid final leak-check evidence: %w", err)
+		return eval.FinalLeakCheck{}, fmt.Errorf("invalid final leak-check evidence %s: %w", path, err)
+	}
+	if err := check.ValidateFinalLeakCheckEvidence(); err != nil {
+		return eval.FinalLeakCheck{}, fmt.Errorf("invalid final leak-check evidence %s: %w", path, err)
+	}
+	return check, nil
+}
+
+// leakCheckEvidencePaths returns the immutable observation chain.  Recovery
+// observations are contiguous and append-only; a PASS can only be the final
+// observation, so a failed cleanup cannot disappear from campaign history.
+func leakCheckEvidencePaths(root string) ([]string, error) {
+	initial := filepath.Join(root, finalLeakCheckName)
+	if _, err := regularFile(initial); err != nil {
+		return nil, fmt.Errorf("final leak-check evidence: %w", err)
+	}
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		return nil, err
+	}
+	attempts := map[int]string{}
+	for _, entry := range entries {
+		name := entry.Name()
+		if !strings.HasPrefix(name, finalLeakRecovery) || !strings.HasSuffix(name, ".json") {
+			continue
+		}
+		value := strings.TrimSuffix(strings.TrimPrefix(name, finalLeakRecovery), ".json")
+		attempt, parseErr := strconv.Atoi(value)
+		if parseErr != nil || attempt < 1 || name != recoveryLeakCheckName(attempt) || entry.IsDir() {
+			return nil, fmt.Errorf("invalid final leak-check recovery path %q", name)
+		}
+		attempts[attempt] = filepath.Join(root, name)
+	}
+	paths := []string{initial}
+	for attempt := 1; attempt <= len(attempts); attempt++ {
+		path, ok := attempts[attempt]
+		if !ok {
+			return nil, fmt.Errorf("final leak-check recovery sequence has a gap at %d", attempt)
+		}
+		paths = append(paths, path)
+	}
+	return paths, nil
+}
+
+func latestLeakCheckEvidence(root string) (string, eval.FinalLeakCheck, error) {
+	paths, err := leakCheckEvidencePaths(root)
+	if err != nil {
+		return "", eval.FinalLeakCheck{}, err
+	}
+	var latest eval.FinalLeakCheck
+	for index, path := range paths {
+		check, readErr := readLeakCheckEvidence(path)
+		if readErr != nil {
+			return "", eval.FinalLeakCheck{}, readErr
+		}
+		if index < len(paths)-1 && check.Status == "PASS" {
+			return "", eval.FinalLeakCheck{}, fmt.Errorf("final leak-check recovery follows PASS evidence %s", path)
+		}
+		latest = check
+	}
+	return paths[len(paths)-1], latest, nil
+}
+
+func leakCheckOutputPath(root string, recovery bool) (string, error) {
+	if !recovery {
+		path := filepath.Join(root, finalLeakCheckName)
+		if _, err := os.Lstat(path); err == nil {
+			return "", fmt.Errorf("final leak-check evidence already exists: %s", path)
+		} else if !os.IsNotExist(err) {
+			return "", err
+		}
+		return path, nil
+	}
+	paths, err := leakCheckEvidencePaths(root)
+	if err != nil {
+		return "", err
+	}
+	_, latest, err := latestLeakCheckEvidence(root)
+	if err != nil {
+		return "", err
+	}
+	if latest.Status == "PASS" {
+		return "", errors.New("final leak-check already passed; recovery is not permitted")
+	}
+	return filepath.Join(root, recoveryLeakCheckName(len(paths))), nil
+}
+
+func readFinalLeakCheck(root string, baseline eval.ActivatorIdentity) error {
+	_, check, err := latestLeakCheckEvidence(root)
+	if err != nil {
+		return err
 	}
 	if err := check.ValidateFinalLeakCheck(baseline); err != nil {
 		return fmt.Errorf("final leak-check evidence: %w", err)
@@ -1113,7 +1212,10 @@ func finalLeakCheckHash(root string, baseline eval.ActivatorIdentity) (string, e
 	if err := readFinalLeakCheck(root, baseline); err != nil {
 		return "", err
 	}
-	path := filepath.Join(root, finalLeakCheckName)
+	path, _, err := latestLeakCheckEvidence(root)
+	if err != nil {
+		return "", err
+	}
 	hash, _, err := hashFile(path)
 	return hash, err
 }
@@ -1138,6 +1240,10 @@ func sealBundle(campaignRoot string) error {
 	if err != nil {
 		return err
 	}
+	leakCheckPath, _, err := latestLeakCheckEvidence(root)
+	if err != nil {
+		return err
+	}
 	leakCheckSHA, err := finalLeakCheckHash(root, baseline)
 	if err != nil {
 		return err
@@ -1153,7 +1259,7 @@ func sealBundle(campaignRoot string) error {
 	if err := writeCreate(filepath.Join(root, indexName), indexBytes, 0444); err != nil {
 		return err
 	}
-	seal := bundleSeal{Version: 1, Status: "IMMUTABLE_COMPLETE", CreatedUTC: time.Now().UTC().Format(time.RFC3339Nano), CampaignSHA256: campaignSHA, FinalLeakCheckSHA: leakCheckSHA, IndexSHA256: sha256Hex(indexBytes), CanonicalTreeSHA: inv.TreeSHA, RegularFileCount: int64(len(inv.Records)), TotalBytes: inv.Bytes}
+	seal := bundleSeal{Version: 1, Status: "IMMUTABLE_COMPLETE", CreatedUTC: time.Now().UTC().Format(time.RFC3339Nano), CampaignSHA256: campaignSHA, FinalLeakCheckPath: filepath.Base(leakCheckPath), FinalLeakCheckSHA: leakCheckSHA, IndexSHA256: sha256Hex(indexBytes), CanonicalTreeSHA: inv.TreeSHA, RegularFileCount: int64(len(inv.Records)), TotalBytes: inv.Bytes}
 	b, err := jsonBytes(seal)
 	if err != nil {
 		return err
@@ -1229,6 +1335,10 @@ func verifyBundle(campaignRoot string) error {
 	if err != nil {
 		return err
 	}
+	leakCheckPath, _, err := latestLeakCheckEvidence(root)
+	if err != nil {
+		return err
+	}
 	leakCheckSHA, err := finalLeakCheckHash(root, baseline)
 	if err != nil {
 		return err
@@ -1241,6 +1351,16 @@ func verifyBundle(campaignRoot string) error {
 	}
 	if seal.FinalLeakCheckSHA == "" || leakCheckSHA != seal.FinalLeakCheckSHA {
 		return errors.New("final leak-check hash mismatch")
+	}
+	// Seals created before append-only recovery support did not record a path;
+	// they remain verifiable only when the authoritative evidence is the
+	// original fixed-name observation.  New seals always bind both path and
+	// hash.
+	if seal.FinalLeakCheckPath == "" && filepath.Base(leakCheckPath) != finalLeakCheckName {
+		return errors.New("legacy seal cannot reference recovered final leak-check evidence")
+	}
+	if seal.FinalLeakCheckPath != "" && seal.FinalLeakCheckPath != filepath.Base(leakCheckPath) {
+		return errors.New("final leak-check path mismatch")
 	}
 	want, err := parseIndex(idxBytes)
 	if err != nil {
