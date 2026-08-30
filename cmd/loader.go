@@ -57,6 +57,7 @@ var (
 	iatGeneration             = flag.Bool("iatGeneration", false, "Generate IATs only or run invocations as well")
 	iatFromFile               = flag.Bool("generated", false, "True if iats were already generated")
 	dryRun                    = flag.Bool("dryRun", false, "Dry run mode - do not deploy functions or generate invocations")
+	externalLifecycleCleanup  = flag.Bool("external-lifecycle-cleanup", false, "Delegate cleanup to the enclosing experiment lifecycle")
 	e2AdmissionWorkload       = flag.String("e2-admission-workload", "", "E2 canonical workload to admit before acquisition")
 	e2AdmissionReplicas       = flag.Int("e2-admission-replicas", 0, "E2 expected Ready replicas per function")
 	e2AdmissionOutput         = flag.String("e2-admission-output", "", "E2 admission evidence output prefix")
@@ -253,6 +254,7 @@ func configureE2AdmissionGate(d *driver.Driver) {
 		marker: *e2AcquisitionMarker, expectedReplicas: *e2AdmissionReplicas, timeoutSeconds: *e2AdmissionTimeoutSeconds}
 	d.PreAcquisition = gate.probe
 	d.MarkAcquisitionStart = gate.mark
+	d.ExternalLifecycleCleanup = true
 }
 
 func runTraceMode(cfg *config.LoaderConfiguration, readIATFromFile bool, writeIATsToFile bool) {
@@ -299,6 +301,7 @@ func runTraceMode(cfg *config.LoaderConfiguration, readIATFromFile bool, writeIA
 
 		Functions: functions,
 	})
+	experimentDriver.ExternalLifecycleCleanup = *externalLifecycleCleanup
 	configureE2AdmissionGate(experimentDriver)
 
 	log.Infof("Using %s as a service YAML specification file.\n", yamlPath)
@@ -356,6 +359,7 @@ func runRPSMode(cfg *config.LoaderConfiguration, readIATFromFile bool, writeIATs
 
 		Functions: generator.CreateRPSFunctions(cfg, dirigentConfig, warmFunctions, warmStartCounts, coldFunctions, coldStartCount, yamlPath),
 	})
+	experimentDriver.ExternalLifecycleCleanup = *externalLifecycleCleanup
 	configureE2AdmissionGate(experimentDriver)
 
 	if experimentDriver.Configuration.WithWarmup() {

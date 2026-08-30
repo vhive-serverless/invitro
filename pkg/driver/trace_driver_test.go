@@ -26,6 +26,7 @@ package driver
 
 import (
 	"container/list"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -34,6 +35,7 @@ import (
 	"time"
 
 	"github.com/vhive-serverless/loader/pkg/config"
+	"github.com/vhive-serverless/loader/pkg/driver/deployment"
 
 	"github.com/gocarina/gocsv"
 	"github.com/sirupsen/logrus"
@@ -42,6 +44,56 @@ import (
 	"github.com/vhive-serverless/loader/pkg/workload/standard"
 	"github.com/vhive-serverless/loader/pkg/workload/vswarm"
 )
+
+type recordingDeployer struct {
+	deployCalls int
+	cleanCalls  int
+}
+
+func (d *recordingDeployer) Deploy(*config.Configuration) { d.deployCalls++ }
+func (d *recordingDeployer) Clean()                       { d.cleanCalls++ }
+
+func TestRunExperimentCleanupOwnershipOnPreAcquisitionFailure(t *testing.T) {
+	tests := []struct {
+		name                     string
+		externalCleanup          bool
+		expectedDeployerCleanups int
+	}{
+		{name: "legacy_deployer_owns_cleanup", expectedDeployerCleanups: 1},
+		{name: "runner_owns_cleanup", externalCleanup: true, expectedDeployerCleanups: 0},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			deployer := &recordingDeployer{}
+			originalFactory := createFunctionDeployer
+			createFunctionDeployer = func(*config.Configuration) deployment.FunctionDeployer {
+				return deployer
+			}
+			t.Cleanup(func() { createFunctionDeployer = originalFactory })
+
+			driver := &Driver{
+				Configuration: &config.Configuration{
+					LoaderConfiguration: &config.LoaderConfiguration{},
+				},
+				ExternalLifecycleCleanup: test.externalCleanup,
+				PreAcquisition: func() error {
+					return errors.New("admission rejected")
+				},
+			}
+
+			if err := driver.RunExperiment(); err == nil {
+				t.Fatal("RunExperiment() succeeded after admission rejection")
+			}
+			if deployer.deployCalls != 1 {
+				t.Fatalf("Deploy() calls = %d, want 1", deployer.deployCalls)
+			}
+			if deployer.cleanCalls != test.expectedDeployerCleanups {
+				t.Fatalf("Clean() calls = %d, want %d", deployer.cleanCalls, test.expectedDeployerCleanups)
+			}
+		})
+	}
+}
 
 func createFakeLoaderConfiguration(vSwarm bool) *config.LoaderConfiguration {
 	return &config.LoaderConfiguration{

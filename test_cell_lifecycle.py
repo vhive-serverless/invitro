@@ -153,6 +153,29 @@ if lifecycle_execute; then exit 1; fi
                 )
                 self.assertIn("immutable evidence retained at $destination", source)
 
+    def test_e2_runner_uses_trace_identity_and_external_cleanup_owner(self):
+        source = (ROOT / "run_rps_per_workload.sh").read_text(encoding="utf-8")
+        self.assertIn('admission_workload=$(trace_workload_identity', source)
+        self.assertIn('--e2-admission-workload "$admission_workload"', source)
+        self.assertNotIn('--e2-admission-workload "$workload"', source)
+        self.assertIn('--external-lifecycle-cleanup', source)
+        self.assertIn("external_lifecycle_cleanup=true", source)
+        self.assertIn("admission_workload=$admission_workload", source)
+
+    def test_e3_runner_uses_external_cleanup_owner(self):
+        source = (ROOT / "run_trace_ablation.sh").read_text(encoding="utf-8")
+        self.assertIn('--external-lifecycle-cleanup', source)
+        self.assertIn("external_lifecycle_cleanup=true", source)
+
+    def test_setup_recovery_declarations_are_safe_under_nounset(self):
+        unsafe = "local previous_attempt=$((attempt - 1)) preserved="
+        for runner in ("run_rps_per_workload.sh", "run_trace_ablation.sh"):
+            with self.subTest(runner=runner):
+                source = (ROOT / runner).read_text(encoding="utf-8")
+                self.assertNotIn(unsafe, source)
+                self.assertIn("local previous_attempt=$((attempt - 1))", source)
+                self.assertIn('local preserved="$scratch_out/setup-attempt-$previous_attempt"', source)
+
     def test_evaluation_cell_make_target_is_local_only(self):
         source = (ROOT / "Makefile").read_text(encoding="utf-8")
         target = source.split("clean-evaluation-cell:", 1)[1].split("\n\n", 1)[0]

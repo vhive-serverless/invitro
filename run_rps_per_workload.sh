@@ -104,6 +104,19 @@ rotate() {
     for ((index=0; index<offset; index++)); do printf '%s ' "${values[index]}"; done
 }
 
+trace_workload_identity() {
+    local trace_path=$1 identity
+    identity=$(awk -F, '
+        NR > 1 && $1 != "" {identities[$1] = 1}
+        END {
+            if (length(identities) != 1) exit 1
+            for (name in identities) print name
+        }
+    ' "$trace_path") || return 1
+    [[ -n "$identity" ]] || return 1
+    printf '%s\n' "$identity"
+}
+
 reference_value() {
     local workload=$1 column=$2
     python3 - "$reference" "$workload" "$column" <<'PY'
@@ -335,18 +348,21 @@ archived_output_matches() {
 
 manifest_matches() {
     local manifest=$1 phase=$2 repetition=$3 mode=$4 workload=$5 rps=$6 perf=$7 duration=$8 destination=$9
-    local vm_config rootfs kernel vmm worker_count expected_perf_artifacts
+    local vm_config rootfs kernel vmm worker_count expected_perf_artifacts admission_workload
     [[ -f "$manifest" ]] || return 1
     vm_config=$(mode_vm_config "$mode")
     rootfs=$(config_value "../khala/$vm_config" RootfsPath)
     kernel=$(config_value "../khala/$vm_config" KernelPath)
     vmm=$(config_value "../khala/$vm_config" FirecrackerPath)
+    admission_workload=$(trace_workload_identity "$destination/trace/invocations.csv") || return 1
         line_is "$manifest" 'manifest_version=2' &&
         line_is "$manifest" "smoke=$smoke" &&
         line_is "$manifest" "phase=$phase" && line_is "$manifest" "repetition=$repetition" &&
         line_is "$manifest" "mode=$mode" && line_is "$manifest" "workload=$workload" &&
         line_is "$manifest" "rps=$rps" && line_is "$manifest" "replicas=$replicas" &&
         line_is "$manifest" "perf_enabled=$perf" && line_is "$manifest" "profile=$profile" &&
+        line_is "$manifest" 'external_lifecycle_cleanup=true' &&
+        line_is "$manifest" "admission_workload=$admission_workload" &&
         line_is "$manifest" "minio_endpoint=$minio_endpoint" &&
         line_is "$manifest" "warmup_minutes=$warmup_minutes" && line_is "$manifest" "measurement_minutes=$duration" &&
         line_is "$manifest" 'scan_snapshot=false' &&
@@ -498,7 +514,7 @@ run_cell() {
         return
     fi
     [[ ! -e "$destination" ]] || { echo "refusing incomplete cell: $destination" >&2; return 2; }
-    local evidence_status=1 perf_artifact_count=0 admission_status=1 admission_function_count=0
+    local evidence_status=1 perf_artifact_count=0 admission_status=1 admission_function_count=0 admission_workload=
     local admission_aggregate_expected=0 admission_aggregate_ready=0 snapshot_status=1
     local stale_scratch=false snapshot_cleanup_policy=
     local acquisition_marker="$scratch_out/acquisition-started.marker"
@@ -516,7 +532,8 @@ run_cell() {
             fi
             mkdir -p "$scratch_out"
         else
-            local previous_attempt=$((attempt - 1)) preserved="$scratch_out/setup-attempt-$previous_attempt"
+            local previous_attempt=$((attempt - 1))
+            local preserved="$scratch_out/setup-attempt-$previous_attempt"
             mkdir -p "$preserved"
             find "$scratch_out" -mindepth 1 -maxdepth 1 ! -name 'setup-attempt-*' -exec cp -a -- {} "$preserved" \;
             rm -rf -- "$scratch_trace" "$scratch_out/trace"
@@ -532,6 +549,10 @@ run_cell() {
                 --workload "$workload" --mode "$mode" --rps "$rps" --warmup-minutes "$warmup_minutes" \
                 --measurement-minutes "$duration" --output "$scratch_trace"
         fi
+        admission_workload=$(trace_workload_identity "$scratch_trace/invocations.csv") || {
+            echo "fixed trace contains no unique admission workload identity" >&2
+            return 2
+        }
         write_config "$run_id" "$duration" "$perf" "$replicas" "$scratch_trace" "$scratch_out/experiment" "$config_path"
         cp -a -- "$scratch_trace" "$scratch_out/trace"
         cp -- "$result_root/remote-provenance.txt" "$scratch_out/remote-provenance.txt"
@@ -553,6 +574,8 @@ run_cell() {
         echo "rps=$rps"
         echo "replicas=$replicas"
         echo "perf_enabled=$perf"
+        echo 'external_lifecycle_cleanup=true'
+        echo "admission_workload=$admission_workload"
         echo "start_utc=$(date -u --iso-8601=seconds)"
         echo "invitro_head=$(git rev-parse HEAD)"
         echo "invitro_branch=$(git branch --show-current)"
@@ -620,7 +643,8 @@ run_cell() {
     lifecycle_run() {
         rm -f -- "$acquisition_marker"
         go run cmd/loader.go --config "$config_path" \
-            --e2-admission-workload "$workload" --e2-admission-replicas "$replicas" \
+            --external-lifecycle-cleanup \
+            --e2-admission-workload "$admission_workload" --e2-admission-replicas "$replicas" \
             --e2-admission-output "$scratch_out/admission" --e2-acquisition-marker "$acquisition_marker" \
             > >(tee "$scratch_out/loader.log") 2>&1
         local status=$?

@@ -53,6 +53,8 @@ import (
 type PreAcquisitionHook func() error
 type AcquisitionMarker func() error
 
+var createFunctionDeployer = deployment.CreateDeployer
+
 type Driver struct {
 	Configuration          *config.Configuration
 	SpecificationGenerator *generator.SpecificationGenerator
@@ -63,6 +65,11 @@ type Driver struct {
 	allFunctionsInvoked   sync.WaitGroup
 	PreAcquisition        PreAcquisitionHook
 	MarkAcquisitionStart  AcquisitionMarker
+	// ExternalLifecycleCleanup transfers cleanup ownership to the experiment
+	// runner.  This keeps admission failures and completed acquisitions inside
+	// the runner's archived cleanup/contamination contract instead of invoking
+	// the deployer's legacy namespace-wide cleanup path.
+	ExternalLifecycleCleanup bool
 }
 
 func NewDriver(driverConfig *config.Configuration) *Driver {
@@ -538,11 +545,16 @@ func (d *Driver) RunExperiment() error {
 
 	trace.ApplyResourceLimits(d.Configuration.Functions, d.Configuration.LoaderConfiguration.CPULimit)
 
-	deployer := deployment.CreateDeployer(d.Configuration)
+	deployer := createFunctionDeployer(d.Configuration)
+	clean := func() {
+		if !d.ExternalLifecycleCleanup {
+			deployer.Clean()
+		}
+	}
 	deployer.Deploy(d.Configuration)
 	if d.PreAcquisition != nil {
 		if err := d.PreAcquisition(); err != nil {
-			deployer.Clean()
+			clean()
 			return err
 		}
 	}
@@ -553,17 +565,17 @@ func (d *Driver) RunExperiment() error {
 	time.Sleep(10 * time.Second)
 	if d.MarkAcquisitionStart != nil {
 		if err := d.MarkAcquisitionStart(); err != nil {
-			deployer.Clean()
+			clean()
 			return err
 		}
 	}
 	// Generate load
 	if err := d.internalRun(); err != nil {
-		deployer.Clean()
+		clean()
 		return err
 	}
 
 	// Clean up
-	deployer.Clean()
+	clean()
 	return nil
 }

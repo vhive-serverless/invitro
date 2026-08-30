@@ -348,7 +348,8 @@ manifest_matches() {
         line_is "$manifest" "start_scale=$start_scale" && line_is "$manifest" "step=$step" &&
         line_is "$manifest" "end_scale=$end_scale" && line_is "$manifest" "shift_step=$shift_step" &&
         line_is "$manifest" "divisor=$divisor" && line_is "$manifest" "warmup_minutes=$warmup_minutes" &&
-        line_is "$manifest" "measurement_minutes=$end_scale" && line_is "$manifest" 'scan_snapshot=false' && line_is "$manifest" "minio_endpoint=$minio_endpoint" &&
+        line_is "$manifest" "measurement_minutes=$end_scale" && line_is "$manifest" 'scan_snapshot=false' &&
+        line_is "$manifest" 'external_lifecycle_cleanup=true' && line_is "$manifest" "minio_endpoint=$minio_endpoint" &&
         line_is "$manifest" "minio_route=$route" &&
         line_is "$manifest" "invitro_head=$(git rev-parse HEAD)" &&
         line_is "$manifest" "khala_head=$(git -C ../khala rev-parse HEAD)" &&
@@ -470,7 +471,8 @@ run_cell() {
             fi
             mkdir -p "$scratch_out"
         else
-            local previous_attempt=$((attempt - 1)) preserved="$scratch_out/setup-attempt-$previous_attempt"
+            local previous_attempt=$((attempt - 1))
+            local preserved="$scratch_out/setup-attempt-$previous_attempt"
             mkdir -p "$preserved"
             find "$scratch_out" -mindepth 1 -maxdepth 1 ! -name 'setup-attempt-*' -exec cp -a -- {} "$preserved" \;
             rm -rf -- "$scratch_trace" "$scratch_out/trace"
@@ -511,6 +513,7 @@ run_cell() {
         echo "measurement_minutes=$end_scale"
         echo "scan_snapshot=false"
         echo "perf_enabled=false"
+        echo 'external_lifecycle_cleanup=true'
         echo "min_scale=0"
         echo "minio_endpoint=$minio_endpoint"
         echo "minio_route=$minio_route"
@@ -573,7 +576,7 @@ run_cell() {
         return "$status"
     }
     lifecycle_run() {
-        go run cmd/loader.go --config "$config_path" > >(tee "$scratch_out/loader.log") 2>&1
+        go run cmd/loader.go --config "$config_path" --external-lifecycle-cleanup > >(tee "$scratch_out/loader.log") 2>&1
         local status=$?
         # Parse duration evidence even when the loader exits nonzero.  The
         # started acquisition is never replayed; its evidence is archived and
