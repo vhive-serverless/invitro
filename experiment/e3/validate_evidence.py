@@ -9,7 +9,7 @@ from decimal import Decimal
 from pathlib import Path
 
 
-def validate(prefix: Path) -> tuple[int, int, Decimal]:
+def summarize(prefix: Path) -> tuple[int, int, Decimal]:
     matches = sorted(prefix.parent.glob(prefix.name + "_duration_*.csv"))
     if len(matches) != 1:
         raise ValueError(f"expected one duration evidence file, found {len(matches)}")
@@ -31,8 +31,13 @@ def validate(prefix: Path) -> tuple[int, int, Decimal]:
     fraction = Decimal(failures) / Decimal(total)
     if successes == 0:
         raise ValueError("zero successful invocations")
+    return successes, failures, fraction
+
+
+def validate(prefix: Path) -> tuple[int, int, Decimal]:
+    successes, failures, fraction = summarize(prefix)
     # Strictly greater than 5% is a failure; exactly 5% is accepted.
-    if failures * 100 > total * 5:
+    if failures * 100 > (successes + failures) * 5:
         raise ValueError(f"failure fraction {fraction} exceeds 0.05")
     return successes, failures, fraction
 
@@ -45,9 +50,18 @@ def main() -> int:
     parser.add_argument("--loader-log", type=Path)
     args = parser.parse_args()
     try:
-        successes, failures, fraction = validate(args.output_prefix)
+        successes, failures, fraction = summarize(args.output_prefix)
     except (OSError, ValueError) as error:
         print(f"evidence_status=FAIL scientific_status=FAILED reason={error}")
+        return 1
+    if failures * 100 > (successes + failures) * 5:
+        print(
+            "evidence_status=FAIL scientific_status=FAILED "
+            f"reason=failure fraction {fraction} exceeds 0.05"
+        )
+        print(f"success_count={successes}")
+        print(f"failure_count={failures}")
+        print(f"failure_fraction={fraction}")
         return 1
     print("evidence_status=PASS scientific_status=ACCEPTED")
     print(f"success_count={successes}")

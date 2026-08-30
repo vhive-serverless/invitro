@@ -42,6 +42,17 @@ def validate(payload: dict, workload: str, expected: int) -> list[dict[str, obje
     items = payload.get("items")
     if not isinstance(items, list):
         raise ValueError("Kubernetes deployment response contains no items list")
+    unexpected = []
+    for item in items:
+        if not isinstance(item, dict):
+            unexpected.append("<malformed>")
+        elif not _matches(item, workload):
+            unexpected.append((item.get("metadata") or {}).get("name", "<unnamed>"))
+    if unexpected:
+        raise ValueError(
+            "namespace contains deployment(s) outside the admitted function: "
+            + ", ".join(str(name) for name in unexpected)
+        )
     rows: list[dict[str, object]] = []
     for item in items:
         if not isinstance(item, dict) or not _matches(item, workload):
@@ -62,6 +73,8 @@ def validate(payload: dict, workload: str, expected: int) -> list[dict[str, obje
         )
     if not rows:
         raise ValueError(f"no deployment matched workload {workload}")
+    if len(rows) != 1:
+        raise ValueError(f"expected exactly one deployment for {workload}, found {len(rows)}")
     rows.sort(key=lambda row: (str(row["namespace"]), str(row["deployment"])))
     for row in rows:
         if row["desired_replicas"] != expected or row["ready_replicas"] != expected:
