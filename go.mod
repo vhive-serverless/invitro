@@ -14,7 +14,7 @@ require (
 )
 
 require (
-	github.com/aws/aws-lambda-go v1.54.0
+	github.com/aws/aws-lambda-go v1.55.0
 	github.com/containerd/log v0.1.0
 	github.com/go-cmd/cmd v1.4.3
 	github.com/google/uuid v1.6.0
