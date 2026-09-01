@@ -95,7 +95,7 @@ jobs:
         run: bash ./scripts/setup/setup_multi_test_trace.sh
 
       - name: Setup jq
-        uses: dcarbone/install-jq-action@v3
+        uses: dcarbone/install-jq-action@v4
 
       - name: Modify multi_loader_config.json for advanced log collection
         run: |
