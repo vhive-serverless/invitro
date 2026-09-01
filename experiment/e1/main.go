@@ -13,8 +13,8 @@ import (
 )
 
 var realWorkloads = []string{"helloworld", "chameleonserve", "cnnserve", "imageresize", "lrserving", "mapper", "pyaesserve", "reducer", "rnnserve", "streducer", "sttrainer"}
-var allModes = []string{"invm-py", "invm-go", "invm-js", "hosttcp-go", "nexus-go", "nexus-py", "nexus-js", "nexus-rdma-py"}
-var realModes = []string{"invm-py", "nexus-py", "nexus-rdma-py"}
+var allModes = []string{"invm-py", "invm-go", "invm-js", "hosttcp-go", "nexus-go", "nexus-sdk-py", "nexus-py", "nexus-js", "nexus-rdma-py"}
+var realModes = []string{"invm-py", "nexus-sdk-py", "nexus-py", "nexus-rdma-py"}
 var syntheticPayloads = []string{"2", "8", "64", "512", "4096", "16384", "65536", "262144", "1048576", "2097152", "4194304"}
 
 type options struct {
@@ -188,14 +188,14 @@ func runLive(ctx context.Context, o options) error {
 func verifyTerminalResults(o options) error {
 	expected := map[string]int{filepath.Join(o.result, "rep-0", "manifest.txt"): 0}
 	if o.suite == "real" {
-		expected[filepath.Join(o.result, "rep-0", "manifest.txt")] = 33
+		expected[filepath.Join(o.result, "rep-0", "manifest.txt")] = 44
 	} else {
-		expected[filepath.Join(o.result, "rep-0", "manifest.txt")] = 88
+		expected[filepath.Join(o.result, "rep-0", "manifest.txt")] = 99
 	}
 	if o.smoke {
 		expected = map[string]int{
-			filepath.Join(o.result, "smoke", "rep-0", "2b", "manifest.txt"):   8,
-			filepath.Join(o.result, "smoke", "rep-0", "4mib", "manifest.txt"): 3,
+			filepath.Join(o.result, "smoke", "rep-0", "2b", "manifest.txt"):   9,
+			filepath.Join(o.result, "smoke", "rep-0", "4mib", "manifest.txt"): 4,
 		}
 	}
 	for path, cells := range expected {
@@ -228,10 +228,10 @@ func smokePlan(modes, payloads []string) ([]cell, error) {
 		return nil, fmt.Errorf("smoke requires payloads 2,4194304")
 	}
 	if !same(modes, allModes) {
-		return nil, fmt.Errorf("smoke requires all eight E1 modes")
+		return nil, fmt.Errorf("smoke requires all nine E1 modes")
 	}
 	result := cells("e1-smoke", "4-node", modes, nil, []string{"2"})
-	result = append(result, cells("e1-smoke", "4-node", []string{"nexus-py", "nexus-rdma-py", "nexus-js"}, nil, []string{"4194304"})...)
+	result = append(result, cells("e1-smoke", "4-node", []string{"nexus-sdk-py", "nexus-py", "nexus-rdma-py", "nexus-js"}, nil, []string{"4194304"})...)
 	return result, nil
 }
 func cells(experiment, profile string, modes, workloads, payloads []string) []cell {

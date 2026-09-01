@@ -17,11 +17,11 @@ func TestFrozenRealAndSyntheticCellCounts(t *testing.T) {
 	}
 	base := options{profile: "4-node", topology: topology, minio: "http://myminio-api.minio.10.200.3.4.sslip.io", result: t.TempDir(), repetitions: 1, latency: 4, memory: 4, warm: 4}
 	realPlan, err := makePlan(options{suite: "real", modes: join(realModes), workloads: join(realWorkloads), profile: base.profile, topology: topology, minio: base.minio, result: base.result, repetitions: 1, latency: 4, memory: 4, warm: 4})
-	if err != nil || len(realPlan) != 33 {
+	if err != nil || len(realPlan) != 44 {
 		t.Fatalf("real plan = %d, %v", len(realPlan), err)
 	}
 	syntheticPlan, err := makePlan(options{suite: "synthetic", modes: join(allModes), payloads: join(syntheticPayloads), profile: base.profile, topology: topology, minio: base.minio, result: base.result, repetitions: 1, latency: 4, memory: 4, warm: 4})
-	if err != nil || len(syntheticPlan) != 88 {
+	if err != nil || len(syntheticPlan) != 99 {
 		t.Fatalf("synthetic plan = %d, %v", len(syntheticPlan), err)
 	}
 }

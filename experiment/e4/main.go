@@ -16,7 +16,7 @@ import (
 )
 
 var workloads = []string{"chameleonserve", "cnnserve", "imageresize", "lrserving", "mapper", "pyaesserve", "reducer", "rnnserve", "streducer", "sttrainer"}
-var modes = []string{"invm-py", "nexus-py"}
+var modes = []string{"invm-py", "nexus-sdk-py", "nexus-py"}
 var counts = []int{1, 2, 4, 6, 8, 10, 20, 30, 40}
 
 const snapshotCleanupPolicy = "initial-purge;normal-preserve;setup-recovery-purge;campaign-final-purge"
@@ -94,7 +94,7 @@ func main() {
 		modes: strings.Join(modes, ","), countsText: "1,2,4,6,8,10,20,30,40", warmup: 1, sampleSeconds: 10}
 	eval.AddFlags(fs, &o.common)
 	fs.StringVar(&o.workloads, "workloads", o.workloads, "exact E4 workload list")
-	fs.StringVar(&o.modes, "modes", o.modes, "exact E4 B0/N4 modes")
+	fs.StringVar(&o.modes, "modes", o.modes, "exact E4 baseline/SDK-only/full-Nexus modes")
 	fs.StringVar(&o.countsText, "instances-per-workload", o.countsText, "strictly increasing instances per workload")
 	fs.IntVar(&o.warmup, "warmup-successes-per-vm", 1, "fresh successes required per live VM and count")
 	fs.IntVar(&o.sampleSeconds, "sample-seconds", 10, "steady invocation window before PSS sample")
@@ -216,7 +216,7 @@ func makePlan(o options) ([]cell, eval.Setup, string, error) {
 	}
 	if o.smoke {
 		if !equal(requestedWorkloads, []string{"helloworld"}) || !equal(requestedModes, modes) || !equalInts(requestedCounts, []int{1, 2}) {
-			return nil, eval.Setup{}, "", fmt.Errorf("E4 smoke requires helloworld, both modes, and instances per workload 1,2")
+			return nil, eval.Setup{}, "", fmt.Errorf("E4 smoke requires helloworld, all three modes, and instances per workload 1,2")
 		}
 	} else if !equal(requestedWorkloads, workloads) || !equal(requestedModes, modes) || !equalInts(requestedCounts, counts) {
 		return nil, eval.Setup{}, "", fmt.Errorf("E4 claim run requires the frozen workloads, modes, and counts")
@@ -306,7 +306,7 @@ func runCellWith(ctx context.Context, o options, item cell, worker, workerHome, 
 		"--worker-config=internal/experiment/kn-integration-tracer/worker_node.json",
 		"--vm-config=configs/vm_orchestrator_config.json", "--command=deploy", "--mode="+item.Mode,
 		"--with-trace=true", "--debug=false", "--minio-endpoint="+endpoint)
-	if item.Mode == "nexus-py" {
+	if item.Mode == "nexus-sdk-py" || item.Mode == "nexus-py" {
 		deployArgs = append(deployArgs, "--vm-shmem-bytes=4194304", "--shmem-ring-bytes=4190208", "--shmem-io-quantum=262144")
 	}
 	for {

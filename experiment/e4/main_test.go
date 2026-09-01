@@ -41,13 +41,13 @@ func TestWorkerEnvironmentKeepsE4CleanupLocal(t *testing.T) {
 	}
 }
 
-func TestFrozenPlanHasTwoAggregateModeCells(t *testing.T) {
+func TestFrozenPlanHasThreeAggregateModeCells(t *testing.T) {
 	plan, _, _, err := makePlan(claimOptions(t))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(plan) != 2 {
-		t.Fatalf("cells = %d, want 2", len(plan))
+	if len(plan) != 3 {
+		t.Fatalf("cells = %d, want 3", len(plan))
 	}
 	for index, mode := range modes {
 		item := plan[index]
@@ -57,11 +57,11 @@ func TestFrozenPlanHasTwoAggregateModeCells(t *testing.T) {
 	}
 }
 
-func TestSmokePlanIsTwoHelloWorldCells(t *testing.T) {
+func TestSmokePlanIsThreeHelloWorldCells(t *testing.T) {
 	o := claimOptions(t)
 	o.workloads, o.countsText, o.smoke = "helloworld", "1,2", true
 	plan, _, _, err := makePlan(o)
-	if err != nil || len(plan) != 2 {
+	if err != nil || len(plan) != 3 {
 		t.Fatalf("smoke plan = %d, %v", len(plan), err)
 	}
 	for _, item := range plan {
@@ -121,8 +121,34 @@ func TestSuccessfulPlanPurgesSnapshotsOnlyAfterFinalCell(t *testing.T) {
 	if fixture.count("invm-py/cleanup-preserve") != 1 || fixture.count("invm-py/cleanup-purge") != 0 {
 		t.Fatalf("non-final cleanup policy = %v", fixture.events)
 	}
+	if fixture.count("nexus-sdk-py/cleanup-preserve") != 1 || fixture.count("nexus-sdk-py/cleanup-purge") != 0 {
+		t.Fatalf("SDK-only cleanup policy = %v", fixture.events)
+	}
 	if fixture.count("nexus-py/cleanup-purge") != 1 || fixture.count("nexus-py/cleanup-preserve") != 0 {
 		t.Fatalf("final cleanup policy = %v", fixture.events)
+	}
+}
+
+func TestSDKOnlyCellUsesMatchedSharedMemoryConfiguration(t *testing.T) {
+	fixture := newLifecycleFixture(t)
+	item := testCell("nexus-sdk-py")
+	if ok, err := runCellWith(context.Background(), fixture.options(), item, workerURL, workerHome, workerIP, eval.CanonicalMinioHost, "campaign", false, fixture.ops()); err != nil || !ok {
+		t.Fatalf("SDK-only cell = cleanup=%t err=%v", ok, err)
+	}
+	found := false
+	for _, args := range fixture.commands {
+		if modeFromArgs(args) != "nexus-sdk-py" || stageFromArgs(args) != "deploy" {
+			continue
+		}
+		found = true
+		for _, want := range []string{"--vm-shmem-bytes=4194304", "--shmem-ring-bytes=4190208", "--shmem-io-quantum=262144"} {
+			if !slices.Contains(args, want) {
+				t.Fatalf("SDK-only deploy missing %q: %v", want, args)
+			}
+		}
+	}
+	if !found {
+		t.Fatal("SDK-only deploy command not observed")
 	}
 }
 
@@ -351,7 +377,9 @@ func claimOptions(t *testing.T) options {
 func testCell(mode string) cell {
 	return cell{Workloads: []string{"one", "two"}, Mode: mode, InstancesPerWorkload: []int{1}}
 }
-func testPlan() []cell { return []cell{testCell("invm-py"), testCell("nexus-py")} }
+func testPlan() []cell {
+	return []cell{testCell("invm-py"), testCell("nexus-sdk-py"), testCell("nexus-py")}
+}
 func readJSON(t *testing.T, path string, out any) {
 	t.Helper()
 	data, err := os.ReadFile(path)
