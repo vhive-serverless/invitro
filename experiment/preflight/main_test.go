@@ -71,13 +71,13 @@ func TestSmokeEvidenceRequiresAllFourExperimentSmokes(t *testing.T) {
 		t.Fatal(err)
 	}
 	manifests := map[string]string{
-		"e1-2b":   "smoke=true\nmanifest_version=9\nclaim_id=e1-smoke-2b\ncell_status_sequence=started,complete\nfixture_setup_max_attempts=2\nfixture_setup_attempts=1\ncell_setup_max_attempts=2\nacquisition_retry=false\nindependent_continuation=true\ncontamination_stop=true\nexit_status=0\n",
-		"e1-4mib": "smoke=true\nmanifest_version=9\nclaim_id=e1-smoke-4mib\ncell_status_sequence=started,complete\nfixture_setup_max_attempts=2\nfixture_setup_attempts=1\ncell_setup_max_attempts=2\nacquisition_retry=false\nindependent_continuation=true\ncontamination_stop=true\nexit_status=0\n",
-		"e2-b0":   "smoke=true\nmanifest_version=2\nphase=collection\nworkload=helloworld\nmode=invm-py\nevidence_status=0\nadmission_status=0\nadmission_expected_replicas=2\nadmission_function_count=1\nadmission_aggregate_expected_replicas=2\nadmission_aggregate_ready_replicas=2\nsnapshot_status=0\nsnapshot_workload_count=1\nacquisition_started=true\nacquisition_retry=false\nindependent_continuation=true\nsetup_attempts=1\ndeploy_attempts=1\ndeploy_invocations=1\nloader_started=true\ncleanup_exit_status=0\nlifecycle_phase=final\nexit_status=0\n",
-		"e2-n4":   "smoke=true\nmanifest_version=2\nphase=collection\nworkload=helloworld\nmode=nexus-py\nevidence_status=0\nadmission_status=0\nadmission_expected_replicas=2\nadmission_function_count=1\nadmission_aggregate_expected_replicas=2\nadmission_aggregate_ready_replicas=2\nsnapshot_status=0\nsnapshot_workload_count=1\nacquisition_started=true\nacquisition_retry=false\nindependent_continuation=true\nsetup_attempts=1\ndeploy_attempts=1\ndeploy_invocations=1\nloader_started=true\ncleanup_exit_status=0\nlifecycle_phase=final\nexit_status=0\n",
-		"e3-b0":   "smoke=true\nmanifest_version=2\nexperiment=e3\nend_scale=1\nclaim_bearing=false\nmode=invm-py\nevidence_status=0\nscientific_status=ACCEPTED\nsuccess_count=19\nfailure_count=1\nfailure_fraction=0.05\nsnapshot_status=0\nsnapshot_workload_count=10\nacquisition_started=true\nacquisition_retry=false\nindependent_continuation=true\nsetup_attempts=1\ndeploy_attempts=1\ndeploy_invocations=1\nloader_started=true\ncleanup_exit_status=0\nlifecycle_phase=final\nexit_status=0\n",
-		"e3-n4":   "smoke=true\nmanifest_version=2\nexperiment=e3\nend_scale=1\nclaim_bearing=false\nmode=nexus-py\nevidence_status=0\nscientific_status=ACCEPTED\nsuccess_count=19\nfailure_count=1\nfailure_fraction=0.05\nsnapshot_status=0\nsnapshot_workload_count=10\nacquisition_started=true\nacquisition_retry=false\nindependent_continuation=true\nsetup_attempts=1\ndeploy_attempts=1\ndeploy_invocations=1\nloader_started=true\ncleanup_exit_status=0\nlifecycle_phase=final\nexit_status=0\n",
-		"e3-n5":   "smoke=true\nmanifest_version=2\nexperiment=e3\nend_scale=1\nclaim_bearing=false\nmode=nexus-rdma-py\nevidence_status=0\nscientific_status=ACCEPTED\nsuccess_count=19\nfailure_count=1\nfailure_fraction=0.05\nsnapshot_status=0\nsnapshot_workload_count=10\nacquisition_started=true\nacquisition_retry=false\nindependent_continuation=true\nsetup_attempts=1\ndeploy_attempts=1\ndeploy_invocations=1\nloader_started=true\ncleanup_exit_status=0\nlifecycle_phase=final\nexit_status=0\n",
+		"e1-4b":    "smoke=true\nmanifest_version=11\nclaim_id=e1-smoke-4b\nmodes=invm-py invm-js invm-go hosttcp-go nexus-py nexus-js nexus-go\nsynthetic_payloads=4\nexpected_cell_count=7\nlatency_iterations=1\nmemory_iterations=1\nwarm_invocations=1\ncell_status_sequence=started,complete\nfixture_setup_max_attempts=2\nfixture_setup_attempts=1\ncell_setup_max_attempts=2\nacquisition_retry=false\nindependent_continuation=true\ncontamination_stop=true\nexit_status=0\n",
+		"e1-16mib": "smoke=true\nmanifest_version=11\nclaim_id=e1-smoke-16mib\nmodes=hosttcp-go nexus-py nexus-js nexus-go\nsynthetic_payloads=16777216\nexpected_cell_count=4\nlatency_iterations=1\nmemory_iterations=1\nwarm_invocations=1\ncell_status_sequence=started,complete\nfixture_setup_max_attempts=2\nfixture_setup_attempts=1\ncell_setup_max_attempts=2\nacquisition_retry=false\nindependent_continuation=true\ncontamination_stop=true\nexit_status=0\n",
+		"e2-b0":    "smoke=true\nmanifest_version=2\nphase=collection\nworkload=helloworld\nmode=invm-py\nevidence_status=0\nadmission_status=0\nadmission_expected_replicas=2\nadmission_function_count=1\nadmission_aggregate_expected_replicas=2\nadmission_aggregate_ready_replicas=2\nsnapshot_status=0\nsnapshot_workload_count=1\nacquisition_started=true\nacquisition_retry=false\nindependent_continuation=true\nsetup_attempts=1\ndeploy_attempts=1\ndeploy_invocations=1\nloader_started=true\ncleanup_exit_status=0\nlifecycle_phase=final\nexit_status=0\n",
+		"e2-n4":    "smoke=true\nmanifest_version=2\nphase=collection\nworkload=helloworld\nmode=nexus-py\nevidence_status=0\nadmission_status=0\nadmission_expected_replicas=2\nadmission_function_count=1\nadmission_aggregate_expected_replicas=2\nadmission_aggregate_ready_replicas=2\nsnapshot_status=0\nsnapshot_workload_count=1\nacquisition_started=true\nacquisition_retry=false\nindependent_continuation=true\nsetup_attempts=1\ndeploy_attempts=1\ndeploy_invocations=1\nloader_started=true\ncleanup_exit_status=0\nlifecycle_phase=final\nexit_status=0\n",
+		"e3-b0":    "smoke=true\nmanifest_version=2\nexperiment=e3\nend_scale=1\nclaim_bearing=false\nmode=invm-py\nevidence_status=0\nscientific_status=ACCEPTED\nsuccess_count=19\nfailure_count=1\nfailure_fraction=0.05\nsnapshot_status=0\nsnapshot_workload_count=10\nacquisition_started=true\nacquisition_retry=false\nindependent_continuation=true\nsetup_attempts=1\ndeploy_attempts=1\ndeploy_invocations=1\nloader_started=true\ncleanup_exit_status=0\nlifecycle_phase=final\nexit_status=0\n",
+		"e3-n4":    "smoke=true\nmanifest_version=2\nexperiment=e3\nend_scale=1\nclaim_bearing=false\nmode=nexus-py\nevidence_status=0\nscientific_status=ACCEPTED\nsuccess_count=19\nfailure_count=1\nfailure_fraction=0.05\nsnapshot_status=0\nsnapshot_workload_count=10\nacquisition_started=true\nacquisition_retry=false\nindependent_continuation=true\nsetup_attempts=1\ndeploy_attempts=1\ndeploy_invocations=1\nloader_started=true\ncleanup_exit_status=0\nlifecycle_phase=final\nexit_status=0\n",
+		"e3-n5":    "smoke=true\nmanifest_version=2\nexperiment=e3\nend_scale=1\nclaim_bearing=false\nmode=nexus-rdma-py\nevidence_status=0\nscientific_status=ACCEPTED\nsuccess_count=19\nfailure_count=1\nfailure_fraction=0.05\nsnapshot_status=0\nsnapshot_workload_count=10\nacquisition_started=true\nacquisition_retry=false\nindependent_continuation=true\nsetup_attempts=1\ndeploy_attempts=1\ndeploy_invocations=1\nloader_started=true\ncleanup_exit_status=0\nlifecycle_phase=final\nexit_status=0\n",
 	}
 	for name, content := range manifests {
 		dir := filepath.Join(root, name)
@@ -109,12 +109,28 @@ func TestSmokeEvidenceRequiresAllFourExperimentSmokes(t *testing.T) {
 	}
 	rep := report{}
 	c := checks{report: &rep}
-	c.smokeEvidence(root)
+	c.smokeEvidence(root, "all")
 	if c.failed() {
 		t.Fatalf("valid smoke rejected: %#v", rep.Checks)
 	}
 	if rep.QualificationRoot != root || len(rep.QualificationSHA256) != 64 {
 		t.Fatalf("qualification binding = %q, %q", rep.QualificationRoot, rep.QualificationSHA256)
+	}
+	e1Root := t.TempDir()
+	for _, name := range []string{"e1-4b", "e1-16mib"} {
+		dir := filepath.Join(e1Root, name)
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "manifest.txt"), []byte(manifests[name]), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	e1Rep := report{}
+	e1Checks := checks{report: &e1Rep}
+	e1Checks.smokeEvidence(e1Root, "e1")
+	if e1Checks.failed() || e1Rep.QualificationScope != "e1" {
+		t.Fatalf("valid E1-only smoke rejected: %#v", e1Rep.Checks)
 	}
 }
 
@@ -142,6 +158,29 @@ func TestArchivedOutputChecksumsRejectHeaderOnlyAndCorruption(t *testing.T) {
 	}
 	if err := validateArchivedOutputChecksums(dir); err == nil {
 		t.Fatal("accepted an unlisted archived payload")
+	}
+}
+
+func TestE1SmokeContractRejectsSyntheticRDMA(t *testing.T) {
+	fields := map[string]string{
+		"manifest_version": "11", "claim_id": "e1-smoke-4b",
+		"modes":              "invm-py invm-js invm-go hosttcp-go nexus-py nexus-js nexus-go nexus-rdma-py",
+		"synthetic_payloads": "4", "expected_cell_count": "7",
+		"latency_iterations": "1", "memory_iterations": "1", "warm_invocations": "1",
+		"cell_status_sequence": "started,complete", "fixture_setup_max_attempts": "2",
+		"fixture_setup_attempts": "1", "cell_setup_max_attempts": "2",
+		"acquisition_retry": "false", "independent_continuation": "true",
+		"contamination_stop": "true",
+	}
+	if err := validateE1LifecycleSmokeManifest(fields); err == nil {
+		t.Fatal("E1 smoke containing synthetic RDMA was accepted")
+	}
+}
+
+func TestE1ScopedDryRunPlansOnlyE1SmokeEvidence(t *testing.T) {
+	checks := strings.Join(plannedChecks(true, "e1"), ",")
+	if !strings.Contains(checks, "e1_smoke_evidence") || strings.Contains(checks, "e1_e4_smoke_evidence") {
+		t.Fatalf("E1 scoped planned checks = %s", checks)
 	}
 }
 

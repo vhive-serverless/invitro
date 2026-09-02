@@ -49,6 +49,7 @@ type report struct {
 	ActivatorGeneration int64             `json:"activator_generation,omitempty"`
 	QualificationRoot   string            `json:"qualification_root,omitempty"`
 	QualificationSHA256 string            `json:"qualification_sha256,omitempty"`
+	QualificationScope  string            `json:"qualification_scope,omitempty"`
 	Checks              []check           `json:"checks"`
 	Provenance          []eval.Provenance `json:"provenance,omitempty"`
 	Artifacts           []artifact        `json:"artifacts,omitempty"`
@@ -88,13 +89,20 @@ func main() {
 	cfg := eval.Config{Profile: eval.Profile4}
 	eval.AddFlags(fs, &cfg)
 	smokeRoot := fs.String("smoke-root", "", "verified E1 smoke result root required for freeze")
+	scope := fs.String("scope", "all", "qualification scope for freeze: all or e1")
 	if err := fs.Parse(args); err != nil {
 		fail(err.Error())
 	}
 	if freezeSubcommand {
 		cfg.Freeze = true
 	}
-	code, err := run(context.Background(), cfg, *smokeRoot)
+	if *scope != "all" && *scope != "e1" {
+		fail("--scope must be all or e1")
+	}
+	if !cfg.Freeze && *scope != "all" {
+		fail("--scope is accepted only for freeze")
+	}
+	code, err := runScoped(context.Background(), cfg, *smokeRoot, *scope)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "preflight:", err)
 	}
@@ -102,6 +110,10 @@ func main() {
 }
 
 func run(ctx context.Context, cfg eval.Config, smokeRoot string) (int, error) {
+	return runScoped(ctx, cfg, smokeRoot, "all")
+}
+
+func runScoped(ctx context.Context, cfg eval.Config, smokeRoot, scope string) (int, error) {
 	if cfg.Freeze && cfg.ResultRoot == "" && cfg.CampaignManifest != "" {
 		cfg.ResultRoot = filepath.Dir(cfg.CampaignManifest)
 	}
@@ -122,7 +134,7 @@ func run(ctx context.Context, cfg eval.Config, smokeRoot string) (int, error) {
 	rep := report{Profile: cfg.Profile, MinioEndpoint: baseURL, Topology: setup, Status: "CHECKING"}
 	rep.TopologySHA256, _ = eval.SHA256File(cfg.TopologyConfig)
 	if cfg.DryRun {
-		for _, name := range plannedChecks(cfg.Freeze) {
+		for _, name := range plannedChecks(cfg.Freeze, scope) {
 			rep.Checks = append(rep.Checks, check{Name: name, Status: "PLANNED"})
 		}
 		rep.Status = "DRY_RUN_READY"
@@ -159,13 +171,14 @@ func run(ctx context.Context, cfg eval.Config, smokeRoot string) (int, error) {
 		if mapErr != nil {
 			continue
 		}
+		remoteKhala := remoteHome(target) + "/khala"
 		checker.remoteKVM(target)
 		checker.remoteWorkerTools(target)
 		checker.remoteMinio(target, baseURL)
-		checker.remoteGit("worker_khala", target, remoteHome(target)+"/khala", localKhala.Head, eval.KhalaBranch)
+		checker.remoteGit("worker_khala", target, remoteKhala, localKhala.Head, eval.KhalaBranch)
 		checker.remoteGit("worker_firecracker", target, remoteHome(target)+"/firecracker", eval.FirecrackerHead, eval.FirecrackerBranch)
-		checker.remoteRuntimeSnapshots(target)
-		checker.workerArtifacts(target)
+		checker.remoteRuntimeSnapshots(target, remoteKhala)
+		checker.workerArtifacts(target, remoteKhala)
 	}
 	loaderIPs := setup.LabeledIPs("loader-nodetype=monitoring")
 	if len(loaderIPs) == 1 {
@@ -185,7 +198,7 @@ func run(ctx context.Context, cfg eval.Config, smokeRoot string) (int, error) {
 		checker.remoteRDMA(target)
 	}
 	if cfg.Freeze {
-		checker.smokeEvidence(smokeRoot)
+		checker.smokeEvidence(smokeRoot, scope)
 		// Capture the Deployment metadata immediately before freezing.  This is
 		// read-only and becomes the authoritative identity for final teardown;
 		// a missing or malformed response must block acquisition.
@@ -393,8 +406,8 @@ func parseRuntimeSnapshotsOutput(output, path string) error {
 	return nil
 }
 
-func (c *checks) remoteRuntimeSnapshots(target string) {
-	path := remoteHome(target) + "/khala/runtime/snapshots"
+func (c *checks) remoteRuntimeSnapshots(target, khalaRoot string) {
+	path := khalaRoot + "/runtime/snapshots"
 	output, err := c.ssh(target, runtimeSnapshotsCommand(path)...)
 	if err == nil {
 		err = parseRuntimeSnapshotsOutput(output, path)
@@ -496,7 +509,7 @@ func (c *checks) remoteGit(role, target, path, wantHead, wantBranch string) {
 	c.record(role+"_"+target, err, path)
 }
 
-func (c *checks) workerArtifacts(target string) {
+func (c *checks) workerArtifacts(target, khalaRoot string) {
 	configPaths := []string{"configs/vm_orchestrator_config.json", "configs/vm_orchestrator_config_js.json"}
 	configs := make([]vmConfig, 0, len(configPaths))
 	for _, relative := range configPaths {
@@ -524,7 +537,7 @@ func (c *checks) workerArtifacts(target string) {
 		"bin/e4-density"}
 	for _, relative := range paths {
 		localPath := filepath.Join("../khala", relative)
-		full := filepath.Join(remoteHome(target), "khala", relative)
+		full := filepath.Join(khalaRoot, relative)
 		localOutput, err := c.capture("sha256sum", localPath)
 		output := ""
 		if err == nil {
@@ -642,7 +655,7 @@ func (c *checks) kubernetesWorkloads() {
 	c.record("kubernetes_workloads", err, fmt.Sprintf("pods=%d", len(pods.Items)))
 }
 
-func (c *checks) smokeEvidence(root string) {
+func (c *checks) smokeEvidence(root, scope string) {
 	if root == "" {
 		c.record("guest_minio_smoke", fmt.Errorf("--smoke-root is required for freeze"), "")
 		return
@@ -733,7 +746,9 @@ func (c *checks) smokeEvidence(root string) {
 		}
 	}
 	e4InitialCleanup := false
-	if len(e4InitialCleanups) != 1 {
+	if scope == "e1" {
+		e4InitialCleanup = true
+	} else if len(e4InitialCleanups) != 1 {
 		err = errors.Join(err, fmt.Errorf("expected one E4 initial cleanup record, got %d", len(e4InitialCleanups)))
 	} else {
 		path := e4InitialCleanups[0]
@@ -762,10 +777,26 @@ func (c *checks) smokeEvidence(root string) {
 		got  map[string]bool
 		keys []string
 	}{
-		{"E1", e1, []string{"e1-smoke-2b", "e1-smoke-4mib"}},
-		{"E2", e2, []string{"invm-py", "nexus-py"}},
-		{"E3", e3, []string{"invm-py", "nexus-py", "nexus-rdma-py"}},
-		{"E4", e4, []string{"invm-py", "nexus-py"}},
+		{"E1", e1, []string{"e1-smoke-4b", "e1-smoke-16mib"}},
+	}
+	if scope == "all" {
+		wants = append(wants,
+			struct {
+				name string
+				got  map[string]bool
+				keys []string
+			}{"E2", e2, []string{"invm-py", "nexus-py"}},
+			struct {
+				name string
+				got  map[string]bool
+				keys []string
+			}{"E3", e3, []string{"invm-py", "nexus-py", "nexus-rdma-py"}},
+			struct {
+				name string
+				got  map[string]bool
+				keys []string
+			}{"E4", e4, []string{"invm-py", "nexus-py"}},
+		)
 	}
 	for _, want := range wants {
 		for _, key := range want.keys {
@@ -774,22 +805,27 @@ func (c *checks) smokeEvidence(root string) {
 			}
 		}
 	}
-	if !e4InitialCleanup {
+	if scope == "all" && !e4InitialCleanup {
 		err = errors.Join(err, fmt.Errorf("missing terminal E4 initial cleanup evidence"))
 	}
 	c.report.QualificationRoot = root
+	c.report.QualificationScope = scope
 	treeDigest, digestErr := directorySHA256(root)
 	if digestErr != nil {
 		err = errors.Join(err, fmt.Errorf("qualification tree digest: %w", digestErr))
 	} else {
 		c.report.QualificationSHA256 = treeDigest
 	}
-	c.record("e1_e4_smoke_evidence", err, root)
+	checkName := "e1_e4_smoke_evidence"
+	if scope == "e1" {
+		checkName = "e1_smoke_evidence"
+	}
+	c.record(checkName, err, root)
 }
 
 func validateE1LifecycleSmokeManifest(fields map[string]string) error {
-	if fields["manifest_version"] != "9" {
-		return fmt.Errorf("manifest_version=%q, want 9", fields["manifest_version"])
+	if fields["manifest_version"] != "11" {
+		return fmt.Errorf("manifest_version=%q, want 11", fields["manifest_version"])
 	}
 	if fields["cell_status_sequence"] != "started,complete" || fields["acquisition_retry"] != "false" ||
 		fields["independent_continuation"] != "true" || fields["contamination_stop"] != "true" {
@@ -797,6 +833,31 @@ func validateE1LifecycleSmokeManifest(fields map[string]string) error {
 	}
 	if fields["fixture_setup_max_attempts"] != "2" || fields["cell_setup_max_attempts"] != "2" {
 		return fmt.Errorf("unbounded E1 setup contract")
+	}
+	expected := map[string]map[string]string{
+		"e1-smoke-4b": {
+			"modes":              "invm-py invm-js invm-go hosttcp-go nexus-py nexus-js nexus-go",
+			"synthetic_payloads": "4", "expected_cell_count": "7",
+		},
+		"e1-smoke-16mib": {
+			"modes":              "hosttcp-go nexus-py nexus-js nexus-go",
+			"synthetic_payloads": "16777216", "expected_cell_count": "4",
+		},
+	}
+	contract, ok := expected[fields["claim_id"]]
+	if !ok {
+		return fmt.Errorf("unexpected E1 smoke claim_id=%q", fields["claim_id"])
+	}
+	for key, want := range contract {
+		if fields[key] != want {
+			return fmt.Errorf("%s=%q, want %q", key, fields[key], want)
+		}
+	}
+	if strings.Contains(fields["modes"], "rdma") {
+		return fmt.Errorf("synthetic smoke must not contain RDMA modes")
+	}
+	if fields["latency_iterations"] != "1" || fields["memory_iterations"] != "1" || fields["warm_invocations"] != "1" {
+		return fmt.Errorf("E1 smoke requires latency=1, memory=1, and warm=1")
 	}
 	attempts, err := strconv.Atoi(fields["fixture_setup_attempts"])
 	if err != nil || attempts < 1 || attempts > 2 {
@@ -1070,10 +1131,14 @@ func sanitize(value string) string {
 	return strings.NewReplacer("/", "_", ":", "_", "@", "_").Replace(value)
 }
 
-func plannedChecks(freeze bool) []string {
+func plannedChecks(freeze bool, scope string) []string {
 	values := []string{"local_git", "kubernetes_nodes", "kubernetes_topology", "minio_loader", "kubernetes_workloads", "prometheus_api_ready", "worker_kvm", "worker_tools", "worker_flamegraph", "worker_minio", "worker_runtime_snapshots", "deployed_git", "unified_rootfs", "artifact_hashes", "rdma"}
 	if freeze {
-		values = append(values, "e1_e4_smoke_evidence", "activator_baseline")
+		smokeCheck := "e1_e4_smoke_evidence"
+		if scope == "e1" {
+			smokeCheck = "e1_smoke_evidence"
+		}
+		values = append(values, smokeCheck, "activator_baseline")
 	}
 	return values
 }
