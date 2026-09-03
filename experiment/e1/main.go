@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/vhive-serverless/loader/experiment/eval"
@@ -53,9 +54,6 @@ func main() {
 	if o.dryRun {
 		return
 	}
-	if o.campaign == "" && !o.smoke {
-		fail(fmt.Errorf("--campaign-manifest is required for non-smoke acquisition"))
-	}
 	if err := runLive(context.Background(), o); err != nil {
 		fail(err)
 	}
@@ -70,11 +68,8 @@ func makePlan(o options) ([]cell, error) {
 	if o.suite != "real" && o.suite != "synthetic" {
 		return nil, fmt.Errorf("--suite must be real or synthetic")
 	}
-	if o.repetitions != 1 || o.latency <= 0 || o.memory <= 0 || o.warm <= 0 {
-		return nil, fmt.Errorf("E1 requires repetitions=1 and positive latency, memory, and warm counts")
-	}
-	if !o.smoke && (o.latency != 20 || o.memory != 20 || o.warm != 5) {
-		return nil, fmt.Errorf("claim-bearing E1 requires repetitions=1, latency=20, memory=20, warm=5")
+	if o.repetitions <= 0 || o.latency <= 0 || o.memory <= 0 || o.warm <= 0 {
+		return nil, fmt.Errorf("E1 requires positive repetition, latency, memory, and warm counts")
 	}
 	if _, err := eval.ExpectedCounts(eval.Profile(o.profile)); err != nil {
 		return nil, err
@@ -102,15 +97,27 @@ func makePlan(o options) ([]cell, error) {
 		return smokePlan(modes, payloads)
 	}
 	if o.suite == "real" {
-		if !same(modes, realModes) || !same(workloads, realWorkloads) || len(payloads) != 0 {
-			return nil, fmt.Errorf("real suite requires frozen modes/workloads and no payloads")
+		if err := validateSelection("mode", modes, realModes); err != nil {
+			return nil, err
 		}
-		return cells("e1-real", o.profile, modes, workloads, nil), nil
+		if err := validateSelection("workload", workloads, realWorkloads); err != nil {
+			return nil, err
+		}
+		if len(payloads) != 0 {
+			return nil, fmt.Errorf("real suite does not accept payloads")
+		}
+		return cells("e1-real", o.profile, modes, workloads, nil, o.repetitions), nil
 	}
-	if !same(modes, syntheticModes) || len(workloads) != 0 || !same(payloads, syntheticPayloads) {
-		return nil, fmt.Errorf("synthetic suite requires frozen modes/payloads and no workloads")
+	if err := validateSelection("mode", modes, syntheticModes); err != nil {
+		return nil, err
 	}
-	return cells("e1-synthetic", o.profile, modes, nil, payloads), nil
+	if len(workloads) != 0 {
+		return nil, fmt.Errorf("synthetic suite does not accept workloads")
+	}
+	if err := validatePayloads(payloads); err != nil {
+		return nil, err
+	}
+	return cells("e1-synthetic", o.profile, modes, nil, payloads, o.repetitions), nil
 }
 
 func runLive(ctx context.Context, o options) error {
@@ -183,14 +190,14 @@ func runLive(ctx context.Context, o options) error {
 
 func buildRemoteArgs(o options, heads eval.EvaluationHeads, remoteHome, baseURL string) []string {
 	experiment := "e1-" + o.suite
-	args := []string{"env", "NEXUS_MINIO_URL=http://" + baseURL, "NEXUS_REPETITIONS_TOTAL=1",
+	args := []string{"env", "NEXUS_MINIO_URL=http://" + baseURL, "NEXUS_REPETITIONS_TOTAL=" + fmt.Sprint(o.repetitions),
 		"EVAL_KHALA_HEAD=" + heads.Khala, "EVAL_KHALA_BRANCH=" + eval.KhalaBranch,
 		"EVAL_FIRECRACKER_HEAD=" + heads.Firecracker, "EVAL_FIRECRACKER_BRANCH=" + eval.FirecrackerBranch,
 		"EVAL_KERNEL_SHA256=" + eval.KernelSHA256,
 		"EVAL_RDMA_DEMO_HEAD=" + heads.RDMA, "EVAL_RDMA_DEMO_BRANCH=" + eval.RDMABranch,
 		"EVAL_INVITRO_HEAD=" + heads.InVitro, "EVAL_INVITRO_BRANCH=" + eval.InVitroBranch,
 		"EVAL_EAGER_BAR_PRETOUCH=true", "bash", remoteHome + "/khala/experiment-script/real-workload/run_nexus_evaluation.sh",
-		"--experiment", experiment, "--result-root", filepath.Clean(o.result), "--repetitions", "1",
+		"--experiment", experiment, "--result-root", filepath.Clean(o.result), "--repetitions", fmt.Sprint(o.repetitions),
 		"--modes", o.modes,
 		"--latency-iterations", fmt.Sprint(o.latency), "--memory-iterations", fmt.Sprint(o.memory),
 		"--warm-invocations", fmt.Sprint(o.warm)}
@@ -204,11 +211,10 @@ func buildRemoteArgs(o options, heads eval.EvaluationHeads, remoteHome, baseURL 
 }
 
 func verifyTerminalResults(o options) error {
-	expected := map[string]int{filepath.Join(o.result, "rep-0", "manifest.txt"): 0}
-	if o.suite == "real" {
-		expected[filepath.Join(o.result, "rep-0", "manifest.txt")] = 44
-	} else {
-		expected[filepath.Join(o.result, "rep-0", "manifest.txt")] = 70
+	expected := map[string]int{}
+	perRepetition := len(split(o.modes)) * (len(split(o.workloads)) + len(split(o.payloads)))
+	for repetition := 0; repetition < o.repetitions; repetition++ {
+		expected[filepath.Join(o.result, fmt.Sprintf("rep-%d", repetition), "manifest.txt")] = perRepetition
 	}
 	if o.smoke {
 		expected = map[string]int{
@@ -248,21 +254,62 @@ func smokePlan(modes, payloads []string) ([]cell, error) {
 	if !same(modes, syntheticModes) {
 		return nil, fmt.Errorf("smoke requires all seven E1 synthetic modes")
 	}
-	result := cells("e1-smoke", "4-node", modes, nil, []string{"4"})
-	result = append(result, cells("e1-smoke", "4-node", []string{"hosttcp-go", "nexus-py", "nexus-js", "nexus-go"}, nil, []string{"16777216"})...)
+	result := cells("e1-smoke", "4-node", modes, nil, []string{"4"}, 1)
+	result = append(result, cells("e1-smoke", "4-node", []string{"hosttcp-go", "nexus-py", "nexus-js", "nexus-go"}, nil, []string{"16777216"}, 1)...)
 	return result, nil
 }
-func cells(experiment, profile string, modes, workloads, payloads []string) []cell {
+func cells(experiment, profile string, modes, workloads, payloads []string, repetitions int) []cell {
 	result := []cell{}
-	for _, mode := range modes {
-		for _, w := range workloads {
-			result = append(result, cell{eval.CellID(experiment, profile, mode, w, 0), mode, w, "", 0})
-		}
-		for _, p := range payloads {
-			result = append(result, cell{eval.CellID(experiment, profile, mode, "synthetic_e_0_p_"+p, 0), mode, "", p, 0})
+	for repetition := 0; repetition < repetitions; repetition++ {
+		for _, mode := range modes {
+			for _, w := range workloads {
+				result = append(result, cell{eval.CellID(experiment, profile, mode, w, repetition), mode, w, "", repetition})
+			}
+			for _, p := range payloads {
+				result = append(result, cell{eval.CellID(experiment, profile, mode, "synthetic_e_0_p_"+p, repetition), mode, "", p, repetition})
+			}
 		}
 	}
 	return result
+}
+
+func validateSelection(kind string, values, allowed []string) error {
+	if len(values) == 0 {
+		return fmt.Errorf("at least one %s is required", kind)
+	}
+	seen := map[string]bool{}
+	for _, value := range values {
+		if seen[value] {
+			return fmt.Errorf("duplicate %s %q", kind, value)
+		}
+		seen[value] = true
+		found := false
+		for _, candidate := range allowed {
+			found = found || value == candidate
+		}
+		if !found {
+			return fmt.Errorf("unsupported %s %q", kind, value)
+		}
+	}
+	return nil
+}
+
+func validatePayloads(values []string) error {
+	if len(values) == 0 {
+		return fmt.Errorf("at least one payload is required")
+	}
+	seen := map[int]bool{}
+	for _, value := range values {
+		payload, err := strconv.Atoi(value)
+		if err != nil || payload <= 0 || payload > 16<<20 {
+			return fmt.Errorf("payload %q must be an integer in 1..16777216", value)
+		}
+		if seen[payload] {
+			return fmt.Errorf("duplicate payload %d", payload)
+		}
+		seen[payload] = true
+	}
+	return nil
 }
 func split(value string) []string {
 	if strings.TrimSpace(value) == "" {

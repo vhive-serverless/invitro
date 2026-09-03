@@ -41,6 +41,15 @@ func TestWorkerEnvironmentKeepsE4CleanupLocal(t *testing.T) {
 	}
 }
 
+func TestDensityCommandUsesRequestedSampling(t *testing.T) {
+	args := densityCommand([]string{"env"}, cell{Workloads: []string{"helloworld", "mapper"}, Mode: "nexus-py", InstancesPerWorkload: []int{1, 3}}, "10.0.1.3", "/tmp/result", 2, 4)
+	for _, want := range []string{"--workloads=helloworld,mapper", "--instances-per-workload=1,3", "--warmup-successes-per-vm=2", "--sample-seconds=4"} {
+		if !slices.Contains(args, want) {
+			t.Fatalf("density arguments missing %q: %v", want, args)
+		}
+	}
+}
+
 func TestFrozenPlanHasThreeAggregateModeCells(t *testing.T) {
 	plan, _, _, err := makePlan(claimOptions(t))
 	if err != nil {
@@ -68,6 +77,23 @@ func TestSmokePlanIsThreeHelloWorldCells(t *testing.T) {
 		if !slices.Equal(item.Workloads, []string{"helloworld"}) || !slices.Equal(item.InstancesPerWorkload, []int{1, 2}) {
 			t.Fatalf("smoke cell = %#v", item)
 		}
+	}
+}
+
+func TestCustomNonSmokePlanUsesRequestedValues(t *testing.T) {
+	o := claimOptions(t)
+	o.workloads = "helloworld,mapper"
+	o.modes = "invm-py,nexus-py"
+	o.countsText = "1,3,7"
+	o.warmup = 2
+	o.sampleSeconds = 4
+	plan, _, _, err := makePlan(o)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(plan) != 2 || !slices.Equal(plan[0].Workloads, []string{"helloworld", "mapper"}) ||
+		!slices.Equal(plan[0].InstancesPerWorkload, []int{1, 3, 7}) {
+		t.Fatalf("custom plan = %#v", plan)
 	}
 }
 

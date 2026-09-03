@@ -84,9 +84,11 @@ done
 [[ "$command" == calibrate || "$command" == collect ]] || { usage >&2; exit 2; }
 [[ "$profile" == 4-node ]] || { echo "E2 supports only the frozen 4-node profile" >&2; exit 2; }
 [[ -n "$result_root" ]] || { echo "--result-root is required" >&2; exit 2; }
-[[ "$warmup_minutes" == 2 ]] || { echo "E2 requires --warmup-minutes 2" >&2; exit 2; }
-[[ "$minio_endpoint" == myminio-api.minio.10.200.3.4.sslip.io:80 ]] || {
-    echo "E2 requires the Kubernetes MinIO ingress myminio-api.minio.10.200.3.4.sslip.io:80" >&2; exit 2; }
+for value in "$warmup_minutes" "$measurement_minutes" "$replicas" "$repetitions" "$steps" "$minutes_per_step"; do
+    [[ "$value" =~ ^[1-9][0-9]*$ ]] || { echo "E2 counts and durations must be positive integers" >&2; exit 2; }
+done
+[[ "$minio_endpoint" =~ ^[A-Za-z0-9._-]+:[0-9]+$ ]] || {
+    echo "E2 MinIO endpoint must be a non-empty host:port" >&2; exit 2; }
 
 workloads=(helloworld chameleonserve cnnserve imageresize lrserving mapper pyaesserve reducer rnnserve streducer sttrainer)
 python_modes=(invm-py nexus-py nexus-rdma-py)
@@ -768,11 +770,7 @@ run_cell() {
 
 if [[ "$command" == calibrate ]]; then
     [[ -f "$e1_summary" && -n "$worker_cores" ]] || { echo "calibrate requires --e1-summary and --worker-cores" >&2; exit 2; }
-    [[ "$slo_multiplier" == 5 && "$failure_threshold" == 0.05 && "$steps" == 20 && "$minutes_per_step" == 1 && "$no_retry" == true ]] || {
-        echo "calibration contract is frozen at 5x, >5%, 20 one-minute steps, and no retry" >&2; exit 2; }
-    [[ "$ceiling_multiplier" == 1 ]] || {
-        echo "the single-pass campaign requires --ceiling-multiplier 1 and never extends a right-censored sweep" >&2; exit 2; }
-    plan_path="$result_root/calibration-plan.csv"
+    calibration_minutes=$((steps * minutes_per_step))
     if [[ "$dry_run" == true ]]; then
         python3 - "$e1_summary" "$worker_cores" "$ceiling_multiplier" <<'PY' >/dev/null
 import sys
@@ -780,8 +778,13 @@ from pathlib import Path
 from e2_calibrate_rps import build_plan, read_averages
 build_plan(read_averages(Path(sys.argv[1])), int(sys.argv[2]), float(sys.argv[3]))
 PY
-        for workload in "${workloads[@]}"; do
-            print_cell calibration 0 invm-py "$workload" sweep 320 false 2 20 "$result_root/cells/$workload"
+        for ((repetition=0; repetition<repetitions; repetition++)); do
+            repetition_root=$result_root
+            ((repetitions == 1)) || repetition_root="$result_root/rep-$repetition"
+            for workload in "${workloads[@]}"; do
+                print_cell calibration "$repetition" invm-py "$workload" sweep "$replicas" false \
+                    "$warmup_minutes" "$calibration_minutes" "$repetition_root/cells/$workload"
+            done
         done
         exit 0
     fi
@@ -789,45 +792,57 @@ PY
     prepare_cluster_root false
     scripts/util/wait_prometheus_ready.sh
     run_initial_cleanup || { status=$?; echo "initial cleanup failed; refusing E2 acquisition" >&2; exit "$status"; }
-    python3 e2_calibrate_rps.py --averages "$e1_summary" --cores "$worker_cores" --ceiling-multiplier "$ceiling_multiplier" plan --output "$plan_path"
-    observations=()
     suite_failed=false
-    for workload in "${workloads[@]}"; do
-        cell="$result_root/cells/$workload"
-        if run_cell calibration 0 invm-py "$workload" sweep false 20 "$cell" "$result_root/worker-node.json"; then
-            :
-        else
-            status=$?
-            [[ "$LIFECYCLE_CLEANUP_FAILED" != true ]] || exit "$status"
-            suite_failed=true
+    for ((repetition=0; repetition<repetitions; repetition++)); do
+        repetition_root=$result_root
+        ((repetitions == 1)) || repetition_root="$result_root/rep-$repetition"
+        mkdir -p "$repetition_root"
+        plan_path="$repetition_root/calibration-plan.csv"
+        python3 e2_calibrate_rps.py --averages "$e1_summary" --cores "$worker_cores" --ceiling-multiplier "$ceiling_multiplier" plan --output "$plan_path"
+        observations=()
+        repetition_failed=false
+        for workload in "${workloads[@]}"; do
+            cell="$repetition_root/cells/$workload"
+            if run_cell calibration "$repetition" invm-py "$workload" sweep false "$calibration_minutes" "$cell" "$result_root/worker-node.json"; then
+                :
+            else
+                status=$?
+                [[ "$LIFECYCLE_CLEANUP_FAILED" != true ]] || exit "$status"
+                suite_failed=true
+                repetition_failed=true
+                continue
+            fi
+            duration_csv=$(find "$cell" -maxdepth 1 -name 'experiment_duration_*.csv' -print -quit)
+            if [[ -z "$duration_csv" ]]; then
+                echo "missing duration CSV for $workload" >&2
+                suite_failed=true
+                repetition_failed=true
+                continue
+            fi
+            observation="$cell/observations.csv"
+            python3 e2_calibrate_rps.py --averages "$e1_summary" --cores "$worker_cores" --ceiling-multiplier "$ceiling_multiplier" observe \
+                --workload "$workload" --duration-csv "$duration_csv" --output "$observation"
+            observations+=("$observation")
+        done
+        if [[ "$repetition_failed" == true ]]; then
             continue
         fi
-        duration_csv=$(find "$cell" -maxdepth 1 -name 'experiment_duration_*.csv' -print -quit)
-        if [[ -z "$duration_csv" ]]; then
-            echo "missing duration CSV for $workload" >&2
-            suite_failed=true
-            continue
+        python3 e2_calibrate_rps.py --averages "$e1_summary" --cores "$worker_cores" --ceiling-multiplier "$ceiling_multiplier" finalize \
+            --observations "${observations[@]}" --output "$repetition_root/b0-rps-reference.csv"
+        if python3 - "$repetition_root/b0-rps-reference.csv" <<'PY'
+import csv, sys
+with open(sys.argv[1], newline='', encoding='utf-8') as handle:
+    raise SystemExit(0 if any(row['status'] == 'RIGHT_CENSORED' for row in csv.DictReader(handle)) else 1)
+PY
+        then
+            printf '%s\n' 'RIGHT_CENSORED: preserving the result; rref is a labeled conservative half-highest-tested reference, not 50% of maximum.'
         fi
-        observation="$cell/observations.csv"
-        python3 e2_calibrate_rps.py --averages "$e1_summary" --cores "$worker_cores" --ceiling-multiplier "$ceiling_multiplier" observe \
-            --workload "$workload" --duration-csv "$duration_csv" --output "$observation"
-        observations+=("$observation")
+        echo "CALIBRATION_READY repetition=$repetition reference=$repetition_root/b0-rps-reference.csv"
     done
     if [[ "$suite_failed" == true ]]; then
         echo "E2_CALIBRATION_FAILED result_root=$result_root" >&2
         exit 1
     fi
-    python3 e2_calibrate_rps.py --averages "$e1_summary" --cores "$worker_cores" --ceiling-multiplier "$ceiling_multiplier" finalize \
-        --observations "${observations[@]}" --output "$result_root/b0-rps-reference.csv"
-    if python3 - "$result_root/b0-rps-reference.csv" <<'PY'
-import csv, sys
-with open(sys.argv[1], newline='', encoding='utf-8') as handle:
-    raise SystemExit(0 if any(row['status'] == 'RIGHT_CENSORED' for row in csv.DictReader(handle)) else 1)
-PY
-    then
-        printf '%s\n' 'RIGHT_CENSORED: preserving the single-pass result; rref is a labeled conservative half-highest-tested reference, not 50% of maximum.'
-    fi
-    echo "CALIBRATION_READY reference=$result_root/b0-rps-reference.csv"
     exit 0
 fi
 
@@ -836,7 +851,8 @@ if [[ "$smoke" == true ]]; then
     [[ "$replicas" == 2 && "$measurement_minutes" == 1 && "$repetitions" == 1 ]] || {
         echo "E2 smoke requires two replicas, one measurement minute, and one pass" >&2; exit 2; }
 else
-    [[ "$replicas" == 320 && "$repetitions" == 1 ]] || { echo "collection requires 320 replicas and one campaign repetition" >&2; exit 2; }
+    [[ "$replicas" =~ ^[1-9][0-9]*$ && "$repetitions" =~ ^[1-9][0-9]*$ ]] || {
+        echo "collection replicas and repetitions must be positive" >&2; exit 2; }
 fi
 if [[ -z "$e1_summary" ]]; then
     e1_summary=${E1_SUMMARY:-$(dirname "$reference")/../e1-real/analysis/b0-unloaded-average.csv}

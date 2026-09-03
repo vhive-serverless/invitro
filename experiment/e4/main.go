@@ -129,7 +129,7 @@ func run(ctx context.Context, o options) error {
 		return err
 	}
 	campaignHash := ""
-	if !o.smoke {
+	if o.common.CampaignManifest != "" {
 		if _, err := eval.RequireCampaign(o.common.CampaignManifest); err != nil {
 			return err
 		}
@@ -211,15 +211,20 @@ func makePlan(o options) ([]cell, eval.Setup, string, error) {
 	if err != nil {
 		return nil, eval.Setup{}, "", err
 	}
-	if o.warmup != 1 || o.sampleSeconds != 10 {
-		return nil, eval.Setup{}, "", fmt.Errorf("E4 requires one fresh success and a ten-second sample window")
+	if o.warmup <= 0 || o.sampleSeconds <= 0 {
+		return nil, eval.Setup{}, "", fmt.Errorf("warmup successes and sample seconds must be positive")
 	}
 	if o.smoke {
 		if !equal(requestedWorkloads, []string{"helloworld"}) || !equal(requestedModes, modes) || !equalInts(requestedCounts, []int{1, 2}) {
 			return nil, eval.Setup{}, "", fmt.Errorf("E4 smoke requires helloworld, all three modes, and instances per workload 1,2")
 		}
-	} else if !equal(requestedWorkloads, workloads) || !equal(requestedModes, modes) || !equalInts(requestedCounts, counts) {
-		return nil, eval.Setup{}, "", fmt.Errorf("E4 claim run requires the frozen workloads, modes, and counts")
+	} else {
+		if err := validateRequestedValues("workload", requestedWorkloads, append([]string{"helloworld"}, workloads...)); err != nil {
+			return nil, eval.Setup{}, "", err
+		}
+		if err := validateRequestedValues("mode", requestedModes, modes); err != nil {
+			return nil, eval.Setup{}, "", err
+		}
 	}
 	plan := make([]cell, 0, len(requestedModes))
 	for _, mode := range requestedModes {
@@ -347,10 +352,7 @@ func runCellWith(ctx context.Context, o options, item cell, worker, workerHome, 
 
 	fmt.Printf("ACQUISITION_START experiment=e4 workloads=%s mode=%s worker=%s log=%s\n",
 		strings.Join(item.Workloads, ","), item.Mode, worker, logPath)
-	densityErr := ops.runRemote(ctx, worker, logFile, append(base, "sudo", "-n", "./bin/e4-density",
-		"--workloads="+strings.Join(item.Workloads, ","), "--mode="+item.Mode, "--worker-ip="+workerIP,
-		"--instances-per-workload="+renderCounts(item.InstancesPerWorkload), "--warmup-successes-per-vm=1", "--sample-seconds=10",
-		"--result-root="+root)...)
+	densityErr := ops.runRemote(ctx, worker, logFile, densityCommand(base, item, workerIP, root, o.warmup, o.sampleSeconds)...)
 	cleanupErr := ops.runRemote(ctx, worker, logFile, cleanupCommand(base, item, endpoint, finalCell)...)
 	if cleanupErr != nil {
 		return false, record("cleanup", setupAttempts, true, false, false, nil, errors.Join(densityErr, cleanupErr))
@@ -379,6 +381,27 @@ func runCellWith(ctx context.Context, o options, item cell, worker, workerHome, 
 	fmt.Printf("ACQUISITION_COMPLETE experiment=e4 workloads=%s mode=%s result=%s\n",
 		strings.Join(item.Workloads, ","), item.Mode, root)
 	return true, nil
+}
+
+func validateRequestedValues(kind string, values, allowed []string) error {
+	if len(values) == 0 {
+		return fmt.Errorf("at least one %s is required", kind)
+	}
+	allowedSet := map[string]bool{}
+	for _, value := range allowed {
+		allowedSet[value] = true
+	}
+	seen := map[string]bool{}
+	for _, value := range values {
+		if !allowedSet[value] {
+			return fmt.Errorf("unsupported %s %q", kind, value)
+		}
+		if seen[value] {
+			return fmt.Errorf("duplicate %s %q", kind, value)
+		}
+		seen[value] = true
+	}
+	return nil
 }
 
 // collectArtifacts copies the worker tree and validates every requested count.
@@ -417,6 +440,14 @@ func cleanupCommand(base []string, item cell, endpoint string, removeSnapshots b
 		"--worker-config=internal/experiment/kn-integration-tracer/worker_node.json",
 		"--vm-config=configs/vm_orchestrator_config.json", "--command=clean", "--mode="+item.Mode,
 		"--remove-snapshots="+strconv.FormatBool(removeSnapshots), "--debug=false", "--minio-endpoint="+endpoint)
+}
+
+func densityCommand(base []string, item cell, workerIP, root string, warmup, sampleSeconds int) []string {
+	return append(append([]string{}, base...), "sudo", "-n", "./bin/e4-density",
+		"--workloads="+strings.Join(item.Workloads, ","), "--mode="+item.Mode, "--worker-ip="+workerIP,
+		"--instances-per-workload="+renderCounts(item.InstancesPerWorkload),
+		"--warmup-successes-per-vm="+strconv.Itoa(warmup), "--sample-seconds="+strconv.Itoa(sampleSeconds),
+		"--result-root="+root)
 }
 
 func runRemote(ctx context.Context, worker string, output io.Writer, args ...string) error {

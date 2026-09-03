@@ -25,13 +25,17 @@ func TestFourNodePairingUsesLabeledWorkerOnly(t *testing.T) {
 	}
 }
 
-func TestNormalizeCanonicalMinio(t *testing.T) {
+func TestNormalizeMinio(t *testing.T) {
 	base, endpoint, err := NormalizeMinioEndpoint("http://" + CanonicalMinioHost)
 	if err != nil || base != "http://"+CanonicalMinioHost+":80" || endpoint != CanonicalMinioHost+":80" {
 		t.Fatalf("Normalize = %q %q %v", base, endpoint, err)
 	}
 	if _, _, err := NormalizeMinioEndpoint("https://" + CanonicalMinioHost); err == nil {
 		t.Fatal("accepted TLS endpoint")
+	}
+	base, endpoint, err = NormalizeMinioEndpoint("minio.example:9000")
+	if err != nil || base != "http://minio.example:9000" || endpoint != "minio.example:9000" {
+		t.Fatalf("custom Normalize = %q %q %v", base, endpoint, err)
 	}
 }
 

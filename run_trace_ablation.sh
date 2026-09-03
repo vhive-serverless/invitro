@@ -48,10 +48,7 @@ usage() {
 Usage: run_trace_ablation.sh --profile 4-node|10-node|14-node|18-node
   --modes invm-py,nexus-py,nexus-rdma-py --reference b0-rps-reference.csv
   --start-scale 1 --step 1 --end-scale 27 --warmup-minutes 2
-  --repetitions 1 --result-root PATH [--claim-run] [--allow-extended-end] [--dry-run]
-
-The 10/14/18-node paper profiles require --claim-run. A 4-node run is a
-non-claiming pilot, not a node-count scale point.
+  --repetitions 1 --result-root PATH [--dry-run]
 EOF
 }
 
@@ -80,19 +77,13 @@ while (($#)); do
 done
 
 [[ "$profile" == 4-node || "$profile" == 10-node || "$profile" == 14-node || "$profile" == 18-node ]] || { echo "unsupported E3 profile" >&2; exit 2; }
-[[ -f "$reference" ]] || { echo "--reference must name the frozen B0 RPS reference" >&2; exit 2; }
+[[ -f "$reference" ]] || { echo "--reference must name a B0 RPS reference" >&2; exit 2; }
 [[ -n "$result_root" ]] || { echo "--result-root is required" >&2; exit 2; }
 for value in "$start_scale" "$step" "$end_scale" "$warmup_minutes" "$repetitions" "$shift_step" "$divisor" "$cooldown_seconds"; do
     [[ "$value" =~ ^[0-9]+$ ]] || { echo "scale, timing, and repetition values must be nonnegative integers" >&2; exit 2; }
 done
 ((start_scale > 0 && step > 0 && end_scale >= start_scale && repetitions > 0 && divisor > 0)) || {
     echo "invalid scale/repetition contract" >&2; exit 2; }
-[[ "$warmup_minutes" == 2 ]] || { echo "E3 requires a two-minute warmup" >&2; exit 2; }
-[[ "$repetitions" == 1 ]] || { echo "E3 requires one campaign repetition" >&2; exit 2; }
-if ((end_scale > 27)) && [[ "$allow_extended_end" != true ]]; then
-    echo "END_SCALE above 27 requires explicit --allow-extended-end" >&2
-    exit 2
-fi
 if [[ "$smoke" == true && ( "$profile" != 4-node || "$end_scale" != 1 || "$cooldown_seconds" != 0 ) ]]; then
     echo "E3 smoke requires 4-node, END_SCALE=1, and zero cooldown" >&2
     exit 2
@@ -101,27 +92,24 @@ fi
 IFS=',' read -r -a modes <<< "$modes_csv"
 expected_modes=(invm-py nexus-py nexus-rdma-py)
 snapshot_workloads=chameleonserve,cnnserve,imageresize,lrserving,mapper,pyaesserve,reducer,rnnserve,streducer,sttrainer
-[[ ${#modes[@]} -eq 3 ]] || { echo "E3 requires exactly B0/N4/N5" >&2; exit 2; }
-for expected in "${expected_modes[@]}"; do
-    [[ ",$modes_csv," == *",$expected,"* ]] || { echo "missing E3 mode $expected" >&2; exit 2; }
+[[ ${#modes[@]} -gt 0 ]] || { echo "E3 requires at least one mode" >&2; exit 2; }
+seen_modes=,
+for mode in "${modes[@]}"; do
+    case "$mode" in
+        invm-py|nexus-py|nexus-rdma-py) ;;
+        *) echo "unsupported E3 mode $mode" >&2; exit 2 ;;
+    esac
+    [[ "$seen_modes" != *",$mode,"* ]] || { echo "duplicate E3 mode $mode" >&2; exit 2; }
+    seen_modes+="$mode,"
 done
 
 if [[ "$profile" != 4-node ]]; then
-    [[ "$claim_run" == true ]] || { echo "$profile acquisition requires explicit --claim-run" >&2; exit 2; }
-    [[ "$start_scale" == 1 && "$step" == 1 ]] || {
-        echo "claim run requires START=1 and STEP=1" >&2; exit 2; }
-    [[ "$shift_step" == 10 && "$divisor" == 100 ]] || {
-        echo "claim run requires SHIFT_STEP=10 and DIVISOR=100" >&2; exit 2; }
-    if [[ "$allow_extended_end" != true && "$end_scale" != 27 ]]; then
-        echo "initial claim run requires END=27" >&2; exit 2
-    fi
     minio_endpoint=${minio_endpoint:-myminio-api.minio.10.200.3.4.sslip.io:80}
 else
-    [[ "$claim_run" == false ]] || { echo "4-node pilot cannot be marked claim-bearing" >&2; exit 2; }
     minio_endpoint=${minio_endpoint:-myminio-api.minio.10.200.3.4.sslip.io:80}
 fi
-[[ "$minio_endpoint" == myminio-api.minio.10.200.3.4.sslip.io:80 ]] || {
-    echo "E3 requires the Kubernetes MinIO ingress" >&2; exit 2; }
+[[ "$minio_endpoint" =~ ^[A-Za-z0-9._-]+:[0-9]+$ ]] || {
+    echo "E3 MinIO endpoint must be a non-empty host:port" >&2; exit 2; }
 
 python3 - "$reference" <<'PY'
 import sys

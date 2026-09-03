@@ -85,13 +85,8 @@ func runWithWorkerPodDiscovery(ctx context.Context, action string, o options, di
 	if err != nil {
 		return err
 	}
-	if o.repetitions != 1 {
-		return fmt.Errorf("single-pass E2 requires --repetitions 1")
-	}
-	if !o.common.DryRun && !o.smoke {
-		if _, err := eval.RequireCampaign(o.common.CampaignManifest); err != nil {
-			return err
-		}
+	if o.repetitions <= 0 || o.warmupMinutes <= 0 || o.measurementMinutes <= 0 || o.replicas <= 0 {
+		return fmt.Errorf("repetitions, warmup, measurement duration, and replicas must be positive")
 	}
 	var commandEnv []string
 	if !o.common.DryRun {
@@ -130,19 +125,29 @@ func runWithWorkerPodDiscovery(ctx context.Context, action string, o options, di
 				return err
 			}
 		}
-		if o.sloMultiplier != "5" || o.failureThreshold != "0.05" || o.ceilingMultiplier != "1" || o.warmupMinutes != 2 || o.steps != 20 || o.minutesPerStep != 1 || !o.noRetry {
-			return fmt.Errorf("calibration is frozen at 5x, >5%%, ceiling 1, two-minute warmup, 20 one-minute steps, and --no-retry")
+		if o.steps <= 0 || o.minutesPerStep <= 0 {
+			return fmt.Errorf("calibration steps and minutes per step must be positive")
+		}
+		if err := validatePositiveFloat("slo-multiplier", o.sloMultiplier); err != nil {
+			return err
+		}
+		if err := validatePositiveFloat("ceiling-multiplier", o.ceilingMultiplier); err != nil {
+			return err
+		}
+		failure, err := strconv.ParseFloat(o.failureThreshold, 64)
+		if err != nil || failure < 0 || failure >= 1 {
+			return fmt.Errorf("failure-threshold must be in [0,1)")
 		}
 		args = append(args, "--e1-summary", o.e1Summary, "--worker-cores", strconv.Itoa(o.workerCores),
 			"--slo-multiplier", o.sloMultiplier, "--failure-threshold", o.failureThreshold,
 			"--ceiling-multiplier", o.ceilingMultiplier, "--warmup-minutes", strconv.Itoa(o.warmupMinutes),
-			"--steps", strconv.Itoa(o.steps), "--minutes-per-step", strconv.Itoa(o.minutesPerStep), "--no-retry")
+			"--steps", strconv.Itoa(o.steps), "--minutes-per-step", strconv.Itoa(o.minutesPerStep))
+		if o.noRetry {
+			args = append(args, "--no-retry")
+		}
 	} else {
 		if o.reference == "" || o.e1Summary == "" {
 			return fmt.Errorf("collect requires --reference and --e1-summary")
-		}
-		if !o.smoke && o.replicas != 320 {
-			return fmt.Errorf("claim collection requires --replicas 320")
 		}
 		args = append(args, "--reference", o.reference, "--e1-summary", o.e1Summary, "--replicas", strconv.Itoa(o.replicas),
 			"--warmup-minutes", strconv.Itoa(o.warmupMinutes), "--measurement-minutes", strconv.Itoa(o.measurementMinutes))
@@ -159,6 +164,14 @@ func runWithWorkerPodDiscovery(ctx context.Context, action string, o options, di
 		}
 	}
 	return (eval.Runner{DryRun: false}).Run(ctx, eval.Command{Name: filepath.Join(root, "run_rps_per_workload.sh"), Args: args, Dir: root, Env: commandEnv})
+}
+
+func validatePositiveFloat(name, text string) error {
+	value, err := strconv.ParseFloat(text, 64)
+	if err != nil || value <= 0 {
+		return fmt.Errorf("%s must be positive", name)
+	}
+	return nil
 }
 
 func makeSmokeInputs() (averages, reference string, cleanup func(), err error) {

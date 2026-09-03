@@ -74,32 +74,25 @@ class AblationDryRunTest(unittest.TestCase):
         self.assertIn("E3_DRY_RUN_READY", output)
         self.assertFalse((self.root / "result").exists())
 
-    def test_eighteen_node_profile_requires_explicit_claim_flag(self):
+    def test_eighteen_node_profile_does_not_require_claim_flag(self):
         command = self.command("--dry-run")
         command[command.index("4-node")] = "18-node"
         command[command.index("1", command.index("--end-scale"))] = "27"
-        result = subprocess.run(command, cwd=ROOT, capture_output=True, text=True)
-        self.assertEqual(result.returncode, 2)
-        self.assertIn("requires explicit --claim-run", result.stderr)
-
-        command.insert(-1, "--claim-run")
         result = subprocess.run(command, cwd=ROOT, check=True, capture_output=True, text=True)
         self.assertEqual(result.stdout.count("CELL experiment=e3"), 3)
-        self.assertIn("claim_bearing=true", result.stdout)
+        self.assertIn("claim_bearing=false", result.stdout)
         self.assertIn("deployed_function_rows=270", result.stdout)
         self.assertIn("minio_endpoint=myminio-api.minio.10.200.3.4.sslip.io:80", result.stdout)
         self.assertEqual(result.stdout.count("minio_route=istio"), 2)
         self.assertEqual(result.stdout.count("minio_route=rdma"), 1)
 
-    def test_eighteen_node_profile_rejects_trace_contract_override(self):
+    def test_eighteen_node_profile_accepts_trace_parameter_override(self):
         command = self.command("--dry-run")
         command[command.index("4-node")] = "18-node"
         command[command.index("1", command.index("--end-scale"))] = "27"
-        command.insert(-1, "--claim-run")
         command[-1:-1] = ["--shift-step", "9"]
-        result = subprocess.run(command, cwd=ROOT, capture_output=True, text=True)
-        self.assertEqual(result.returncode, 2)
-        self.assertIn("requires SHIFT_STEP=10 and DIVISOR=100", result.stderr)
+        result = subprocess.run(command, cwd=ROOT, check=True, capture_output=True, text=True)
+        self.assertIn("E3_DRY_RUN_READY", result.stdout)
 
     def test_ten_and_fourteen_node_profiles_support_claim_dry_runs(self):
         for profile in ("10-node", "14-node"):
@@ -107,11 +100,10 @@ class AblationDryRunTest(unittest.TestCase):
                 command = self.command("--dry-run")
                 command[command.index("4-node")] = profile
                 command[command.index("1", command.index("--end-scale"))] = "27"
-                command.insert(-1, "--claim-run")
                 result = subprocess.run(command, cwd=ROOT, check=True,
                                         capture_output=True, text=True)
                 self.assertEqual(result.stdout.count("CELL experiment=e3"), 3)
-                self.assertIn("claim_bearing=true", result.stdout)
+                self.assertIn("claim_bearing=false", result.stdout)
                 self.assertIn("deployed_function_rows=270", result.stdout)
 
     def test_unknown_mode_fails_before_plan_or_side_effects(self):
@@ -119,9 +111,30 @@ class AblationDryRunTest(unittest.TestCase):
         command[command.index("invm-py,nexus-py,nexus-rdma-py")] = "invm-py,nexus-py,unknown-mode"
         result = subprocess.run(command, cwd=ROOT, capture_output=True, text=True)
         self.assertEqual(result.returncode, 2)
-        self.assertIn("missing E3 mode nexus-rdma-py", result.stderr)
+        self.assertIn("unsupported E3 mode unknown-mode", result.stderr)
         self.assertNotIn("CELL experiment=e3", result.stdout)
         self.assertFalse((self.root / "result").exists())
+
+    def test_custom_mode_scale_timing_and_repetitions_reach_plan(self):
+        command = self.command("--dry-run")
+        replacements = {
+            "invm-py,nexus-py,nexus-rdma-py": "nexus-py",
+        }
+        for old, new in replacements.items():
+            command[command.index(old)] = new
+        for flag, value in {
+            "--start-scale": "2", "--step": "2", "--end-scale": "6",
+            "--warmup-minutes": "1", "--repetitions": "2",
+            "--cooldown-seconds": "3",
+        }.items():
+            command[command.index(flag) + 1] = value
+        command[-1:-1] = ["--shift-step", "3", "--divisor", "50"]
+        result = subprocess.run(command, cwd=ROOT, check=True, capture_output=True, text=True)
+        self.assertEqual(result.stdout.count("CELL experiment=e3"), 2)
+        self.assertIn("mode=nexus-py", result.stdout)
+        self.assertIn("warmup_minutes=1", result.stdout)
+        self.assertIn("measurement_minutes=6", result.stdout)
+        self.assertIn("E3_DRY_RUN_READY", result.stdout)
 
     def test_runner_archives_topology_and_sets_workers_for_a_new_root(self):
         source = (ROOT / "run_trace_ablation.sh").read_text(encoding="utf-8")

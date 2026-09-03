@@ -11,7 +11,7 @@ import (
 	"github.com/vhive-serverless/loader/experiment/eval"
 )
 
-func TestSinglePassValidationPrecedesExecution(t *testing.T) {
+func TestNonPositiveRepetitionValidationPrecedesExecution(t *testing.T) {
 	dir := t.TempDir()
 	topology := filepath.Join(dir, "topology.json")
 	data, err := os.ReadFile(filepath.Join("..", "..", "scripts", "setup", "configs", "node_setup_base_1.json"))
@@ -21,9 +21,9 @@ func TestSinglePassValidationPrecedesExecution(t *testing.T) {
 	if err := os.WriteFile(topology, data, 0644); err != nil {
 		t.Fatal(err)
 	}
-	err = run(context.Background(), "collect", options{common: eval.Config{Profile: eval.Profile4, TopologyConfig: topology, ResultRoot: filepath.Join(dir, "out"), MinioEndpoint: "http://" + eval.CanonicalMinioHost, DryRun: true}, e1Summary: "missing", reference: "missing", replicas: 320, repetitions: 2})
+	err = run(context.Background(), "collect", options{common: eval.Config{Profile: eval.Profile4, TopologyConfig: topology, ResultRoot: filepath.Join(dir, "out"), MinioEndpoint: "http://" + eval.CanonicalMinioHost, DryRun: true}, e1Summary: "missing", reference: "missing", replicas: 320, repetitions: 0, warmupMinutes: 2, measurementMinutes: 3})
 	if err == nil {
-		t.Fatal("accepted repetitions != 1")
+		t.Fatal("accepted non-positive repetitions")
 	}
 }
 
@@ -82,12 +82,38 @@ func TestRealCollectCapacityGatePrecedesRunner(t *testing.T) {
 		common: eval.Config{Profile: eval.Profile4, TopologyConfig: topology, ResultRoot: resultRoot,
 			MinioEndpoint: "http://" + eval.CanonicalMinioHost, CampaignManifest: campaign},
 		e1Summary: "e1.csv", reference: "reference.csv", replicas: 320, repetitions: 1,
+		warmupMinutes: 2, measurementMinutes: 3,
 	}, func(context.Context) (int, error) { return 359, nil })
 	if err == nil || !strings.Contains(err.Error(), "allocatable pod capacity 359 < required 360") {
 		t.Fatalf("capacity gate error = %v", err)
 	}
 	if _, statErr := os.Stat(resultRoot); !os.IsNotExist(statErr) {
 		t.Fatalf("runner created result root: %v", statErr)
+	}
+}
+
+func TestCustomCalibrationParametersReachDryRunner(t *testing.T) {
+	dir := t.TempDir()
+	topology := filepath.Join(dir, "topology.json")
+	data, err := os.ReadFile(filepath.Join("..", "..", "scripts", "setup", "configs", "node_setup_base_1.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(topology, data, 0644); err != nil {
+		t.Fatal(err)
+	}
+	averages, _, cleanup, err := makeSmokeInputs()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cleanup()
+	err = run(context.Background(), "calibrate", options{common: eval.Config{Profile: eval.Profile4, TopologyConfig: topology,
+		ResultRoot: filepath.Join(dir, "out"), MinioEndpoint: "http://" + eval.CanonicalMinioHost, DryRun: true},
+		e1Summary: averages, workerCores: 8, replicas: 5, repetitions: 2, sloMultiplier: "3",
+		failureThreshold: "0.1", ceilingMultiplier: "2", warmupMinutes: 1, steps: 3,
+		minutesPerStep: 2, measurementMinutes: 1})
+	if err != nil {
+		t.Fatal(err)
 	}
 }
 

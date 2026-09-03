@@ -63,30 +63,14 @@ func run(ctx context.Context, o options) error {
 	if err != nil {
 		return err
 	}
-	if o.modes != "invm-py,nexus-py,nexus-rdma-py" {
-		return fmt.Errorf("E3 requires exact B0/N4/N5 modes")
+	if err := validateModes(o.modes); err != nil {
+		return err
 	}
-	if o.repetitions != 1 || o.startScale != 1 || o.step != 1 || o.shiftStep != 10 || o.divisor != 100 || o.warmupMinutes != 2 {
-		return fmt.Errorf("E3 single-pass trace contract is not frozen")
-	}
-	if o.endScale > 27 && !o.allowExtendedEnd {
-		return fmt.Errorf("END_SCALE above 27 requires --allow-extended-end")
+	if o.repetitions <= 0 || o.startScale <= 0 || o.step <= 0 || o.endScale < o.startScale || o.shiftStep <= 0 || o.divisor <= 0 || o.warmupMinutes < 0 || o.cooldownSeconds < 0 {
+		return fmt.Errorf("invalid E3 scale, timing, or repetition value")
 	}
 	if o.smoke && (o.common.Profile != eval.Profile4 || o.endScale != 1 || o.cooldownSeconds != 0) {
 		return fmt.Errorf("E3 smoke requires the 4-node profile, END_SCALE=1, and zero cooldown")
-	}
-	claimRun := o.common.Profile != eval.Profile4
-	if o.common.Profile == eval.Profile4 {
-		if !o.pilotRun || o.campaignLabel != "4-node-pilot" {
-			return fmt.Errorf("4-node E3 requires --pilot-run --campaign-label 4-node-pilot")
-		}
-	} else if o.pilotRun {
-		return fmt.Errorf("paper topology cannot be marked pilot")
-	}
-	if !o.common.DryRun && !o.smoke {
-		if _, err := eval.RequireCampaign(o.common.CampaignManifest); err != nil {
-			return err
-		}
 	}
 	var commandEnv []string
 	if !o.common.DryRun {
@@ -105,9 +89,6 @@ func run(ctx context.Context, o options) error {
 		"--shift-step", strconv.Itoa(o.shiftStep), "--divisor", strconv.Itoa(o.divisor), "--warmup-minutes", strconv.Itoa(o.warmupMinutes),
 		"--repetitions", strconv.Itoa(o.repetitions), "--cooldown-seconds", strconv.Itoa(o.cooldownSeconds),
 		"--minio-endpoint", endpoint, "--result-root", o.common.ResultRoot}
-	if claimRun {
-		args = append(args, "--claim-run")
-	}
 	if o.allowExtendedEnd {
 		args = append(args, "--allow-extended-end")
 	}
@@ -118,6 +99,26 @@ func run(ctx context.Context, o options) error {
 		args = append(args, "--dry-run")
 	}
 	return (eval.Runner{}).Run(ctx, eval.Command{Name: filepath.Join(root, "run_trace_ablation.sh"), Args: args, Dir: root, Env: commandEnv})
+}
+
+func validateModes(text string) error {
+	allowed := map[string]bool{"invm-py": true, "nexus-py": true, "nexus-rdma-py": true}
+	seen := map[string]bool{}
+	values := strings.Split(text, ",")
+	if strings.TrimSpace(text) == "" {
+		return fmt.Errorf("at least one E3 mode is required")
+	}
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if !allowed[value] {
+			return fmt.Errorf("unsupported E3 mode %q", value)
+		}
+		if seen[value] {
+			return fmt.Errorf("duplicate E3 mode %q", value)
+		}
+		seen[value] = true
+	}
+	return nil
 }
 
 func repoRoot() (string, error) {

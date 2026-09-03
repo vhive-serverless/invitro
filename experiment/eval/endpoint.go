@@ -21,9 +21,6 @@ func NormalizeMinioEndpoint(raw string) (baseURL, clientEndpoint string, err err
 	if err != nil || parsed.Scheme != "http" || parsed.Hostname() == "" {
 		return "", "", fmt.Errorf("MinIO endpoint must be an HTTP URL: %q", raw)
 	}
-	if parsed.Hostname() != CanonicalMinioHost {
-		return "", "", fmt.Errorf("MinIO endpoint host %q is not canonical %q", parsed.Hostname(), CanonicalMinioHost)
-	}
 	if parsed.Path != "" && parsed.Path != "/" {
 		return "", "", fmt.Errorf("MinIO base URL must not contain path %q", parsed.Path)
 	}

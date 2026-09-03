@@ -42,8 +42,8 @@ func (c Campaign) EvaluationHeads() (EvaluationHeads, error) {
 	return EvaluationHeads{Khala: khala, InVitro: invitro, RDMA: rdma, Firecracker: firecracker}, nil
 }
 
-func ResolveEvaluationHeads(ctx context.Context, campaignPath string, smoke bool, setup Setup) (EvaluationHeads, error) {
-	if !smoke {
+func ResolveEvaluationHeads(ctx context.Context, campaignPath string, _ bool, setup Setup) (EvaluationHeads, error) {
+	if campaignPath != "" {
 		campaign, err := RequireCampaign(campaignPath)
 		if err != nil {
 			return EvaluationHeads{}, err
@@ -52,21 +52,21 @@ func ResolveEvaluationHeads(ctx context.Context, campaignPath string, smoke bool
 	}
 	invitro, err := GitProvenance(".")
 	if err != nil || invitro.Branch != InVitroBranch {
-		return EvaluationHeads{}, fmt.Errorf("smoke InVitro provenance: branch=%s: %w", invitro.Branch, err)
+		return EvaluationHeads{}, fmt.Errorf("current InVitro provenance: branch=%s: %w", invitro.Branch, err)
 	}
 	if err := invitro.ValidateClean(); err != nil {
 		return EvaluationHeads{}, err
 	}
 	khala, err := GitProvenance("../khala")
 	if err != nil || khala.Branch != KhalaBranch {
-		return EvaluationHeads{}, fmt.Errorf("smoke Khala provenance: branch=%s: %w", khala.Branch, err)
+		return EvaluationHeads{}, fmt.Errorf("current Khala provenance: branch=%s: %w", khala.Branch, err)
 	}
 	if err := khala.ValidateClean(); err != nil {
 		return EvaluationHeads{}, err
 	}
 	tenants := setup.LabeledIPs("minio-type=tenant")
 	if len(tenants) != 1 {
-		return EvaluationHeads{}, fmt.Errorf("smoke requires exactly one RDMA tenant")
+		return EvaluationHeads{}, fmt.Errorf("current topology requires exactly one RDMA tenant")
 	}
 	target, err := setup.URLForIP(tenants[0])
 	if err != nil {
@@ -82,7 +82,7 @@ func ResolveEvaluationHeads(ctx context.Context, campaignPath string, smoke bool
 	}
 	output, err := command.CombinedOutput()
 	if err != nil {
-		return EvaluationHeads{}, fmt.Errorf("smoke RDMA provenance: %w: %s", err, strings.TrimSpace(string(output)))
+		return EvaluationHeads{}, fmt.Errorf("current RDMA provenance: %w: %s", err, strings.TrimSpace(string(output)))
 	}
 	return EvaluationHeads{Khala: khala.Head, InVitro: invitro.Head, RDMA: strings.TrimSpace(string(output)), Firecracker: FirecrackerHead}, nil
 }
