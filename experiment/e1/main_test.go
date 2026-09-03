@@ -54,6 +54,7 @@ func TestRemoteArgsPropagateSampling(t *testing.T) {
 		"/users/nehalem/khala/experiment-script/real-workload/run_nexus_evaluation.sh",
 		"--modes " + join(syntheticModes), "--payloads " + join(syntheticPayloads),
 		"NEXUS_REPETITIONS_TOTAL=2", "--repetitions 2",
+		"EVAL_VM_CPU_MAX=max 100000",
 		"--latency-iterations 7", "--memory-iterations 3", "--warm-invocations 2",
 	} {
 		if !strings.Contains(joined, required) {

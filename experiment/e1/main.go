@@ -194,6 +194,7 @@ func buildRemoteArgs(o options, heads eval.EvaluationHeads, remoteHome, baseURL 
 		"EVAL_KHALA_HEAD=" + heads.Khala, "EVAL_KHALA_BRANCH=" + eval.KhalaBranch,
 		"EVAL_FIRECRACKER_HEAD=" + heads.Firecracker, "EVAL_FIRECRACKER_BRANCH=" + eval.FirecrackerBranch,
 		"EVAL_KERNEL_SHA256=" + eval.KernelSHA256,
+		"EVAL_VM_CPU_MAX=max 100000",
 		"EVAL_RDMA_DEMO_HEAD=" + heads.RDMA, "EVAL_RDMA_DEMO_BRANCH=" + eval.RDMABranch,
 		"EVAL_INVITRO_HEAD=" + heads.InVitro, "EVAL_INVITRO_BRANCH=" + eval.InVitroBranch,
 		"EVAL_EAGER_BAR_PRETOUCH=true", "bash", remoteHome + "/khala/experiment-script/real-workload/run_nexus_evaluation.sh",
