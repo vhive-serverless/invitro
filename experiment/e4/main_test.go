@@ -141,9 +141,14 @@ func TestSDKOnlyCellUsesMatchedSharedMemoryConfiguration(t *testing.T) {
 			continue
 		}
 		found = true
-		for _, want := range []string{"--vm-shmem-bytes=4194304", "--shmem-ring-bytes=4190208", "--shmem-io-quantum=262144"} {
+		for _, want := range []string{"--vm-shmem-bytes=4194304"} {
 			if !slices.Contains(args, want) {
 				t.Fatalf("SDK-only deploy missing %q: %v", want, args)
+			}
+		}
+		for _, stale := range []string{"--shmem-ring-bytes=4190208", "--shmem-io-quantum=262144"} {
+			if slices.Contains(args, stale) {
+				t.Fatalf("SDK-only deploy retained stale %q: %v", stale, args)
 			}
 		}
 	}

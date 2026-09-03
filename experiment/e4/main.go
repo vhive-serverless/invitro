@@ -307,7 +307,7 @@ func runCellWith(ctx context.Context, o options, item cell, worker, workerHome, 
 		"--vm-config=configs/vm_orchestrator_config.json", "--command=deploy", "--mode="+item.Mode,
 		"--with-trace=true", "--debug=false", "--minio-endpoint="+endpoint)
 	if item.Mode == "nexus-sdk-py" || item.Mode == "nexus-py" {
-		deployArgs = append(deployArgs, "--vm-shmem-bytes=4194304", "--shmem-ring-bytes=4190208", "--shmem-io-quantum=262144")
+		deployArgs = append(deployArgs, "--vm-shmem-bytes=4194304")
 	}
 	for {
 		seedErr := ops.runRemote(ctx, worker, logFile, append(base, "bash", "./scripts/deploy-minio-obj.sh", "http://"+endpoint)...)

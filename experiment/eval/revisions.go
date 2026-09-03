@@ -7,8 +7,8 @@ import (
 )
 
 const (
-	KhalaBranch       = "jy/asplos-26"
-	InVitroBranch     = "jy/khala-asplos-27"
+	KhalaBranch       = "jy/asplos-26-nostream"
+	InVitroBranch     = "jy/khala-asplos-27-nostream"
 	RDMABranch        = "jy/nexus-rdma-eval"
 	RDMAOrigin        = "https://github.com/hyscale-lab/rdma-demo.git"
 	FirecrackerBranch = "firecracker-v1.14-nexus-shmem-vsock"

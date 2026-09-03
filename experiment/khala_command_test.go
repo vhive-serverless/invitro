@@ -23,13 +23,12 @@ func TestResolveExperimentModes(t *testing.T) {
 		{ModeNexusPy, "shmem", true, true, false, []string{"pyaesserve", "mapper", "reducer"}},
 		{ModeNexusGo, "shmem", true, true, false, []string{"gopyaesserve", "gomapper", "goreducer"}},
 		{ModeNexusJS, "shmem", true, true, false, []string{"jshelloworld"}},
-		{ModeHostTCPGo, "hosttcp", true, true, false, []string{"gopyaesserve", "gomapper", "goreducer"}},
 		{ModeNexusRDMA, "rdma", true, true, true, []string{"gopyaesserve", "gomapper", "goreducer"}},
 		{ModeNexusRDMAPy, "rdma", true, true, true, []string{"pyaesserve", "mapper", "reducer"}},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			mode, err := resolveExperimentMode(test.name, 4_190_208, 256*1024)
+			mode, err := resolveExperimentMode(test.name, 4*1024*1024)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -46,7 +45,7 @@ func TestResolveExperimentModes(t *testing.T) {
 
 func TestResolveExplicitEvaluationWorkloads(t *testing.T) {
 	for _, name := range []string{ModeInVMPy, ModeNexusPy, ModeNexusRDMAPy} {
-		mode, err := resolveExperimentMode(name, 4_190_208, 256*1024, pythonEvaluationWorkloads...)
+		mode, err := resolveExperimentMode(name, 4*1024*1024, pythonEvaluationWorkloads...)
 		if err != nil {
 			t.Fatalf("%s full Python workload set: %v", name, err)
 		}
@@ -54,14 +53,14 @@ func TestResolveExplicitEvaluationWorkloads(t *testing.T) {
 			t.Fatalf("%s workloads = %v", name, mode.Workloads)
 		}
 	}
-	for _, name := range []string{ModeInVMGo, ModeHostTCPGo, ModeNexusGo, ModeInVMJS, ModeNexusJS} {
-		mode, err := resolveExperimentMode(name, 4_190_208, 256*1024, "helloworld")
+	for _, name := range []string{ModeInVMGo, ModeNexusGo, ModeInVMJS, ModeNexusJS} {
+		mode, err := resolveExperimentMode(name, 4*1024*1024, "helloworld")
 		if err != nil || len(mode.Workloads) != 1 || mode.Workloads[0] == "" {
 			t.Fatalf("%s HelloWorld resolution = %+v, %v", name, mode, err)
 		}
 	}
-	for _, name := range []string{ModeInVMGo, ModeHostTCPGo, ModeNexusGo, ModeInVMJS, ModeNexusJS} {
-		if _, err := resolveExperimentMode(name, 4_190_208, 256*1024, "cnnserve"); err == nil {
+	for _, name := range []string{ModeInVMGo, ModeNexusGo, ModeInVMJS, ModeNexusJS} {
+		if _, err := resolveExperimentMode(name, 4*1024*1024, "cnnserve"); err == nil {
 			t.Fatalf("%s accepted an unimplemented cnnserve workload", name)
 		}
 	}
@@ -69,23 +68,23 @@ func TestResolveExplicitEvaluationWorkloads(t *testing.T) {
 
 func TestResolveExperimentModeRejectsAmbiguity(t *testing.T) {
 	for _, name := range []string{"", "nexus", "async", "unknown-mode"} {
-		if _, err := resolveExperimentMode(name, 4_190_208, 256*1024); err == nil {
+		if _, err := resolveExperimentMode(name, 4*1024*1024); err == nil {
 			t.Fatalf("resolveExperimentMode(%q) succeeded", name)
 		}
 	}
-	if _, err := resolveExperimentMode(ModeNexusGo, 0, 256*1024); err == nil {
+	if _, err := resolveExperimentMode(ModeNexusGo, 0); err == nil {
 		t.Fatal("zero slots accepted")
 	}
-	if _, err := resolveExperimentMode(ModeNexusGo, 1, 256*1024); err == nil {
-		t.Fatal("ring smaller than the I/O quantum accepted")
+	if _, err := resolveExperimentMode(ModeNexusGo, 1); err == nil {
+		t.Fatal("invalid shared-memory size accepted")
 	}
-	if _, err := resolveExperimentMode(ModeNexusGo, 64, 256*1024); err == nil {
-		t.Fatal("ring larger than the backing accepted")
+	if _, err := resolveExperimentMode(ModeNexusGo, 64); err == nil {
+		t.Fatal("invalid shared-memory size accepted")
 	}
-	if _, err := resolveExperimentMode(ModeNexusGo, int(^uint(0)>>1), int(^uint(0)>>1)); err == nil {
+	if _, err := resolveExperimentMode(ModeNexusGo, ^uint64(0)); err == nil {
 		t.Fatal("overflow-sized shared-memory layout accepted")
 	}
-	if _, err := resolveExperimentMode(ModeNexusRDMA, 4_190_208, 256*1024); err != nil {
+	if _, err := resolveExperimentMode(ModeNexusRDMA, 4*1024*1024); err != nil {
 		t.Fatalf("RDMA incorrectly subjected to shared-memory reservation: %v", err)
 	}
 }
@@ -101,8 +100,6 @@ func TestResolveCleanupModeValidatesOnlyTeardownIdentity(t *testing.T) {
 		{ModeNexusPy, false},
 		{ModeNexusGo, false},
 		{ModeNexusJS, false},
-		{ModeHostTCPGo, false},
-		{ModeHostTCPPy, false},
 		{ModeNexusRDMA, true},
 		{ModeNexusRDMAPy, true},
 	} {
@@ -113,7 +110,7 @@ func TestResolveCleanupModeValidatesOnlyTeardownIdentity(t *testing.T) {
 		if mode.WithRDMA != test.withRDMA {
 			t.Fatalf("resolveCleanupMode(%q).WithRDMA = %t, want %t", test.name, mode.WithRDMA, test.withRDMA)
 		}
-		if mode.ShmemRingBytes != 0 || mode.ShmemIOQuantum != 0 || mode.BackendTransport != "" || len(mode.Workloads) != 0 {
+		if mode.VMShmemBytes != 0 || mode.BackendTransport != "" || len(mode.Workloads) != 0 {
 			t.Fatalf("cleanup resolved irrelevant deployment state for %q: %+v", test.name, mode)
 		}
 	}
@@ -125,13 +122,13 @@ func TestResolveCleanupModeValidatesOnlyTeardownIdentity(t *testing.T) {
 func TestRunCommandCleanupBypassesHistoricalShmemValidation(t *testing.T) {
 	originalCommand, originalMode := *Command, *Mode
 	originalCorePoolPolicy := *CorePoolPolicy
-	originalImplementation, originalRing, originalQuantum := *Implementation, *ShmemRingBytes, *ShmemIOQuantum
+	originalImplementation, originalShmem := *Implementation, *VMShmemBytes
 	originalDryRun, originalRemoveSnapshots := *DryRun, *RemoveSnapshots
 	originalGetWorkers, originalClean := getWorkerNodesFn, cleanKhalaFn
 	t.Cleanup(func() {
 		*Command, *Mode = originalCommand, originalMode
 		*CorePoolPolicy = originalCorePoolPolicy
-		*Implementation, *ShmemRingBytes, *ShmemIOQuantum = originalImplementation, originalRing, originalQuantum
+		*Implementation, *VMShmemBytes = originalImplementation, originalShmem
 		*DryRun, *RemoveSnapshots = originalDryRun, originalRemoveSnapshots
 		getWorkerNodesFn, cleanKhalaFn = originalGetWorkers, originalClean
 	})
@@ -142,17 +139,17 @@ func TestRunCommandCleanupBypassesHistoricalShmemValidation(t *testing.T) {
 	*CorePoolPolicy = "historical-policy"
 
 	tests := []struct {
-		name            string
-		slots, capacity int
-		wantRDMA        bool
+		name     string
+		shmem    uint64
+		wantRDMA bool
 	}{
-		{ModeNexusGo, 1, 256 * 1024, false},
-		{ModeNexusGo, int(^uint(0) >> 1), int(^uint(0) >> 1), false},
-		{ModeNexusRDMA, 0, -1, true},
+		{ModeNexusGo, 1, false},
+		{ModeNexusGo, ^uint64(0), false},
+		{ModeNexusRDMA, 0, true},
 	}
 	for _, test := range tests {
-		t.Run(test.name+fmt.Sprintf("-%d", test.slots), func(t *testing.T) {
-			*Mode, *ShmemRingBytes, *ShmemIOQuantum = test.name, test.slots, test.capacity
+		t.Run(test.name+fmt.Sprintf("-%d", test.shmem), func(t *testing.T) {
+			*Mode, *VMShmemBytes = test.name, test.shmem
 			called := false
 			cleanKhalaFn = func(got WorkerNodeSetup, removeSnapshots, withRDMA bool) error {
 				called = true
@@ -170,7 +167,7 @@ func TestRunCommandCleanupBypassesHistoricalShmemValidation(t *testing.T) {
 		})
 	}
 
-	*Mode, *ShmemRingBytes, *ShmemIOQuantum = "unknown", 1, int(^uint(0)>>1)
+	*Mode, *VMShmemBytes = "unknown", 4*1024*1024
 	cleanKhalaFn = func(WorkerNodeSetup, bool, bool) error {
 		t.Fatal("cleanup executed for unknown mode")
 		return nil
@@ -237,13 +234,11 @@ func TestSnapshotNames(t *testing.T) {
 		ModeInVMPy:      {"pyaesserve-0", "mapper-0", "reducer-0"},
 		ModeNexusPy:     {"pyaesserve-s3-rpc-shmem-0", "mapper-s3-rpc-shmem-0", "reducer-s3-rpc-shmem-0"},
 		ModeNexusGo:     {"gopyaesserve-s3-rpc-shmem-0", "gomapper-s3-rpc-shmem-0", "goreducer-s3-rpc-shmem-0"},
-		ModeHostTCPGo:   {"gopyaesserve-s3-rpc-hosttcp-0", "gomapper-s3-rpc-hosttcp-0", "goreducer-s3-rpc-hosttcp-0"},
-		ModeHostTCPPy:   {"pyaesserve-s3-rpc-hosttcp-0", "mapper-s3-rpc-hosttcp-0", "reducer-s3-rpc-hosttcp-0"},
 		ModeNexusRDMA:   {"gopyaesserve-s3-rpc-rdma-0", "gomapper-s3-rpc-rdma-0", "goreducer-s3-rpc-rdma-0"},
 		ModeNexusRDMAPy: {"pyaesserve-s3-rpc-rdma-0", "mapper-s3-rpc-rdma-0", "reducer-s3-rpc-rdma-0"},
 	}
 	for name, want := range tests {
-		mode, _ := resolveExperimentMode(name, 4_190_208, 256*1024)
+		mode, _ := resolveExperimentMode(name, 4*1024*1024)
 		got := buildSnapshotNames(mode)
 		if strings.Join(got, ",") != strings.Join(want, ",") {
 			t.Fatalf("%s snapshots = %v, want %v", name, got, want)
@@ -252,13 +247,13 @@ func TestSnapshotNames(t *testing.T) {
 }
 
 func TestDeploymentCommandCarriesExplicitPlacement(t *testing.T) {
-	mode, _ := resolveExperimentMode(ModeNexusGo, 4_190_208, 131072)
+	mode, _ := resolveExperimentMode(ModeNexusGo, 4*1024*1024)
 	command := buildDeploymentCommand("", "go", mode, false)
 	for _, fragment := range []string{
 		"--backend-transport=shmem",
 		"--minio-endpoint=10.0.1.4:9001",
 		"--set-nexus-sdk=true", "--set-nexus-rpc=true", "--with-rdma=false",
-		"--shmem-ring-bytes=4190208", "--shmem-io-quantum=262144",
+		"--vm-shmem-bytes=4194304",
 	} {
 		if !strings.Contains(command, fragment) {
 			t.Errorf("deployment command %q missing %q", command, fragment)
@@ -266,21 +261,14 @@ func TestDeploymentCommandCarriesExplicitPlacement(t *testing.T) {
 	}
 }
 
-func TestHostTCPDeploymentCommandCarriesFrozenBoundary(t *testing.T) {
-	mode, err := resolveExperimentMode(ModeHostTCPGo, 4_190_208, 256*1024)
+func TestInVMDeploymentOmitsSharedMemoryDevice(t *testing.T) {
+	mode, err := resolveExperimentMode(ModeInVMPy, 16*1024*1024)
 	if err != nil {
 		t.Fatal(err)
 	}
 	command := buildDeploymentCommand("", "go", mode, false)
-	for _, fragment := range []string{
-		"--backend-transport=hosttcp",
-		"--minio-endpoint=10.0.1.4:9001",
-		"--set-nexus-sdk=true", "--set-nexus-rpc=true", "--with-rdma=false",
-		"--shmem-ring-bytes=4190208", "--shmem-io-quantum=262144",
-	} {
-		if !strings.Contains(command, fragment) {
-			t.Errorf("HostTCP deployment command %q missing %q", command, fragment)
-		}
+	if strings.Contains(command, "--vm-shmem-bytes") {
+		t.Fatalf("InVM deployment unexpectedly carries shared-memory device: %s", command)
 	}
 }
 
@@ -301,7 +289,7 @@ func TestMinioObjectEndpointFollowsDeploymentEndpoint(t *testing.T) {
 }
 
 func TestDryRunPlanIsModeAware(t *testing.T) {
-	mode, _ := resolveExperimentMode(ModeNexusRDMA, 4_190_208, 256*1024)
+	mode, _ := resolveExperimentMode(ModeNexusRDMA, 4*1024*1024)
 	plan := buildDryRunPlan(mode, "", "go", false)
 	if !plan.CleanupRDMA || !strings.Contains(plan.DeploymentCommand, "--backend-transport=rdma") {
 		t.Fatalf("unexpected dry-run plan: %+v", plan)
@@ -341,7 +329,7 @@ func TestDeployKhalaAggregatesWorkersAndStopsNodeSequence(t *testing.T) {
 		calls[node]++
 		return "", fmt.Errorf("injected %s", node)
 	}
-	mode, _ := resolveExperimentMode(ModeNexusGo, 4_190_208, 256*1024)
+	mode, _ := resolveExperimentMode(ModeNexusGo, 4*1024*1024)
 	err := DeployKhala(WorkerNodeSetup{
 		WorkerNodes:  []string{"worker-a", "worker-b"},
 		StorageNodes: []string{"storage-a", "storage-b"},
@@ -364,7 +352,7 @@ func TestDeployKhalaMinIOFailurePreventsRemoteWork(t *testing.T) {
 		t.Fatal("remote command executed after MinIO preparation failure")
 		return "", nil
 	}
-	mode, _ := resolveExperimentMode(ModeNexusGo, 4_190_208, 256*1024)
+	mode, _ := resolveExperimentMode(ModeNexusGo, 4*1024*1024)
 	if err := DeployKhala(WorkerNodeSetup{WorkerNodes: []string{"worker"}, StorageNodes: []string{"storage"}}, "", "go", mode, false); err == nil {
 		t.Fatal("MinIO preparation failure suppressed")
 	}
@@ -394,7 +382,7 @@ func TestDeployKhalaWaitsForWorkerReadiness(t *testing.T) {
 		}
 		return nil
 	}
-	mode, _ := resolveExperimentMode(ModeInVMPy, 4_190_208, 256*1024)
+	mode, _ := resolveExperimentMode(ModeInVMPy, 4*1024*1024)
 	if err := DeployKhala(WorkerNodeSetup{WorkerNodes: []string{"worker"}, StorageNodes: []string{"storage"}}, "", "go", mode, false); err != nil {
 		t.Fatal(err)
 	}
@@ -576,7 +564,7 @@ func TestCreateSnapshotsPropagatesAllWorkerFailures(t *testing.T) {
 	createSnapshotsNodeFn = func(node string, workloads []string) error {
 		return fmt.Errorf("snapshot failure on %s", node)
 	}
-	mode, _ := resolveExperimentMode(ModeNexusGo, 4_190_208, 256*1024)
+	mode, _ := resolveExperimentMode(ModeNexusGo, 4*1024*1024)
 	err := CreateSnapshots(WorkerNodeSetup{WorkerNodes: []string{"worker-a", "worker-b"}}, mode)
 	if err == nil || !strings.Contains(err.Error(), "worker-a") || !strings.Contains(err.Error(), "worker-b") {
 		t.Fatalf("snapshot errors not aggregated: %v", err)

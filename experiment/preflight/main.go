@@ -777,7 +777,7 @@ func (c *checks) smokeEvidence(root, scope string) {
 		got  map[string]bool
 		keys []string
 	}{
-		{"E1", e1, []string{"e1-smoke-4b", "e1-smoke-16mib"}},
+		{"E1", e1, []string{"e1-smoke-4b", "e1-smoke-16mib", "e1-smoke-real"}},
 	}
 	if scope == "all" {
 		wants = append(wants,
@@ -824,8 +824,8 @@ func (c *checks) smokeEvidence(root, scope string) {
 }
 
 func validateE1LifecycleSmokeManifest(fields map[string]string) error {
-	if fields["manifest_version"] != "11" {
-		return fmt.Errorf("manifest_version=%q, want 11", fields["manifest_version"])
+	if fields["manifest_version"] != "13" {
+		return fmt.Errorf("manifest_version=%q, want 13", fields["manifest_version"])
 	}
 	if fields["cell_status_sequence"] != "started,complete" || fields["acquisition_retry"] != "false" ||
 		fields["independent_continuation"] != "true" || fields["contamination_stop"] != "true" {
@@ -836,25 +836,29 @@ func validateE1LifecycleSmokeManifest(fields map[string]string) error {
 	}
 	expected := map[string]map[string]string{
 		"e1-smoke-4b": {
-			"modes":              "invm-py invm-js invm-go hosttcp-go nexus-py nexus-js nexus-go",
+			"modes":              "invm-py invm-js invm-go nexus-sdk-py nexus-py nexus-js nexus-go",
 			"synthetic_payloads": "4", "expected_cell_count": "7",
 		},
 		"e1-smoke-16mib": {
-			"modes":              "hosttcp-go nexus-py nexus-js nexus-go",
-			"synthetic_payloads": "16777216", "expected_cell_count": "4",
+			"modes":              "invm-py invm-js invm-go nexus-sdk-py nexus-py nexus-js nexus-go",
+			"synthetic_payloads": "16777216", "expected_cell_count": "7",
+		},
+		"e1-smoke-real": {
+			"modes":     "invm-py nexus-sdk-py nexus-py nexus-rdma-py",
+			"functions": "helloworld reducer", "expected_cell_count": "8",
 		},
 	}
 	contract, ok := expected[fields["claim_id"]]
 	if !ok {
 		return fmt.Errorf("unexpected E1 smoke claim_id=%q", fields["claim_id"])
 	}
+	if fields["claim_id"] != "e1-smoke-real" && strings.Contains(fields["modes"], "rdma") {
+		return fmt.Errorf("synthetic smoke must not contain RDMA modes")
+	}
 	for key, want := range contract {
 		if fields[key] != want {
 			return fmt.Errorf("%s=%q, want %q", key, fields[key], want)
 		}
-	}
-	if strings.Contains(fields["modes"], "rdma") {
-		return fmt.Errorf("synthetic smoke must not contain RDMA modes")
 	}
 	if fields["latency_iterations"] != "1" || fields["memory_iterations"] != "1" || fields["warm_invocations"] != "1" {
 		return fmt.Errorf("E1 smoke requires latency=1, memory=1, and warm=1")

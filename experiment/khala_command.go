@@ -23,7 +23,7 @@ import (
 
 var (
 	Command         = flag.String("command", "deploy", "Command to execute: deploy or clean")
-	Mode            = flag.String("mode", "", "Experiment mode: invm-py, invm-go, invm-js, nexus-py, nexus-go, nexus-js, nexus-rdma-py, or hosttcp-go")
+	Mode            = flag.String("mode", "", "Experiment mode: invm-py, invm-go, invm-js, nexus-py, nexus-go, nexus-js, nexus-rdma-py, or nexus-rdma")
 	Workloads       = flag.String("workloads", "", "Optional comma-separated canonical workloads; required for E2 single-workload cells")
 	DryRun          = flag.Bool("dry-run", false, "Print the resolved deployment plan without side effects")
 	CorePoolPolicy  = flag.String("core-pool-policy", "", "Core pool policy: baseline, l-sep, or l-shared")
@@ -31,8 +31,7 @@ var (
 	RemoveSnapshots = flag.Bool("remove-snapshots", false, "Whether to remove existing snapshots before deploying Khala")
 	CorePoolNode    = flag.String("corepool-node", "", "Node to set manual core pool size when using 'set-corepool' command")
 	CorePool        = flag.String("corepool-size", "", "Manual core pool size to set when using 'set-corepool' command")
-	ShmemRingBytes  = flag.Int("shmem-ring-bytes", 4_190_208, "Shared-memory mapping ring capacity")
-	ShmemIOQuantum  = flag.Int("shmem-io-quantum", 256*1024, "Shared-memory copy quantum")
+	VMShmemBytes    = flag.Uint64("vm-shmem-bytes", 4*1024*1024, "Flat shared-memory mapping size (4 MiB or 16 MiB)")
 	MinioEndpoint   = flag.String("minio-endpoint", "10.0.1.4:9001", "S3-compatible endpoint for guest and Nexus clients")
 	WorkerConfig    = flag.String("worker-config", "worker_node.json", "Worker/storage pairing JSON for this deployment")
 	Debug           = flag.Bool("debug", false, "Enable debug mode")
@@ -43,12 +42,11 @@ const (
 	ModeInVMGo      = "invm-go"
 	ModeInVMJS      = "invm-js"
 	ModeNexusPy     = "nexus-py"
+	ModeNexusSDKPy  = "nexus-sdk-py"
 	ModeNexusGo     = "nexus-go"
 	ModeNexusJS     = "nexus-js"
 	ModeNexusRDMA   = "nexus-rdma"
 	ModeNexusRDMAPy = "nexus-rdma-py"
-	ModeHostTCPGo   = "hosttcp-go"
-	ModeHostTCPPy   = "hosttcp-py"
 )
 
 var matchedWorkloads = []string{"pyaesserve", "mapper", "reducer"}
@@ -64,8 +62,7 @@ type ExperimentMode struct {
 	SetNexusSDK      bool     `json:"set_nexus_sdk"`
 	SetNexusRPC      bool     `json:"set_nexus_rpc"`
 	WithRDMA         bool     `json:"with_rdma"`
-	ShmemRingBytes   int      `json:"shmem_ring_bytes"`
-	ShmemIOQuantum   int      `json:"shmem_io_quantum"`
+	VMShmemBytes     uint64   `json:"vm_shmem_bytes"`
 }
 
 type DryRunPlan struct {
@@ -110,7 +107,7 @@ func runCommand() error {
 					requested = append(requested, strings.TrimSpace(workload))
 				}
 			}
-			mode, err = resolveExperimentMode(*Mode, *ShmemRingBytes, *ShmemIOQuantum, requested...)
+			mode, err = resolveExperimentMode(*Mode, *VMShmemBytes, requested...)
 		}
 		if err != nil {
 			return err
@@ -191,11 +188,11 @@ func validateLocalFlags(command, corePoolPolicy, implementation string) error {
 	return nil
 }
 
-func resolveExperimentMode(name string, shmemRingBytes, shmemIOQuantum int, requested ...string) (ExperimentMode, error) {
-	if shmemRingBytes <= 0 || shmemIOQuantum <= 0 {
-		return ExperimentMode{}, fmt.Errorf("shared-memory ring bytes and I/O quantum must be positive")
+func resolveExperimentMode(name string, vmShmemBytes uint64, requested ...string) (ExperimentMode, error) {
+	if err := validateShmemBytes(vmShmemBytes); err != nil {
+		return ExperimentMode{}, err
 	}
-	mode := ExperimentMode{Name: name, ShmemRingBytes: shmemRingBytes, ShmemIOQuantum: shmemIOQuantum}
+	mode := ExperimentMode{Name: name, VMShmemBytes: vmShmemBytes}
 	base := append([]string(nil), matchedWorkloads...)
 	if len(requested) > 0 {
 		base = append([]string(nil), requested...)
@@ -222,25 +219,20 @@ func resolveExperimentMode(name string, shmemRingBytes, shmemIOQuantum int, requ
 		mode.Workloads = javascriptWorkloads(base)
 		mode.BackendTransport = "none"
 	case ModeNexusPy:
-		if err := validateShmemLayout(shmemRingBytes, shmemIOQuantum); err != nil {
-			return ExperimentMode{}, err
-		}
 		mode.Workloads = append([]string(nil), base...)
 		mode.BackendTransport = "shmem"
 		mode.SetNexusSDK = true
 		mode.SetNexusRPC = true
+	case ModeNexusSDKPy:
+		mode.Workloads = append([]string(nil), base...)
+		mode.BackendTransport = "shmem"
+		mode.SetNexusSDK = true
 	case ModeNexusGo:
-		if err := validateShmemLayout(shmemRingBytes, shmemIOQuantum); err != nil {
-			return ExperimentMode{}, err
-		}
 		mode.Workloads = goWorkloads(base)
 		mode.BackendTransport = "shmem"
 		mode.SetNexusSDK = true
 		mode.SetNexusRPC = true
 	case ModeNexusJS:
-		if err := validateShmemLayout(shmemRingBytes, shmemIOQuantum); err != nil {
-			return ExperimentMode{}, err
-		}
 		if len(requested) == 0 {
 			base = []string{"helloworld"}
 		}
@@ -260,16 +252,6 @@ func resolveExperimentMode(name string, shmemRingBytes, shmemIOQuantum int, requ
 		mode.SetNexusSDK = true
 		mode.SetNexusRPC = true
 		mode.WithRDMA = true
-	case ModeHostTCPGo:
-		mode.Workloads = goWorkloads(base)
-		mode.BackendTransport = "hosttcp"
-		mode.SetNexusSDK = true
-		mode.SetNexusRPC = true
-	case ModeHostTCPPy:
-		mode.Workloads = append([]string(nil), base...)
-		mode.BackendTransport = "hosttcp"
-		mode.SetNexusSDK = true
-		mode.SetNexusRPC = true
 	default:
 		return ExperimentMode{}, fmt.Errorf("invalid --mode %q", name)
 	}
@@ -286,21 +268,19 @@ func resolveExperimentMode(name string, shmemRingBytes, shmemIOQuantum int, requ
 func resolveCleanupMode(name string) (ExperimentMode, error) {
 	mode := ExperimentMode{Name: name}
 	switch name {
-	case ModeInVMPy, ModeInVMGo, ModeInVMJS, ModeNexusPy, ModeNexusGo, ModeNexusJS, ModeHostTCPGo, ModeHostTCPPy:
+	case ModeInVMPy, ModeInVMGo, ModeInVMJS, ModeNexusSDKPy, ModeNexusPy, ModeNexusGo, ModeNexusJS:
 		return mode, nil
 	case ModeNexusRDMA, ModeNexusRDMAPy:
 		mode.WithRDMA = true
 		return mode, nil
 	default:
-		return ExperimentMode{}, fmt.Errorf("invalid --mode %q: expected %s, %s, %s, %s, %s, %s, or %s", name, ModeInVMPy, ModeNexusPy, ModeNexusGo, ModeNexusRDMA, ModeNexusRDMAPy, ModeHostTCPGo, ModeHostTCPPy)
+		return ExperimentMode{}, fmt.Errorf("invalid --mode %q", name)
 	}
 }
 
-const maxSharedMemoryBytes = 16 * 1024 * 1024
-
-func validateShmemLayout(ringBytes, quantum int) error {
-	if ringBytes > maxSharedMemoryBytes || quantum > ringBytes {
-		return fmt.Errorf("shared-memory ring bytes and quantum must fit within %d-byte backing", maxSharedMemoryBytes)
+func validateShmemBytes(bytes uint64) error {
+	if bytes != 4*1024*1024 && bytes != 16*1024*1024 {
+		return fmt.Errorf("shared-memory bytes must be exactly 4 MiB or 16 MiB")
 	}
 	return nil
 }
@@ -355,7 +335,10 @@ func buildDeploymentCommand(corePoolPolicy, implementation string, mode Experime
 	}
 	command += fmt.Sprintf(" --backend-transport=%s --minio-endpoint=%s", mode.BackendTransport, *MinioEndpoint)
 	command += fmt.Sprintf(" --set-nexus-sdk=%t --set-nexus-rpc=%t --with-rdma=%t", mode.SetNexusSDK, mode.SetNexusRPC, mode.WithRDMA)
-	command += fmt.Sprintf(" --shmem-ring-bytes=%d --shmem-io-quantum=%d --debug=%t", *ShmemRingBytes, *ShmemIOQuantum, debug)
+	if mode.BackendTransport != "none" {
+		command += fmt.Sprintf(" --vm-shmem-bytes=%d", mode.VMShmemBytes)
+	}
+	command += fmt.Sprintf(" --debug=%t", debug)
 	return command
 }
 
@@ -371,9 +354,6 @@ func buildSnapshotNames(mode ExperimentMode) []string {
 		}
 		if mode.BackendTransport == "shmem" {
 			suffix += "-shmem"
-		}
-		if mode.BackendTransport == "hosttcp" {
-			suffix += "-hosttcp"
 		}
 		if mode.BackendTransport == "rdma" {
 			suffix += "-rdma"

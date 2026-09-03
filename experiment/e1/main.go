@@ -13,9 +13,9 @@ import (
 )
 
 var realWorkloads = []string{"helloworld", "chameleonserve", "cnnserve", "imageresize", "lrserving", "mapper", "pyaesserve", "reducer", "rnnserve", "streducer", "sttrainer"}
-var syntheticModes = []string{"invm-py", "invm-js", "invm-go", "hosttcp-go", "nexus-py", "nexus-js", "nexus-go"}
+var syntheticModes = []string{"invm-py", "invm-js", "invm-go", "nexus-sdk-py", "nexus-py", "nexus-js", "nexus-go"}
 var realModes = []string{"invm-py", "nexus-sdk-py", "nexus-py", "nexus-rdma-py"}
-var syntheticPayloads = []string{"4", "4096", "16384", "65536", "262144", "1048576", "2097152", "4194304", "8388608", "16777216"}
+var syntheticPayloads = []string{"4", "64", "4096", "65536", "1048576", "4194304", "8388608", "16777216"}
 
 type options struct {
 	suite, modes, workloads, payloads          string
@@ -25,7 +25,7 @@ type options struct {
 }
 
 func main() {
-	o := options{profile: string(eval.Profile4), repetitions: 1, latency: 20, memory: 20, warm: 5}
+	o := options{profile: string(eval.Profile4), repetitions: 1, latency: 10, memory: 10, warm: 5}
 	flag.StringVar(&o.suite, "suite", "", "real or synthetic")
 	flag.StringVar(&o.profile, "profile", o.profile, "4-node, 10-node, 14-node, or 18-node")
 	flag.StringVar(&o.topology, "topology-config", "", "topology JSON")
@@ -34,8 +34,8 @@ func main() {
 	flag.StringVar(&o.workloads, "workloads", "", "comma-separated workloads")
 	flag.StringVar(&o.payloads, "payloads", "", "comma-separated synthetic payload sizes")
 	flag.IntVar(&o.repetitions, "repetitions", 1, "campaign repetitions")
-	flag.IntVar(&o.latency, "latency-iterations", 20, "latency iterations")
-	flag.IntVar(&o.memory, "memory-iterations", 20, "memory iterations")
+	flag.IntVar(&o.latency, "latency-iterations", 10, "latency iterations")
+	flag.IntVar(&o.memory, "memory-iterations", 10, "memory iterations")
 	flag.IntVar(&o.warm, "warm-invocations", 5, "warm invocations")
 	flag.StringVar(&o.campaign, "campaign-manifest", "", "campaign manifest")
 	flag.StringVar(&o.result, "result-root", "", "result root")
@@ -73,8 +73,8 @@ func makePlan(o options) ([]cell, error) {
 	if o.repetitions != 1 || o.latency <= 0 || o.memory <= 0 || o.warm <= 0 {
 		return nil, fmt.Errorf("E1 requires repetitions=1 and positive latency, memory, and warm counts")
 	}
-	if !o.smoke && (o.latency != 20 || o.memory != 20 || o.warm != 5) {
-		return nil, fmt.Errorf("claim-bearing E1 requires repetitions=1, latency=20, memory=20, warm=5")
+	if !o.smoke && (o.latency != 10 || o.memory != 10 || o.warm != 5) {
+		return nil, fmt.Errorf("claim-bearing E1 requires repetitions=1, latency=10, memory=10, warm=5")
 	}
 	if _, err := eval.ExpectedCounts(eval.Profile(o.profile)); err != nil {
 		return nil, err
@@ -99,7 +99,7 @@ func makePlan(o options) ([]cell, error) {
 	workloads := split(o.workloads)
 	payloads := split(o.payloads)
 	if o.smoke {
-		return smokePlan(modes, payloads)
+		return smokePlan(o.suite, modes, payloads, workloads)
 	}
 	if o.suite == "real" {
 		if !same(modes, realModes) || !same(workloads, realWorkloads) || len(payloads) != 0 {
@@ -183,7 +183,11 @@ func runLive(ctx context.Context, o options) error {
 
 func buildRemoteArgs(o options, heads eval.EvaluationHeads, remoteHome, baseURL string) []string {
 	experiment := "e1-" + o.suite
-	args := []string{"env", "NEXUS_MINIO_URL=http://" + baseURL, "NEXUS_REPETITIONS_TOTAL=1",
+	shmemBytes := "4194304"
+	if o.suite == "synthetic" {
+		shmemBytes = "16777216"
+	}
+	args := []string{"env", "NEXUS_MINIO_URL=http://" + baseURL, "NEXUS_REPETITIONS_TOTAL=1", "VM_SHMEM_BYTES=" + shmemBytes, "NEXUS_MMAP_BYTES=" + shmemBytes,
 		"EVAL_KHALA_HEAD=" + heads.Khala, "EVAL_KHALA_BRANCH=" + eval.KhalaBranch,
 		"EVAL_FIRECRACKER_HEAD=" + heads.Firecracker, "EVAL_FIRECRACKER_BRANCH=" + eval.FirecrackerBranch,
 		"EVAL_KERNEL_SHA256=" + eval.KernelSHA256,
@@ -192,6 +196,7 @@ func buildRemoteArgs(o options, heads eval.EvaluationHeads, remoteHome, baseURL 
 		"EVAL_EAGER_BAR_PRETOUCH=true", "bash", remoteHome + "/khala/experiment-script/real-workload/run_nexus_evaluation.sh",
 		"--experiment", experiment, "--result-root", filepath.Clean(o.result), "--repetitions", "1",
 		"--modes", o.modes,
+		"--vm-shmem-bytes", shmemBytes, "--nexus-mmap-bytes", shmemBytes,
 		"--latency-iterations", fmt.Sprint(o.latency), "--memory-iterations", fmt.Sprint(o.memory),
 		"--warm-invocations", fmt.Sprint(o.warm)}
 	if o.workloads != "" {
@@ -208,12 +213,16 @@ func verifyTerminalResults(o options) error {
 	if o.suite == "real" {
 		expected[filepath.Join(o.result, "rep-0", "manifest.txt")] = 44
 	} else {
-		expected[filepath.Join(o.result, "rep-0", "manifest.txt")] = 70
+		expected[filepath.Join(o.result, "rep-0", "manifest.txt")] = 56
 	}
 	if o.smoke {
-		expected = map[string]int{
-			filepath.Join(o.result, "smoke", "rep-0", "4b", "manifest.txt"):    7,
-			filepath.Join(o.result, "smoke", "rep-0", "16mib", "manifest.txt"): 4,
+		if o.suite == "real" {
+			expected = map[string]int{filepath.Join(o.result, "smoke", "rep-0", "real-4mib", "manifest.txt"): 8}
+		} else {
+			expected = map[string]int{
+				filepath.Join(o.result, "smoke", "rep-0", "4b", "manifest.txt"):    7,
+				filepath.Join(o.result, "smoke", "rep-0", "16mib", "manifest.txt"): 7,
+			}
 		}
 	}
 	for path, cells := range expected {
@@ -241,15 +250,21 @@ func workerSSHAddress(setup eval.Setup) (string, error) {
 	return setup.NodeURL[index-1], nil
 }
 
-func smokePlan(modes, payloads []string) ([]cell, error) {
+func smokePlan(suite string, modes, payloads, workloads []string) ([]cell, error) {
+	if suite == "real" {
+		if !same(modes, realModes) || !same(workloads, []string{"helloworld", "reducer"}) || payloads != nil {
+			return nil, fmt.Errorf("real smoke requires all four real modes, helloworld/reducer, and no payloads")
+		}
+		return cells("e1-smoke-real", "4-node", modes, workloads, nil), nil
+	}
 	if !same(payloads, syntheticPayloads) {
 		return nil, fmt.Errorf("smoke requires the frozen E1 payload list")
 	}
 	if !same(modes, syntheticModes) {
 		return nil, fmt.Errorf("smoke requires all seven E1 synthetic modes")
 	}
-	result := cells("e1-smoke", "4-node", modes, nil, []string{"4"})
-	result = append(result, cells("e1-smoke", "4-node", []string{"hosttcp-go", "nexus-py", "nexus-js", "nexus-go"}, nil, []string{"16777216"})...)
+	result := cells("e1-smoke-4b", "4-node", modes, nil, []string{"4"})
+	result = append(result, cells("e1-smoke-16mib", "4-node", modes, nil, []string{"16777216"})...)
 	return result, nil
 }
 func cells(experiment, profile string, modes, workloads, payloads []string) []cell {
