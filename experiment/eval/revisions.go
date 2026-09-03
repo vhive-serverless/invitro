@@ -1,8 +1,10 @@
 package eval
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"regexp"
 	"strings"
 )
 
@@ -17,6 +19,8 @@ const (
 	FirecrackerSHA256 = "8b61f895b4c14bf253bb27451669caddbee6fd5c1b61dc30a029e285cba31db2"
 	KernelSHA256      = "41ce4c9dd77f7d1f8ffd42a545135d6547eafb3ac0d6355fe3eff188af2f949c"
 )
+
+var gitCommitHeadPattern = regexp.MustCompile(`^[0-9a-f]{40}$`)
 
 type EvaluationHeads struct {
 	Khala, InVitro, RDMA, Firecracker string
@@ -80,11 +84,34 @@ func ResolveEvaluationHeads(ctx context.Context, campaignPath string, smoke bool
 	if err != nil {
 		return EvaluationHeads{}, err
 	}
-	output, err := command.CombinedOutput()
+	var stdout, stderr bytes.Buffer
+	command.Stdout, command.Stderr = &stdout, &stderr
+	err = command.Run()
 	if err != nil {
-		return EvaluationHeads{}, fmt.Errorf("smoke RDMA provenance: %w: %s", err, strings.TrimSpace(string(output)))
+		return EvaluationHeads{}, fmt.Errorf("smoke RDMA provenance: %w: %s", err, boundedStderr(stderr.String()))
 	}
-	return EvaluationHeads{Khala: khala.Head, InVitro: invitro.Head, RDMA: strings.TrimSpace(string(output)), Firecracker: FirecrackerHead}, nil
+	rdma, err := parseGitCommitHead(stdout.String())
+	if err != nil {
+		return EvaluationHeads{}, fmt.Errorf("smoke RDMA provenance: %w", err)
+	}
+	return EvaluationHeads{Khala: khala.Head, InVitro: invitro.Head, RDMA: rdma, Firecracker: FirecrackerHead}, nil
+}
+
+func parseGitCommitHead(stdout string) (string, error) {
+	head := strings.TrimSpace(stdout)
+	if !gitCommitHeadPattern.MatchString(head) {
+		return "", fmt.Errorf("invalid Git commit HEAD")
+	}
+	return head, nil
+}
+
+func boundedStderr(stderr string) string {
+	const maxStderrBytes = 4096
+	stderr = strings.TrimSpace(stderr)
+	if len(stderr) > maxStderrBytes {
+		return stderr[:maxStderrBytes] + "..."
+	}
+	return stderr
 }
 
 func (h EvaluationHeads) Environment() []string {
