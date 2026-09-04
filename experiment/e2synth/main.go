@@ -63,6 +63,7 @@ func defaultOptions(action string) options {
 		warmupMinutes: 2, steps: 20, minutesPerStep: 1, measurementMinutes: 3}
 	if action == "smoke" {
 		o.smoke, o.replicas, o.measurementMinutes = true, 2, 1
+		o.payloads = "65536,16777216"
 	} else if action == "calibrate" {
 		o.modes = "invm-py"
 	}

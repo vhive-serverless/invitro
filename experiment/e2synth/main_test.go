@@ -22,6 +22,9 @@ func TestStandaloneDefaults(t *testing.T) {
 	if smoke.replicas != 2 || smoke.warmupMinutes != 2 || smoke.measurementMinutes != 1 {
 		t.Fatalf("smoke defaults changed: %+v", smoke)
 	}
+	if smoke.payloads != "65536,16777216" {
+		t.Fatalf("smoke payload contract changed: %s", smoke.payloads)
+	}
 }
 
 func TestSmokeInputsCoverCanonicalPayloads(t *testing.T) {

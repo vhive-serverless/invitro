@@ -4,6 +4,7 @@
 source /etc/profile
 set -euo pipefail
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)/scripts/util/cell_lifecycle.sh"
+source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)/scripts/util/e2_synth_runner_policy.sh"
 
 repo_root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
 cd "$repo_root"
@@ -43,6 +44,8 @@ result_root=
 minio_endpoint=myminio-api.minio.10.200.3.4.sslip.io:80
 dry_run=false
 smoke=false
+modes_provided=false
+payloads_provided=false
 eval_firecracker_head=${EVAL_FIRECRACKER_HEAD:-}
 eval_firecracker_branch=${EVAL_FIRECRACKER_BRANCH:-}
 eval_rdma_demo_head=${EVAL_RDMA_DEMO_HEAD:-}
@@ -71,8 +74,8 @@ while (($#)); do
     case "$1" in
         --profile) profile=${2:?}; shift 2 ;;
         --cluster-id) cluster_id=${2:?}; shift 2 ;;
-        --modes) modes_text=${2:?}; shift 2 ;;
-        --payloads) payloads_text=${2:?}; shift 2 ;;
+        --modes) modes_text=${2:?}; modes_provided=true; shift 2 ;;
+        --payloads) payloads_text=${2:?}; payloads_provided=true; shift 2 ;;
         --e1-summary) e1_summary=${2:?}; shift 2 ;;
         --reference) reference=${2:?}; shift 2 ;;
         --worker-cores) worker_cores=${2:?}; shift 2 ;;
@@ -132,9 +135,11 @@ PY
 )
 mapfile -t payloads <<< "$payload_lines"
 ((${#modes[@]} > 0 && ${#payloads[@]} > 0)) || { echo "modes and payloads must be non-empty" >&2; exit 2; }
-if [[ "$smoke" == true ]]; then
-    modes=(invm-py invm-js invm-go hosttcp-go nexus-py nexus-js nexus-go nexus-rdma-py nexus-rdma-go)
+if [[ "$smoke" == true && "$payloads_provided" != true ]]; then
     payloads=(65536 16777216)
+fi
+if [[ "$smoke" == true && "$modes_provided" != true ]]; then
+    modes=(invm-py invm-js invm-go hosttcp-go nexus-py nexus-js nexus-go nexus-rdma-py nexus-rdma-go)
 fi
 
 rotate() {
@@ -387,7 +392,7 @@ discover_cluster_topology() {
 }
 
 snapshot_remote_provenance() {
-    local output=$1 worker_config=$2 require_rdma=$3 expected_head expected_invitro_head expected_workload host vm_config rootfs kernel vmm
+    local output=$1 worker_config=$2 require_rdma=$3 perf_return_evidence=$4 expected_head expected_invitro_head expected_workload host vm_config rootfs kernel vmm
     local flamegraph_repo flamegraph_commit
     expected_head=$(git -C ../khala rev-parse HEAD)
     expected_invitro_head=$(git rev-parse HEAD)
@@ -463,6 +468,58 @@ printf 'role=storage host=%s tree=rdma-demo head=%s path=s3-rdma-server sha256=%
 SH
         done
     fi
+    cat -- "$perf_return_evidence" >> "$output"
+    LC_ALL=C sort -o "$output" "$output"
+    [[ -s "$output" ]]
+}
+
+configure_perf_return_path() {
+    local worker_config=$1 output=$2 loader_ip worker keys_file probe_log loader_host type key_data fingerprint
+    loader_ip=$(jq -er '.loader_nodes | select(length == 1) | .[0]' "$worker_config") || {
+        echo "E2-Synth requires exactly one Loader address for perf return" >&2
+        return 2
+    }
+    keys_file=$(mktemp)
+    probe_log=$(mktemp)
+    : > "$keys_file"
+    for key in /etc/ssh/ssh_host_*_key.pub; do
+        [[ -f "$key" ]] || continue
+        awk -v host="$loader_ip" 'NF >= 2 && ($1 ~ /^ssh-/ || $1 ~ /^ecdsa-/) {print host, $1, $2}' "$key" >> "$keys_file"
+    done
+    LC_ALL=C sort -u -o "$keys_file" "$keys_file"
+    if [[ ! -s "$keys_file" ]]; then
+        rm -f -- "$keys_file" "$probe_log"
+        echo "no authoritative Loader SSH host public keys found" >&2
+        return 2
+    fi
+    : > "$output"
+    while IFS= read -r worker; do
+        if ! ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=5 "$worker" \
+            'umask 077; mkdir -p "$HOME/.ssh"; chmod 700 "$HOME/.ssh"; cat > "$HOME/.ssh/e2-synth-authoritative-loader-hostkeys"' < "$keys_file"; then
+            rm -f -- "$keys_file" "$probe_log"
+            return 2
+        fi
+        if ! ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=5 "$worker" bash -s -- \
+            "$loader_ip" .ssh/e2-synth-authoritative-loader-hostkeys \
+            < scripts/util/e2_synth_install_authoritative_host_keys.sh > "$probe_log"; then
+            rm -f -- "$keys_file" "$probe_log"
+            return 2
+        fi
+        while read -r loader_host type key_data; do
+            [[ "$loader_host" == "$loader_ip" ]] || { rm -f -- "$keys_file" "$probe_log"; return 2; }
+            fingerprint=$(printf '%s %s\n' "$type" "$key_data" | ssh-keygen -lf - | awk '{print $2}')
+            printf 'role=perf-return worker=%s loader=%s loader_hostkey_type=%s loader_hostkey_fingerprint=%s\n' \
+                "$worker" "$loader_ip" "$type" "$fingerprint" >> "$output"
+        done < "$keys_file"
+        grep -Fqx 'known_hosts_status=PASS ssh_status=PASS rsync_dry_run_status=PASS' "$probe_log" || {
+            rm -f -- "$keys_file" "$probe_log"
+            echo "worker-to-Loader perf return probe failed for $worker -> $loader_ip" >&2
+            return 2
+        }
+        printf 'role=perf-return worker=%s loader=%s known_hosts=PASS ssh=PASS rsync_dry_run=PASS\n' \
+            "$worker" "$loader_ip" >> "$output"
+    done < <(jq -r '.worker_nodes[]' "$worker_config" | LC_ALL=C sort)
+    rm -f -- "$keys_file" "$probe_log"
     LC_ALL=C sort -o "$output" "$output"
     [[ -s "$output" ]]
 }
@@ -578,7 +635,7 @@ manifest_matches() {
 prepare_cluster_root() {
     local require_reference=$1 check_dir
     if [[ -e "$result_root" ]]; then
-        [[ -f "$result_root/cluster-inventory.txt" && -f "$result_root/worker-node.json" && -f "$result_root/remote-provenance.txt" && -f "$result_root/e1-synth-unloaded-average.csv" ]] || {
+        [[ -f "$result_root/cluster-inventory.txt" && -f "$result_root/worker-node.json" && -f "$result_root/remote-provenance.txt" && -f "$result_root/perf-return-path.txt" && -f "$result_root/e1-synth-unloaded-average.csv" ]] || {
             echo "existing E2-Synth result root lacks archived cluster provenance" >&2; return 2; }
         cmp --silent "$e1_summary" "$result_root/e1-synth-unloaded-average.csv" || {
             echo "archived E1 reference differs from this run" >&2; return 2; }
@@ -591,7 +648,10 @@ prepare_cluster_root() {
         cmp --silent "$check_dir/cluster-inventory.txt" "$result_root/cluster-inventory.txt" &&
             cmp --silent "$check_dir/worker-node.json" "$result_root/worker-node.json" || {
                 rm -r -- "$check_dir"; echo "live E2-Synth topology differs from archived result root" >&2; return 2; }
-        snapshot_remote_provenance "$check_dir/remote-provenance.txt" "$check_dir/worker-node.json" "$require_reference"
+        configure_perf_return_path "$check_dir/worker-node.json" "$check_dir/perf-return-path.txt"
+        cmp --silent "$check_dir/perf-return-path.txt" "$result_root/perf-return-path.txt" || {
+            rm -r -- "$check_dir"; echo "worker-to-Loader perf return provenance differs from archived result root" >&2; return 2; }
+        snapshot_remote_provenance "$check_dir/remote-provenance.txt" "$check_dir/worker-node.json" "$require_reference" "$check_dir/perf-return-path.txt"
         cmp --silent "$check_dir/remote-provenance.txt" "$result_root/remote-provenance.txt" || {
             rm -r -- "$check_dir"; echo "remote provenance differs from archived result root" >&2; return 2; }
         rm -r -- "$check_dir"
@@ -600,7 +660,8 @@ prepare_cluster_root() {
         cp -- "$e1_summary" "$result_root/e1-synth-unloaded-average.csv"
         if [[ "$require_reference" == true ]]; then cp -- "$reference" "$result_root/e2-synth-rps-reference.csv"; fi
         discover_cluster_topology "$result_root/cluster-inventory.txt" "$result_root/worker-node.json"
-        snapshot_remote_provenance "$result_root/remote-provenance.txt" "$result_root/worker-node.json" "$require_reference"
+        configure_perf_return_path "$result_root/worker-node.json" "$result_root/perf-return-path.txt"
+        snapshot_remote_provenance "$result_root/remote-provenance.txt" "$result_root/worker-node.json" "$require_reference" "$result_root/perf-return-path.txt"
     fi
 }
 
@@ -1059,6 +1120,10 @@ if [[ "$command" == calibrate ]]; then
                 :
             else
                 status=$?; [[ "$LIFECYCLE_CLEANUP_FAILED" != true ]] || exit "$status"
+                if e2_synth_acquisition_started "$cell"; then
+                    echo "acquired calibration cell failed; aborting suite without starting another cell: $cell" >&2
+                    exit "$status"
+                fi
                 suite_failed=true; repetition_failed=true; continue
             fi
             duration_csv=$(find "$cell" -maxdepth 1 -name 'experiment_duration_*.csv' -print -quit)
@@ -1113,7 +1178,12 @@ for ((repetition=0; repetition<repetitions; repetition++)); do
             elif run_cell collection "$repetition" "$mode" "$workload" "$rps" true "$measurement_minutes" "$destination" "$result_root/worker-node.json"; then
                 :
             else
-                status=$?; [[ "$LIFECYCLE_CLEANUP_FAILED" != true ]] || exit "$status"; suite_failed=true
+                status=$?; [[ "$LIFECYCLE_CLEANUP_FAILED" != true ]] || exit "$status"
+                if e2_synth_acquisition_started "$destination"; then
+                    echo "acquired collection cell failed; aborting suite without starting another cell: $destination" >&2
+                    exit "$status"
+                fi
+                suite_failed=true
             fi
         done
     done
