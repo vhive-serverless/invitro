@@ -41,4 +41,25 @@ grep -Fq 'unrelated.example ' "$temporary/ssh/known_hosts"
 grep -Fq "192.0.2.10 $(cut -d' ' -f1,2 "$temporary/new.pub")" "$temporary/ssh/known_hosts"
 ! grep -Fq "192.0.2.10 $(cut -d' ' -f1,2 "$temporary/old.pub")" "$temporary/ssh/known_hosts"
 
+# The real helper is sent through `ssh ... bash -s`; nested transport probes
+# must not consume the remaining streamed script from stdin.
+mkdir -p "$temporary/bin" "$temporary/stream-ssh"
+printf '%s\n' \
+    '#!/usr/bin/env bash' \
+    'case " $* " in' \
+    "    *' -n '*) exit 0 ;;" \
+    '    *) cat >/dev/null; exit 0 ;;' \
+    'esac' > "$temporary/bin/ssh"
+printf '%s\n' '#!/usr/bin/env bash' 'cat >/dev/null' 'exit 0' > "$temporary/bin/rsync"
+chmod +x "$temporary/bin/ssh" "$temporary/bin/rsync"
+{
+    printf '192.0.2.10 '
+    cut -d' ' -f1,2 "$temporary/new.pub"
+} > "$temporary/staged-stream"
+PATH="$temporary/bin:$PATH" E2_SYNTH_SSH_DIR="$temporary/stream-ssh" \
+    bash -s -- 192.0.2.10 "$temporary/staged-stream" \
+    < "$repo_root/scripts/util/e2_synth_install_authoritative_host_keys.sh" \
+    > "$temporary/stream-probe"
+grep -Fqx 'known_hosts_status=PASS ssh_status=PASS rsync_dry_run_status=PASS' "$temporary/stream-probe"
+
 echo 'E2-Synth runner policy tests passed'

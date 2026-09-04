@@ -24,8 +24,10 @@ chmod 600 -- "$temporary"
 mv -f -- "$temporary" "$known_hosts"
 
 if [[ "${E2_SYNTH_SKIP_PROBE:-false}" != true ]]; then
-    ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=5 "$loader_ip" true
+    # This helper is streamed to `bash -s` on the worker. Keep nested clients
+    # off that script stream or they can consume the commands that follow.
+    ssh -n -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=5 "$loader_ip" true
     rsync --dry-run -e 'ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=5' \
-        /dev/null "$loader_ip:/tmp/" >/dev/null
+        /dev/null "$loader_ip:/tmp/" </dev/null >/dev/null
 fi
 printf '%s\n' 'known_hosts_status=PASS ssh_status=PASS rsync_dry_run_status=PASS'
