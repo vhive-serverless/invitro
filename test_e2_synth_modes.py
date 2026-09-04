@@ -1,6 +1,8 @@
+import re
 import unittest
 
-from e2_synth_modes import MODES, PAYLOADS, attaches_shared_memory, canonical_mode, workload_name
+from e2_synth_modes import (MODES, PAYLOADS, attaches_shared_memory,
+                            canonical_mode, trace_workload_name, workload_name)
 
 
 class ModeContractTests(unittest.TestCase):
@@ -24,7 +26,18 @@ class ModeContractTests(unittest.TestCase):
         }
         for mode, want in wants.items():
             self.assertEqual(workload_name(payload, mode), want)
+            self.assertEqual(trace_workload_name(payload, mode), want.replace("_", "-"))
             self.assertEqual(attaches_shared_memory(mode), not mode.startswith("invm-"))
+
+    def test_all_parser_added_service_names_are_rfc1123_safe(self):
+        rfc1123 = re.compile(r"^[a-z0-9]([-a-z0-9]*[a-z0-9])?$")
+        for mode in MODES:
+            for payload in PAYLOADS:
+                name = trace_workload_name(payload, mode)
+                self.assertRegex(name, rfc1123)
+                self.assertLessEqual(len(name), 63)
+                self.assertNotIn("_", name)
+                self.assertEqual(name, name.lower())
 
     def test_noncanonical_payload_rejected(self):
         with self.assertRaises(ValueError):

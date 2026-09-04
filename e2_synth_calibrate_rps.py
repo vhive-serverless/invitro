@@ -10,7 +10,7 @@ import sys
 from collections import defaultdict
 from pathlib import Path
 
-from e2_synth_modes import MODES, PAYLOADS, workload_name
+from e2_synth_modes import MODES, PAYLOADS, trace_workload_name
 
 STEPS = 20
 SLO_MULTIPLIER = 5.0
@@ -133,7 +133,7 @@ def write_trace(plan: dict[str, object], payload: int, output: Path, warmup_minu
     with (output / "invocations.csv").open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=["FunctionName", *columns])
         writer.writeheader()
-        row = {"FunctionName": workload_name(payload, "invm-py")}
+        row = {"FunctionName": trace_workload_name(payload, "invm-py")}
         for offset, column in enumerate(columns[:warmup_minutes], start=1):
             row[column] = math.floor(levels[0] * 60 * offset / warmup_minutes)
         for column, rps in zip(columns[warmup_minutes:], levels):
@@ -142,14 +142,14 @@ def write_trace(plan: dict[str, object], payload: int, output: Path, warmup_minu
     with (output / "durations.csv").open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=["FunctionName", "AvgDurationMs"])
         writer.writeheader()
-        writer.writerow({"FunctionName": workload_name(payload, "invm-py"), "AvgDurationMs": plan["unloaded_average_ms"]})
+        writer.writerow({"FunctionName": trace_workload_name(payload, "invm-py"), "AvgDurationMs": plan["unloaded_average_ms"]})
 
 
 def write_fixed_trace(average_ms: float, payload: int, mode: str, rps: int, output: Path,
                       warmup_minutes: int, measurement_minutes: int) -> None:
     if rps <= 0 or warmup_minutes < 0 or measurement_minutes <= 0:
         raise ValueError("fixed trace requires positive RPS/measurement and nonnegative warmup")
-    trace_name = workload_name(payload, mode)
+    trace_name = trace_workload_name(payload, mode)
     output.mkdir(parents=True, exist_ok=False)
     columns = [str(index) for index in range(-warmup_minutes, 0)] + [str(index) for index in range(1, measurement_minutes + 1)]
     with (output / "invocations.csv").open("w", newline="", encoding="utf-8") as handle:

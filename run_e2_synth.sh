@@ -179,9 +179,30 @@ base_workload() { printf 'synthetic_e_0_p_%s\n' "$1"; }
 trace_workload() {
     python3 - "$1" "$2" <<'PY'
 import sys
-from e2_synth_modes import workload_name
-print(workload_name(int(sys.argv[1]), sys.argv[2]))
+from e2_synth_modes import trace_workload_name
+print(trace_workload_name(int(sys.argv[1]), sys.argv[2]))
 PY
+}
+
+seeded_payload_path() {
+    printf '%s/assets/synthetic-payload/object-%s\n' "$KHALA_LOCAL_ROOT" "$1"
+}
+
+materialize_selected_payload() {
+    local payload=$1 path size
+    path=$(seeded_payload_path "$payload")
+    SYNTHETIC_PAYLOAD_DIR="$KHALA_LOCAL_ROOT/assets/synthetic-payload" \
+        bash "$KHALA_LOCAL_ROOT/scripts/materialize_synthetic_payloads.sh" "$payload"
+    [[ -f "$path" && ! -L "$path" ]] || {
+        echo "materialized synthetic payload is not a regular file: $path" >&2
+        return 1
+    }
+    size=$(stat -c '%s' -- "$path")
+    [[ "$size" == "$payload" ]] || {
+        echo "materialized synthetic payload has size $size, expected $payload" >&2
+        return 1
+    }
+    digest "$path"
 }
 
 khala_mode() {
@@ -472,7 +493,7 @@ archived_output_matches() {
 
 manifest_matches() {
     local manifest=$1 phase=$2 repetition=$3 mode=$4 workload=$5 rps=$6 perf=$7 duration=$8 destination=$9
-    local vm_config rootfs kernel vmm worker_count expected_perf_artifacts admission_workload payload attached expected_vm expected_ring
+    local vm_config rootfs kernel vmm worker_count expected_perf_artifacts admission_workload payload attached expected_vm expected_ring seeded_path
     [[ -f "$manifest" ]] || return 1
     vm_config=$(mode_vm_config "$mode")
     rootfs=$(config_value "../khala/$vm_config" RootfsPath)
@@ -480,6 +501,9 @@ manifest_matches() {
     vmm=$(config_value "../khala/$vm_config" FirecrackerPath)
     admission_workload=$(trace_workload_identity "$destination/trace/invocations.csv") || return 1
     payload=${workload##*_p_}
+    seeded_path=$(seeded_payload_path "$payload")
+    [[ -f "$seeded_path" && ! -L "$seeded_path" ]] || return 1
+    [[ "$(stat -c '%s' -- "$seeded_path")" == "$payload" ]] || return 1
     attached=false; expected_vm=0; expected_ring=0
     if attaches_shmem "$mode"; then attached=true; expected_vm=$vm_shmem_bytes; expected_ring=$shmem_ring_bytes; fi
         line_is "$manifest" 'manifest_version=2' &&
@@ -505,7 +529,7 @@ manifest_matches() {
         line_is "$manifest" "runner_sha256=$(digest run_e2_synth.sh)" &&
         line_is "$manifest" "evidence_validator_sha256=$(digest experiment/e2synth/validate_evidence.py)" &&
         line_is "$manifest" "config_template_sha256=$(digest cmd/config_e2_synth_trace_template.json)" &&
-        line_is "$manifest" "seeded_input_sha256=$(digest "../khala/assets/synthetic-payload/object-$payload")" &&
+        line_is "$manifest" "seeded_input_sha256=$(digest "$seeded_path")" &&
         line_is "$manifest" "output_validator_sha256=$(digest ../khala/scripts/validate_e2_synth_output.sh)" &&
         line_is "$manifest" "vm_config_path=$vm_config" &&
         line_is "$manifest" "vm_config_sha256=$(khala_artifact_hash "$vm_config")" &&
@@ -670,6 +694,7 @@ run_cell() {
         return 71
     fi
     local evidence_status=1 output_validation_status=1 shmem_validation_status=1 perf_artifact_count=0 admission_status=1 admission_function_count=0 admission_workload=
+    local seeded_input_path=$(seeded_payload_path "$payload") seeded_input_sha256=
     local admission_aggregate_expected=0 admission_aggregate_ready=0 snapshot_status=1
     local stale_scratch=false snapshot_cleanup_policy=
     local acquisition_marker="$scratch_out/acquisition-started.marker"
@@ -696,6 +721,8 @@ run_cell() {
             rm -f -- "$acquisition_marker" "$scratch_out/admission.csv" "$scratch_out/admission-validation.txt" \
                 "$scratch_out/admission-deployments.json" "$scratch_out/admission-poll.txt"
         fi
+        seeded_input_sha256=$(materialize_selected_payload "$payload") || return 1
+        [[ -n "$seeded_input_sha256" ]] || return 1
         if [[ "$phase" == calibration ]]; then
             python3 e2_synth_calibrate_rps.py --averages "$e1_summary" --cores "$worker_cores" --ceiling-multiplier "$ceiling_multiplier" trace \
                 --payload "$payload" --warmup-minutes "$warmup_minutes" --steps "$steps" --minutes-per-step "$minutes_per_step" --output "$scratch_trace"
@@ -706,6 +733,10 @@ run_cell() {
         fi
         admission_workload=$(trace_workload_identity "$scratch_trace/invocations.csv") || {
             echo "fixed trace contains no unique admission workload identity" >&2
+            return 2
+        }
+        [[ "$admission_workload" == "$(trace_workload "$payload" "$mode")" ]] || {
+            echo "trace identity does not match canonical mode/payload" >&2
             return 2
         }
         write_config "$run_id" "$duration" "$perf" "$replicas" "$scratch_trace" "$scratch_out/experiment" "$config_path"
@@ -773,7 +804,7 @@ run_cell() {
         echo "evidence_validator_sha256=$(digest experiment/e2synth/validate_evidence.py)"
         echo "config_template_sha256=$(digest cmd/config_e2_synth_trace_template.json)"
         echo "trace_modes_sha256=$(digest e2_synth_modes.py)"
-        echo "seeded_input_sha256=$(digest "../khala/assets/synthetic-payload/object-$payload")"
+        echo "seeded_input_sha256=$seeded_input_sha256"
         echo "output_validator_sha256=$(digest ../khala/scripts/validate_e2_synth_output.sh)"
         echo "trace_invocations_sha256=$(digest "$scratch_trace/invocations.csv")"
         echo "trace_durations_sha256=$(digest "$scratch_trace/durations.csv")"
@@ -803,6 +834,10 @@ run_cell() {
         local status=${PIPESTATUS[0]}
         cat "$scratch_out/deploy-attempt-$attempt.log" >> "$scratch_out/deploy.log"
         if ((status == 0)); then
+            [[ "$(digest "$seeded_input_path")" == "$seeded_input_sha256" ]] || {
+                echo "seeded synthetic payload changed after deploy" >&2
+                return 1
+            }
             go run experiment/khala_command.go --command create-snapshots --mode "$deploy_mode" \
                 --worker-config "$worker_config" --workloads "$workload" \
                 --vm-shmem-bytes "$vm_bytes" --shmem-ring-bytes "$shmem_ring_bytes" --shmem-io-quantum "$shmem_io_quantum" \
