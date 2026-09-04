@@ -35,7 +35,11 @@ func SSHCommand(ctx context.Context, target string, command ...string) (*exec.Cm
 		return nil, err
 	}
 	args := []string{"-o", "BatchMode=yes", "-o", "StrictHostKeyChecking=accept-new", "-o", "ConnectTimeout=10", target}
-	args = append(args, command...)
+	quoted := make([]string, 0, len(command))
+	for _, value := range command {
+		quoted = append(quoted, shellQuote(value))
+	}
+	args = append(args, strings.Join(quoted, " "))
 	return exec.CommandContext(ctx, "ssh", args...), nil
 }
 
