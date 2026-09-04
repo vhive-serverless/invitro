@@ -23,7 +23,7 @@ import (
 
 var (
 	Command         = flag.String("command", "deploy", "Command to execute: deploy or clean")
-	Mode            = flag.String("mode", "", "Experiment mode: invm-py, invm-go, invm-js, nexus-py, nexus-go, nexus-js, nexus-rdma-py, or hosttcp-go")
+	Mode            = flag.String("mode", "", "Experiment mode: invm-py, invm-go, invm-js, nexus-py, nexus-go, nexus-js, nexus-rdma-py, nexus-rdma-go (legacy nexus-rdma), or hosttcp-go")
 	Workloads       = flag.String("workloads", "", "Optional comma-separated canonical workloads; required for E2 single-workload cells")
 	DryRun          = flag.Bool("dry-run", false, "Print the resolved deployment plan without side effects")
 	CorePoolPolicy  = flag.String("core-pool-policy", "", "Core pool policy: baseline, l-sep, or l-shared")
@@ -33,6 +33,7 @@ var (
 	CorePool        = flag.String("corepool-size", "", "Manual core pool size to set when using 'set-corepool' command")
 	ShmemRingBytes  = flag.Int("shmem-ring-bytes", 4_190_208, "Shared-memory mapping ring capacity")
 	ShmemIOQuantum  = flag.Int("shmem-io-quantum", 256*1024, "Shared-memory copy quantum")
+	VMShmemBytes    = flag.Int("vm-shmem-bytes", -1, "VM shared-memory backing bytes (-1 keeps platform default; 0 disables attachment)")
 	MinioEndpoint   = flag.String("minio-endpoint", "10.0.1.4:9001", "S3-compatible endpoint for guest and Nexus clients")
 	WorkerConfig    = flag.String("worker-config", "worker_node.json", "Worker/storage pairing JSON for this deployment")
 	Debug           = flag.Bool("debug", false, "Enable debug mode")
@@ -46,6 +47,7 @@ const (
 	ModeNexusGo     = "nexus-go"
 	ModeNexusJS     = "nexus-js"
 	ModeNexusRDMA   = "nexus-rdma"
+	ModeNexusRDMAGo = "nexus-rdma-go"
 	ModeNexusRDMAPy = "nexus-rdma-py"
 	ModeHostTCPGo   = "hosttcp-go"
 	ModeHostTCPPy   = "hosttcp-py"
@@ -66,6 +68,7 @@ type ExperimentMode struct {
 	WithRDMA         bool     `json:"with_rdma"`
 	ShmemRingBytes   int      `json:"shmem_ring_bytes"`
 	ShmemIOQuantum   int      `json:"shmem_io_quantum"`
+	VMShmemBytes     int      `json:"vm_shmem_bytes"`
 }
 
 type DryRunPlan struct {
@@ -114,6 +117,9 @@ func runCommand() error {
 		}
 		if err != nil {
 			return err
+		}
+		if *VMShmemBytes >= 0 {
+			mode.VMShmemBytes = *VMShmemBytes
 		}
 	}
 	if *DryRun && *Command != "set-corepool" {
@@ -195,12 +201,12 @@ func resolveExperimentMode(name string, shmemRingBytes, shmemIOQuantum int, requ
 	if shmemRingBytes <= 0 || shmemIOQuantum <= 0 {
 		return ExperimentMode{}, fmt.Errorf("shared-memory ring bytes and I/O quantum must be positive")
 	}
-	mode := ExperimentMode{Name: name, ShmemRingBytes: shmemRingBytes, ShmemIOQuantum: shmemIOQuantum}
+	mode := ExperimentMode{Name: name, ShmemRingBytes: shmemRingBytes, ShmemIOQuantum: shmemIOQuantum, VMShmemBytes: -1}
 	base := append([]string(nil), matchedWorkloads...)
 	if len(requested) > 0 {
 		base = append([]string(nil), requested...)
 		for _, workload := range base {
-			if !containsWorkload(pythonEvaluationWorkloads, workload) {
+			if !containsWorkload(pythonEvaluationWorkloads, workload) && !isSyntheticWorkload(workload) {
 				return ExperimentMode{}, fmt.Errorf("unsupported canonical workload %q", workload)
 			}
 		}
@@ -248,7 +254,7 @@ func resolveExperimentMode(name string, shmemRingBytes, shmemIOQuantum int, requ
 		mode.BackendTransport = "shmem"
 		mode.SetNexusSDK = true
 		mode.SetNexusRPC = true
-	case ModeNexusRDMA:
+	case ModeNexusRDMA, ModeNexusRDMAGo:
 		mode.Workloads = goWorkloads(base)
 		mode.BackendTransport = "rdma"
 		mode.SetNexusSDK = true
@@ -288,7 +294,7 @@ func resolveCleanupMode(name string) (ExperimentMode, error) {
 	switch name {
 	case ModeInVMPy, ModeInVMGo, ModeInVMJS, ModeNexusPy, ModeNexusGo, ModeNexusJS, ModeHostTCPGo, ModeHostTCPPy:
 		return mode, nil
-	case ModeNexusRDMA, ModeNexusRDMAPy:
+	case ModeNexusRDMA, ModeNexusRDMAGo, ModeNexusRDMAPy:
 		mode.WithRDMA = true
 		return mode, nil
 	default:
@@ -312,7 +318,11 @@ func goWorkloads(workloads []string) []string {
 	}
 	result := make([]string, 0, len(workloads))
 	for _, workload := range workloads {
-		result = append(result, aliases[workload])
+		if isSyntheticWorkload(workload) {
+			result = append(result, "go"+workload)
+		} else {
+			result = append(result, aliases[workload])
+		}
 	}
 	return result
 }
@@ -320,13 +330,44 @@ func goWorkloads(workloads []string) []string {
 func javascriptWorkloads(workloads []string) []string {
 	result := make([]string, 0, len(workloads))
 	for _, workload := range workloads {
-		if workload == "helloworld" {
+		if isSyntheticWorkload(workload) {
+			result = append(result, "js"+workload)
+		} else if workload == "helloworld" {
 			result = append(result, "jshelloworld")
 		} else {
 			result = append(result, "")
 		}
 	}
 	return result
+}
+
+func isSyntheticWorkload(workload string) bool {
+	const prefix = "synthetic_e_0_p_"
+	if !strings.HasPrefix(workload, prefix) {
+		return false
+	}
+	payload, err := strconv.Atoi(strings.TrimPrefix(workload, prefix))
+	if err != nil {
+		return false
+	}
+	switch payload {
+	case 4, 4096, 16384, 65536, 262144, 1048576, 2097152, 4194304, 8388608, 16777216:
+		return true
+	default:
+		return false
+	}
+}
+
+func syntheticPayloadSizes(workloads []string) (string, bool) {
+	values := make([]string, 0, len(workloads))
+	for _, workload := range workloads {
+		base := strings.TrimPrefix(strings.TrimPrefix(workload, "go"), "js")
+		if !isSyntheticWorkload(base) {
+			return "", false
+		}
+		values = append(values, strings.TrimPrefix(base, "synthetic_e_0_p_"))
+	}
+	return strings.Join(values, ","), len(values) > 0
 }
 
 func slicesContainEmpty(values []string) bool {
@@ -356,6 +397,9 @@ func buildDeploymentCommand(corePoolPolicy, implementation string, mode Experime
 	command += fmt.Sprintf(" --backend-transport=%s --minio-endpoint=%s", mode.BackendTransport, *MinioEndpoint)
 	command += fmt.Sprintf(" --set-nexus-sdk=%t --set-nexus-rpc=%t --with-rdma=%t", mode.SetNexusSDK, mode.SetNexusRPC, mode.WithRDMA)
 	command += fmt.Sprintf(" --shmem-ring-bytes=%d --shmem-io-quantum=%d --debug=%t", *ShmemRingBytes, *ShmemIOQuantum, debug)
+	if mode.VMShmemBytes >= 0 {
+		command += fmt.Sprintf(" --vm-shmem-bytes=%d", mode.VMShmemBytes)
+	}
 	return command
 }
 
@@ -527,7 +571,11 @@ func getWorkerNodes() (WorkerNodeSetup, error) {
 }
 
 func DeployKhala(workerNodeSetup WorkerNodeSetup, corePoolPolicy string, implementation string, mode ExperimentMode, debug bool) error {
-	output, err := localCommandFn("cd ~/khala && bash ./scripts/deploy-minio-obj.sh " + minioObjectEndpointURL())
+	prepareCommand := "cd ~/khala && bash ./scripts/deploy-minio-obj.sh " + minioObjectEndpointURL()
+	if sizes, ok := syntheticPayloadSizes(mode.Workloads); ok {
+		prepareCommand = fmt.Sprintf("cd ~/khala && SIZES=%s bash ./scripts/deploy-minio-obj.sh %s", sizes, minioObjectEndpointURL())
+	}
+	output, err := localCommandFn(prepareCommand)
 	if err != nil {
 		return fmt.Errorf("prepare MinIO objects: %w, output: %s", err, output)
 	}

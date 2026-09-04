@@ -25,6 +25,7 @@ func TestResolveExperimentModes(t *testing.T) {
 		{ModeNexusJS, "shmem", true, true, false, []string{"jshelloworld"}},
 		{ModeHostTCPGo, "hosttcp", true, true, false, []string{"gopyaesserve", "gomapper", "goreducer"}},
 		{ModeNexusRDMA, "rdma", true, true, true, []string{"gopyaesserve", "gomapper", "goreducer"}},
+		{ModeNexusRDMAGo, "rdma", true, true, true, []string{"gopyaesserve", "gomapper", "goreducer"}},
 		{ModeNexusRDMAPy, "rdma", true, true, true, []string{"pyaesserve", "mapper", "reducer"}},
 	}
 	for _, test := range tests {
@@ -41,6 +42,78 @@ func TestResolveExperimentModes(t *testing.T) {
 				t.Fatalf("workloads = %v, want %v", mode.Workloads, test.workloads)
 			}
 		})
+	}
+}
+
+func TestResolveSyntheticWorkloadAllModes(t *testing.T) {
+	base := "synthetic_e_0_p_16777216"
+	wants := map[string]string{
+		ModeInVMPy: base, ModeInVMGo: "go" + base, ModeInVMJS: "js" + base,
+		ModeHostTCPGo: "go" + base, ModeNexusPy: base, ModeNexusJS: "js" + base,
+		ModeNexusGo: "go" + base, ModeNexusRDMAPy: base, ModeNexusRDMAGo: "go" + base,
+	}
+	for name, want := range wants {
+		mode, err := resolveExperimentMode(name, 16*1024*1024-4096, 256*1024, base)
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		if len(mode.Workloads) != 1 || mode.Workloads[0] != want {
+			t.Fatalf("%s workloads=%v want=%q", name, mode.Workloads, want)
+		}
+	}
+	for _, invalid := range []string{"synthetic_e_1_p_4", "synthetic_e_0_p_5", "synthetic_e_0_p_", "gosynthetic_e_0_p_4"} {
+		if _, err := resolveExperimentMode(ModeInVMPy, 16*1024*1024-4096, 256*1024, invalid); err == nil {
+			t.Fatalf("accepted invalid synthetic workload %q", invalid)
+		}
+	}
+}
+
+func TestSyntheticDeploySeedsOnlySelectedPayload(t *testing.T) {
+	originalLocal, originalServer := localCommandFn, serverExecFn
+	originalCorePool, originalWait := setDefaultCorePoolFn, waitKnIntegrationFn
+	t.Cleanup(func() {
+		localCommandFn, serverExecFn = originalLocal, originalServer
+		setDefaultCorePoolFn, waitKnIntegrationFn = originalCorePool, originalWait
+	})
+	var local string
+	localCommandFn = func(command string) (string, error) { local = command; return "", nil }
+	serverExecFn = func(string, string) (string, error) { return "", nil }
+	setDefaultCorePoolFn = func(string) error { return nil }
+	waitKnIntegrationFn = func(string, time.Duration) error { return nil }
+	mode, err := resolveExperimentMode(ModeNexusGo, 16*1024*1024-4096, 256*1024, "synthetic_e_0_p_65536")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := DeployKhala(WorkerNodeSetup{WorkerNodes: []string{"worker"}, StorageNodes: []string{"storage"}}, "", "go", mode, false); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(local, "SIZES=65536 bash ./scripts/deploy-minio-obj.sh") {
+		t.Fatalf("payload seeding command=%q", local)
+	}
+}
+
+func TestSyntheticVMSharedMemoryFlags(t *testing.T) {
+	originalRing, originalQuantum := *ShmemRingBytes, *ShmemIOQuantum
+	t.Cleanup(func() { *ShmemRingBytes, *ShmemIOQuantum = originalRing, originalQuantum })
+	*ShmemRingBytes, *ShmemIOQuantum = 16*1024*1024-4096, 256*1024
+	for _, test := range []struct {
+		mode  string
+		bytes int
+	}{
+		{ModeInVMPy, 0}, {ModeInVMGo, 0}, {ModeInVMJS, 0},
+		{ModeHostTCPGo, 16 * 1024 * 1024}, {ModeNexusPy, 16 * 1024 * 1024},
+		{ModeNexusJS, 16 * 1024 * 1024}, {ModeNexusGo, 16 * 1024 * 1024},
+		{ModeNexusRDMAPy, 16 * 1024 * 1024}, {ModeNexusRDMAGo, 16 * 1024 * 1024},
+	} {
+		mode, err := resolveExperimentMode(test.mode, *ShmemRingBytes, *ShmemIOQuantum, "synthetic_e_0_p_4")
+		if err != nil {
+			t.Fatal(err)
+		}
+		mode.VMShmemBytes = test.bytes
+		command := buildDeploymentCommand("", "go", mode, false)
+		if !strings.Contains(command, fmt.Sprintf("--vm-shmem-bytes=%d", test.bytes)) {
+			t.Errorf("%s command %q lacks exact backing bytes", test.mode, command)
+		}
 	}
 }
 
@@ -104,6 +177,7 @@ func TestResolveCleanupModeValidatesOnlyTeardownIdentity(t *testing.T) {
 		{ModeHostTCPGo, false},
 		{ModeHostTCPPy, false},
 		{ModeNexusRDMA, true},
+		{ModeNexusRDMAGo, true},
 		{ModeNexusRDMAPy, true},
 	} {
 		mode, err := resolveCleanupMode(test.name)
@@ -240,6 +314,7 @@ func TestSnapshotNames(t *testing.T) {
 		ModeHostTCPGo:   {"gopyaesserve-s3-rpc-hosttcp-0", "gomapper-s3-rpc-hosttcp-0", "goreducer-s3-rpc-hosttcp-0"},
 		ModeHostTCPPy:   {"pyaesserve-s3-rpc-hosttcp-0", "mapper-s3-rpc-hosttcp-0", "reducer-s3-rpc-hosttcp-0"},
 		ModeNexusRDMA:   {"gopyaesserve-s3-rpc-rdma-0", "gomapper-s3-rpc-rdma-0", "goreducer-s3-rpc-rdma-0"},
+		ModeNexusRDMAGo: {"gopyaesserve-s3-rpc-rdma-0", "gomapper-s3-rpc-rdma-0", "goreducer-s3-rpc-rdma-0"},
 		ModeNexusRDMAPy: {"pyaesserve-s3-rpc-rdma-0", "mapper-s3-rpc-rdma-0", "reducer-s3-rpc-rdma-0"},
 	}
 	for name, want := range tests {
