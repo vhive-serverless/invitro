@@ -7,6 +7,7 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)/scripts/util/cell
 
 repo_root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
 cd "$repo_root"
+export KHALA_LOCAL_ROOT=${KHALA_LOCAL_ROOT:-$(realpath -- "$repo_root/../khala")}
 scratch_root=${EVAL_SCRATCH_ROOT:-/mnt/resources/nexus-evaluation/.scratch/e2-synth}
 [[ "$scratch_root" == /* && "$scratch_root" != "/" ]] || {
     echo "EVAL_SCRATCH_ROOT must be a non-root absolute path" >&2

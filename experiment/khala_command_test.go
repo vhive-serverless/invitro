@@ -92,6 +92,31 @@ func TestSyntheticDeploySeedsOnlySelectedPayload(t *testing.T) {
 	}
 }
 
+func TestSyntheticDeployUsesConfiguredLocalKhalaRoot(t *testing.T) {
+	t.Setenv("KHALA_LOCAL_ROOT", "/tmp/e2 synth/khala")
+	originalLocal, originalServer := localCommandFn, serverExecFn
+	originalCorePool, originalWait := setDefaultCorePoolFn, waitKnIntegrationFn
+	t.Cleanup(func() {
+		localCommandFn, serverExecFn = originalLocal, originalServer
+		setDefaultCorePoolFn, waitKnIntegrationFn = originalCorePool, originalWait
+	})
+	var local string
+	localCommandFn = func(command string) (string, error) { local = command; return "", nil }
+	serverExecFn = func(string, string) (string, error) { return "", nil }
+	setDefaultCorePoolFn = func(string) error { return nil }
+	waitKnIntegrationFn = func(string, time.Duration) error { return nil }
+	mode, err := resolveExperimentMode(ModeNexusGo, 16*1024*1024-4096, 256*1024, "synthetic_e_0_p_65536")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := DeployKhala(WorkerNodeSetup{WorkerNodes: []string{"worker"}, StorageNodes: []string{"storage"}}, "", "go", mode, false); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(local, "cd '/tmp/e2 synth/khala' && SIZES=65536 bash ./scripts/deploy-minio-obj.sh") {
+		t.Fatalf("configured local Khala root was not shell-quoted: %q", local)
+	}
+}
+
 func TestSyntheticVMSharedMemoryFlags(t *testing.T) {
 	originalRing, originalQuantum := *ShmemRingBytes, *ShmemIOQuantum
 	t.Cleanup(func() { *ShmemRingBytes, *ShmemIOQuantum = originalRing, originalQuantum })

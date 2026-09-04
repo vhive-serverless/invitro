@@ -481,6 +481,13 @@ func shellQuote(value string) string {
 	return "'" + strings.ReplaceAll(value, "'", "'\"'\"'") + "'"
 }
 
+func localKhalaWorkingDirectory() string {
+	if root := os.Getenv("KHALA_LOCAL_ROOT"); root != "" {
+		return shellQuote(root)
+	}
+	return "~/khala"
+}
+
 func loggedKnIntegrationCommand(command string) string {
 	wrapped := command + ` >> ~/khala/runtime/logs/kn-integration.log 2>&1; status=$?; printf '%s\n' "$status" > ~/khala/runtime/logs/kn-integration.exit`
 	return "tmux new-session -d -s kn-integration -- bash -lc " + shellQuote(wrapped)
@@ -571,9 +578,9 @@ func getWorkerNodes() (WorkerNodeSetup, error) {
 }
 
 func DeployKhala(workerNodeSetup WorkerNodeSetup, corePoolPolicy string, implementation string, mode ExperimentMode, debug bool) error {
-	prepareCommand := "cd ~/khala && bash ./scripts/deploy-minio-obj.sh " + minioObjectEndpointURL()
+	prepareCommand := "cd " + localKhalaWorkingDirectory() + " && bash ./scripts/deploy-minio-obj.sh " + minioObjectEndpointURL()
 	if sizes, ok := syntheticPayloadSizes(mode.Workloads); ok {
-		prepareCommand = fmt.Sprintf("cd ~/khala && SIZES=%s bash ./scripts/deploy-minio-obj.sh %s", sizes, minioObjectEndpointURL())
+		prepareCommand = fmt.Sprintf("cd %s && SIZES=%s bash ./scripts/deploy-minio-obj.sh %s", localKhalaWorkingDirectory(), sizes, minioObjectEndpointURL())
 	}
 	output, err := localCommandFn(prepareCommand)
 	if err != nil {
@@ -726,7 +733,7 @@ func CleanKhala(workerNodeSetup WorkerNodeSetup, removeSnapshots bool, withRDMA 
 	}
 
 	log.Infof("Cleaning up minio")
-	out, err = cleanupLocalCommandFn("cd ~/khala && bash ./scripts/deploy-minio-obj.sh " + minioObjectEndpointURL())
+	out, err = cleanupLocalCommandFn("cd " + localKhalaWorkingDirectory() + " && bash ./scripts/deploy-minio-obj.sh " + minioObjectEndpointURL())
 	if err != nil {
 		log.Errorf("Failed to cleanup minio: %v, output: %s", err, out)
 		cleanupErrors.add(fmt.Errorf("prepare MinIO objects: %w", err))
