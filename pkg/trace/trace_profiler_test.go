@@ -37,6 +37,7 @@ func TestStaticTraceProfiling(t *testing.T) {
 		IPM                  int
 		memoryMaxPercentile  float64
 		expectedInitialScale int
+		expectedMaxScale     int
 		expectedCPULimits    int
 	}{
 		{
@@ -45,6 +46,7 @@ func TestStaticTraceProfiling(t *testing.T) {
 			IPM:                  30,
 			memoryMaxPercentile:  256,
 			expectedInitialScale: 1,
+			expectedMaxScale:     12,
 			expectedCPULimits:    167,
 		},
 		{
@@ -53,6 +55,7 @@ func TestStaticTraceProfiling(t *testing.T) {
 			IPM:                  45,
 			memoryMaxPercentile:  512,
 			expectedInitialScale: 2,
+			expectedMaxScale:     17,
 			expectedCPULimits:    333,
 		},
 		{
@@ -61,6 +64,7 @@ func TestStaticTraceProfiling(t *testing.T) {
 			IPM:                  60,
 			memoryMaxPercentile:  1024,
 			expectedInitialScale: 2,
+			expectedMaxScale:     22,
 			expectedCPULimits:    583,
 		},
 		{
@@ -69,6 +73,7 @@ func TestStaticTraceProfiling(t *testing.T) {
 			IPM:                  120,
 			memoryMaxPercentile:  2048,
 			expectedInitialScale: 4,
+			expectedMaxScale:     42,
 			expectedCPULimits:    1000,
 		},
 		{
@@ -77,6 +82,7 @@ func TestStaticTraceProfiling(t *testing.T) {
 			IPM:                  30,
 			memoryMaxPercentile:  256,
 			expectedInitialScale: 1,
+			expectedMaxScale:     12,
 			expectedCPULimits:    1000,
 		},
 	}
@@ -99,6 +105,7 @@ func TestStaticTraceProfiling(t *testing.T) {
 			ApplyResourceLimits([]*common.Function{f}, test.CPULimit)
 
 			if f.InitialScale != test.expectedInitialScale ||
+				f.MaxScale != test.expectedMaxScale ||
 				f.CPULimitsMilli != test.expectedCPULimits ||
 				f.CPURequestsMilli != f.CPULimitsMilli/common.OvercommitmentRatio ||
 				f.MemoryRequestsMiB != int(test.memoryMaxPercentile)/common.OvercommitmentRatio {
