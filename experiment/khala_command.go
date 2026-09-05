@@ -415,9 +415,50 @@ var (
 
 const knIntegrationStartTimeout = 60 * time.Second
 
+const (
+	masterEtcdCleanupAttempts = 3
+	masterEtcdCleanupBackoff  = time.Second
+)
+
 func runLocalCommand(command string) (string, error) {
 	output, err := exec.Command("bash", "-c", command).CombinedOutput()
 	return string(output), err
+}
+
+func masterEtcdCleanup() (string, error) {
+	const command = "bash -c 'cd ~/loader && bash cleanup_etcd.sh'"
+	var output string
+	var err error
+	for attempt := 1; attempt <= masterEtcdCleanupAttempts; attempt++ {
+		output, err = serverExecFn("10.0.1.1", command)
+		if err == nil {
+			return output, nil
+		}
+		if !isPreAuthSSHRejection(output, err) {
+			return output, err
+		}
+		if attempt < masterEtcdCleanupAttempts {
+			log.Warnf("Master etcd cleanup SSH establishment rejected before authentication; retrying connection (%d/%d): %v", attempt, masterEtcdCleanupAttempts, err)
+			sleepFn(masterEtcdCleanupBackoff)
+		}
+	}
+	return output, fmt.Errorf("master etcd cleanup SSH establishment failed after %d attempts: %w", masterEtcdCleanupAttempts, err)
+}
+
+func isPreAuthSSHRejection(output string, err error) bool {
+	if err == nil {
+		return false
+	}
+	text := strings.ToLower(output + "\n" + err.Error())
+	if !strings.Contains(text, "exit status 255") {
+		return false
+	}
+	for _, marker := range []string{"past maxstartups", "connection closed by", "kex_exchange_identification"} {
+		if strings.Contains(text, marker) {
+			return true
+		}
+	}
+	return false
 }
 
 func destroyAll(node string) error {
@@ -665,7 +706,7 @@ func CleanKhala(workerNodeSetup WorkerNodeSetup, removeSnapshots bool, withRDMA 
 		cleanupErrors.add(CleanupRDMAStorage(workerNodeSetup))
 	}
 
-	out, err := serverExecFn("10.0.1.1", "bash -c 'cd ~/loader && bash cleanup_etcd.sh'")
+	out, err := masterEtcdCleanup()
 	if err != nil {
 		log.Errorf("Failed to clean etcd: %v, output: %s", err, out)
 		cleanupErrors.add(fmt.Errorf("clean etcd: %w", err))

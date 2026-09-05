@@ -570,6 +570,78 @@ func TestCleanKhalaUsesEvaluationCellLoaderReset(t *testing.T) {
 	}
 }
 
+func TestCleanKhalaRetriesPreAuthMasterEtcdSSHRejection(t *testing.T) {
+	originalServer, originalLocal, originalSleep := serverExecFn, cleanupLocalCommandFn, sleepFn
+	t.Cleanup(func() {
+		serverExecFn, cleanupLocalCommandFn, sleepFn = originalServer, originalLocal, originalSleep
+	})
+	cleanupLocalCommandFn = func(string) (string, error) { return "", nil }
+	masterCalls := 0
+	serverExecFn = func(node, command string) (string, error) {
+		if node != "10.0.1.1" || !strings.Contains(command, "cleanup_etcd.sh") {
+			t.Fatalf("unexpected server command: node=%q command=%q", node, command)
+		}
+		masterCalls++
+		if masterCalls == 1 {
+			return "", errors.New("exit status 255, output: Connection closed by 10.0.1.1 port 22")
+		}
+		return "", nil
+	}
+	sleeps := 0
+	sleepFn = func(delay time.Duration) {
+		if delay != time.Second {
+			t.Fatalf("retry delay = %s, want 1s", delay)
+		}
+		sleeps++
+	}
+	if err := CleanKhala(WorkerNodeSetup{}, false, false); err != nil {
+		t.Fatal(err)
+	}
+	if masterCalls != 2 || sleeps != 1 {
+		t.Fatalf("master calls=%d sleeps=%d, want 2/1", masterCalls, sleeps)
+	}
+}
+
+func TestCleanKhalaExhaustsBoundedMasterEtcdSSHReconnects(t *testing.T) {
+	originalServer, originalLocal, originalSleep := serverExecFn, cleanupLocalCommandFn, sleepFn
+	t.Cleanup(func() {
+		serverExecFn, cleanupLocalCommandFn, sleepFn = originalServer, originalLocal, originalSleep
+	})
+	cleanupLocalCommandFn = func(string) (string, error) { return "", nil }
+	masterCalls := 0
+	serverExecFn = func(string, string) (string, error) {
+		masterCalls++
+		return "", errors.New("exit status 255, output: kex_exchange_identification: Connection closed by remote host")
+	}
+	sleeps := 0
+	sleepFn = func(time.Duration) { sleeps++ }
+	err := CleanKhala(WorkerNodeSetup{}, false, false)
+	if err == nil || !strings.Contains(err.Error(), "failed after 3 attempts") {
+		t.Fatalf("bounded reconnect error = %v", err)
+	}
+	if masterCalls != 3 || sleeps != 2 {
+		t.Fatalf("master calls=%d sleeps=%d, want 3/2", masterCalls, sleeps)
+	}
+}
+
+func TestCleanKhalaDoesNotRetryAuthenticatedMasterEtcdFailure(t *testing.T) {
+	originalServer, originalLocal, originalSleep := serverExecFn, cleanupLocalCommandFn, sleepFn
+	t.Cleanup(func() {
+		serverExecFn, cleanupLocalCommandFn, sleepFn = originalServer, originalLocal, originalSleep
+	})
+	cleanupLocalCommandFn = func(string) (string, error) { return "", nil }
+	masterCalls := 0
+	serverExecFn = func(string, string) (string, error) {
+		masterCalls++
+		return "etcdctl failed", errors.New("exit status 1")
+	}
+	sleepFn = func(time.Duration) { t.Fatal("authenticated remote failure was retried") }
+	err := CleanKhala(WorkerNodeSetup{}, false, false)
+	if err == nil || masterCalls != 1 {
+		t.Fatalf("authenticated failure error=%v calls=%d, want error/1", err, masterCalls)
+	}
+}
+
 func TestCreateSnapshotsPropagatesAllWorkerFailures(t *testing.T) {
 	originalCreate := createSnapshotsNodeFn
 	t.Cleanup(func() { createSnapshotsNodeFn = originalCreate })
