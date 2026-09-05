@@ -47,6 +47,26 @@ printf '\1' | dd of="$temporary/nonzero" bs=1 seek=0 conv=notrunc status=none
 ln -s "$temporary/nonzero" "$temporary/symlink"
 ! e2_synth_validate_zero_payload "$temporary/symlink" 65536
 
+# RDMA payload staging is E2-Synth-specific, prepares the storage root first,
+# then synchronizes all three declared input roots in deterministic order.
+mkdir -p "$temporary/stage-bin" "$temporary/khala/assets/nexus-benchmark-payload/input_payload" \
+    "$temporary/khala/assets/nexus-benchmark-payload/test" "$temporary/khala/assets/synthetic-payload"
+printf '{"storage_nodes":["storage-a","storage-b"]}\n' > "$temporary/worker-node.json"
+printf '%s\n' '#!/usr/bin/env bash' 'printf "ssh %s\\n" "$*" >> "$E2_SYNTH_TEST_CALLS"' > "$temporary/stage-bin/ssh"
+printf '%s\n' '#!/usr/bin/env bash' 'printf "rsync %s\\n" "$*" >> "$E2_SYNTH_TEST_CALLS"' > "$temporary/stage-bin/rsync"
+chmod +x "$temporary/stage-bin/ssh" "$temporary/stage-bin/rsync"
+E2_SYNTH_TEST_CALLS="$temporary/stage-calls" PATH="$temporary/stage-bin:$PATH" \
+    e2_synth_stage_rdma_payloads "$temporary/khala" "$temporary/worker-node.json"
+[[ "$(grep -c '^ssh ' "$temporary/stage-calls")" == 2 ]]
+[[ "$(grep -c '^rsync ' "$temporary/stage-calls")" == 6 ]]
+[[ "$(sed -n '1p' "$temporary/stage-calls")" == *'storage-a'* ]]
+[[ "$(sed -n '2p' "$temporary/stage-calls")" == *'storage-a:rdma-demo/assets/nexus-benchmark-payload/input_payload/'* ]]
+[[ "$(sed -n '4p' "$temporary/stage-calls")" == *'storage-a:rdma-demo/assets/synthetic-payload-input/'* ]]
+[[ "$(sed -n '5p' "$temporary/stage-calls")" == *'storage-b'* ]]
+! e2_synth_stage_rdma_payloads "$temporary/missing" "$temporary/worker-node.json"
+printf '{"storage_nodes":[]}\n' > "$temporary/no-storage.json"
+! e2_synth_stage_rdma_payloads "$temporary/khala" "$temporary/no-storage.json"
+
 ssh-keygen -q -t ed25519 -N '' -f "$temporary/old" >/dev/null
 ssh-keygen -q -t ed25519 -N '' -f "$temporary/new" >/dev/null
 mkdir -p "$temporary/ssh"

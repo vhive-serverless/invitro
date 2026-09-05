@@ -905,6 +905,13 @@ run_cell() {
         local attempt=$1 deploy_mode vm_bytes endpoint
         deploy_mode=$(khala_mode "$mode")
         vm_bytes=0; attaches_shmem "$mode" && vm_bytes=$vm_shmem_bytes
+        if [[ "$mode" == nexus-rdma-py || "$mode" == nexus-rdma-go ]]; then
+            e2_synth_stage_rdma_payloads "$KHALA_LOCAL_ROOT" "$worker_config" \
+                2>&1 | tee "$scratch_out/rdma-stage-attempt-$attempt.log"
+            local stage_status=${PIPESTATUS[0]}
+            cat "$scratch_out/rdma-stage-attempt-$attempt.log" >> "$scratch_out/deploy.log"
+            ((stage_status == 0)) || return "$stage_status"
+        fi
         SIZES="$payload" go run experiment/khala_command.go --command deploy --mode "$deploy_mode" --worker-config "$worker_config" --workloads "$workload" \
             --vm-shmem-bytes "$vm_bytes" --shmem-ring-bytes "$shmem_ring_bytes" --shmem-io-quantum "$shmem_io_quantum" --minio-endpoint "$minio_endpoint" \
             2>&1 | tee "$scratch_out/deploy-attempt-$attempt.log"
