@@ -1176,7 +1176,6 @@ if [[ "$smoke" == true ]]; then
         echo "E2-Synth smoke requires two replicas, two warmup minutes, one measurement minute, and one pass" >&2; exit 2; }
 fi
 if [[ -z "$worker_cores" ]]; then worker_cores=${WORKER_CORES:-$(reference_unique_value worker_cores)}; fi
-ceiling_multiplier=$(reference_unique_value ceiling_multiplier)
 for payload in "${payloads[@]}"; do reference_value "$payload" rref >/dev/null; done
 if [[ "$dry_run" != true ]]; then
     validate_claim_sources
@@ -1190,6 +1189,9 @@ suite_failed=false
 for ((repetition=0; repetition<repetitions; repetition++)); do
     for ((payload_index=0; payload_index<${#payloads[@]}; payload_index++)); do
         payload=${payloads[payload_index]}; workload=$(base_workload "$payload"); rps=$(reference_value "$payload" rref)
+        # The ceiling is calibration-search provenance, not a collection-wide
+        # control.  Lower-range refinement may make it payload-specific.
+        ceiling_multiplier=$(reference_value "$payload" ceiling_multiplier)
         ordered_modes=("${modes[@]}")
         if ((payload_index % 2 == 1)); then
             for ((left=0, right=${#ordered_modes[@]}-1; left<right; left++, right--)); do
