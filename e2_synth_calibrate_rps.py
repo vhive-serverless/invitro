@@ -65,11 +65,62 @@ def merge_references(paths: list[Path]) -> list[dict[str, str]]:
         by_payload[payload] = row
     if set(by_payload) != set(PAYLOADS):
         raise ValueError("merged calibration does not cover the canonical ten payloads")
-    invariant = ("worker_cores", "ceiling_multiplier")
+    # A payload whose first coarse level is already inadmissible may use a
+    # lower, immutable refinement sweep.  The selected row records its actual
+    # ceiling_multiplier, so that search-range parameter is intentionally
+    # payload-specific; worker capacity remains invariant across the join.
+    invariant = ("worker_cores",)
     for key in invariant:
         if len({row[key] for row in rows}) != 1:
             raise ValueError(f"calibration contract mismatch in {key}")
     return [by_payload[payload] for payload in PAYLOADS]
+
+
+def _read_rows(path: Path) -> tuple[list[str], list[dict[str, str]]]:
+    with path.open(newline="", encoding="utf-8") as handle:
+        reader = csv.DictReader(handle)
+        return list(reader.fieldnames or ()), list(reader)
+
+
+def resolve_refinements(base_path: Path, refinement_paths: list[Path]) -> list[dict[str, str]]:
+    """Replace only unresolved coarse rows with admissible lower-range rows."""
+    fields, base_rows = _read_rows(base_path)
+    if len(base_rows) != 5:
+        raise ValueError(f"{base_path}: expected five base calibration rows")
+    by_payload: dict[int, dict[str, str]] = {}
+    order: list[int] = []
+    for row in base_rows:
+        payload = int(row["payload_bytes"])
+        if payload in by_payload or payload not in PAYLOADS:
+            raise ValueError(f"duplicate or unsupported base payload {payload}")
+        by_payload[payload] = row
+        order.append(payload)
+    for path in refinement_paths:
+        refinement_fields, rows = _read_rows(path)
+        if refinement_fields != fields:
+            raise ValueError(f"{path}: refinement schema differs from base")
+        if not rows:
+            raise ValueError(f"{path}: empty refinement")
+        for row in rows:
+            payload = int(row["payload_bytes"])
+            if payload not in by_payload:
+                raise ValueError(f"refinement payload {payload} is absent from base")
+            base = by_payload[payload]
+            if base.get("status") != "NO_ADMISSIBLE_LEVEL" or base.get("rref"):
+                raise ValueError(f"payload {payload}: base row is not unresolved")
+            if row.get("status") not in ("BOUNDARY_OBSERVED", "RIGHT_CENSORED") or not row.get("rref"):
+                raise ValueError(f"payload {payload}: refinement has no admissible reference")
+            for key in ("calibration_cluster", "unloaded_average_ms", "worker_cores"):
+                if row.get(key) != base.get(key):
+                    raise ValueError(f"payload {payload}: refinement mismatch in {key}")
+            if float(row["ceiling_multiplier"]) >= float(base["ceiling_multiplier"]):
+                raise ValueError(f"payload {payload}: refinement ceiling must be lower than base")
+            by_payload[payload] = row
+    unresolved = [payload for payload, row in by_payload.items()
+                  if row.get("status") not in ("BOUNDARY_OBSERVED", "RIGHT_CENSORED") or not row.get("rref")]
+    if unresolved:
+        raise ValueError(f"unresolved calibration payloads remain: {sorted(unresolved)}")
+    return [by_payload[payload] for payload in order]
 
 
 def _row_payload(row: dict[str, str]) -> int:
@@ -309,6 +360,15 @@ def main() -> int:
         special.add_argument("--output", required=True, type=Path)
         args = special.parse_args()
         write_rows(args.output, merge_references(args.partials))
+        return 0
+    if len(sys.argv) > 1 and sys.argv[1] == "resolve-refinements":
+        special = argparse.ArgumentParser()
+        special.add_argument("command")
+        special.add_argument("--base", required=True, type=Path)
+        special.add_argument("--refinements", required=True, nargs="+", type=Path)
+        special.add_argument("--output", required=True, type=Path)
+        args = special.parse_args()
+        write_rows(args.output, resolve_refinements(args.base, args.refinements))
         return 0
     parser = argparse.ArgumentParser()
     parser.add_argument("--averages", required=True, type=Path)

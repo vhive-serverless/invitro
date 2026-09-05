@@ -6,7 +6,7 @@ from pathlib import Path
 
 from e2_synth_calibrate_rps import (
     PAYLOADS, STEPS, analyze, build_plan, extract_e1_unloaded, merge_references,
-    observe_duration, parse_payloads, read_averages, write_rows,
+    observe_duration, parse_payloads, read_averages, resolve_refinements, write_rows,
 )
 
 
@@ -96,6 +96,37 @@ class E2SynthCalibrationTests(unittest.TestCase):
                 handle.seek(0); handle.write(text); handle.truncate()
             with self.assertRaisesRegex(ValueError, "duplicate"):
                 merge_references(paths)
+
+    def test_resolve_refinement_replaces_only_unresolved_row(self):
+        fields = ("payload_bytes", "calibration_cluster", "unloaded_average_ms", "worker_cores",
+                  "ceiling_multiplier", "rbound", "first_failing_step", "first_failing_rps",
+                  "rmax_b0", "rref", "status", "reference_kind")
+        with tempfile.TemporaryDirectory() as directory:
+            base_path = Path(directory) / "base.csv"
+            refinement_path = Path(directory) / "refinement.csv"
+            rows = []
+            for payload in PAYLOADS[::2]:
+                values = {"payload_bytes": payload, "calibration_cluster": "current",
+                          "unloaded_average_ms": 1, "worker_cores": 28,
+                          "ceiling_multiplier": 1, "rbound": 100, "rmax_b0": 50,
+                          "rref": 25, "status": "BOUNDARY_OBSERVED",
+                          "reference_kind": "OBSERVED_BOUNDARY_REFERENCE"}
+                rows.append({key: values.get(key, "") for key in fields})
+            unresolved = PAYLOADS[::2][-1]
+            rows[-1].update({"rmax_b0": "", "rref": "", "status": "NO_ADMISSIBLE_LEVEL",
+                             "reference_kind": "NO_REFERENCE"})
+            write_rows(base_path, rows)
+            refined = dict(rows[-1])
+            refined.update({"ceiling_multiplier": 0.1, "rbound": 20, "rmax_b0": 10,
+                            "rref": 5, "status": "BOUNDARY_OBSERVED",
+                            "reference_kind": "OBSERVED_BOUNDARY_REFERENCE"})
+            write_rows(refinement_path, [refined])
+            resolved = resolve_refinements(base_path, [refinement_path])
+            self.assertEqual(len(resolved), 5)
+            self.assertEqual(resolved[-1]["rref"], "5")
+            self.assertEqual(resolved[-1]["ceiling_multiplier"], "0.1")
+            with self.assertRaisesRegex(ValueError, "not unresolved"):
+                resolve_refinements(base_path, [refinement_path, refinement_path])
 
 
 if __name__ == "__main__":
