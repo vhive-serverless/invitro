@@ -194,20 +194,15 @@ seeded_payload_path() {
 }
 
 materialize_selected_payload() {
-    local payload=$1 path size
+    local payload=$1 path payload_digest
     path=$(seeded_payload_path "$payload")
     SYNTHETIC_PAYLOAD_DIR="$KHALA_LOCAL_ROOT/assets/synthetic-payload" \
         bash "$KHALA_LOCAL_ROOT/scripts/materialize_synthetic_payloads.sh" "$payload"
-    [[ -f "$path" && ! -L "$path" ]] || {
-        echo "materialized synthetic payload is not a regular file: $path" >&2
+    if ! payload_digest=$(e2_synth_validate_zero_payload "$path" "$payload"); then
+        echo "materialized synthetic payload is not the expected $payload-byte zero object: $path" >&2
         return 1
-    }
-    size=$(stat -c '%s' -- "$path")
-    [[ "$size" == "$payload" ]] || {
-        echo "materialized synthetic payload has size $size, expected $payload" >&2
-        return 1
-    }
-    digest "$path"
+    fi
+    printf '%s\n' "$payload_digest"
 }
 
 khala_mode() {
@@ -550,7 +545,7 @@ archived_output_matches() {
 
 manifest_matches() {
     local manifest=$1 phase=$2 repetition=$3 mode=$4 workload=$5 rps=$6 perf=$7 duration=$8 destination=$9
-    local vm_config rootfs kernel vmm worker_count expected_perf_artifacts admission_workload payload attached expected_vm expected_ring seeded_path
+    local vm_config rootfs kernel vmm worker_count expected_perf_artifacts admission_workload payload attached expected_vm expected_ring
     [[ -f "$manifest" ]] || return 1
     vm_config=$(mode_vm_config "$mode")
     rootfs=$(config_value "../khala/$vm_config" RootfsPath)
@@ -558,9 +553,6 @@ manifest_matches() {
     vmm=$(config_value "../khala/$vm_config" FirecrackerPath)
     admission_workload=$(trace_workload_identity "$destination/trace/invocations.csv") || return 1
     payload=${workload##*_p_}
-    seeded_path=$(seeded_payload_path "$payload")
-    [[ -f "$seeded_path" && ! -L "$seeded_path" ]] || return 1
-    [[ "$(stat -c '%s' -- "$seeded_path")" == "$payload" ]] || return 1
     attached=false; expected_vm=0; expected_ring=0
     if attaches_shmem "$mode"; then attached=true; expected_vm=$vm_shmem_bytes; expected_ring=$shmem_ring_bytes; fi
         line_is "$manifest" 'manifest_version=2' &&
@@ -586,7 +578,7 @@ manifest_matches() {
         line_is "$manifest" "runner_sha256=$(digest run_e2_synth.sh)" &&
         line_is "$manifest" "evidence_validator_sha256=$(digest experiment/e2synth/validate_evidence.py)" &&
         line_is "$manifest" "config_template_sha256=$(digest cmd/config_e2_synth_trace_template.json)" &&
-        line_is "$manifest" "seeded_input_sha256=$(digest "$seeded_path")" &&
+        line_is "$manifest" "seeded_input_sha256=$(e2_synth_zero_payload_digest "$payload")" &&
         line_is "$manifest" "output_validator_sha256=$(digest ../khala/scripts/validate_e2_synth_output.sh)" &&
         line_is "$manifest" "vm_config_path=$vm_config" &&
         line_is "$manifest" "vm_config_sha256=$(khala_artifact_hash "$vm_config")" &&

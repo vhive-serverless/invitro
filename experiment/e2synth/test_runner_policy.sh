@@ -20,6 +20,21 @@ for cell in "$temporary/acquired" "$temporary/unacquired"; do
 done
 [[ "$deployed" == 1 ]]
 
+# Immutable seed verification derives from the declared all-zero workload,
+# not from the mutable staging directory rewritten by cluster cleanup.
+truncate -s 65536 "$temporary/zero-65536"
+seed_digest=$(e2_synth_validate_zero_payload "$temporary/zero-65536" 65536)
+[[ "$seed_digest" == de2f256064a0af797747c2b97505dc0b9f3df0de4f489eac731c23ae9ca9cc31 ]]
+rm -f -- "$temporary/zero-65536"
+[[ "$(e2_synth_zero_payload_digest 65536)" == "$seed_digest" ]]
+truncate -s 65535 "$temporary/wrong-size"
+! e2_synth_validate_zero_payload "$temporary/wrong-size" 65536
+truncate -s 65536 "$temporary/nonzero"
+printf '\1' | dd of="$temporary/nonzero" bs=1 seek=0 conv=notrunc status=none
+! e2_synth_validate_zero_payload "$temporary/nonzero" 65536
+ln -s "$temporary/nonzero" "$temporary/symlink"
+! e2_synth_validate_zero_payload "$temporary/symlink" 65536
+
 ssh-keygen -q -t ed25519 -N '' -f "$temporary/old" >/dev/null
 ssh-keygen -q -t ed25519 -N '' -f "$temporary/new" >/dev/null
 mkdir -p "$temporary/ssh"
