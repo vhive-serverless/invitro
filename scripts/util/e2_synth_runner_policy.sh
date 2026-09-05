@@ -4,7 +4,15 @@
 # E2-Synth cell and the surrounding suite may not advance automatically.
 e2_synth_acquisition_started() {
     local archived_cell=$1
-    [[ -f "$archived_cell/acquisition-started.marker" ]]
+    [[ -f "$archived_cell/acquisition-started.marker" ]] ||
+        [[ -f "$archived_cell/out/acquisition-started.marker" ]] ||
+        grep -Fqx 'acquisition_started=true' "$archived_cell/manifest.txt" 2>/dev/null
+}
+
+e2_synth_scratch_namespace() {
+    local cluster_id=$1 canonical_result_root=$2
+    [[ -n "$cluster_id" && "$canonical_result_root" == /* ]] || return 2
+    printf '%s\0%s' "$cluster_id" "$canonical_result_root" | sha256sum | awk '{print $1}'
 }
 
 e2_synth_zero_payload_digest() {

@@ -7,10 +7,22 @@ temporary=$(mktemp -d)
 cleanup() { rm -rf -- "$temporary"; }
 trap cleanup EXIT
 
-mkdir -p "$temporary/unacquired" "$temporary/acquired"
+mkdir -p "$temporary/unacquired" "$temporary/acquired" "$temporary/legacy-nested" "$temporary/manifest-acquired"
 touch "$temporary/acquired/acquisition-started.marker"
+mkdir -p "$temporary/legacy-nested/out"
+touch "$temporary/legacy-nested/out/acquisition-started.marker"
+printf 'acquisition_started=true\n' > "$temporary/manifest-acquired/manifest.txt"
 ! e2_synth_acquisition_started "$temporary/unacquired"
 e2_synth_acquisition_started "$temporary/acquired"
+e2_synth_acquisition_started "$temporary/legacy-nested"
+e2_synth_acquisition_started "$temporary/manifest-acquired"
+
+namespace_a=$(e2_synth_scratch_namespace current /tmp/result-a)
+namespace_a_again=$(e2_synth_scratch_namespace current /tmp/result-a)
+namespace_b=$(e2_synth_scratch_namespace current /tmp/result-b)
+namespace_other_cluster=$(e2_synth_scratch_namespace supplied /tmp/result-a)
+[[ "$namespace_a" =~ ^[0-9a-f]{64}$ && "$namespace_a" == "$namespace_a_again" ]]
+[[ "$namespace_a" != "$namespace_b" && "$namespace_a" != "$namespace_other_cluster" ]]
 
 # The outer campaign must not reach a second cell after an acquired failure.
 deployed=0

@@ -9,13 +9,13 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)/scripts/util/e2_s
 repo_root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
 cd "$repo_root"
 export KHALA_LOCAL_ROOT=${KHALA_LOCAL_ROOT:-$(realpath -- "$repo_root/../khala")}
-scratch_root=${EVAL_SCRATCH_ROOT:-/mnt/resources/nexus-evaluation/.scratch/e2-synth}
-[[ "$scratch_root" == /* && "$scratch_root" != "/" ]] || {
+scratch_base=${EVAL_SCRATCH_ROOT:-/mnt/resources/nexus-evaluation/.scratch/e2-synth}
+[[ "$scratch_base" == /* && "$scratch_base" != "/" ]] || {
     echo "EVAL_SCRATCH_ROOT must be a non-root absolute path" >&2
     exit 2
 }
-scratch_root=$(realpath -m -- "$scratch_root")
-case "$scratch_root" in
+scratch_base=$(realpath -m -- "$scratch_base")
+case "$scratch_base" in
     "$repo_root"|"$repo_root"/*)
         echo "EVAL_SCRATCH_ROOT must be outside the InVitro worktree" >&2
         exit 2
@@ -101,6 +101,10 @@ done
 [[ "$profile" == 4-node ]] || { echo "E2-Synth supports only the frozen 4-node profile" >&2; exit 2; }
 [[ "$cluster_id" =~ ^[A-Za-z0-9._-]+$ ]] || { echo "--cluster-id is required and must be a stable identifier" >&2; exit 2; }
 [[ -n "$result_root" ]] || { echo "--result-root is required" >&2; exit 2; }
+result_root=$(realpath -m -- "$result_root")
+[[ "$result_root" == /* && "$result_root" != / ]] || { echo "--result-root must resolve to a non-root absolute path" >&2; exit 2; }
+scratch_namespace=$(e2_synth_scratch_namespace "$cluster_id" "$result_root")
+scratch_root="$scratch_base/campaign-$scratch_namespace"
 for value in "$warmup_minutes" "$measurement_minutes" "$replicas" "$repetitions" "$steps" "$minutes_per_step"; do
     [[ "$value" =~ ^[1-9][0-9]*$ ]] || { echo "E2 counts and durations must be positive integers" >&2; exit 2; }
 done
@@ -530,6 +534,22 @@ write_archived_output_checksums() {
     )
 }
 
+ensure_scratch_owner() {
+    local owner="$scratch_root/owner.txt"
+    mkdir -p "$scratch_root"
+    if [[ -e "$owner" ]]; then
+        line_is "$owner" 'scratch_owner_version=1' &&
+            line_is "$owner" "cluster_id=$cluster_id" &&
+            line_is "$owner" "result_root=$result_root" || {
+                echo "E2-Synth scratch namespace owner mismatch: $scratch_root" >&2
+                return 2
+            }
+    else
+        printf 'scratch_owner_version=1\ncluster_id=%s\nresult_root=%s\n' \
+            "$cluster_id" "$result_root" > "$owner"
+    fi
+}
+
 archived_output_matches() {
     local directory=$1 listed actual
     lifecycle_archived_output_matches "$directory" || return 1
@@ -728,20 +748,24 @@ run_cell() {
     [[ ! -e "$destination" ]] || { echo "refusing incomplete cell: $destination" >&2; return 2; }
     if [[ -f "$scratch_out/acquisition-started.marker" ]]; then
         mkdir -p "$(dirname "$destination")"
-        cp -a -- "$scratch_cell" "$destination"
+        mkdir -- "$destination"
+        cp -a -- "$scratch_out/." "$destination/"
+        local sealed_manifest
+        sealed_manifest=$(mktemp "$destination/.manifest.XXXXXX")
+        if [[ -f "$destination/manifest.txt" ]]; then
+            sed '/^stale_post_acquisition_scratch=/d;/^acquisition_started=/d;/^lifecycle_phase=/d;/^exit_status=/d' \
+                "$destination/manifest.txt" > "$sealed_manifest"
+        else
+            printf 'manifest_version=2\nexperiment=e2-synth\ncluster_id=%s\nphase=%s\nrepetition=%s\nmode=%s\nworkload=%s\npayload_bytes=%s\n' \
+                "$cluster_id" "$phase" "$repetition" "$mode" "$workload" "$payload" > "$sealed_manifest"
+        fi
         {
-            echo manifest_version=2
-            echo experiment=e2-synth
-            echo "cluster_id=$cluster_id"
-            echo "phase=$phase"
-            echo "repetition=$repetition"
-            echo "mode=$mode"
-            echo "workload=$workload"
-            echo "payload_bytes=$payload"
             echo stale_post_acquisition_scratch=true
             echo acquisition_started=true
+            echo lifecycle_phase=stale-sealed
             echo exit_status=71
-        } > "$destination/manifest.txt"
+        } >> "$sealed_manifest"
+        mv -- "$sealed_manifest" "$destination/manifest.txt"
         write_archived_output_checksums "$destination"
         echo "sealed stale post-acquisition scratch; refusing replay: $destination" >&2
         return 71
@@ -1096,6 +1120,7 @@ if [[ "$command" == calibrate ]]; then
         exit 0
     fi
     validate_claim_sources
+    ensure_scratch_owner
     prepare_cluster_root false
     scripts/util/wait_prometheus_ready.sh
     run_initial_cleanup || { status=$?; echo "initial cleanup failed; refusing E2-Synth acquisition" >&2; exit "$status"; }
@@ -1148,6 +1173,7 @@ ceiling_multiplier=$(reference_unique_value ceiling_multiplier)
 for payload in "${payloads[@]}"; do reference_value "$payload" rref >/dev/null; done
 if [[ "$dry_run" != true ]]; then
     validate_claim_sources
+    ensure_scratch_owner
     prepare_cluster_root true
     scripts/util/wait_prometheus_ready.sh
     run_initial_cleanup || { status=$?; echo "initial cleanup failed; refusing E2-Synth acquisition" >&2; exit "$status"; }
