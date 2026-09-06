@@ -1,5 +1,7 @@
 import csv
+import hashlib
 import os
+import shutil
 import subprocess
 import tempfile
 import unittest
@@ -136,6 +138,95 @@ class AblationDryRunTest(unittest.TestCase):
         self.assertIn("measurement_minutes=6", result.stdout)
         self.assertIn("E3_DRY_RUN_READY", result.stdout)
 
+    def test_default_mode_order_rotates_each_repetition(self):
+        command = self.command("--dry-run")
+        command[command.index("1", command.index("--repetitions"))] = "2"
+        result = subprocess.run(command, cwd=ROOT, check=True, capture_output=True, text=True)
+        modes = [
+            field.removeprefix("mode=")
+            for line in result.stdout.splitlines() if line.startswith("CELL ")
+            for field in line.split() if field.startswith("mode=")
+        ]
+        self.assertEqual(modes, [
+            "invm-py", "nexus-py", "nexus-rdma-py",
+            "nexus-py", "nexus-rdma-py", "invm-py",
+        ])
+        self.assertIn("mode_order=rotate", result.stdout)
+
+    def test_fixed_mode_order_is_preserved_each_repetition(self):
+        command = self.command("--dry-run")
+        command[command.index("invm-py,nexus-py,nexus-rdma-py")] = "nexus-rdma-py,nexus-py,invm-py"
+        command[command.index("1", command.index("--repetitions"))] = "2"
+        command[-1:-1] = ["--mode-order", "fixed"]
+        result = subprocess.run(command, cwd=ROOT, check=True, capture_output=True, text=True)
+        modes = [
+            field.removeprefix("mode=")
+            for line in result.stdout.splitlines() if line.startswith("CELL ")
+            for field in line.split() if field.startswith("mode=")
+        ]
+        self.assertEqual(modes, [
+            "nexus-rdma-py", "nexus-py", "invm-py",
+            "nexus-rdma-py", "nexus-py", "invm-py",
+        ])
+        self.assertIn("mode_order=fixed", result.stdout)
+
+    def test_unknown_mode_order_fails_before_plan_or_side_effects(self):
+        result = subprocess.run(
+            self.command("--mode-order", "counterbalance", "--dry-run"),
+            cwd=ROOT, capture_output=True, text=True,
+        )
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("unsupported E3 mode order", result.stderr)
+        self.assertNotIn("CELL experiment=e3", result.stdout)
+        self.assertFalse((self.root / "result").exists())
+
+    def test_resume_rejects_a_different_mode_order_before_cluster_access(self):
+        result_root = self.root / "resume"
+        result_root.mkdir()
+        shutil.copyfile(self.reference, result_root / "b0-rps-reference.csv")
+        (result_root / "worker-node.json").write_text("{}\n", encoding="utf-8")
+        (result_root / "cluster-inventory.txt").write_text("[]\n", encoding="utf-8")
+        reference_sha = hashlib.sha256(self.reference.read_bytes()).hexdigest()
+        runner_sha = hashlib.sha256((ROOT / "run_trace_ablation.sh").read_bytes()).hexdigest()
+        (result_root / "e3-run-config.txt").write_text(
+            "\n".join((
+                "run_config_version=1", "experiment=e3", "profile=4-node",
+                "modes=invm-py,nexus-py,nexus-rdma-py", "mode_order=rotate",
+                "start_scale=1", "step=1", "end_scale=1", "shift_step=10",
+                "divisor=100", "warmup_minutes=2", "measurement_minutes=1",
+                "repetitions=1", "cooldown_seconds=0",
+                "explicit_extended_end=false", "claim_bearing=false", "smoke=false",
+                "minio_endpoint=myminio-api.minio.10.200.3.4.sslip.io:80",
+                f"reference_sha256={reference_sha}", f"runner_sha256={runner_sha}", "",
+            )),
+            encoding="utf-8",
+        )
+        fake_bin = self.root / "fake-bin"
+        fake_bin.mkdir()
+        fake_git = fake_bin / "git"
+        fake_git.write_text(
+            "#!/usr/bin/env bash\n"
+            "if [[ $* == '-C . status --short' || $* == '-C ../khala status --short' ]]; then exit 0; fi\n"
+            "exec \"$E3_TEST_REAL_GIT\" \"$@\"\n",
+            encoding="utf-8",
+        )
+        fake_git.chmod(0o755)
+        environment = os.environ.copy()
+        environment.update({
+            "PATH": f"{fake_bin}:{environment['PATH']}",
+            "E3_TEST_REAL_GIT": shutil.which("git") or "/usr/bin/git",
+            "EVAL_FIRECRACKER_HEAD": "frozen-firecracker",
+            "EVAL_FIRECRACKER_BRANCH": "frozen",
+            "EVAL_RDMA_DEMO_HEAD": "frozen-rdma",
+            "EVAL_RDMA_DEMO_BRANCH": "frozen",
+        })
+        command = self.command("--mode-order", "fixed")
+        command[command.index(str(self.root / "result"))] = str(result_root)
+        result = subprocess.run(command, cwd=ROOT, capture_output=True, text=True, env=environment)
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("E3 run configuration differs from the interrupted run", result.stderr)
+        self.assertNotIn("kubectl", result.stderr)
+
     def test_runner_archives_topology_and_sets_workers_for_a_new_root(self):
         source = (ROOT / "run_trace_ablation.sh").read_text(encoding="utf-8")
         self.assertIn("source /etc/profile", source)
@@ -166,6 +257,12 @@ class AblationDryRunTest(unittest.TestCase):
         self.assertIn('policy=invalidate', source)
         self.assertIn('policy=preserve', source)
         self.assertIn('snapshot_cleanup_policy=', source)
+        self.assertIn('mode_order=rotate', source)
+        self.assertIn('echo "mode_order=$mode_order"', source)
+        self.assertIn('line_is "$manifest" "mode_order=$mode_order"', source)
+        self.assertIn('line_is "$manifest" "run_config_sha256=', source)
+        self.assertIn('write_run_config "$result_root/e3-run-config.txt"', source)
+        self.assertIn('E3 run configuration differs from the interrupted run', source)
 
     def test_runner_rejects_scratch_inside_worktree(self):
         environment = os.environ.copy()

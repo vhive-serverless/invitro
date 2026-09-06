@@ -22,6 +22,7 @@ esac
 
 profile=
 modes_csv=invm-py,nexus-py,nexus-rdma-py
+mode_order=rotate
 reference=
 ceiling_multiplier=
 start_scale=1
@@ -47,6 +48,7 @@ usage() {
     cat <<'EOF'
 Usage: run_trace_ablation.sh --profile 4-node|10-node|14-node|18-node
   --modes invm-py,nexus-py,nexus-rdma-py --reference b0-rps-reference.csv
+  --mode-order rotate|fixed
   --start-scale 1 --step 1 --end-scale 27 --warmup-minutes 2
   --repetitions 1 --result-root PATH [--dry-run]
 EOF
@@ -56,6 +58,7 @@ while (($#)); do
     case "$1" in
         --profile) profile=${2:?}; shift 2 ;;
         --modes) modes_csv=${2:?}; shift 2 ;;
+        --mode-order) mode_order=${2:?}; shift 2 ;;
         --reference) reference=${2:?}; shift 2 ;;
         --start-scale) start_scale=${2:?}; shift 2 ;;
         --step) step=${2:?}; shift 2 ;;
@@ -77,6 +80,7 @@ while (($#)); do
 done
 
 [[ "$profile" == 4-node || "$profile" == 10-node || "$profile" == 14-node || "$profile" == 18-node ]] || { echo "unsupported E3 profile" >&2; exit 2; }
+[[ "$mode_order" == rotate || "$mode_order" == fixed ]] || { echo "unsupported E3 mode order: $mode_order (expected rotate or fixed)" >&2; exit 2; }
 [[ -f "$reference" ]] || { echo "--reference must name a B0 RPS reference" >&2; exit 2; }
 [[ -n "$result_root" ]] || { echo "--result-root is required" >&2; exit 2; }
 for value in "$start_scale" "$step" "$end_scale" "$warmup_minutes" "$repetitions" "$shift_step" "$divisor" "$cooldown_seconds"; do
@@ -136,6 +140,16 @@ rotate() {
     local offset=$(( $2 % ${#values[@]} )) index
     for ((index=offset; index<${#values[@]}; index++)); do printf '%s ' "${values[index]}"; done
     for ((index=0; index<offset; index++)); do printf '%s ' "${values[index]}"; done
+}
+
+order_modes() {
+    local values_name=$1 repetition=$2
+    if [[ "$mode_order" == rotate ]]; then
+        rotate "$values_name" "$repetition"
+        return
+    fi
+    local -n values=$values_name
+    printf '%s ' "${values[@]}"
 }
 
 require_clean_repo() {
@@ -268,6 +282,32 @@ write_config() {
 
 digest() { sha256sum "$1" | awk '{print $1}'; }
 
+write_run_config() {
+    local destination=$1
+    {
+        echo run_config_version=1
+        echo experiment=e3
+        echo "profile=$profile"
+        echo "modes=$modes_csv"
+        echo "mode_order=$mode_order"
+        echo "start_scale=$start_scale"
+        echo "step=$step"
+        echo "end_scale=$end_scale"
+        echo "shift_step=$shift_step"
+        echo "divisor=$divisor"
+        echo "warmup_minutes=$warmup_minutes"
+        echo "measurement_minutes=$end_scale"
+        echo "repetitions=$repetitions"
+        echo "cooldown_seconds=$cooldown_seconds"
+        echo "explicit_extended_end=$allow_extended_end"
+        echo "claim_bearing=$claim_run"
+        echo "smoke=$smoke"
+        echo "minio_endpoint=$minio_endpoint"
+        echo "reference_sha256=$(digest "$reference")"
+        echo "runner_sha256=$(digest run_trace_ablation.sh)"
+    } > "$destination"
+}
+
 line_is() { grep -Fqx "$2" "$1"; }
 
 snapshot_cleanup_policy_matches() {
@@ -333,6 +373,7 @@ manifest_matches() {
         line_is "$manifest" "smoke=$smoke" &&
         line_is "$manifest" "claim_bearing=$claim_run" && line_is "$manifest" "profile=$profile" &&
         line_is "$manifest" "repetition=$repetition" && line_is "$manifest" "mode=$mode" &&
+        line_is "$manifest" "mode_order=$mode_order" &&
         line_is "$manifest" "start_scale=$start_scale" && line_is "$manifest" "step=$step" &&
         line_is "$manifest" "end_scale=$end_scale" && line_is "$manifest" "shift_step=$shift_step" &&
         line_is "$manifest" "divisor=$divisor" && line_is "$manifest" "warmup_minutes=$warmup_minutes" &&
@@ -358,6 +399,7 @@ manifest_matches() {
         line_is "$manifest" "cluster_inventory_sha256=$(digest "$result_root/cluster-inventory.txt")" &&
         line_is "$manifest" "worker_config_sha256=$(digest "$result_root/worker-node.json")" &&
         line_is "$manifest" "remote_provenance_sha256=$(digest "$result_root/remote-provenance.txt")" &&
+        line_is "$manifest" "run_config_sha256=$(digest "$result_root/e3-run-config.txt")" &&
         line_is "$manifest" "archive_checksums_sha256=$(digest "$destination/archived-output-checksums.csv")" &&
         line_is "$manifest" 'evidence_status=0' &&
         line_is "$manifest" 'scientific_status=ACCEPTED' &&
@@ -372,6 +414,7 @@ manifest_matches() {
     cmp --silent "$destination/cluster-inventory.txt" "$result_root/cluster-inventory.txt" || return 1
     cmp --silent "$destination/worker-node.json" "$result_root/worker-node.json" || return 1
     cmp --silent "$destination/b0-rps-reference.csv" "$reference" || return 1
+    cmp --silent "$destination/e3-run-config.txt" "$result_root/e3-run-config.txt" || return 1
     archived_output_matches "$destination"
 }
 
@@ -382,9 +425,11 @@ initial_cleanup_matches() {
         line_is "$manifest" 'initial_cleanup=true' &&
         line_is "$manifest" 'cleanup_mode=nexus-rdma-py' &&
         line_is "$manifest" 'remove_snapshots=true' &&
+        line_is "$manifest" "mode_order=$mode_order" &&
         line_is "$manifest" "worker_config_sha256=$(digest "$result_root/worker-node.json")" &&
         line_is "$manifest" "cluster_inventory_sha256=$(digest "$result_root/cluster-inventory.txt")" &&
         line_is "$manifest" "remote_provenance_sha256=$(digest "$result_root/remote-provenance.txt")" &&
+        line_is "$manifest" "run_config_sha256=$(digest "$result_root/e3-run-config.txt")" &&
         line_is "$manifest" "runner_sha256=$(digest run_trace_ablation.sh)" &&
         line_is "$manifest" 'exit_status=0' || return 1
     archived_output_matches "$destination"
@@ -413,11 +458,13 @@ run_initial_cleanup() {
         echo initial_cleanup=true
         echo cleanup_mode=nexus-rdma-py
         echo remove_snapshots=true
+        echo "mode_order=$mode_order"
         echo "start_utc=$started"
         echo "end_utc=$(date -u --iso-8601=seconds)"
         echo "worker_config_sha256=$(digest "$result_root/worker-node.json")"
         echo "cluster_inventory_sha256=$(digest "$result_root/cluster-inventory.txt")"
         echo "remote_provenance_sha256=$(digest "$result_root/remote-provenance.txt")"
+        echo "run_config_sha256=$(digest "$result_root/e3-run-config.txt")"
         echo "runner_sha256=$(digest run_trace_ablation.sh)"
         echo "exit_status=$status"
     } > "$scratch/manifest.txt"
@@ -474,6 +521,7 @@ run_cell() {
         cp -- "$worker_config" "$scratch_out/worker-node.json"
         cp -- "$result_root/cluster-inventory.txt" "$scratch_out/cluster-inventory.txt"
         cp -- "$result_root/remote-provenance.txt" "$scratch_out/remote-provenance.txt"
+        cp -- "$result_root/e3-run-config.txt" "$scratch_out/e3-run-config.txt"
         cp -- "$reference" "$scratch_out/b0-rps-reference.csv"
         write_config "$run_id" "$scratch_trace" "$scratch_out/experiment" "$config_path"
         {
@@ -489,6 +537,7 @@ run_cell() {
         echo "profile=$profile"
         echo "repetition=$repetition"
         echo "mode=$mode"
+        echo "mode_order=$mode_order"
         echo "python_workloads=chameleonserve cnnserve imageresize lrserving mapper pyaesserve reducer rnnserve streducer sttrainer"
         echo "deployed_function_rows=$((10 * end_scale))"
         echo "start_scale=$start_scale"
@@ -530,6 +579,7 @@ run_cell() {
         echo "worker_config_sha256=$(digest "$worker_config")"
         echo "cluster_inventory_sha256=$(digest "$result_root/cluster-inventory.txt")"
         echo "remote_provenance_sha256=$(digest "$result_root/remote-provenance.txt")"
+        echo "run_config_sha256=$(digest "$result_root/e3-run-config.txt")"
         echo "vm_config_path=$vm_config"
         echo "vm_config_sha256=$(khala_artifact_hash "$vm_config")"
         echo "rootfs_path=$rootfs"
@@ -690,13 +740,13 @@ function_count=$((10 * end_scale))
 total_minutes=$((warmup_minutes + end_scale))
 suite_failed=false
 for ((repetition=0; repetition<repetitions; repetition++)); do
-    read -r -a rotated_modes <<< "$(rotate modes "$repetition")"
-    for mode in "${rotated_modes[@]}"; do
+    read -r -a ordered_modes <<< "$(order_modes modes "$repetition")"
+    for mode in "${ordered_modes[@]}"; do
         printf 'CELL experiment=e3 profile=%s claim_bearing=%s repetition=%d mode=%s minio_route=%s workloads=10 deployed_function_rows=%d warmup_minutes=%d measurement_minutes=%d perf=false output=%s\n' \
             "$profile" "$claim_run" "$repetition" "$mode" "$(mode_minio_route "$mode")" "$function_count" "$warmup_minutes" "$end_scale" "$result_root/rep-$repetition/$mode"
     done
 done
-echo "PLAN profile=$profile modes=${#modes[@]} repetitions=$repetitions deployed_function_rows=$function_count total_minutes_per_cell=$total_minutes auto_extend=false minio_endpoint=$minio_endpoint"
+echo "PLAN profile=$profile modes=${#modes[@]} mode_order=$mode_order repetitions=$repetitions deployed_function_rows=$function_count total_minutes_per_cell=$total_minutes auto_extend=false minio_endpoint=$minio_endpoint"
 if [[ "$dry_run" == true ]]; then
     for mode in "${modes[@]}"; do
         python3 generate_trace_sweep.py --mode "$mode" --e2-reference "$reference" \
@@ -719,11 +769,17 @@ elif [[ -z "$eval_rdma_demo_head" || -z "$eval_rdma_demo_branch" ]]; then
     echo "missing frozen RDMA source provenance" >&2; exit 2
 fi
 if [[ -e "$result_root" ]]; then
-    [[ -f "$result_root/worker-node.json" && -f "$result_root/cluster-inventory.txt" && -f "$result_root/b0-rps-reference.csv" ]] || {
+    [[ -f "$result_root/worker-node.json" && -f "$result_root/cluster-inventory.txt" && -f "$result_root/b0-rps-reference.csv" && -f "$result_root/e3-run-config.txt" ]] || {
         echo "existing result root lacks resume provenance" >&2; exit 2; }
     cmp --silent "$reference" "$result_root/b0-rps-reference.csv" || {
         echo "E2 reference differs from the interrupted run" >&2; exit 2; }
     resume_check=$(mktemp -d)
+    write_run_config "$resume_check/e3-run-config.txt"
+    cmp --silent "$resume_check/e3-run-config.txt" "$result_root/e3-run-config.txt" || {
+        echo "E3 run configuration differs from the interrupted run" >&2
+        rm -r -- "$resume_check"
+        exit 2
+    }
     discover_topology "$resume_check/cluster-inventory.txt" "$resume_check/worker-node.json"
     cmp --silent "$resume_check/worker-node.json" "$result_root/worker-node.json" || {
         echo "live worker/storage pairing differs from the interrupted run" >&2
@@ -744,6 +800,7 @@ if [[ -e "$result_root" ]]; then
     rm -r -- "$resume_check"
 else
     mkdir -p "$result_root"
+    write_run_config "$result_root/e3-run-config.txt"
     discover_topology "$result_root/cluster-inventory.txt" "$result_root/worker-node.json"
     cp -- "$reference" "$result_root/b0-rps-reference.csv"
     snapshot_remote_provenance "$result_root/remote-provenance.txt" "$result_root/worker-node.json" nexus-rdma-py
@@ -752,8 +809,8 @@ fi
 run_initial_cleanup || { status=$?; echo "initial cleanup failed; refusing E3 acquisition" >&2; exit "$status"; }
 
 for ((repetition=0; repetition<repetitions; repetition++)); do
-    read -r -a rotated_modes <<< "$(rotate modes "$repetition")"
-    for mode in "${rotated_modes[@]}"; do
+    read -r -a ordered_modes <<< "$(order_modes modes "$repetition")"
+    for mode in "${ordered_modes[@]}"; do
         if run_cell "$repetition" "$mode" "$result_root/worker-node.json"; then
             :
         else

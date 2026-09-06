@@ -15,18 +15,19 @@ import (
 
 type options struct {
 	common                                                                                      eval.Config
-	modes, reference, campaignLabel                                                             string
+	modes, modeOrder, reference, campaignLabel                                                  string
 	startScale, step, endScale, shiftStep, divisor, warmupMinutes, repetitions, cooldownSeconds int
 	pilotRun, allowExtendedEnd, smoke                                                           bool
 }
 
 func main() {
 	fs := flag.NewFlagSet("e3", flag.ContinueOnError)
-	o := options{common: eval.Config{Profile: eval.Profile4}, modes: "invm-py,nexus-py,nexus-rdma-py",
+	o := options{common: eval.Config{Profile: eval.Profile4}, modes: "invm-py,nexus-py,nexus-rdma-py", modeOrder: "rotate",
 		startScale: 1, step: 1, endScale: 27, shiftStep: 10, divisor: 100,
 		warmupMinutes: 2, repetitions: 1, cooldownSeconds: 120}
 	eval.AddFlags(fs, &o.common)
 	fs.StringVar(&o.modes, "modes", o.modes, "exact E3 mode set")
+	fs.StringVar(&o.modeOrder, "mode-order", o.modeOrder, "mode order policy: rotate or fixed")
 	fs.StringVar(&o.reference, "reference", "", "frozen E2 reference CSV")
 	fs.IntVar(&o.startScale, "start-scale", 1, "initial trace scale")
 	fs.IntVar(&o.step, "step", 1, "trace scale step")
@@ -66,6 +67,9 @@ func run(ctx context.Context, o options) error {
 	if err := validateModes(o.modes); err != nil {
 		return err
 	}
+	if err := validateModeOrder(o.modeOrder); err != nil {
+		return err
+	}
 	if o.repetitions <= 0 || o.startScale <= 0 || o.step <= 0 || o.endScale < o.startScale || o.shiftStep <= 0 || o.divisor <= 0 || o.warmupMinutes < 0 || o.cooldownSeconds < 0 {
 		return fmt.Errorf("invalid E3 scale, timing, or repetition value")
 	}
@@ -84,7 +88,12 @@ func run(ctx context.Context, o options) error {
 	if err != nil {
 		return err
 	}
-	args := []string{"--profile", string(o.common.Profile), "--modes", o.modes, "--reference", o.reference,
+	args := commandArgs(o, endpoint)
+	return (eval.Runner{}).Run(ctx, eval.Command{Name: filepath.Join(root, "run_trace_ablation.sh"), Args: args, Dir: root, Env: commandEnv})
+}
+
+func commandArgs(o options, endpoint string) []string {
+	args := []string{"--profile", string(o.common.Profile), "--modes", o.modes, "--mode-order", o.modeOrder, "--reference", o.reference,
 		"--start-scale", strconv.Itoa(o.startScale), "--step", strconv.Itoa(o.step), "--end-scale", strconv.Itoa(o.endScale),
 		"--shift-step", strconv.Itoa(o.shiftStep), "--divisor", strconv.Itoa(o.divisor), "--warmup-minutes", strconv.Itoa(o.warmupMinutes),
 		"--repetitions", strconv.Itoa(o.repetitions), "--cooldown-seconds", strconv.Itoa(o.cooldownSeconds),
@@ -98,7 +107,7 @@ func run(ctx context.Context, o options) error {
 	if o.common.DryRun {
 		args = append(args, "--dry-run")
 	}
-	return (eval.Runner{}).Run(ctx, eval.Command{Name: filepath.Join(root, "run_trace_ablation.sh"), Args: args, Dir: root, Env: commandEnv})
+	return args
 }
 
 func validateModes(text string) error {
@@ -117,6 +126,13 @@ func validateModes(text string) error {
 			return fmt.Errorf("duplicate E3 mode %q", value)
 		}
 		seen[value] = true
+	}
+	return nil
+}
+
+func validateModeOrder(value string) error {
+	if value != "rotate" && value != "fixed" {
+		return fmt.Errorf("unsupported E3 mode order %q; expected rotate or fixed", value)
 	}
 	return nil
 }
