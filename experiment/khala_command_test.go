@@ -480,9 +480,13 @@ func TestKnIntegrationReadinessWaitsForHardwareManager(t *testing.T) {
 }
 
 func TestDeployRDMAAggregatesAndStopsNodeSequence(t *testing.T) {
-	originalServer, originalSource := serverExecFn, rdmaPayloadSourceFn
-	t.Cleanup(func() { serverExecFn, rdmaPayloadSourceFn = originalServer, originalSource })
+	originalServer, originalSource, originalRoots := serverExecFn, rdmaPayloadSourceFn, rdmaPayloadRootsFn
+	t.Cleanup(func() {
+		serverExecFn, rdmaPayloadSourceFn, rdmaPayloadRootsFn = originalServer, originalSource, originalRoots
+	})
 	rdmaPayloadSourceFn = func() (string, string, error) { return "/canonical/mapper.csv", "abc123", nil }
+	root := t.TempDir()
+	rdmaPayloadRootsFn = func() ([]rdmaPayloadRoot, error) { return []rdmaPayloadRoot{{local: root, remote: "remote"}}, nil }
 	var mu sync.Mutex
 	calls := map[string]int{}
 	serverExecFn = func(node, command string) (string, error) {
@@ -504,12 +508,26 @@ func TestDeployRDMAAggregatesAndStopsNodeSequence(t *testing.T) {
 
 func TestDeployRDMAStagesAndVerifiesCanonicalPayloadBeforeServerStart(t *testing.T) {
 	originalServer, originalSource, originalCopy := serverExecFn, rdmaPayloadSourceFn, copyLocalFileFn
+	originalRoots, originalSync := rdmaPayloadRootsFn, syncRDMAPayloadsFn
 	t.Cleanup(func() {
 		serverExecFn, rdmaPayloadSourceFn, copyLocalFileFn = originalServer, originalSource, originalCopy
+		rdmaPayloadRootsFn, syncRDMAPayloadsFn = originalRoots, originalSync
 	})
 	const wantHash = "98e4c902611645c5e45102ab0fc8d77c81eea5c439cd968fc064195810afe5c9"
 	rdmaPayloadSourceFn = func() (string, string, error) { return "/canonical/mapper.csv", wantHash, nil }
+	root := t.TempDir()
+	rdmaPayloadRootsFn = func() ([]rdmaPayloadRoot, error) {
+		return []rdmaPayloadRoot{
+			{local: root, remote: "rdma-demo/assets/input"},
+			{local: root, remote: "rdma-demo/assets/test"},
+			{local: root, remote: "rdma-demo/assets/synthetic"},
+		}, nil
+	}
 	var calls []string
+	syncRDMAPayloadsFn = func(source, node, destination string) (string, error) {
+		calls = append(calls, "sync "+source+" "+node+":"+destination)
+		return "", nil
+	}
 	serverExecFn = func(node, command string) (string, error) {
 		calls = append(calls, "ssh "+node+" "+command)
 		switch {
@@ -530,6 +548,9 @@ func TestDeployRDMAStagesAndVerifiesCanonicalPayloadBeforeServerStart(t *testing
 	}
 	joined := strings.Join(calls, "\n")
 	for _, want := range []string{
+		"sync " + root + " storage-a:rdma-demo/assets/input",
+		"sync " + root + " storage-a:rdma-demo/assets/test",
+		"sync " + root + " storage-a:rdma-demo/assets/synthetic",
 		"if test -f " + rdmaMapperPayload,
 		"mkdir -p " + filepath.Dir(rdmaMapperPayload),
 		"copy /canonical/mapper.csv storage-a:" + rdmaMapperPayload,
@@ -547,11 +568,16 @@ func TestDeployRDMAStagesAndVerifiesCanonicalPayloadBeforeServerStart(t *testing
 
 func TestDeployRDMASkipsCopyWhenCanonicalPayloadAlreadyMatches(t *testing.T) {
 	originalServer, originalSource, originalCopy := serverExecFn, rdmaPayloadSourceFn, copyLocalFileFn
+	originalRoots, originalSync := rdmaPayloadRootsFn, syncRDMAPayloadsFn
 	t.Cleanup(func() {
 		serverExecFn, rdmaPayloadSourceFn, copyLocalFileFn = originalServer, originalSource, originalCopy
+		rdmaPayloadRootsFn, syncRDMAPayloadsFn = originalRoots, originalSync
 	})
 	const wantHash = "abc123"
 	rdmaPayloadSourceFn = func() (string, string, error) { return "/canonical/mapper.csv", wantHash, nil }
+	root := t.TempDir()
+	rdmaPayloadRootsFn = func() ([]rdmaPayloadRoot, error) { return []rdmaPayloadRoot{{local: root, remote: "remote"}}, nil }
+	syncRDMAPayloadsFn = func(string, string, string) (string, error) { return "", nil }
 	serverExecFn = func(_ string, command string) (string, error) {
 		if strings.HasPrefix(command, "if test -f") {
 			return wantHash + "  " + rdmaMapperPayload, nil
@@ -564,6 +590,31 @@ func TestDeployRDMASkipsCopyWhenCanonicalPayloadAlreadyMatches(t *testing.T) {
 	}
 	if err := DeployRDMAStorage(WorkerNodeSetup{StorageNodes: []string{"storage-a"}}); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestDeployRDMAPayloadTreeSyncFailurePreventsServerStart(t *testing.T) {
+	originalServer, originalSource, originalRoots, originalSync := serverExecFn, rdmaPayloadSourceFn, rdmaPayloadRootsFn, syncRDMAPayloadsFn
+	t.Cleanup(func() {
+		serverExecFn, rdmaPayloadSourceFn, rdmaPayloadRootsFn, syncRDMAPayloadsFn = originalServer, originalSource, originalRoots, originalSync
+	})
+	rdmaPayloadSourceFn = func() (string, string, error) { return "/canonical/mapper.csv", "abc123", nil }
+	root := t.TempDir()
+	rdmaPayloadRootsFn = func() ([]rdmaPayloadRoot, error) { return []rdmaPayloadRoot{{local: root, remote: "remote"}}, nil }
+	var commands []string
+	serverExecFn = func(_ string, command string) (string, error) {
+		commands = append(commands, command)
+		return "", nil
+	}
+	syncRDMAPayloadsFn = func(string, string, string) (string, error) {
+		return "checksum sync failed", errors.New("injected rsync failure")
+	}
+	err := DeployRDMAStorage(WorkerNodeSetup{StorageNodes: []string{"storage-a"}})
+	if err == nil || !strings.Contains(err.Error(), "injected rsync failure") || !strings.Contains(err.Error(), "checksum sync failed") {
+		t.Fatalf("RDMA payload sync error = %v", err)
+	}
+	if strings.Contains(strings.Join(commands, "\n"), "s3-rdma-server") {
+		t.Fatalf("RDMA server started after payload sync failure: %v", commands)
 	}
 }
 

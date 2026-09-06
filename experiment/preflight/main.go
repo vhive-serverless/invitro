@@ -204,6 +204,7 @@ func runScoped(ctx context.Context, cfg eval.Config, smokeRoot, scope string) (i
 		}
 		checker.remoteGit("tenant_rdma", target, remoteHome(target)+"/rdma-demo", rdmaHead, eval.RDMABranch)
 		checker.remoteRDMA(target, rdmaPayloadSHA256)
+		checker.remoteRDMAPayloadTrees(target)
 	}
 	if cfg.Freeze {
 		checker.smokeEvidence(smokeRoot, scope)
@@ -635,6 +636,29 @@ func validateRDMAPayloadHash(output, want string) (string, error) {
 		return fields[0], fmt.Errorf("RDMA mapper payload SHA-256 %s, loader reference %s", fields[0], want)
 	}
 	return fields[0], nil
+}
+
+func (c *checks) remoteRDMAPayloadTrees(target string) {
+	if !sshTargetPattern.MatchString(target) {
+		c.record("rdma_payload_trees_"+target, fmt.Errorf("invalid SSH target %q", target), "")
+		return
+	}
+	home := remoteHome(target)
+	roots := []struct {
+		name, local, remote string
+	}{
+		{"input", filepath.Join("..", "khala", "assets", "nexus-benchmark-payload", "input_payload"), home + "/rdma-demo/assets/nexus-benchmark-payload/input_payload"},
+		{"test", filepath.Join("..", "khala", "assets", "nexus-benchmark-payload", "test"), home + "/rdma-demo/assets/nexus-benchmark-payload/test"},
+		{"synthetic", filepath.Join("..", "khala", "assets", "synthetic-payload"), home + "/rdma-demo/assets/synthetic-payload-input"},
+	}
+	for _, root := range roots {
+		args := []string{"-rnc", "--delete", "--itemize-changes", "-e", "ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=10", filepath.Clean(root.local) + "/", target + ":" + root.remote + "/"}
+		output, err := c.capture("rsync", args...)
+		if err == nil && strings.TrimSpace(output) != "" {
+			err = fmt.Errorf("RDMA %s payload tree differs from loader canonical tree: %s", root.name, strings.TrimSpace(output))
+		}
+		c.record("rdma_payload_tree_"+root.name+"_"+target, err, root.remote)
+	}
 }
 
 func (c *checks) kubernetesWorkloads() {
@@ -1164,7 +1188,7 @@ func sanitize(value string) string {
 }
 
 func plannedChecks(freeze bool, scope string) []string {
-	values := []string{"local_git", "kubernetes_nodes", "kubernetes_topology", "minio_loader", "kubernetes_workloads", "prometheus_api_ready", "worker_kvm", "worker_tools", "worker_flamegraph", "worker_minio", "worker_runtime_snapshots", "deployed_git", "unified_rootfs", "artifact_hashes", "rdma", "rdma_mapper_payload"}
+	values := []string{"local_git", "kubernetes_nodes", "kubernetes_topology", "minio_loader", "kubernetes_workloads", "prometheus_api_ready", "worker_kvm", "worker_tools", "worker_flamegraph", "worker_minio", "worker_runtime_snapshots", "deployed_git", "unified_rootfs", "artifact_hashes", "rdma", "rdma_mapper_payload", "rdma_payload_trees"}
 	if freeze {
 		smokeCheck := "e1_e4_smoke_evidence"
 		if scope == "e1" {

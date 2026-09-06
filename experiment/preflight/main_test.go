@@ -264,6 +264,13 @@ func TestValidateRDMAPayloadHashRequiresCanonicalParity(t *testing.T) {
 	}
 }
 
+func TestPreflightPlansFullRDMAPayloadTreeParity(t *testing.T) {
+	checks := strings.Join(plannedChecks(false, "all"), ",")
+	if !strings.Contains(checks, "rdma_mapper_payload") || !strings.Contains(checks, "rdma_payload_trees") {
+		t.Fatalf("preflight checks omit RDMA payload parity: %s", checks)
+	}
+}
+
 func TestParseRuntimeSnapshotsOutputAllowsGitkeepOnly(t *testing.T) {
 	path := "/users/nehalem/khala/runtime/snapshots"
 	output := "Warning: Permanently added 'worker' (ED25519) to the list of known hosts.\n" + path + "/.gitkeep\n"

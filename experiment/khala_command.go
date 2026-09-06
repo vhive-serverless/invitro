@@ -406,6 +406,8 @@ var (
 	cleanupLocalCommandFn = runLocalCommand
 	copyLocalFileFn       = copyLocalFile
 	rdmaPayloadSourceFn   = rdmaPayloadSource
+	rdmaPayloadRootsFn    = rdmaPayloadRoots
+	syncRDMAPayloadsFn    = syncRDMAPayloads
 	destroyAllFn          = destroyAll
 	getWorkerNodesFn      = getWorkerNodes
 	cleanKhalaFn          = CleanKhala
@@ -431,6 +433,33 @@ func runLocalCommand(command string) (string, error) {
 }
 
 const rdmaMapperPayload = "rdma-demo/assets/nexus-benchmark-payload/input_payload/mapper_scaled/part-00000.csv"
+
+type rdmaPayloadRoot struct {
+	local  string
+	remote string
+}
+
+func rdmaPayloadRoots() ([]rdmaPayloadRoot, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return nil, fmt.Errorf("resolve local home for RDMA payload roots: %w", err)
+	}
+	khalaAssets := filepath.Join(home, "khala", "assets")
+	return []rdmaPayloadRoot{
+		{local: filepath.Join(khalaAssets, "nexus-benchmark-payload", "input_payload"), remote: "rdma-demo/assets/nexus-benchmark-payload/input_payload"},
+		{local: filepath.Join(khalaAssets, "nexus-benchmark-payload", "test"), remote: "rdma-demo/assets/nexus-benchmark-payload/test"},
+		{local: filepath.Join(khalaAssets, "synthetic-payload"), remote: "rdma-demo/assets/synthetic-payload-input"},
+	}, nil
+}
+
+func syncRDMAPayloads(source, node, destination string) (string, error) {
+	command := exec.Command("rsync", "-a", "--checksum", "--delete", filepath.Clean(source)+"/", node+":"+destination+"/")
+	output, err := command.CombinedOutput()
+	if err != nil {
+		return string(output), fmt.Errorf("sync %s to %s:%s: %w", source, node, destination, err)
+	}
+	return string(output), nil
+}
 
 func rdmaPayloadSource() (string, string, error) {
 	home, err := os.UserHomeDir()
@@ -691,6 +720,19 @@ func DeployRDMAStorage(workerNodeSetup WorkerNodeSetup) error {
 	if err != nil {
 		return err
 	}
+	payloadRoots, err := rdmaPayloadRootsFn()
+	if err != nil {
+		return err
+	}
+	for _, root := range payloadRoots {
+		info, err := os.Stat(root.local)
+		if err != nil || !info.IsDir() {
+			if err == nil {
+				err = fmt.Errorf("not a directory")
+			}
+			return fmt.Errorf("validate RDMA payload source %s: %w", root.local, err)
+		}
+	}
 	baseCommands := []string{
 		`sudo pkill --signal INT s3-rdma-server 2>/dev/null || true`,
 		`tmux kill-session -t s3-rdma-server 2>/dev/null || true`,
@@ -706,6 +748,18 @@ func DeployRDMAStorage(workerNodeSetup WorkerNodeSetup) error {
 		wg.Add(1)
 		go func(node string) {
 			defer wg.Done()
+			preparePayloads := `mkdir -p ~/rdma-demo/assets/nexus-benchmark-payload/input_payload ` +
+				`~/rdma-demo/assets/nexus-benchmark-payload/test ~/rdma-demo/assets/synthetic-payload-input`
+			if output, err := serverExecFn(node, preparePayloads); err != nil {
+				workerErrors.add(fmt.Errorf("prepare RDMA payload roots on %s: %w (output: %s)", node, err, strings.TrimSpace(output)))
+				return
+			}
+			for _, root := range payloadRoots {
+				if output, err := syncRDMAPayloadsFn(root.local, node, root.remote); err != nil {
+					workerErrors.add(fmt.Errorf("sync RDMA payload source %s to %s: %w (output: %s)", root.local, node, err, strings.TrimSpace(output)))
+					return
+				}
+			}
 			if err := ensureRDMAPayload(node, payloadPath, payloadSHA256); err != nil {
 				workerErrors.add(err)
 				return
