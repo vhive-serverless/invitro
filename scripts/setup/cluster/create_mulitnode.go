@@ -106,6 +106,13 @@ func CreateMultiNodeSetup(configDir string, configName string) {
 	if err := setupKhala(cfg.SetupCfg, cfg.MasterNode, cfg.LoaderNode, cfg.WorkerNodes); err != nil {
 		utils.FatalPrintf("Failed to setup Khala: %v\n", err)
 	}
+	if cfg.SetupCfg.DeployRDMA {
+		utils.InfoPrintf("Populating RDMA payload roots...\n")
+		if err := setupRDMAPayloads(cfg.MinioTenantNodes); err != nil {
+			utils.FatalPrintf("Failed to populate RDMA payload roots: %v\n", err)
+		}
+		utils.InfoPrintf("RDMA payload roots populated.\n")
+	}
 
 	// Post-Setup Configuration
 	utils.InfoPrintf("Applying post-setup configurations...\n")

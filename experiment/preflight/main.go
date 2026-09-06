@@ -78,6 +78,8 @@ var captureActivatorIdentity = eval.CaptureActivatorIdentity
 
 const e4SnapshotCleanupPolicy = "initial-purge;normal-preserve;setup-recovery-purge;campaign-final-purge"
 
+const rdmaMapperPayloadPath = "assets/nexus-benchmark-payload/input_payload/mapper_scaled/part-00000.csv"
+
 func main() {
 	args := os.Args[1:]
 	freezeSubcommand := false
@@ -165,6 +167,12 @@ func runScoped(ctx context.Context, cfg eval.Config, smokeRoot, scope string) (i
 
 	localInvitro, _ := eval.GitProvenance(".")
 	localKhala, _ := eval.GitProvenance("../khala")
+	localRDMAPayload := filepath.Join("..", "khala", rdmaMapperPayloadPath)
+	rdmaPayloadSHA256, rdmaPayloadErr := eval.SHA256File(localRDMAPayload)
+	checker.record("local_rdma_mapper_payload", rdmaPayloadErr, localRDMAPayload)
+	if rdmaPayloadErr == nil {
+		rep.Artifacts = append(rep.Artifacts, artifact{Role: "loader", Host: "local", Path: localRDMAPayload, SHA256: rdmaPayloadSHA256})
+	}
 	for _, ip := range setup.LabeledIPs("loader-nodetype=worker") {
 		target, mapErr := setup.URLForIP(ip)
 		checker.record("worker_url_"+ip, mapErr, target)
@@ -195,7 +203,7 @@ func runScoped(ctx context.Context, cfg eval.Config, smokeRoot, scope string) (i
 			continue
 		}
 		checker.remoteGit("tenant_rdma", target, remoteHome(target)+"/rdma-demo", rdmaHead, eval.RDMABranch)
-		checker.remoteRDMA(target)
+		checker.remoteRDMA(target, rdmaPayloadSHA256)
 	}
 	if cfg.Freeze {
 		checker.smokeEvidence(smokeRoot, scope)
@@ -585,7 +593,7 @@ func matchingSHA256(localOutput, remoteOutput string) (string, string, error) {
 	return localDigest, remoteDigest, nil
 }
 
-func (c *checks) remoteRDMA(target string) {
+func (c *checks) remoteRDMA(target, wantPayloadSHA256 string) {
 	home := remoteHome(target)
 	binary := home + "/rdma-demo/s3-rdma-server"
 	_, err := c.ssh(target, "test", "-x", binary)
@@ -603,6 +611,30 @@ func (c *checks) remoteRDMA(target string) {
 		err = fmt.Errorf("no RDMA device listed")
 	}
 	c.record("rdma_device_"+target, err, output)
+	payload := home + "/rdma-demo/" + rdmaMapperPayloadPath
+	output, err = c.ssh(target, "sha256sum", payload)
+	payloadSHA256 := ""
+	if err == nil {
+		payloadSHA256, err = validateRDMAPayloadHash(output, wantPayloadSHA256)
+	}
+	if err == nil {
+		c.report.Artifacts = append(c.report.Artifacts, artifact{Role: "tenant", Host: target, Path: payload, SHA256: payloadSHA256})
+	}
+	c.record("rdma_mapper_payload_"+target, err, payload)
+}
+
+func validateRDMAPayloadHash(output, want string) (string, error) {
+	fields := strings.Fields(output)
+	if len(fields) < 1 || len(fields[0]) != sha256.Size*2 {
+		return "", fmt.Errorf("malformed RDMA mapper payload sha256sum output")
+	}
+	if want == "" {
+		return "", fmt.Errorf("canonical RDMA mapper payload hash is unavailable")
+	}
+	if fields[0] != want {
+		return fields[0], fmt.Errorf("RDMA mapper payload SHA-256 %s, loader reference %s", fields[0], want)
+	}
+	return fields[0], nil
 }
 
 func (c *checks) kubernetesWorkloads() {
@@ -1132,7 +1164,7 @@ func sanitize(value string) string {
 }
 
 func plannedChecks(freeze bool, scope string) []string {
-	values := []string{"local_git", "kubernetes_nodes", "kubernetes_topology", "minio_loader", "kubernetes_workloads", "prometheus_api_ready", "worker_kvm", "worker_tools", "worker_flamegraph", "worker_minio", "worker_runtime_snapshots", "deployed_git", "unified_rootfs", "artifact_hashes", "rdma"}
+	values := []string{"local_git", "kubernetes_nodes", "kubernetes_topology", "minio_loader", "kubernetes_workloads", "prometheus_api_ready", "worker_kvm", "worker_tools", "worker_flamegraph", "worker_minio", "worker_runtime_snapshots", "deployed_git", "unified_rootfs", "artifact_hashes", "rdma", "rdma_mapper_payload"}
 	if freeze {
 		smokeCheck := "e1_e4_smoke_evidence"
 		if scope == "e1" {

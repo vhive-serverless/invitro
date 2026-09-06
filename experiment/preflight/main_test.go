@@ -246,6 +246,24 @@ func TestMatchingSHA256RequiresLoaderWorkerParity(t *testing.T) {
 	}
 }
 
+func TestValidateRDMAPayloadHashRequiresCanonicalParity(t *testing.T) {
+	const digest = "98e4c902611645c5e45102ab0fc8d77c81eea5c439cd968fc064195810afe5c9"
+	got, err := validateRDMAPayloadHash(digest+"  mapper.csv\n", digest)
+	if err != nil || got != digest {
+		t.Fatalf("validateRDMAPayloadHash match = %q, %v", got, err)
+	}
+	if _, err := validateRDMAPayloadHash("MISSING", digest); err == nil {
+		t.Fatal("accepted missing RDMA mapper payload")
+	}
+	other := "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789"
+	if _, err := validateRDMAPayloadHash(other+"  mapper.csv\n", digest); err == nil {
+		t.Fatal("accepted mismatched RDMA mapper payload")
+	}
+	if _, err := validateRDMAPayloadHash(digest+"  mapper.csv\n", ""); err == nil {
+		t.Fatal("accepted unavailable canonical RDMA mapper payload hash")
+	}
+}
+
 func TestParseRuntimeSnapshotsOutputAllowsGitkeepOnly(t *testing.T) {
 	path := "/users/nehalem/khala/runtime/snapshots"
 	output := "Warning: Permanently added 'worker' (ED25519) to the list of known hosts.\n" + path + "/.gitkeep\n"
