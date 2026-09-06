@@ -638,12 +638,12 @@ run_cell() {
         echo 'independent_continuation=true'
         if ((clean_status != 0)); then
             echo 'cell_status=OPERATIONAL_CLEANUP_FAILED'
+        elif [[ "$loader_started" != true ]]; then
+            echo 'cell_status=OPERATIONAL_SETUP_FAILED'
         elif ((status != 0 && evidence_status != 0)); then
             echo 'cell_status=SCIENTIFIC_FAILED'
         elif ((status != 0)); then
             echo 'cell_status=ACQUISITION_FAILED'
-        elif [[ "$loader_started" != true ]]; then
-            echo 'cell_status=OPERATIONAL_SETUP_FAILED'
         else
             echo 'cell_status=COMPLETE'
         fi

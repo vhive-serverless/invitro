@@ -2,13 +2,16 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -401,6 +404,8 @@ var (
 	serverExecFn          = loaderUtils.ServerExec
 	localCommandFn        = runLocalCommand
 	cleanupLocalCommandFn = runLocalCommand
+	copyLocalFileFn       = copyLocalFile
+	rdmaPayloadSourceFn   = rdmaPayloadSource
 	destroyAllFn          = destroyAll
 	getWorkerNodesFn      = getWorkerNodes
 	cleanKhalaFn          = CleanKhala
@@ -423,6 +428,64 @@ const (
 func runLocalCommand(command string) (string, error) {
 	output, err := exec.Command("bash", "-c", command).CombinedOutput()
 	return string(output), err
+}
+
+const rdmaMapperPayload = "rdma-demo/assets/nexus-benchmark-payload/input_payload/mapper_scaled/part-00000.csv"
+
+func rdmaPayloadSource() (string, string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", "", fmt.Errorf("resolve local home for RDMA payload: %w", err)
+	}
+	path := filepath.Join(home, "khala", "assets", "nexus-benchmark-payload", "input_payload", "mapper_scaled", "part-00000.csv")
+	file, err := os.Open(path)
+	if err != nil {
+		return "", "", fmt.Errorf("open canonical RDMA payload %s: %w", path, err)
+	}
+	defer file.Close()
+	hash := sha256.New()
+	if _, err := io.Copy(hash, file); err != nil {
+		return "", "", fmt.Errorf("hash canonical RDMA payload %s: %w", path, err)
+	}
+	return path, fmt.Sprintf("%x", hash.Sum(nil)), nil
+}
+
+func copyLocalFile(localPath, node, remotePath string) (string, error) {
+	command := exec.Command("scp", "-oStrictHostKeyChecking=no", "-P", "22", localPath, node+":"+remotePath)
+	output, err := command.CombinedOutput()
+	if err != nil {
+		return string(output), fmt.Errorf("copy %s to %s:%s: %w", localPath, node, remotePath, err)
+	}
+	return string(output), nil
+}
+
+func ensureRDMAPayload(node, localPath, wantSHA256 string) error {
+	probe := fmt.Sprintf("if test -f %s; then sha256sum %s; else printf MISSING; fi", rdmaMapperPayload, rdmaMapperPayload)
+	output, err := serverExecFn(node, probe)
+	if err != nil {
+		return fmt.Errorf("probe RDMA payload on %s: %w", node, err)
+	}
+	probeFields := strings.Fields(output)
+	if len(probeFields) > 0 && probeFields[0] == wantSHA256 {
+		return nil
+	}
+	remoteDir := filepath.Dir(rdmaMapperPayload)
+	if output, err := serverExecFn(node, "mkdir -p "+remoteDir); err != nil {
+		return fmt.Errorf("create RDMA payload directory on %s: %w (output: %s)", node, err, strings.TrimSpace(output))
+	}
+	if output, err := copyLocalFileFn(localPath, node, rdmaMapperPayload); err != nil {
+		return fmt.Errorf("stage RDMA payload on %s: %w (output: %s)", node, err, strings.TrimSpace(output))
+	}
+	output, err = serverExecFn(node, "sha256sum "+rdmaMapperPayload)
+	if err != nil {
+		return fmt.Errorf("verify RDMA payload on %s: %w (output: %s)", node, err, strings.TrimSpace(output))
+	}
+	fields := strings.Fields(output)
+	if len(fields) == 0 || fields[0] != wantSHA256 {
+		return fmt.Errorf("RDMA payload hash mismatch on %s: got %q, want %s", node, strings.TrimSpace(output), wantSHA256)
+	}
+	log.Infof("Staged canonical RDMA mapper payload on storage node %s (sha256=%s)", node, wantSHA256)
+	return nil
 }
 
 func masterEtcdCleanup() (string, error) {
@@ -624,6 +687,10 @@ func DeployKhala(workerNodeSetup WorkerNodeSetup, corePoolPolicy string, impleme
 }
 
 func DeployRDMAStorage(workerNodeSetup WorkerNodeSetup) error {
+	payloadPath, payloadSHA256, err := rdmaPayloadSourceFn()
+	if err != nil {
+		return err
+	}
 	baseCommands := []string{
 		`sudo pkill --signal INT s3-rdma-server 2>/dev/null || true`,
 		`tmux kill-session -t s3-rdma-server 2>/dev/null || true`,
@@ -639,6 +706,10 @@ func DeployRDMAStorage(workerNodeSetup WorkerNodeSetup) error {
 		wg.Add(1)
 		go func(node string) {
 			defer wg.Done()
+			if err := ensureRDMAPayload(node, payloadPath, payloadSHA256); err != nil {
+				workerErrors.add(err)
+				return
+			}
 			nodeCmd := fmt.Sprintf("%s --tcp-listen=%s:10090 --rdma-zcopy-listen=%s:10191", baseDeploymentCmd, node, node)
 			nodeCommands := append([]string(nil), baseCommands...)
 			nodeCommands = append(nodeCommands, fmt.Sprintf(`tmux send-keys -t s3-rdma-server "%s" C-m`, nodeCmd))

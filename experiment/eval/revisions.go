@@ -64,27 +64,60 @@ func ResolveEvaluationHeads(ctx context.Context, campaignPath string, _ bool, se
 	if err := khala.ValidateClean(); err != nil {
 		return EvaluationHeads{}, err
 	}
-	tenants := setup.LabeledIPs("minio-type=tenant")
-	if len(tenants) != 1 {
-		return EvaluationHeads{}, fmt.Errorf("current topology requires exactly one RDMA tenant")
+	tenantIPs := setup.LabeledIPs("minio-type=tenant")
+	if len(tenantIPs) == 0 {
+		return EvaluationHeads{}, fmt.Errorf("current topology has no RDMA tenants")
 	}
-	target, err := setup.URLForIP(tenants[0])
+	rdmaHeads := make([]remoteRevision, 0, len(tenantIPs))
+	for _, tenantIP := range tenantIPs {
+		target, err := setup.URLForIP(tenantIP)
+		if err != nil {
+			return EvaluationHeads{}, err
+		}
+		home, err := RemoteHome(target)
+		if err != nil {
+			return EvaluationHeads{}, err
+		}
+		command, err := SSHCommand(ctx, target, "git", "-C", home+"/rdma-demo", "rev-parse", "HEAD")
+		if err != nil {
+			return EvaluationHeads{}, err
+		}
+		output, err := command.CombinedOutput()
+		if err != nil {
+			return EvaluationHeads{}, fmt.Errorf("current RDMA provenance on %s: %w: %s", target, err, strings.TrimSpace(string(output)))
+		}
+		rdmaHeads = append(rdmaHeads, remoteRevision{target: target, head: strings.TrimSpace(string(output))})
+	}
+	rdmaHead, err := uniformRemoteHead(rdmaHeads)
 	if err != nil {
 		return EvaluationHeads{}, err
 	}
-	home, err := RemoteHome(target)
-	if err != nil {
-		return EvaluationHeads{}, err
+	return EvaluationHeads{Khala: khala.Head, InVitro: invitro.Head, RDMA: rdmaHead, Firecracker: FirecrackerHead}, nil
+}
+
+type remoteRevision struct {
+	target string
+	head   string
+}
+
+func uniformRemoteHead(revisions []remoteRevision) (string, error) {
+	if len(revisions) == 0 {
+		return "", fmt.Errorf("current topology has no RDMA tenants")
 	}
-	command, err := SSHCommand(ctx, target, "git", "-C", home+"/rdma-demo", "rev-parse", "HEAD")
-	if err != nil {
-		return EvaluationHeads{}, err
+	want := strings.TrimSpace(revisions[0].head)
+	if want == "" {
+		return "", fmt.Errorf("current RDMA provenance on %s is empty", revisions[0].target)
 	}
-	output, err := command.CombinedOutput()
-	if err != nil {
-		return EvaluationHeads{}, fmt.Errorf("current RDMA provenance: %w: %s", err, strings.TrimSpace(string(output)))
+	for _, revision := range revisions[1:] {
+		got := strings.TrimSpace(revision.head)
+		if got == "" {
+			return "", fmt.Errorf("current RDMA provenance on %s is empty", revision.target)
+		}
+		if got != want {
+			return "", fmt.Errorf("RDMA tenant revisions differ: %s=%s, %s=%s", revisions[0].target, want, revision.target, got)
+		}
 	}
-	return EvaluationHeads{Khala: khala.Head, InVitro: invitro.Head, RDMA: strings.TrimSpace(string(output)), Firecracker: FirecrackerHead}, nil
+	return want, nil
 }
 
 func (h EvaluationHeads) Environment() []string {

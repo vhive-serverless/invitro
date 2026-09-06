@@ -167,6 +167,12 @@ if lifecycle_execute; then exit 1; fi
         self.assertIn('--external-lifecycle-cleanup', source)
         self.assertIn("external_lifecycle_cleanup=true", source)
 
+    def test_e3_preacquisition_failure_is_operational_not_scientific(self):
+        source = (ROOT / "run_trace_ablation.sh").read_text(encoding="utf-8")
+        setup = 'elif [[ "$loader_started" != true ]]; then'
+        scientific = "elif ((status != 0 && evidence_status != 0)); then"
+        self.assertLess(source.index(setup), source.index(scientific))
+
     def test_setup_recovery_declarations_are_safe_under_nounset(self):
         unsafe = "local previous_attempt=$((attempt - 1)) preserved="
         for runner in ("run_rps_per_workload.sh", "run_trace_ablation.sh"):
