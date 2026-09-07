@@ -35,6 +35,9 @@ divisor=100
 cooldown_seconds=120
 result_root=
 minio_endpoint=
+minio_layout=shared
+standalone_minio_port=9000
+standalone_minio_sha256=aa479bd2456d0722a6737f82a1cf193aa60f934269573a6a7e024aebe1069243
 claim_run=false
 allow_extended_end=false
 dry_run=false
@@ -51,6 +54,7 @@ Usage: run_trace_ablation.sh --profile 4-node|10-node|14-node|18-node
   --mode-order rotate|fixed
   --start-scale 1 --step 1 --end-scale 27 --warmup-minutes 2
   --repetitions 1 --result-root PATH [--dry-run]
+  [--minio-layout shared|paired-standalone]
 EOF
 }
 
@@ -70,6 +74,7 @@ while (($#)); do
         --cooldown-seconds) cooldown_seconds=${2:?}; shift 2 ;;
         --result-root) result_root=${2:?}; shift 2 ;;
         --minio-endpoint) minio_endpoint=${2:?}; shift 2 ;;
+        --minio-layout) minio_layout=${2:?}; shift 2 ;;
         --claim-run) claim_run=true; shift ;;
         --allow-extended-end) allow_extended_end=true; shift ;;
         --dry-run) dry_run=true; shift ;;
@@ -81,6 +86,7 @@ done
 
 [[ "$profile" == 4-node || "$profile" == 10-node || "$profile" == 14-node || "$profile" == 18-node ]] || { echo "unsupported E3 profile" >&2; exit 2; }
 [[ "$mode_order" == rotate || "$mode_order" == fixed ]] || { echo "unsupported E3 mode order: $mode_order (expected rotate or fixed)" >&2; exit 2; }
+[[ "$minio_layout" == shared || "$minio_layout" == paired-standalone ]] || { echo "unsupported E3 MinIO layout: $minio_layout" >&2; exit 2; }
 [[ -f "$reference" ]] || { echo "--reference must name a B0 RPS reference" >&2; exit 2; }
 [[ -n "$result_root" ]] || { echo "--result-root is required" >&2; exit 2; }
 for value in "$start_scale" "$step" "$end_scale" "$warmup_minutes" "$repetitions" "$shift_step" "$divisor" "$cooldown_seconds"; do
@@ -107,7 +113,11 @@ for mode in "${modes[@]}"; do
     seen_modes+="$mode,"
 done
 
-if [[ "$profile" != 4-node ]]; then
+if [[ "$minio_layout" == paired-standalone ]]; then
+    # The effective endpoint is resolved independently for each worker from
+    # worker-node.json; retain an explicit sentinel in top-level provenance.
+    minio_endpoint=${minio_endpoint:-paired-standalone.invalid:9000}
+elif [[ "$profile" != 4-node ]]; then
     minio_endpoint=${minio_endpoint:-myminio-api.minio.10.200.3.4.sslip.io:80}
 else
     minio_endpoint=${minio_endpoint:-myminio-api.minio.10.200.3.4.sslip.io:80}
@@ -269,6 +279,20 @@ printf 'role=storage host=%s tree=rdma-demo head=%s path=s3-rdma-server sha256=%
 SH
         done
     fi
+    if [[ "$minio_layout" == paired-standalone ]]; then
+        mapfile -t provenance_storage < <(jq -r '.storage_nodes[]' "$worker_config" | LC_ALL=C sort)
+        for host in "${provenance_storage[@]}"; do
+            ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=5 "$host" bash -s -- \
+                "$host" "$standalone_minio_sha256" "$standalone_minio_port" <<'SH' >> "$output"
+set -euo pipefail
+host=$1 expected_sha=$2 port=$3
+path=$HOME/minio-binaries/minio
+actual=$(sha256sum "$path" | awk '{print $1}')
+[[ "$actual" == "$expected_sha" ]]
+printf 'role=storage host=%s tree=minio-standalone path=%s sha256=%s endpoint=%s:%s\n' "$host" "$path" "$actual" "$host" "$port"
+SH
+        done
+    fi
     LC_ALL=C sort -o "$output" "$output"
     [[ -s "$output" ]]
 }
@@ -303,6 +327,9 @@ write_run_config() {
         echo "claim_bearing=$claim_run"
         echo "smoke=$smoke"
         echo "minio_endpoint=$minio_endpoint"
+        echo "minio_layout=$minio_layout"
+        echo "standalone_minio_port=$standalone_minio_port"
+        echo "standalone_minio_sha256=$standalone_minio_sha256"
         echo "reference_sha256=$(digest "$reference")"
         echo "runner_sha256=$(digest run_trace_ablation.sh)"
     } > "$destination"
@@ -340,7 +367,9 @@ tracked_workload_sha() {
 
 mode_minio_route() {
     case "$1" in
-        invm-py|nexus-py) printf '%s\n' istio ;;
+        invm-py|nexus-py)
+            if [[ "$minio_layout" == paired-standalone ]]; then printf '%s\n' paired-standalone; else printf '%s\n' istio; fi
+            ;;
         nexus-rdma-py) printf '%s\n' rdma ;;
         *) return 2 ;;
     esac
@@ -379,7 +408,10 @@ manifest_matches() {
         line_is "$manifest" "divisor=$divisor" && line_is "$manifest" "warmup_minutes=$warmup_minutes" &&
         line_is "$manifest" "measurement_minutes=$end_scale" && line_is "$manifest" 'scan_snapshot=false' &&
         line_is "$manifest" 'external_lifecycle_cleanup=true' && line_is "$manifest" "minio_endpoint=$minio_endpoint" &&
+        line_is "$manifest" "minio_layout=$minio_layout" &&
         line_is "$manifest" "minio_route=$route" &&
+        line_is "$manifest" "standalone_minio_port=$standalone_minio_port" &&
+        line_is "$manifest" "standalone_minio_sha256=$standalone_minio_sha256" &&
         line_is "$manifest" "invitro_head=$(git rev-parse HEAD)" &&
         line_is "$manifest" "khala_head=$(git -C ../khala rev-parse HEAD)" &&
         line_is "$manifest" "firecracker_head=$(repo_value head ../firecracker "$eval_firecracker_head")" &&
@@ -426,6 +458,9 @@ initial_cleanup_matches() {
         line_is "$manifest" 'cleanup_mode=nexus-rdma-py' &&
         line_is "$manifest" 'remove_snapshots=true' &&
         line_is "$manifest" "mode_order=$mode_order" &&
+        line_is "$manifest" "minio_layout=$minio_layout" &&
+        line_is "$manifest" "standalone_minio_port=$standalone_minio_port" &&
+        line_is "$manifest" "standalone_minio_sha256=$standalone_minio_sha256" &&
         line_is "$manifest" "worker_config_sha256=$(digest "$result_root/worker-node.json")" &&
         line_is "$manifest" "cluster_inventory_sha256=$(digest "$result_root/cluster-inventory.txt")" &&
         line_is "$manifest" "remote_provenance_sha256=$(digest "$result_root/remote-provenance.txt")" &&
@@ -450,7 +485,7 @@ run_initial_cleanup() {
     started=$(date -u --iso-8601=seconds)
     set +e
     go run experiment/khala_command.go --command clean --mode nexus-rdma-py --worker-config "$result_root/worker-node.json" \
-        --minio-endpoint "$minio_endpoint" --remove-snapshots=true > "$scratch/clean.log" 2>&1
+        --minio-endpoint "$minio_endpoint" --minio-layout "$minio_layout" --remove-snapshots=true > "$scratch/clean.log" 2>&1
     status=$?
     set -e
     {
@@ -459,6 +494,9 @@ run_initial_cleanup() {
         echo cleanup_mode=nexus-rdma-py
         echo remove_snapshots=true
         echo "mode_order=$mode_order"
+        echo "minio_layout=$minio_layout"
+        echo "standalone_minio_port=$standalone_minio_port"
+        echo "standalone_minio_sha256=$standalone_minio_sha256"
         echo "start_utc=$started"
         echo "end_utc=$(date -u --iso-8601=seconds)"
         echo "worker_config_sha256=$(digest "$result_root/worker-node.json")"
@@ -553,7 +591,10 @@ run_cell() {
         echo 'external_lifecycle_cleanup=true'
         echo "min_scale=0"
         echo "minio_endpoint=$minio_endpoint"
+        echo "minio_layout=$minio_layout"
         echo "minio_route=$minio_route"
+        echo "standalone_minio_port=$standalone_minio_port"
+        echo "standalone_minio_sha256=$standalone_minio_sha256"
         echo "start_utc=$(date -u --iso-8601=seconds)"
         echo "invitro_head=$(repo_value head .)"
         echo "invitro_branch=$(repo_value branch .)"
@@ -595,7 +636,7 @@ run_cell() {
         local attempt=$1
         go run experiment/khala_command.go --command deploy --mode "$mode" --worker-config "$worker_config" \
             --workloads "$snapshot_workloads" \
-            --shmem-ring-bytes 4190208 --shmem-io-quantum 262144 --minio-endpoint "$minio_endpoint" \
+            --shmem-ring-bytes 4190208 --shmem-io-quantum 262144 --minio-endpoint "$minio_endpoint" --minio-layout "$minio_layout" \
             2>&1 | tee "$scratch_out/deploy-attempt-$attempt.log"
         local status=${PIPESTATUS[0]}
         cat "$scratch_out/deploy-attempt-$attempt.log" >> "$scratch_out/deploy.log"
@@ -654,7 +695,7 @@ run_cell() {
         if [[ -n "$snapshot_cleanup_policy" ]]; then snapshot_cleanup_policy+=';'; fi
         snapshot_cleanup_policy+="$cleanup_phase=$policy"
         go run experiment/khala_command.go --command clean --mode "$mode" --worker-config "$worker_config" \
-            --minio-endpoint "$minio_endpoint" --remove-snapshots="$remove_snapshots" > "$scratch_out/clean-$cleanup_phase.log" 2>&1
+            --minio-endpoint "$minio_endpoint" --minio-layout "$minio_layout" --remove-snapshots="$remove_snapshots" > "$scratch_out/clean-$cleanup_phase.log" 2>&1
         local status=$?
         cat "$scratch_out/clean-$cleanup_phase.log" >> "$scratch_out/clean.log"
         return "$status"
@@ -746,7 +787,7 @@ for ((repetition=0; repetition<repetitions; repetition++)); do
             "$profile" "$claim_run" "$repetition" "$mode" "$(mode_minio_route "$mode")" "$function_count" "$warmup_minutes" "$end_scale" "$result_root/rep-$repetition/$mode"
     done
 done
-echo "PLAN profile=$profile modes=${#modes[@]} mode_order=$mode_order repetitions=$repetitions deployed_function_rows=$function_count total_minutes_per_cell=$total_minutes auto_extend=false minio_endpoint=$minio_endpoint"
+echo "PLAN profile=$profile modes=${#modes[@]} mode_order=$mode_order repetitions=$repetitions deployed_function_rows=$function_count total_minutes_per_cell=$total_minutes auto_extend=false minio_layout=$minio_layout minio_endpoint=$minio_endpoint"
 if [[ "$dry_run" == true ]]; then
     for mode in "${modes[@]}"; do
         python3 generate_trace_sweep.py --mode "$mode" --e2-reference "$reference" \

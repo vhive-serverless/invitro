@@ -110,3 +110,39 @@ workers, MinIO, the precreated snapshots, and the reference trace data. The
 `nexus-rdma-py` mode also requires the RDMA testbed, while HostTCP modes require
 the corresponding Khala HostTCP rootfs/configuration. Local dry-run and unit
 tests do not validate those external dependencies or performance.
+
+## Paired standalone MinIO
+
+E3 can give every worker a dedicated S3 server on its paired storage tenant:
+
+```bash
+./run_trace_ablation.sh \
+  --profile 10-node \
+  --modes invm-py,nexus-py \
+  --mode-order fixed \
+  --reference ../b0-rps-reference.csv \
+  --start-scale 1 --step 1 --end-scale 60 \
+  --shift-step 10 --divisor 50 --warmup-minutes 2 \
+  --repetitions 2 --cooldown-seconds 120 \
+  --minio-layout paired-standalone \
+  --result-root /mnt/resources/nexus-evaluation/e3-paired-RUN_ID \
+  --allow-extended-end
+```
+
+`worker-node.json` defines the one-to-one pairing by array position. The runner
+starts an experiment-owned `minio-standalone` tmux session on port 9000 of each
+storage tenant, seeds the canonical objects independently, and passes that
+tenant endpoint only to its paired worker. It leaves Kubernetes MinIO running
+but does not route these cells through it. Cleanup stops only the owned tmux
+session and preserves `~/minio-standalone/data`; the next deploy empties and
+reseeds the benchmark buckets.
+
+Each tenant must have the pinned executable at `~/minio-binaries/minio`. The
+runner verifies SHA-256
+`aa479bd2456d0722a6737f82a1cf193aa60f934269573a6a7e024aebe1069243`
+before acquisition and records the hash and per-tenant endpoint in remote
+provenance. A missing or different binary, incomplete pairing, failed health
+check, or failed object seed is a setup failure and prevents that cell from
+starting. This layout changes both the distributed-MinIO topology and the
+Kubernetes/Istio access path, so a performance difference cannot by itself be
+attributed solely to distributed MinIO.

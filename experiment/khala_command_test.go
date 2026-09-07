@@ -301,6 +301,99 @@ func TestMinioObjectEndpointFollowsDeploymentEndpoint(t *testing.T) {
 	}
 }
 
+func TestPairedMinioEndpointUsesStorageNode(t *testing.T) {
+	if got, want := pairedMinioEndpoint("10.0.1.7"), "10.0.1.7:9000"; got != want {
+		t.Fatalf("pairedMinioEndpoint() = %q, want %q", got, want)
+	}
+	mode, err := resolveExperimentMode(ModeInVMPy, 4_190_208, 256*1024)
+	if err != nil {
+		t.Fatal(err)
+	}
+	command := buildDeploymentCommandForEndpoint("", "go", mode, false, "10.0.1.7:9000")
+	if !strings.Contains(command, "--minio-endpoint=10.0.1.7:9000") {
+		t.Fatalf("paired deployment command has wrong endpoint: %s", command)
+	}
+}
+
+func TestDeployStandaloneMinIOIsScopedAndPaired(t *testing.T) {
+	originalServer := serverExecFn
+	t.Cleanup(func() { serverExecFn = originalServer })
+
+	var mu sync.Mutex
+	calls := map[string][]string{}
+	serverExecFn = func(node, command string) (string, error) {
+		mu.Lock()
+		defer mu.Unlock()
+		calls[node] = append(calls[node], command)
+		return "", nil
+	}
+
+	setup := WorkerNodeSetup{StorageNodes: []string{"10.0.1.7", "10.0.1.8"}}
+	if err := DeployStandaloneMinIO(setup); err != nil {
+		t.Fatal(err)
+	}
+	for _, node := range setup.StorageNodes {
+		joined := strings.Join(calls[node], "\n")
+		for _, want := range []string{
+			standaloneMinioSHA256,
+			"tmux new-session -d -s minio-standalone",
+			"--address " + node + ":9000",
+			"http://" + node + ":9000/minio/health/ready",
+		} {
+			if !strings.Contains(joined, want) {
+				t.Fatalf("commands for %s missing %q: %s", node, want, joined)
+			}
+		}
+		if strings.Contains(joined, "pkill") {
+			t.Fatalf("standalone MinIO deployment used unscoped pkill on %s: %s", node, joined)
+		}
+	}
+}
+
+func TestPreparePairedMinioObjectsSeedsEveryTenant(t *testing.T) {
+	originalLocal := localCommandFn
+	t.Cleanup(func() { localCommandFn = originalLocal })
+
+	var commands []string
+	localCommandFn = func(command string) (string, error) {
+		commands = append(commands, command)
+		return "", nil
+	}
+	setup := WorkerNodeSetup{StorageNodes: []string{"10.0.1.7", "10.0.1.8"}}
+	if err := preparePairedMinioObjects(setup); err != nil {
+		t.Fatal(err)
+	}
+	joined := strings.Join(commands, "\n")
+	for _, node := range setup.StorageNodes {
+		if !strings.Contains(joined, "http://"+node+":9000") {
+			t.Fatalf("paired MinIO seed omitted %s: %s", node, joined)
+		}
+	}
+	if len(commands) != len(setup.StorageNodes) {
+		t.Fatalf("seed commands = %d, want %d", len(commands), len(setup.StorageNodes))
+	}
+}
+
+func TestCleanupStandaloneMinIOTargetsOnlyOwnedSession(t *testing.T) {
+	originalServer := serverExecFn
+	t.Cleanup(func() { serverExecFn = originalServer })
+
+	var command string
+	serverExecFn = func(_ string, got string) (string, error) {
+		command = got
+		return "", nil
+	}
+	if err := CleanupStandaloneMinIO(WorkerNodeSetup{StorageNodes: []string{"10.0.1.7"}}); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(command, "tmux kill-session -t minio-standalone") {
+		t.Fatalf("cleanup did not target owned session: %s", command)
+	}
+	if strings.Contains(command, "pkill") || strings.Contains(command, "rm -rf") {
+		t.Fatalf("cleanup contains unscoped destructive command: %s", command)
+	}
+}
+
 func TestDryRunPlanIsModeAware(t *testing.T) {
 	mode, _ := resolveExperimentMode(ModeNexusRDMA, 4_190_208, 256*1024)
 	plan := buildDryRunPlan(mode, "", "go", false)

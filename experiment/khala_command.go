@@ -37,6 +37,7 @@ var (
 	ShmemRingBytes  = flag.Int("shmem-ring-bytes", 4_190_208, "Shared-memory mapping ring capacity")
 	ShmemIOQuantum  = flag.Int("shmem-io-quantum", 256*1024, "Shared-memory copy quantum")
 	MinioEndpoint   = flag.String("minio-endpoint", "10.0.1.4:9001", "S3-compatible endpoint for guest and Nexus clients")
+	MinioLayout     = flag.String("minio-layout", "shared", "MinIO layout: shared or paired-standalone")
 	WorkerConfig    = flag.String("worker-config", "worker_node.json", "Worker/storage pairing JSON for this deployment")
 	Debug           = flag.Bool("debug", false, "Enable debug mode")
 )
@@ -52,6 +53,13 @@ const (
 	ModeNexusRDMAPy = "nexus-rdma-py"
 	ModeHostTCPGo   = "hosttcp-go"
 	ModeHostTCPPy   = "hosttcp-py"
+	MinioShared     = "shared"
+	MinioPaired     = "paired-standalone"
+)
+
+const (
+	standaloneMinioPort   = "9000"
+	standaloneMinioSHA256 = "aa479bd2456d0722a6737f82a1cf193aa60f934269573a6a7e024aebe1069243"
 )
 
 var matchedWorkloads = []string{"pyaesserve", "mapper", "reducer"}
@@ -99,6 +107,9 @@ func main() {
 func runCommand() error {
 	if err := validateLocalFlags(*Command, *CorePoolPolicy, *Implementation); err != nil {
 		return err
+	}
+	if *MinioLayout != MinioShared && *MinioLayout != MinioPaired {
+		return fmt.Errorf("unknown --minio-layout %q: expected %s or %s", *MinioLayout, MinioShared, MinioPaired)
 	}
 
 	var mode ExperimentMode
@@ -351,12 +362,16 @@ func containsWorkload(values []string, target string) bool {
 }
 
 func buildDeploymentCommand(corePoolPolicy, implementation string, mode ExperimentMode, debug bool) string {
+	return buildDeploymentCommandForEndpoint(corePoolPolicy, implementation, mode, debug, *MinioEndpoint)
+}
+
+func buildDeploymentCommandForEndpoint(corePoolPolicy, implementation string, mode ExperimentMode, debug bool, endpoint string) string {
 	command := "cd ~/khala && sudo ./bin/kn-integration --pool-size=20"
 	command += " --impl=" + implementation
 	if corePoolPolicy != "" {
 		command += " --corepool=" + corePoolPolicy
 	}
-	command += fmt.Sprintf(" --backend-transport=%s --minio-endpoint=%s", mode.BackendTransport, *MinioEndpoint)
+	command += fmt.Sprintf(" --backend-transport=%s --minio-endpoint=%s", mode.BackendTransport, endpoint)
 	command += fmt.Sprintf(" --set-nexus-sdk=%t --set-nexus-rpc=%t --with-rdma=%t", mode.SetNexusSDK, mode.SetNexusRPC, mode.WithRDMA)
 	command += fmt.Sprintf(" --shmem-ring-bytes=%d --shmem-io-quantum=%d --debug=%t", *ShmemRingBytes, *ShmemIOQuantum, debug)
 	return command
@@ -616,12 +631,80 @@ func waitForKnIntegration(node string, timeout time.Duration) error {
 	}
 }
 
-func minioObjectEndpointURL() string {
-	endpoint := strings.TrimSpace(*MinioEndpoint)
+func minioObjectEndpointURLFor(endpoint string) string {
+	endpoint = strings.TrimSpace(endpoint)
 	if strings.HasPrefix(endpoint, "http://") || strings.HasPrefix(endpoint, "https://") {
 		return endpoint
 	}
 	return "http://" + endpoint
+}
+
+func minioObjectEndpointURL() string {
+	return minioObjectEndpointURLFor(*MinioEndpoint)
+}
+
+func pairedMinioEndpoint(storageNode string) string {
+	return net.JoinHostPort(storageNode, standaloneMinioPort)
+}
+
+func DeployStandaloneMinIO(workerNodeSetup WorkerNodeSetup) error {
+	log.Infof("Deploying standalone MinIO on storage nodes: %v", workerNodeSetup.StorageNodes)
+	var wg sync.WaitGroup
+	var deployErrors errorCollector
+	for _, storageNode := range workerNodeSetup.StorageNodes {
+		wg.Add(1)
+		go func(node string) {
+			defer wg.Done()
+			endpoint := pairedMinioEndpoint(node)
+			commands := []string{
+				fmt.Sprintf(`test "$(sha256sum ~/minio-binaries/minio | awk '{print $1}')" = %s`, standaloneMinioSHA256),
+				`mkdir -p ~/minio-standalone/data ~/minio-standalone/logs`,
+				`tmux kill-session -t minio-standalone 2>/dev/null || true`,
+				`rm -f ~/minio-standalone/logs/minio.log ~/minio-standalone/logs/minio.exit`,
+				fmt.Sprintf(`tmux new-session -d -s minio-standalone -- bash -lc 'MINIO_ROOT_USER=minio MINIO_ROOT_PASSWORD=minio123 ~/minio-binaries/minio server ~/minio-standalone/data --address %s --console-address 127.0.0.1:9001 >> ~/minio-standalone/logs/minio.log 2>&1; status=$?; printf "%%s\n" "$status" > ~/minio-standalone/logs/minio.exit; exit "$status"'`, endpoint),
+				fmt.Sprintf(`for attempt in $(seq 1 60); do curl -fsS http://%s/minio/health/ready >/dev/null && exit 0; test ! -f ~/minio-standalone/logs/minio.exit || { printf 'standalone MinIO exited with status '; cat ~/minio-standalone/logs/minio.exit; tail -n 80 ~/minio-standalone/logs/minio.log; exit 1; }; sleep 1; done; tail -n 80 ~/minio-standalone/logs/minio.log; exit 1`, endpoint),
+			}
+			for _, command := range commands {
+				output, err := serverExecFn(node, command)
+				if err != nil {
+					deployErrors.add(fmt.Errorf("standalone MinIO %s command %q: %w (output: %s)", node, command, err, strings.TrimSpace(output)))
+					return
+				}
+			}
+			log.Infof("Standalone MinIO ready on %s", endpoint)
+		}(storageNode)
+	}
+	wg.Wait()
+	return deployErrors.joined()
+}
+
+func CleanupStandaloneMinIO(workerNodeSetup WorkerNodeSetup) error {
+	log.Infof("Cleaning standalone MinIO on storage nodes: %v", workerNodeSetup.StorageNodes)
+	var wg sync.WaitGroup
+	var cleanupErrors errorCollector
+	for _, storageNode := range workerNodeSetup.StorageNodes {
+		wg.Add(1)
+		go func(node string) {
+			defer wg.Done()
+			command := `tmux kill-session -t minio-standalone 2>/dev/null || true; for attempt in $(seq 1 30); do test "$(ss -ltnH sport = :9000 | wc -l)" -eq 0 && exit 0; sleep 1; done; exit 1`
+			if output, err := serverExecFn(node, command); err != nil {
+				cleanupErrors.add(fmt.Errorf("clean standalone MinIO on %s: %w (output: %s)", node, err, strings.TrimSpace(output)))
+			}
+		}(storageNode)
+	}
+	wg.Wait()
+	return cleanupErrors.joined()
+}
+
+func preparePairedMinioObjects(workerNodeSetup WorkerNodeSetup) error {
+	for _, storageNode := range workerNodeSetup.StorageNodes {
+		endpoint := minioObjectEndpointURLFor(pairedMinioEndpoint(storageNode))
+		output, err := localCommandFn("cd ~/khala && bash ./scripts/deploy-minio-obj.sh " + endpoint)
+		if err != nil {
+			return fmt.Errorf("prepare MinIO objects on %s: %w, output: %s", storageNode, err, output)
+		}
+	}
+	return nil
 }
 
 type errorCollector struct {
@@ -660,12 +743,19 @@ func getWorkerNodes() (WorkerNodeSetup, error) {
 }
 
 func DeployKhala(workerNodeSetup WorkerNodeSetup, corePoolPolicy string, implementation string, mode ExperimentMode, debug bool) error {
-	output, err := localCommandFn("cd ~/khala && bash ./scripts/deploy-minio-obj.sh " + minioObjectEndpointURL())
-	if err != nil {
-		return fmt.Errorf("prepare MinIO objects: %w, output: %s", err, output)
+	if *MinioLayout == MinioPaired {
+		if err := DeployStandaloneMinIO(workerNodeSetup); err != nil {
+			return err
+		}
+		if err := preparePairedMinioObjects(workerNodeSetup); err != nil {
+			return err
+		}
+	} else {
+		output, err := localCommandFn("cd ~/khala && bash ./scripts/deploy-minio-obj.sh " + minioObjectEndpointURL())
+		if err != nil {
+			return fmt.Errorf("prepare MinIO objects: %w, output: %s", err, output)
+		}
 	}
-
-	deploymentCmd := buildDeploymentCommand(corePoolPolicy, implementation, mode, debug)
 
 	commands := []string{
 		`sudo pkill --signal INT kn-integration 2>/dev/null || true`,
@@ -681,6 +771,11 @@ func DeployKhala(workerNodeSetup WorkerNodeSetup, corePoolPolicy string, impleme
 		go func(node string, idx int) {
 			defer wg.Done()
 
+			minioEndpoint := *MinioEndpoint
+			if *MinioLayout == MinioPaired {
+				minioEndpoint = pairedMinioEndpoint(workerNodeSetup.StorageNodes[idx])
+			}
+			deploymentCmd := buildDeploymentCommandForEndpoint(corePoolPolicy, implementation, mode, debug, minioEndpoint)
 			nodeCmd := fmt.Sprintf("%s --storage-ip=%s:10191", deploymentCmd, workerNodeSetup.StorageNodes[idx])
 
 			nodeCommands := append([]string(nil), commands...)
@@ -830,6 +925,9 @@ func CleanKhala(workerNodeSetup WorkerNodeSetup, removeSnapshots bool, withRDMA 
 	if withRDMA {
 		cleanupErrors.add(CleanupRDMAStorage(workerNodeSetup))
 	}
+	if *MinioLayout == MinioPaired {
+		cleanupErrors.add(CleanupStandaloneMinIO(workerNodeSetup))
+	}
 
 	out, err := masterEtcdCleanup()
 	if err != nil {
@@ -843,11 +941,13 @@ func CleanKhala(workerNodeSetup WorkerNodeSetup, removeSnapshots bool, withRDMA 
 		cleanupErrors.add(fmt.Errorf("clean loader: %w", err))
 	}
 
-	log.Infof("Cleaning up minio")
-	out, err = cleanupLocalCommandFn("cd ~/khala && bash ./scripts/deploy-minio-obj.sh " + minioObjectEndpointURL())
-	if err != nil {
-		log.Errorf("Failed to cleanup minio: %v, output: %s", err, out)
-		cleanupErrors.add(fmt.Errorf("prepare MinIO objects: %w", err))
+	if *MinioLayout == MinioShared {
+		log.Infof("Cleaning up minio")
+		out, err = cleanupLocalCommandFn("cd ~/khala && bash ./scripts/deploy-minio-obj.sh " + minioObjectEndpointURL())
+		if err != nil {
+			log.Errorf("Failed to cleanup minio: %v, output: %s", err, out)
+			cleanupErrors.add(fmt.Errorf("prepare MinIO objects: %w", err))
+		}
 	}
 
 	log.Infof("Khala cleaned on all worker nodes")

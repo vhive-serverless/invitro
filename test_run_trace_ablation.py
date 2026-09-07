@@ -96,6 +96,17 @@ class AblationDryRunTest(unittest.TestCase):
         result = subprocess.run(command, cwd=ROOT, check=True, capture_output=True, text=True)
         self.assertIn("E3_DRY_RUN_READY", result.stdout)
 
+    def test_paired_standalone_minio_route_reaches_plan(self):
+        result = subprocess.run(
+            self.command("--minio-layout", "paired-standalone", "--dry-run"),
+            cwd=ROOT, check=True, capture_output=True, text=True,
+        )
+        self.assertEqual(result.stdout.count("minio_route=paired-standalone"), 2)
+        self.assertEqual(result.stdout.count("minio_route=rdma"), 1)
+        self.assertIn("minio_layout=paired-standalone", result.stdout)
+        self.assertIn("minio_endpoint=paired-standalone.invalid:9000", result.stdout)
+        self.assertIn("E3_DRY_RUN_READY", result.stdout)
+
     def test_ten_and_fourteen_node_profiles_support_claim_dry_runs(self):
         for profile in ("10-node", "14-node"):
             with self.subTest(profile=profile):
