@@ -12,6 +12,7 @@ backend. Go and HostTCP modes remain opt-in and are not claim-bearing here.
 | `nexus-go` | `gopyaesserve-s3-rpc-shmem-0`, `gomapper-s3-rpc-shmem-0`, `goreducer-s3-rpc-shmem-0` | Go app API, backend `shmem`, SDK/RPC handlers in host |
 | `nexus-rdma` | `gopyaesserve-s3-rpc-rdma-0`, `gomapper-s3-rpc-rdma-0`, `goreducer-s3-rpc-rdma-0` | backend `rdma`, SDK/RPC handlers in host, RDMA storage enabled |
 | `nexus-rdma-py` | `pyaesserve-s3-rpc-rdma-0`, `mapper-s3-rpc-rdma-0`, `reducer-s3-rpc-rdma-0` | Python app API, backend `rdma` (mmap-ref), SDK/RPC/RDMA enabled |
+| `nexus-rdma-js` | `jshelloworld-s3-rpc-rdma-0` and `jssynthetic_e_0_p_<bytes>-s3-rpc-rdma-0` | JavaScript app API, backend `rdma` (whole-mmap/ref), SDK/RPC/RDMA enabled; opt-in E2-Synth mode |
 | `hosttcp-go` | `gopyaesserve-s3-rpc-hosttcp-0`, `gomapper-s3-rpc-hosttcp-0`, `goreducer-s3-rpc-hosttcp-0` | backend `hosttcp`; SDK/signing/HTTP/TLS/gRPC/protobuf remain in guest, while DNS/TCP/opaque relay are host-owned |
 | `hosttcp-py` | `pyaesserve-s3-rpc-hosttcp-0`, `mapper-s3-rpc-hosttcp-0`, `reducer-s3-rpc-hosttcp-0` | parseable functional mode with the same guest/host ownership; excluded because Python raw admission is terminally inadmissible |
 

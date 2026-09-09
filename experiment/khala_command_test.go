@@ -27,6 +27,7 @@ func TestResolveExperimentModes(t *testing.T) {
 		{ModeNexusRDMA, "rdma", true, true, true, []string{"gopyaesserve", "gomapper", "goreducer"}},
 		{ModeNexusRDMAGo, "rdma", true, true, true, []string{"gopyaesserve", "gomapper", "goreducer"}},
 		{ModeNexusRDMAPy, "rdma", true, true, true, []string{"pyaesserve", "mapper", "reducer"}},
+		{ModeNexusRDMAJS, "rdma", true, true, true, []string{"jshelloworld"}},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -51,6 +52,7 @@ func TestResolveSyntheticWorkloadAllModes(t *testing.T) {
 		ModeInVMPy: base, ModeInVMGo: "go" + base, ModeInVMJS: "js" + base,
 		ModeHostTCPGo: "go" + base, ModeNexusPy: base, ModeNexusJS: "js" + base,
 		ModeNexusGo: "go" + base, ModeNexusRDMAPy: base, ModeNexusRDMAGo: "go" + base,
+		ModeNexusRDMAJS: "js" + base,
 	}
 	for name, want := range wants {
 		mode, err := resolveExperimentMode(name, 16*1024*1024-4096, 256*1024, base)
@@ -129,6 +131,7 @@ func TestSyntheticVMSharedMemoryFlags(t *testing.T) {
 		{ModeHostTCPGo, 16 * 1024 * 1024}, {ModeNexusPy, 16 * 1024 * 1024},
 		{ModeNexusJS, 16 * 1024 * 1024}, {ModeNexusGo, 16 * 1024 * 1024},
 		{ModeNexusRDMAPy, 16 * 1024 * 1024}, {ModeNexusRDMAGo, 16 * 1024 * 1024},
+		{ModeNexusRDMAJS, 16 * 1024 * 1024},
 	} {
 		mode, err := resolveExperimentMode(test.mode, *ShmemRingBytes, *ShmemIOQuantum, "synthetic_e_0_p_4")
 		if err != nil {
@@ -152,13 +155,13 @@ func TestResolveExplicitEvaluationWorkloads(t *testing.T) {
 			t.Fatalf("%s workloads = %v", name, mode.Workloads)
 		}
 	}
-	for _, name := range []string{ModeInVMGo, ModeHostTCPGo, ModeNexusGo, ModeInVMJS, ModeNexusJS} {
+	for _, name := range []string{ModeInVMGo, ModeHostTCPGo, ModeNexusGo, ModeInVMJS, ModeNexusJS, ModeNexusRDMAJS} {
 		mode, err := resolveExperimentMode(name, 4_190_208, 256*1024, "helloworld")
 		if err != nil || len(mode.Workloads) != 1 || mode.Workloads[0] == "" {
 			t.Fatalf("%s HelloWorld resolution = %+v, %v", name, mode, err)
 		}
 	}
-	for _, name := range []string{ModeInVMGo, ModeHostTCPGo, ModeNexusGo, ModeInVMJS, ModeNexusJS} {
+	for _, name := range []string{ModeInVMGo, ModeHostTCPGo, ModeNexusGo, ModeInVMJS, ModeNexusJS, ModeNexusRDMAJS} {
 		if _, err := resolveExperimentMode(name, 4_190_208, 256*1024, "cnnserve"); err == nil {
 			t.Fatalf("%s accepted an unimplemented cnnserve workload", name)
 		}
@@ -204,6 +207,7 @@ func TestResolveCleanupModeValidatesOnlyTeardownIdentity(t *testing.T) {
 		{ModeNexusRDMA, true},
 		{ModeNexusRDMAGo, true},
 		{ModeNexusRDMAPy, true},
+		{ModeNexusRDMAJS, true},
 	} {
 		mode, err := resolveCleanupMode(test.name)
 		if err != nil {
@@ -341,6 +345,7 @@ func TestSnapshotNames(t *testing.T) {
 		ModeNexusRDMA:   {"gopyaesserve-s3-rpc-rdma-0", "gomapper-s3-rpc-rdma-0", "goreducer-s3-rpc-rdma-0"},
 		ModeNexusRDMAGo: {"gopyaesserve-s3-rpc-rdma-0", "gomapper-s3-rpc-rdma-0", "goreducer-s3-rpc-rdma-0"},
 		ModeNexusRDMAPy: {"pyaesserve-s3-rpc-rdma-0", "mapper-s3-rpc-rdma-0", "reducer-s3-rpc-rdma-0"},
+		ModeNexusRDMAJS: {"jshelloworld-s3-rpc-rdma-0"},
 	}
 	for name, want := range tests {
 		mode, _ := resolveExperimentMode(name, 4_190_208, 256*1024)

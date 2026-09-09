@@ -23,7 +23,7 @@ import (
 
 var (
 	Command         = flag.String("command", "deploy", "Command to execute: deploy or clean")
-	Mode            = flag.String("mode", "", "Experiment mode: invm-py, invm-go, invm-js, nexus-py, nexus-go, nexus-js, nexus-rdma-py, nexus-rdma-go (legacy nexus-rdma), or hosttcp-go")
+	Mode            = flag.String("mode", "", "Experiment mode: invm-py, invm-go, invm-js, nexus-py, nexus-go, nexus-js, nexus-rdma-py, nexus-rdma-go, nexus-rdma-js (legacy nexus-rdma), or hosttcp-go")
 	Workloads       = flag.String("workloads", "", "Optional comma-separated canonical workloads; required for E2 single-workload cells")
 	DryRun          = flag.Bool("dry-run", false, "Print the resolved deployment plan without side effects")
 	CorePoolPolicy  = flag.String("core-pool-policy", "", "Core pool policy: baseline, l-sep, or l-shared")
@@ -49,6 +49,7 @@ const (
 	ModeNexusRDMA   = "nexus-rdma"
 	ModeNexusRDMAGo = "nexus-rdma-go"
 	ModeNexusRDMAPy = "nexus-rdma-py"
+	ModeNexusRDMAJS = "nexus-rdma-js"
 	ModeHostTCPGo   = "hosttcp-go"
 	ModeHostTCPPy   = "hosttcp-py"
 )
@@ -266,6 +267,15 @@ func resolveExperimentMode(name string, shmemRingBytes, shmemIOQuantum int, requ
 		mode.SetNexusSDK = true
 		mode.SetNexusRPC = true
 		mode.WithRDMA = true
+	case ModeNexusRDMAJS:
+		if len(requested) == 0 {
+			base = []string{"helloworld"}
+		}
+		mode.Workloads = javascriptWorkloads(base)
+		mode.BackendTransport = "rdma"
+		mode.SetNexusSDK = true
+		mode.SetNexusRPC = true
+		mode.WithRDMA = true
 	case ModeHostTCPGo:
 		mode.Workloads = goWorkloads(base)
 		mode.BackendTransport = "hosttcp"
@@ -294,7 +304,7 @@ func resolveCleanupMode(name string) (ExperimentMode, error) {
 	switch name {
 	case ModeInVMPy, ModeInVMGo, ModeInVMJS, ModeNexusPy, ModeNexusGo, ModeNexusJS, ModeHostTCPGo, ModeHostTCPPy:
 		return mode, nil
-	case ModeNexusRDMA, ModeNexusRDMAGo, ModeNexusRDMAPy:
+	case ModeNexusRDMA, ModeNexusRDMAGo, ModeNexusRDMAPy, ModeNexusRDMAJS:
 		mode.WithRDMA = true
 		return mode, nil
 	default:

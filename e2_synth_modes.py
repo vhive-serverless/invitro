@@ -11,13 +11,13 @@ import re
 
 MODES = (
     "invm-py", "invm-js", "invm-go", "hosttcp-go", "nexus-py",
-    "nexus-js", "nexus-go", "nexus-rdma-py", "nexus-rdma-go",
+    "nexus-js", "nexus-go", "nexus-rdma-py", "nexus-rdma-go", "nexus-rdma-js",
 )
 PAYLOADS = (4, 4096, 16384, 65536, 262144, 1048576, 2097152,
             4194304, 8388608, 16777216)
 MODE_ALIAS = {"nexus-rdma": "nexus-rdma-go"}
 INVM_MODES = frozenset(("invm-py", "invm-js", "invm-go"))
-RDMA_MODES = frozenset(("nexus-rdma-py", "nexus-rdma-go"))
+RDMA_MODES = frozenset(("nexus-rdma-py", "nexus-rdma-go", "nexus-rdma-js"))
 _RFC1123 = re.compile(r"^[a-z0-9]([-a-z0-9]*[a-z0-9])?$")
 
 

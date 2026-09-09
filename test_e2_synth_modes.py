@@ -8,7 +8,7 @@ from e2_synth_modes import (MODES, PAYLOADS, attaches_shared_memory,
 class ModeContractTests(unittest.TestCase):
     def test_canonical_names_and_legacy_alias(self):
         self.assertEqual(canonical_mode("nexus-rdma"), "nexus-rdma-go")
-        self.assertEqual(len(MODES), 9)
+        self.assertEqual(len(MODES), 10)
         self.assertEqual(len(PAYLOADS), 10)
 
     def test_trace_names_and_attachment_policy(self):
@@ -23,6 +23,7 @@ class ModeContractTests(unittest.TestCase):
             "nexus-go": f"gosynthetic_e_0_p_{payload}-s3-rpc-shmem",
             "nexus-rdma-py": f"synthetic_e_0_p_{payload}-s3-rpc-rdma",
             "nexus-rdma-go": f"gosynthetic_e_0_p_{payload}-s3-rpc-rdma",
+            "nexus-rdma-js": f"jssynthetic_e_0_p_{payload}-s3-rpc-rdma",
         }
         for mode, want in wants.items():
             self.assertEqual(workload_name(payload, mode), want)

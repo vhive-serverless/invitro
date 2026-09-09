@@ -296,7 +296,7 @@ snapshot_cleanup_policy_matches() {
 
 mode_vm_config() {
     case "$1" in
-        invm-js|nexus-js) printf '%s\n' configs/vm_orchestrator_config_js.json ;;
+        invm-js|nexus-js|nexus-rdma-js) printf '%s\n' configs/vm_orchestrator_config_js.json ;;
         *) printf '%s\n' configs/vm_orchestrator_config.json ;;
     esac
 }
@@ -320,7 +320,7 @@ tracked_workload_sha() {
 
 validation_endpoint() {
     local mode=$1 worker_config=$2
-    if [[ "$mode" == nexus-rdma-py || "$mode" == nexus-rdma-go ]]; then
+    if [[ "$mode" == nexus-rdma-py || "$mode" == nexus-rdma-go || "$mode" == nexus-rdma-js ]]; then
         printf 'http://%s:10090\n' "$(jq -r '.storage_nodes[0]' "$worker_config")"
     elif [[ "$minio_endpoint" == http://* || "$minio_endpoint" == https://* ]]; then
         printf '%s\n' "$minio_endpoint"
@@ -905,7 +905,7 @@ run_cell() {
         local attempt=$1 deploy_mode vm_bytes endpoint
         deploy_mode=$(khala_mode "$mode")
         vm_bytes=0; attaches_shmem "$mode" && vm_bytes=$vm_shmem_bytes
-        if [[ "$mode" == nexus-rdma-py || "$mode" == nexus-rdma-go ]]; then
+        if [[ "$mode" == nexus-rdma-py || "$mode" == nexus-rdma-go || "$mode" == nexus-rdma-js ]]; then
             e2_synth_stage_rdma_payloads "$KHALA_LOCAL_ROOT" "$worker_config" \
                 2>&1 | tee "$scratch_out/rdma-stage-attempt-$attempt.log"
             local stage_status=${PIPESTATUS[0]}
