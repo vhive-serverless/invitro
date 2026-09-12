@@ -10,6 +10,8 @@ Standard sampled traces are available in [data/traces/reference](data/traces/ref
 - [Huawei 2023 Private](https://github.com/sir-lab/data-release/blob/main/README_data_release_2023.md)
 - [IBM 2026](https://github.com/ubc-cirrus-lab/ibm-cloud-code-engine-traces)
 
+More details on how InVitro processes traces can be found [here](docs/supported_traces.md)
+
 ## Reference our work
 
 ```
