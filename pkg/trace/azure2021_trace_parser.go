@@ -169,7 +169,7 @@ func GenerateFunctionSpecification(invocationSlice Invocations, durationMinutes 
 		return invocationSlice[i].startTime < invocationSlice[j].startTime
 	})
 
-	// generate IAT Array (IATs are microsecond precision) (cannot be same microsecond)
+	// generate IAT Array (IATs are microsecond precision)
 	IATArray := common.IATArray{}
 	var runtimeArray common.RuntimeSpecificationArray
 
@@ -186,10 +186,6 @@ func GenerateFunctionSpecification(invocationSlice Invocations, durationMinutes 
 		}
 
 		invocation_microseconds := invocation.startTime * 1_000_000
-		if invocation_microseconds == previousInvocationTimestamp {
-			log.Fatalf("Encountered 2 invocations at same micro-second instant %s and %s",
-				strconv.FormatFloat(invocation_microseconds, 'f', -1, 64), strconv.FormatFloat(previousInvocationTimestamp, 'f', -1, 64))
-		}
 
 		var iat float64
 		if len(IATArray) == 0 {
