@@ -43,6 +43,9 @@ def preprocess_file(trace_path: str, start_time: str, duration: str, output_dir:
     # Time interval filter
     df, start_td, end_td = filter_within_time_interval(df, start_time, duration)
 
+    # Remove duplicate functions
+    df = remove_azure2021_duplicates(df)
+
     # Filter functions with invocations below 1ms
     df = filter_functions_with_0ms_inovcations(df, threshold_percent=int(zero_ms_threshold_percent))
 
@@ -241,3 +244,12 @@ def generate_duration_statistics(row):
     row["percentile_Average_100"] = np.percentile(timestamp_list, 100)
 
     return row
+
+def remove_azure2021_duplicates(df: pd.DataFrame) -> pd.DataFrame:
+
+    # Find duplicated rows, keep only first instance
+    duplicate_count = df.duplicated().sum()
+    cleaned_df = df.drop_duplicates()
+    log.info(f"Removed {duplicate_count} duplicate rows, {len(cleaned_df)} rows remaining")
+
+    return cleaned_df
