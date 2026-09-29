@@ -41,7 +41,7 @@ Trace support
 
 ### Summary flowchart
 The flowchart below summarises how each input trace is converted into internal formats, before finally being used in Loader.
-<img src="./figures/2_Main_Flowchart.png" alt="flowchart showing how traces are converted across internal formats" width="80%" height="80%"/>
+<img src="./figures/Main_Flowchart.png" alt="flowchart showing how traces are converted across internal formats" width="80%" height="80%"/>
 
 
 ## Trace Schema
@@ -60,11 +60,11 @@ A more detailed schema diagram for each trace type can be found in the table bel
 
 | Trace Type        | Detailed Schema Diagram Link              | Original Repo                              |
 | :---------------- | :-----------------------------------------| :-----------------------------------------|
-| Cleaned_Azure2019 | [Link](./figures/5_Cleaned_Azure2019.png) | - |
-| Azure2021         | [Link](./figures/6_Azure2021.png)         | [Azure Functions Trace 2019](https://github.com/Azure/AzurePublicDataset/blob/master/AzureFunctionsInvocationTrace2021.md) |
-| Azure2019         | [Link](./figures/4_Azure2019.png)         | [Azure Functions Invocation Trace 2021](https://github.com/Azure/AzurePublicDataset/blob/master/AzureFunctionsDataset2019.md) |
-| Huawei2023        | [Link](./figures/7_Huawei2023.png)        | [Huawei Public Cloud and Huawei Private Cloud data release 2023](https://github.com/sir-lab/data-release/blob/main/README_data_release_2023.md) |
-| IBM2026           | [Link](./figures/8_IBM2026.png)           | [IBM Cloud Code Engine Traces](https://github.com/ubc-cirrus-lab/ibm-cloud-code-engine-traces) |
+| Cleaned_Azure2019 | [Link](./figures/Cleaned_Azure2019.png) | - |
+| Azure2021         | [Link](./figures/Azure2021.png)         | [Azure Functions Trace 2019](https://github.com/Azure/AzurePublicDataset/blob/master/AzureFunctionsInvocationTrace2021.md) |
+| Azure2019         | [Link](./figures/Azure2019.png)         | [Azure Functions Invocation Trace 2021](https://github.com/Azure/AzurePublicDataset/blob/master/AzureFunctionsDataset2019.md) |
+| Huawei2023        | [Link](./figures/Huawei2023.png)        | [Huawei Public Cloud and Huawei Private Cloud data release 2023](https://github.com/sir-lab/data-release/blob/main/README_data_release_2023.md) |
+| IBM2026           | [Link](./figures/IBM2026.png)           | [IBM Cloud Code Engine Traces](https://github.com/ubc-cirrus-lab/ibm-cloud-code-engine-traces) |
 
 ## Trace Processing Methodology
 This section describes how a trace is processed in InVitro, and highlights the reasoning behind certain choices.
@@ -73,17 +73,6 @@ Internally, Loader models each function as a sequence of invocations. Each invoc
 The table below provides a summary of how these information is extracted from each trace. 
 The sections below will describe in greater detail how these parameters are extracted from each trace type. 
 
-<style>
-  .specific-scroll-table table {
-    display: block !important;
-    overflow-x: auto !important;
-    white-space: nowrap !important;
-    max-width: 100% !important;
-  }
-</style>
-
-<div class="specific-scroll-table">
-
 | Trace Type | Intermediate Format | General Conversion | Invocation | Duration | Memory |
 | :---: | :---: | :---: | :---: | :---: | :---: |
 | Azure2019 | Per-function<br>(Cleaned Azure2019) | Time-interval filtered.<br>Drop functions with incomplete info. | Sample within time-unit (Invocation count per minute)<br> using user-indicated distribution type. | Randomly sampled from described distribution quartiles. | Randomly sampled from described distribution quartiles.<br>Described memory for application divided evenly among its functions. |
@@ -91,11 +80,8 @@ The sections below will describe in greater detail how these parameters are extr
 | Azure2021 | Per-invocation<br>(Azure2021) | Time-interval filtered.<br>Removed functions with 0ms invocations<br> above threshold percent. | Calculated `start_timestamp`<br> from `end_timestamp` and `duration`. | Directly used | Surrogate value of 200MB<br>(derived from Azure2019) |
 | IBM2026 | Per-invocation<br>(Azure2021) | Time-interval filtered.<br>Treat `App Hash` as individual function, `Namespace Hash` as application | Timestamp zeroed to start of time-interval. | Directly used | Surrogate value of 200MB<br>(derived from Azure2019) |
 
-</div>
-
-
 ## Azure2019
-<img src="./figures/4_Azure2019.png" alt="Azure2019 Schema" style="border: 2px solid #000000;" width="80%" height="80%"/>
+<img src="./figures/Azure2019.png" alt="Azure2019 Schema" style="border: 2px solid #000000;" width="80%" height="80%"/>
 
 ### Used and Ignored Fields
 Relevant fields:
@@ -121,7 +107,7 @@ Duration data in the trace consists of percentile distribution statistics for ea
 Memory use data in the trace consists of percentile distribution statistics for each function (after division to per-function). Each `memory use` takes a random sample from this distribution.
 
 ## Huawei2023
-<img src="./figures/7_Huawei2023.png" alt="Huawei2023 Schema" style="border: 2px solid #000000;" width="80%" height="80%"/>
+<img src="./figures/Huawei2023.png" alt="Huawei2023 Schema" style="border: 2px solid #000000;" width="80%" height="80%"/>
 
 ### Used and Ignored Fields
 Relevant fields:
@@ -149,7 +135,7 @@ Duration data in the trace consists of readings for each function at each minute
 Memory use data in the trace consists of readings for each function at each minute (`Memory limit`). Percentile distribution statistics is generated from this array of values, and used in `Cleaned_Azure2019` trace format. Each `memory use` takes a random sample from this distribution.
 
 ## Azure2021
-<img src="./figures/6_Azure2021.png" alt="Azure2021 Schema" style="border: 2px solid #000000;" width="80%" height="80%"/>
+<img src="./figures/Azure2021.png" alt="Azure2021 Schema" style="border: 2px solid #000000;" width="80%" height="80%"/>
 
 ### Used and Ignored Fields
 The trace is simple and Loader directly supports Azure2021 trace (per-invocation trace). Every field in the trace is used.
@@ -164,7 +150,7 @@ Preprocessing clean-up actions:
 The trace has no `memory use` field. A surrogate value of 200MB is used for each invocation. We use this value as it was empirically found to be the average memory value in the Azure2019 trace.
 
 ## IBM2026
-<img src="./figures/8_IBM2026.png" alt="IBM2026 Schema" style="border: 2px solid #000000;" width="80%" height="80%"/>
+<img src="./figures/IBM2026.png" alt="IBM2026 Schema" style="border: 2px solid #000000;" width="80%" height="80%"/>
 
 ### Used and Ignored Fields
 The trace is structured as a per-invocation basis, so we used the relevant fields:
