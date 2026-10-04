@@ -1,0 +1,25 @@
+[project]
+name = "invitro"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "argparse==1.4.0",
+    "cloudpickle==3.1.2",
+    "matplotlib==3.11.0",
+    "numpy==2.4.6",
+    "pandas==3.0.3",
+    "pytest==9.0.3",
+    "scipy==1.17.1",
+    "seaborn==0.13.2",
+    "statsmodels==0.14.6",
+    "tqdm==4.68.2",
+]
+
+[project.scripts]
+invitro = "invitro:main"
+
+[build-system]
+requires = ["uv_build>=0.12.23,<0.13.0"]
+build-backend = "uv_build"

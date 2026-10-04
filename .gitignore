@@ -220,3 +220,4 @@ function*.zip
 
 # Datasets folder
 data/datasets/
+remote_setup/
