@@ -7,7 +7,7 @@
   "BusyLoopOnSandboxStartup": false,
   "TracePath": "data/datasets/azure2021/filtered_120_35/SampledAzure2021.csv",
   "Granularity": "minute",
-  "OutputPathPrefix": "data/out/experiment",
+  "OutputPathPrefix": "data/out/azure2021",
   "IATDistribution": "exponential",
   "CPULimit": "1vCPU",
   "ExperimentDuration": 4,

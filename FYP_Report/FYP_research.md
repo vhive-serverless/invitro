@@ -36,6 +36,18 @@ Run single_node_installer
 `bash ./scripts/setup/create_singlenode_container.sh <user@url>`
 `bash ./scripts/setup/create_singlenode_container.sh bryanFB@pc841.emulab.net`
 
+### UV Install
+`curl -LsSf https://astral.sh/uv/install.sh | sh`
+`source $HOME/.local/bin/env`
+`uv init`
+`uv add -r requirements.txt`
+`uv sync`
+`source .venv/bin/activate`
+
+### Git Setup
+`git config --local user.name "16fb"`
+`git config --local user.email "wongwenpingbryan@gmail.com"`
+
 ## Downloading Original Datasets To System
 ### RClone + Google Cloud
 Copy over essential configs (In PowerShell)
