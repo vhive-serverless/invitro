@@ -5,10 +5,10 @@ Ensure all 4 traces can be ran
   - ~~Rclone~~
   - ~~Compressed good middle ground~~
 - ~~Sampling~~
-- Loading
-  - Perform runs ensure Loader no issue.
-- Run Analysis
-  - Look at information available
+- ~~Loading~~
+  - ~~Perform runs ensure Loader no issue~~
+- ~~Run Analysis~~
+  - ~~Look at information available~~
 
 After that, look at information available from each run
 - Information available
@@ -26,16 +26,6 @@ Connect to node
 Check if node detects ssh-agent
 `echo "$SSH_AUTH_SOCK"`
 
-### Setup Main Branch
-Clone latest branch
-`git clone --branch main https://github.com/vhive-serverless/invitro.git`
-`git clone --branch fyp_report https://github.com/vhive-serverless/invitro.git`
-
-Run single_node_installer
-`cd invitro/`
-`bash ./scripts/setup/create_singlenode_container.sh <user@url>`
-`bash ./scripts/setup/create_singlenode_container.sh bryanFB@pc841.emulab.net`
-
 ### UV Install
 `curl -LsSf https://astral.sh/uv/install.sh | sh`
 `source $HOME/.local/bin/env`
@@ -47,6 +37,16 @@ Run single_node_installer
 ### Git Setup
 `git config --local user.name "16fb"`
 `git config --local user.email "wongwenpingbryan@gmail.com"`
+
+### Setup Main Branch
+Clone latest branch
+`git clone --branch main https://github.com/vhive-serverless/invitro.git`
+`git clone --branch fyp_report https://github.com/vhive-serverless/invitro.git`
+
+Run single_node_installer
+`cd invitro/`
+`bash ./scripts/setup/create_singlenode_container.sh <user@url>`
+`bash ./scripts/setup/create_singlenode_container.sh bryanFB@pc841.emulab.net`
 
 ## Downloading Original Datasets To System
 ### RClone + Google Cloud
@@ -190,12 +190,15 @@ Azure2021 (ok!)
 Huawei2023 (ok!)
 `$ go run cmd/loader.go --config cmd/config_fyp_huawei2023.json --verbosity=debug`
 
+# Post Experiment Data Saving
+Push experiment data into G-cloud
+`rclone sync ~/invitro/data/out remote:RClone/Run_data --progress`
+
+Push csv data into G-cloud
+`rclone sync ~/invitro/data/datasets remote:RClone/FYP_compressed --progress`
+
+Ensure git progress pushed to GitHub
+
+
 # Perfrom Experiments
 
-## UV Install
-`curl -LsSf https://astral.sh/uv/install.sh | sh`
-`source $HOME/.local/bin/env`
-`uv init`
-`uv add -r requirements.txt`
-`uv sync`
-`source .venv/bin/activate`
