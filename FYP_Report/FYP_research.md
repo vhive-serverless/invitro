@@ -240,12 +240,12 @@ Huawei2023 (ok!)
 # Post Experiment Data Saving
 Push experiment data into G-cloud
 `rclone sync ~/invitro/data/out remote:RClone/Run_data --progress`
+`rclone sync ~/loader/data/out remote:RClone/Run_data --progress` (multi_node)
 
 Push csv data into G-cloud
 `rclone sync ~/invitro/data/datasets remote:RClone/FYP_compressed --progress`
 
 Ensure git progress pushed to GitHub
-
 
 # Perfrom Experiments
 
