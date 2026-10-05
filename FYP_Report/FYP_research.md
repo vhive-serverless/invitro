@@ -12,6 +12,14 @@ Ensure all 4 traces can be ran
 
 After that, look at information available from each run
 - Information available
+- See if multiple runs works
+
+Setup 3 nodes
+- Try out example runs
+  - ~~Test can run example Azure2019~~
+  - Test running with metric scraping
+- Understand output data
+  - Normal and with metric scraping.
 
 ## Node Setup
 ### Renting CloudLab Nodes
@@ -21,16 +29,60 @@ Tried the vHive profile with 1 node. (Emulab d430)
 ### Connecting to CloudLab Nodes
 Connect to node
 `ssh -o ServerAliveInterval=60 -A <user@url>`
-`ssh -o ServerAliveInterval=60 -A bryanFB@pc841.emulab.net` (node-000)
+`ssh -o ServerAliveInterval=60 -A bryanFB@pc860.emulab.net` (node-000)
 
 Check if node detects ssh-agent
 `echo "$SSH_AUTH_SOCK"`
 
+### Tmux
+`sudo apt install tmux`
+`tmux new -s work` New session
+`tmux ls` List sessions
+`tmux a -t work` Attach
+`Ctrl + b` `d` Detach
+
+### Setup Main Branch
+Clone latest branch
+`git clone --branch main https://github.com/vhive-serverless/invitro.git`
+`git clone --branch fyp_report https://github.com/vhive-serverless/invitro.git`
+
+#### Single-Node Setup
+Run single_node_installer
+`cd invitro/`
+`bash ./scripts/setup/create_singlenode_container.sh <user@url>`
+`bash ./scripts/setup/create_singlenode_container.sh bryanFB@pc841.emulab.net`
+
+#### Multi-Node Setup
+``` Bash
+# 3 nodes (Emulab d430)
+cd invitro/
+bash sudo ./scripts/setup/create_multinode.sh <master_node@IP> <loader_node@IP> <worker_node@IP> ...
+bash sudo ./scripts/setup/create_multinode.sh bryanFB@pc859.emulab.net bryanFB@pc860.emulab.net bryanFB@pc857.emulab.net
+
+# Tests
+## Monitor deployments (everything should be running)
+$ bash ./scripts/util/log_kn_status.sh
+
+## Check cluster capacity
+$ bash ./scripts/util/check_node_capacity.sh
+
+## Check pod CIDR range
+$ bash ./scripts/util/get_pod_cidr.sh
+
+## Try deploy function
+$ bash ./scripts/util/set_function_scale.sh <scale>
+
+## Verify were started
+$ kubectl -n default get podautoscalers
+
+```
+
+## Loader 
 ### UV Install
 `curl -LsSf https://astral.sh/uv/install.sh | sh`
 `source $HOME/.local/bin/env`
-`uv init`
-`uv add -r requirements.txt`
+<!-- `uv init`
+`uv add -r requirements.txt` -->
 `uv sync`
 `source .venv/bin/activate`
 
@@ -38,20 +90,12 @@ Check if node detects ssh-agent
 `git config --local user.name "16fb"`
 `git config --local user.email "wongwenpingbryan@gmail.com"`
 
-### Setup Main Branch
-Clone latest branch
-`git clone --branch main https://github.com/vhive-serverless/invitro.git`
-`git clone --branch fyp_report https://github.com/vhive-serverless/invitro.git`
-
-Run single_node_installer
-`cd invitro/`
-`bash ./scripts/setup/create_singlenode_container.sh <user@url>`
-`bash ./scripts/setup/create_singlenode_container.sh bryanFB@pc841.emulab.net`
-
 ## Downloading Original Datasets To System
 ### RClone + Google Cloud
 Copy over essential configs (In PowerShell)
-`scp -r "C:\Users\toomu\Desktop\Projects\Projects\Actual_Invitro_Development\remote_setup" bryanFB@pc841.emulab.net:~/invitro/`
+`scp -r "C:\Users\toomu\Desktop\Projects\Projects\Actual_Invitro_Development\remote_setup" bryanFB@pc860.emulab.net:~/invitro/`
+In Multinode
+`scp -r "D:\FYP\Projects\Actual_Invitro_Development\remote_setup" bryanFB@pc860.emulab.net:~/loader/`
 
 Install
 `sudo apt install rclone`
@@ -61,6 +105,7 @@ Find location of local config file + make folder
 
 Save rclone.conf to that file location
 `cp ~/invitro/remote_setup/rclone.conf ~/.config/rclone/rclone.conf`
+`cp ~/loader/remote_setup/remote_setup/rclone.conf ~/.config/rclone/rclone.conf`
 
 Test, list directories in top level of your drive
 `rclone lsd remote:`
@@ -68,6 +113,8 @@ Test, list directories in top level of your drive
 Download data to local
 `rclone copy remote:RClone/FYP_full ~/invitro/data --ignore-existing --progress`
 `rclone copy remote:RClone/FYP_compressed ~/invitro/data --ignore-existing --progress`
+
+`rclone copy remote:RClone/FYP_compressed ~/loader/data --ignore-existing --progress`
 Times Test
 - Full -> 45 min upload, 21 min download
 - Compressed -> Quite awhile upload still, 4 min download
