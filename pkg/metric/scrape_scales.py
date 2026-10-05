@@ -38,12 +38,18 @@ if __name__ == "__main__":
     query_terminating_pods = 'max(autoscaler_terminating_pods) by(configuration_name)'
     query_activator_queue = 'sum(activator_request_concurrency) by(configuration_name)'
 
-    desired_pods_count = {x.split()[0]: int(x.split()[1]) for x in os.popen(get_promql_query(query_desired_pods)()).read().strip().split('\n')}
-    running_pods_count = {x.split()[0]: int(x.split()[1]) for x in os.popen(get_promql_query(query_running_pods)()).read().strip().split('\n')}
-    unready_pods_count = {x.split()[0]: int(x.split()[1]) for x in os.popen(get_promql_query(query_unready_pods)()).read().strip().split('\n')}
-    pending_pods_count = {x.split()[0]: int(x.split()[1]) for x in os.popen(get_promql_query(query_pending_pods)()).read().strip().split('\n')}
-    terminating_pods_count = {x.split()[0]: int(x.split()[1]) for x in os.popen(get_promql_query(query_terminating_pods)()).read().strip().split('\n')}
-    queue_size = {x.split()[0]: float(x.split()[1]) for x in os.popen(get_promql_query(query_activator_queue)()).read().strip().split('\n')}
+    def parse_promql_output(query, type_cast=int):
+        output = os.popen(get_promql_query(query)()).read().strip()
+        if not output:
+            return {}
+        return {x.split()[0]: type_cast(x.split()[1]) for x in output.split('\n') if len(x.split()) >= 2}
+
+    desired_pods_count = parse_promql_output(query_desired_pods)
+    running_pods_count = parse_promql_output(query_running_pods)
+    unready_pods_count = parse_promql_output(query_unready_pods)
+    pending_pods_count = parse_promql_output(query_pending_pods)
+    terminating_pods_count = parse_promql_output(query_terminating_pods)
+    queue_size = parse_promql_output(query_activator_queue, float)
 
     results = []
     for func in desired_pods_count.keys():
