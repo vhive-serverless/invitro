@@ -21,6 +21,12 @@ Setup 3 nodes
 - Understand output data
   - Normal and with metric scraping.
 
+- Test if multiple runs can be queued up at once.
+
+- Metric scraping -> consider it as unusable [To Ask Leonid On Feasibility]
+
+Consider running with more nodes.
+
 ## Node Setup
 ### Renting CloudLab Nodes
 Tried the vHive profile with 1 node. (Emulab d430)
@@ -29,7 +35,8 @@ Tried the vHive profile with 1 node. (Emulab d430)
 ### Connecting to CloudLab Nodes
 Connect to node
 `ssh -o ServerAliveInterval=60 -A <user@url>`
-`ssh -o ServerAliveInterval=60 -A bryanFB@pc860.emulab.net` (node-000)
+`ssh -o ServerAliveInterval=60 -A bryanFB@pc859.emulab.net` (node-000)
+`ssh -o ServerAliveInterval=60 -A bryanFB@pc860.emulab.net`
 
 Check if node detects ssh-agent
 `echo "$SSH_AUTH_SOCK"`
@@ -77,7 +84,7 @@ $ kubectl -n default get podautoscalers
 
 ```
 
-## Loader 
+## Setup On Loader 
 ### UV Install
 `curl -LsSf https://astral.sh/uv/install.sh | sh`
 `source $HOME/.local/bin/env`
@@ -104,8 +111,8 @@ Find location of local config file + make folder
 `rclone config file`
 
 Save rclone.conf to that file location
-`cp ~/invitro/remote_setup/rclone.conf ~/.config/rclone/rclone.conf`
-`cp ~/loader/remote_setup/remote_setup/rclone.conf ~/.config/rclone/rclone.conf`
+`cp ~/invitro/remote_setup/rclone.conf ~/.config/rclone/rclone.conf` (single_node)
+`cp ~/loader/remote_setup/remote_setup/rclone.conf ~/.config/rclone/rclone.conf` (multi_node)
 
 Test, list directories in top level of your drive
 `rclone lsd remote:`
@@ -114,7 +121,7 @@ Download data to local
 `rclone copy remote:RClone/FYP_full ~/invitro/data --ignore-existing --progress`
 `rclone copy remote:RClone/FYP_compressed ~/invitro/data --ignore-existing --progress`
 
-`rclone copy remote:RClone/FYP_compressed ~/loader/data --ignore-existing --progress`
+`rclone copy remote:RClone/FYP_compressed ~/loader/data --ignore-existing --progress` (multi_node)
 Times Test
 - Full -> 45 min upload, 21 min download
 - Compressed -> Quite awhile upload still, 4 min download
@@ -248,4 +255,5 @@ Ensure git progress pushed to GitHub
 
 
 # Perfrom Experiments
-
+Make a shell executable
+`chmod +x multiple_runs.sh`
