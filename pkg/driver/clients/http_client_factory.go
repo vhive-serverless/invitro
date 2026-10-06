@@ -1,10 +1,7 @@
 package clients
 
 import (
-	"context"
-	"crypto/tls"
 	"github.com/sirupsen/logrus"
-	"golang.org/x/net/http2"
 	"net"
 	"net/http"
 	"time"
@@ -40,11 +37,12 @@ func getHttp1Transport(timeout int) *http.Transport {
 	}
 }
 
-func getHttp2Transport() *http2.Transport {
-	return &http2.Transport{
-		AllowHTTP: true,
-		DialTLSContext: func(ctx context.Context, network, addr string, cfg *tls.Config) (net.Conn, error) {
-			return net.Dial(network, addr)
-		},
+func getHttp2Transport() *http.Transport {
+	// Cleartext HTTP/2 with prior knowledge (h2c)
+	protocols := new(http.Protocols)
+	protocols.SetUnencryptedHTTP2(true)
+
+	return &http.Transport{
+		Protocols: protocols,
 	}
 }
