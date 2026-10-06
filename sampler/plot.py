@@ -41,24 +41,33 @@ def plot_cdf(kind, output, inv_df, run_df, mem_df, sample):
     return
 
 def plot_invocations(output, inv_df, inv_sample):
-    sample_data = inv_sample.iloc[:, 4:]
-    sample_hours = sample_data.T.groupby(sample_data.T.reset_index(drop=True).index//60).sum().T
+    # Bin to hours
+    sample_data = inv_sample.iloc[:, 4:] # Keep only minute bin columns
+    sample_hours = sample_data.T.groupby(sample_data.T.reset_index(drop=True).index//60).sum().T # Bin minute bins into hour bins
     sample_data = sample_hours
+
+    # Bin to hours
     invdf = inv_df.iloc[:, 4:]
     inv_hours = invdf.T.groupby(invdf.T.reset_index(drop=True).index//60).sum().T
     inv_data = inv_hours
+
+    # Mean/Sum/Max of each function
     inv_mean = inv_data.T.mean()
     inv_mean = inv_mean.reset_index(drop=True)
     inv_sum = inv_data.T.sum()
     inv_sum = inv_sum.reset_index(drop=True)
     inv_max = inv_data.T.max()
     inv_max = inv_max.reset_index(drop=True)
+
+    # Plot CDF of each function's mean.
     ax=sns.ecdfplot(data=inv_data.T.mean(), log_scale=True, c="r", label='Trace', alpha=0.8)
     sns.ecdfplot(ax=ax,data=sample_data.T.mean(), log_scale=True, c="b", label='Sample', alpha=0.8)
     ax.legend()
     plt.savefig(f"{output}/inv.png")
     return
-    
+
+### These 2 just compares the min/mean/max of the sample vs trace.
+
 def plot_memory(output, mem_df, mem_sample):
     log = True
     ax = sns.ecdfplot(  data=mem_sample, x="AverageAllocatedMb", label="sample-mean", color='b', ls='-', alpha=0.7, log_scale=log)
