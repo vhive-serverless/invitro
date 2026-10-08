@@ -4707,6 +4707,13 @@ metadata:
   annotations:
     knative.dev/example-checksum: "fed4756e"
 data:
+  # Active metrics config (keys under _example below are documentation only).
+  # backend-destination keys are read by Knative <= 1.17; metrics-protocol /
+  # metrics-endpoint are read by Knative >= 1.18. Unknown keys are ignored.
+  metrics.backend-destination: "prometheus"
+  metrics.request-metrics-backend-destination: "prometheus"
+  metrics-protocol: "prometheus"
+  metrics-endpoint: "0.0.0.0:9090"
   _example: |
     ################################
     #                              #
