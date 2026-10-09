@@ -182,6 +182,7 @@ prometheus:
         cpu: 3
         memory: 10Gi
       requests:
+        cpu: 500m
         memory: 150Mi
     enableAdminAPI: true
 
