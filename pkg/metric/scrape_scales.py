@@ -31,14 +31,14 @@ def get_promql_query(query):
     return promql_query
 
 if __name__ == "__main__":
-    # Knative >= 1.18 metric names (OpenTelemetry). Activator request metrics are not exported,
-    # so activator_queue falls back to 0.
+    # Knative >= 1.18 metric names (OpenTelemetry). Activator series only appear once it has proxied
+    # a request for that function; until then activator_queue falls back to 0.
     query_desired_pods = 'max(kn_revision_pods_desired) by(kn_configuration_name)'
     query_running_pods = 'max(kn_revision_pods_count) by(kn_configuration_name)'
     query_unready_pods = 'max(kn_revision_pods_not_ready_count) by(kn_configuration_name)'
     query_pending_pods = 'max(kn_revision_pods_pending_count) by(kn_configuration_name)'
     query_terminating_pods = 'max(kn_revision_pods_terminating_count) by(kn_configuration_name)'
-    query_activator_queue = 'sum(activator_request_concurrency) by(configuration_name)'
+    query_activator_queue = 'sum(kn_revision_request_concurrency{job="activator-service"}) by(kn_configuration_name)'
 
     def parse_promql_output(query, type_cast=int):
         output = os.popen(get_promql_query(query)()).read().strip()

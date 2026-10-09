@@ -31,9 +31,8 @@ def get_promql_query(query):
     return promql_query
 
 if __name__ == "__main__":
-    # Knative >= 1.18 exports OpenTelemetry metrics (kn_revision_*) instead of the old OpenCensus
-    # autoscaler_*/activator_* names. Activator request metrics are not exported by the control-plane
-    # endpoint, so activator_* fields will read -99.
+    # Knative >= 1.18 exports OpenTelemetry metrics (kn_revision_*, otelhttp http_server_*) instead of the
+    # old OpenCensus autoscaler_*/activator_* names. Activator series only appear once it has proxied a request.
     kn_status = {
         # Desired counts set by autoscalers.
         "desired_pods": get_promql_query('sum(kn_revision_pods_desired)'),
@@ -44,11 +43,11 @@ if __name__ == "__main__":
         # Number of pods autoscalers requested from Kubernetes.
         "requested_pods": get_promql_query('sum(kn_revision_pods_requested)'),
         "running_pods": get_promql_query('sum(kn_revision_pods_count)'),
-        "activator_request_count": get_promql_query('sum(activator_request_count)'),
+        "activator_request_count": get_promql_query('sum(http_server_request_duration_seconds_count{job="activator-service"})'),
 
         "autoscaler_stable_queue": get_promql_query('avg(kn_revision_concurrency_stable)'),
         "autoscaler_panic_queue": get_promql_query('avg(kn_revision_concurrency_panic)'),
-        "activator_queue": get_promql_query('avg(activator_request_concurrency)'),
+        "activator_queue": get_promql_query('avg(kn_revision_request_concurrency{job="activator-service"})'),
         
         # The p95 latency of single scheduling round (algorithm+binding) over a time window of 30s.
         # (scheduler_scheduling_attempt_duration_seconds replaces scheduler_e2e_scheduling_duration_seconds in newer k8s.)
