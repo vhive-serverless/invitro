@@ -60,6 +60,15 @@ common_init() {
     internal_init() {
         server_exec $1 "git clone --branch=$VHIVE_BRANCH $VHIVE_REPO"
 
+        # Make vHive wait for the serving CRDs to be Established before applying serving-core.yaml.
+        # Otherwise the apply can race CRD registration (no matches for kind "Image" in version
+        # "caching.internal.knative.dev/v1alpha1"), aborting create_multinode_cluster before
+        # Magic DNS and net-istio are installed.
+        server_exec $1 "sed -i \
+            -e 's|ExecShellCmd(\"kubectl apply -f %s\", servingCorePath)|ExecShellCmd(\"kubectl wait --for=condition=Established crd --all --timeout=180s \&\& kubectl apply -f %s\", servingCorePath)|' \
+            -e 's|ExecShellCmd(\"kubectl apply -f https://github.com/knative/serving/releases/download/knative-v%s/serving-core.yaml\"|ExecShellCmd(\"kubectl wait --for=condition=Established crd --all --timeout=180s \&\& kubectl apply -f https://github.com/knative/serving/releases/download/knative-v%s/serving-core.yaml\"|' \
+            ~/vhive/scripts/cluster/setup_master_node.go"
+
         server_exec $1 "pushd ~/vhive/scripts > /dev/null && ./install_go.sh && source /etc/profile && go build -o setup_tool && ./setup_tool setup_node ${OPERATION_MODE} && popd > /dev/null"
         
         server_exec $1 'tmux new -s containerd -d'
@@ -257,11 +266,17 @@ function distribute_loader_ssh_key() {
     # Notify the master that all nodes have joined the cluster
     server_exec $MASTER_NODE 'tmux send -t master "y" ENTER'
 
-    namespace_info=$(server_exec $MASTER_NODE "kubectl get namespaces")
-    while [[ ${namespace_info} != *'knative-serving'*  ]]; do
-        sleep 60
-        namespace_info=$(server_exec $MASTER_NODE "kubectl get namespaces")
+    # Wait for setup_tool to exit, then check it actually succeeded (the knative-serving
+    # namespace appearing does not mean the Knative install completed).
+    # The [s] stops pgrep from matching the ssh shell running this command.
+    while server_exec $MASTER_NODE "pgrep -f '[s]etup_tool create_multinode_cluster' > /dev/null"; do
+        sleep 30
     done
+
+    if server_exec $MASTER_NODE "grep -q 'Failed subcommand' ~/vhive/scripts/create_multinode_cluster_error.log"; then
+        echo "ERROR: create_multinode_cluster failed on $MASTER_NODE. See ~/vhive/scripts/create_multinode_cluster_error.log"
+        exit 1
+    fi
 
     echo "Master node $MASTER_NODE finalised."
 

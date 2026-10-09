@@ -35,8 +35,13 @@ Tried the vHive profile with 1 node. (Emulab d430)
 ### Connecting to CloudLab Nodes
 Connect to node
 `ssh -o ServerAliveInterval=60 -A <user@url>`
-`ssh -o ServerAliveInterval=60 -A bryanFB@pc859.emulab.net` (node-000)
-`ssh -o ServerAliveInterval=60 -A bryanFB@pc860.emulab.net`
+`ssh -o ServerAliveInterval=60 -A bryanFB@pc499.emulab.net` (node-000)
+`ssh -o ServerAliveInterval=60 -A bryanFB@pc560.emulab.net`
+
+ssh bryanFB@pc499.emulab.net
+ssh bryanFB@pc560.emulab.net
+ssh bryanFB@pc552.emulab.net
+ssh bryanFB@pc536.emulab.net
 
 Check if node detects ssh-agent
 `echo "$SSH_AUTH_SOCK"`
@@ -63,8 +68,8 @@ Run single_node_installer
 ``` Bash
 # 3 nodes (Emulab d430)
 cd invitro/
-bash sudo ./scripts/setup/create_multinode.sh <master_node@IP> <loader_node@IP> <worker_node@IP> ...
-bash sudo ./scripts/setup/create_multinode.sh bryanFB@pc859.emulab.net bryanFB@pc860.emulab.net bryanFB@pc857.emulab.net
+bash ./scripts/setup/create_multinode.sh <master_node@IP> <loader_node@IP> <worker_node@IP> ...
+bash ./scripts/setup/create_multinode.sh bryanFB@pc499.emulab.net bryanFB@pc560.emulab.net bryanFB@pc552.emulab.net bryanFB@pc536.emulab.net
 
 # Tests
 ## Monitor deployments (everything should be running)
@@ -76,11 +81,31 @@ $ bash ./scripts/util/check_node_capacity.sh
 ## Check pod CIDR range
 $ bash ./scripts/util/get_pod_cidr.sh
 
+# Old
 ## Try deploy function
 $ bash ./scripts/util/set_function_scale.sh <scale>
 
 ## Verify were started
 $ kubectl -n default get podautoscalers
+
+# New
+export PATH=$PATH:/usr/local/go/bin:$HOME/go/bin
+echo 'export PATH=$PATH:/usr/local/go/bin:$HOME/go/bin' >> ~/.bashrc
+go version
+
+make clean
+
+export FUNC_NAME=myfunc CPU_REQUEST=1000m CPU_LIMITS=1000m MEMORY_REQUESTS=100Mi \
+  PANIC_WINDOW='"10.0"' PANIC_THRESHOLD='"200.0"' \
+  AUTOSCALING_METRIC='"concurrency"' AUTOSCALING_TARGET='"100"' COLD_START_BUSY_LOOP_MS='"0"'
+
+envsubst < workloads/container/trace_func_go.yaml | \
+  kn service apply myfunc --scale-min 3 --scale-init 3 --wait-timeout 2000000 -f /dev/stdin
+
+kubectl -n default get podautoscalers   # should show 3 desired/actual
+
+kn service delete myfunc
+
 
 ```
 
@@ -100,9 +125,9 @@ $ kubectl -n default get podautoscalers
 ## Downloading Original Datasets To System
 ### RClone + Google Cloud
 Copy over essential configs (In PowerShell)
-`scp -r "C:\Users\toomu\Desktop\Projects\Projects\Actual_Invitro_Development\remote_setup" bryanFB@pc860.emulab.net:~/invitro/`
+`scp -r "C:\Users\toomu\Desktop\Projects\Projects\Actual_Invitro_Development\remote_setup" bryanFB@pc827.emulab.net:~/invitro/`
 In Multinode
-`scp -r "D:\FYP\Projects\Actual_Invitro_Development\remote_setup" bryanFB@pc860.emulab.net:~/loader/`
+`scp -r "D:\FYP\Projects\Actual_Invitro_Development\remote_setup" bryanFB@pc560.emulab.net:~/loader/`
 
 Install
 `sudo apt install rclone`
@@ -257,3 +282,6 @@ Ensure git progress pushed to GitHub
 # Perfrom Experiments
 Make a shell executable
 `chmod +x multiple_runs.sh`
+
+
+`$ go run cmd/loader.go --config cmd/config_fyp_azure2021.json --verbosity=debug`
