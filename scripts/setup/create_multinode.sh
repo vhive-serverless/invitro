@@ -263,6 +263,13 @@ function distribute_loader_ssh_key() {
     # Untaint master to schedule knative control plane there
     server_exec $MASTER_NODE "kubectl taint nodes \$(hostname) node-role.kubernetes.io/control-plane-"
 
+    source $DIR/label.sh
+
+    # Force placement of metrics collectors and instrumentation on the loader node and control plane on master.
+    # Must happen before setup_tool installs Knative: the control plane has a loader-nodetype=master affinity
+    # (rewrite_yaml_files.sh), so it cannot be scheduled (and setup_tool's webhook wait times out) until labelled.
+    label_nodes $MASTER_NODE $1 # loader node is second on the list, becoming first after arg shift
+
     # Notify the master that all nodes have joined the cluster
     server_exec $MASTER_NODE 'tmux send -t master "y" ENTER'
 
@@ -287,11 +294,6 @@ function distribute_loader_ssh_key() {
     distribute_loader_ssh_key "$@"
 
     server_exec $MASTER_NODE 'cd loader; bash scripts/setup/patch_init_scale.sh'
-
-    source $DIR/label.sh
-
-    # Force placement of metrics collectors and instrumentation on the loader node and control plane on master
-    label_nodes $MASTER_NODE $1 # loader node is second on the list, becoming first after arg shift
 
     server_exec $MASTER_NODE "kubectl patch configmap -n knative-serving config-features -p '{\"data\": {\"kubernetes.podspec-affinity\": \"enabled\"}}'"
 
