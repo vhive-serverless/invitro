@@ -113,7 +113,11 @@ if __name__ == "__main__":
     
 
     for pod_abs_vals in pod_abs_out:
-        pod_cpu, pod_mem = pod_abs_vals.split(' ')
+        # Skip empty/malformed lines (e.g., metrics not available yet, or no user-container pods).
+        parts = pod_abs_vals.split()
+        if len(parts) != 2:
+            continue
+        pod_cpu, pod_mem = parts
         result['pod_cpu'].append(pod_cpu)
         result['pod_mem'].append(pod_mem)
     

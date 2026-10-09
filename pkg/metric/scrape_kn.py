@@ -31,37 +31,42 @@ def get_promql_query(query):
     return promql_query
 
 if __name__ == "__main__":
+    # Knative >= 1.18 exports OpenTelemetry metrics (kn_revision_*) instead of the old OpenCensus
+    # autoscaler_*/activator_* names. Activator request metrics are not exported by the control-plane
+    # endpoint, so activator_* fields will read -99.
     kn_status = {
         # Desired counts set by autoscalers.
-        "desired_pods": get_promql_query('sum(autoscaler_desired_pods)'), 
+        "desired_pods": get_promql_query('sum(kn_revision_pods_desired)'),
         # Creating containers.
-        "unready_pods": get_promql_query('sum(autoscaler_not_ready_pods)'),
+        "unready_pods": get_promql_query('sum(kn_revision_pods_not_ready_count)'),
         # Scheduling + image pulling.
-        "pending_pods": get_promql_query('sum(autoscaler_pending_pods)'),
+        "pending_pods": get_promql_query('sum(kn_revision_pods_pending_count)'),
         # Number of pods autoscalers requested from Kubernetes.
-        "requested_pods": get_promql_query('sum(autoscaler_requested_pods)'),
-        "running_pods": get_promql_query('sum(autoscaler_actual_pods)'),
+        "requested_pods": get_promql_query('sum(kn_revision_pods_requested)'),
+        "running_pods": get_promql_query('sum(kn_revision_pods_count)'),
         "activator_request_count": get_promql_query('sum(activator_request_count)'),
 
-        "autoscaler_stable_queue": get_promql_query('avg(autoscaler_stable_request_concurrency)'),
-        "autoscaler_panic_queue": get_promql_query('avg(autoscaler_panic_request_concurrency)'),
+        "autoscaler_stable_queue": get_promql_query('avg(kn_revision_concurrency_stable)'),
+        "autoscaler_panic_queue": get_promql_query('avg(kn_revision_concurrency_panic)'),
         "activator_queue": get_promql_query('avg(activator_request_concurrency)'),
         
         # The p95 latency of single scheduling round (algorithm+binding) over a time window of 30s.
+        # (scheduler_scheduling_attempt_duration_seconds replaces scheduler_e2e_scheduling_duration_seconds in newer k8s.)
         "scheduling_p95": get_promql_query(
-            'histogram_quantile(0.95, sum by (le) (rate(scheduler_e2e_scheduling_duration_seconds_bucket{job="kube-scheduler"}[30s])))'
-        ), 
+            'histogram_quantile(0.95, sum by (le) (rate(scheduler_scheduling_attempt_duration_seconds_bucket{job="kube-scheduler"}[30s])))'
+        ),
         "scheduling_p50": get_promql_query(
-            'histogram_quantile(0.50, sum by (le) (rate(scheduler_e2e_scheduling_duration_seconds_bucket{job="kube-scheduler"}[30s])))'
-        ),  
+            'histogram_quantile(0.50, sum by (le) (rate(scheduler_scheduling_attempt_duration_seconds_bucket{job="kube-scheduler"}[30s])))'
+        ),
 
         # The p95 latency of E2E pod placement (potentially multiple scheduling rounds) over a time window of 30s.
+        # (scheduler_pod_scheduling_sli_duration_seconds replaces scheduler_pod_scheduling_duration_seconds in newer k8s.)
         "e2e_placement_p95": get_promql_query(
-            'histogram_quantile(0.95, sum by (le) (rate(scheduler_pod_scheduling_duration_seconds_bucket{job="kube-scheduler"}[30s])))'
+            'histogram_quantile(0.95, sum by (le) (rate(scheduler_pod_scheduling_sli_duration_seconds_bucket{job="kube-scheduler"}[30s])))'
         ),
         "e2e_placement_p50": get_promql_query(
-            'histogram_quantile(0.50, sum by (le) (rate(scheduler_pod_scheduling_duration_seconds_bucket{job="kube-scheduler"}[30s])))'
-        ), 
+            'histogram_quantile(0.50, sum by (le) (rate(scheduler_pod_scheduling_sli_duration_seconds_bucket{job="kube-scheduler"}[30s])))'
+        ),
     }
 
     for label, query in kn_status.items():

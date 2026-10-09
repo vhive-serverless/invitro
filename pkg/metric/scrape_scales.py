@@ -31,11 +31,13 @@ def get_promql_query(query):
     return promql_query
 
 if __name__ == "__main__":
-    query_desired_pods = 'max(autoscaler_desired_pods) by(configuration_name)'
-    query_running_pods = 'max(autoscaler_actual_pods) by(configuration_name)'
-    query_unready_pods = 'max(autoscaler_not_ready_pods) by(configuration_name)'
-    query_pending_pods = 'max(autoscaler_pending_pods) by(configuration_name)'
-    query_terminating_pods = 'max(autoscaler_terminating_pods) by(configuration_name)'
+    # Knative >= 1.18 metric names (OpenTelemetry). Activator request metrics are not exported,
+    # so activator_queue falls back to 0.
+    query_desired_pods = 'max(kn_revision_pods_desired) by(kn_configuration_name)'
+    query_running_pods = 'max(kn_revision_pods_count) by(kn_configuration_name)'
+    query_unready_pods = 'max(kn_revision_pods_not_ready_count) by(kn_configuration_name)'
+    query_pending_pods = 'max(kn_revision_pods_pending_count) by(kn_configuration_name)'
+    query_terminating_pods = 'max(kn_revision_pods_terminating_count) by(kn_configuration_name)'
     query_activator_queue = 'sum(activator_request_concurrency) by(configuration_name)'
 
     def parse_promql_output(query, type_cast=int):
@@ -56,10 +58,10 @@ if __name__ == "__main__":
         results.append({
             'function': func,
             'desired_pods': desired_pods_count[func],
-            'running_pods': running_pods_count[func],
-            'unready_pods': unready_pods_count[func],
-            'pending_pods': pending_pods_count[func],
-            'terminating_pods': terminating_pods_count[func],
+            'running_pods': running_pods_count.get(func, 0),
+            'unready_pods': unready_pods_count.get(func, 0),
+            'pending_pods': pending_pods_count.get(func, 0),
+            'terminating_pods': terminating_pods_count.get(func, 0),
             'activator_queue': queue_size.get(func, 0)
         })
 

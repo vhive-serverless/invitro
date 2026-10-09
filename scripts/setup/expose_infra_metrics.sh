@@ -56,6 +56,12 @@ server_exec() {
 	server_exec "curl -sL $commit_version/config/serving-monitors.yaml | sed 's/interval: 30s/interval: 2s/g' | kubectl apply -f -"
 	server_exec "curl -sL $commit_version/config/configmap-serving-dashboard.json | sed 's/"namespace": "knative-serving"/"namespace": "monitoring"/g' | kubectl apply -f -"
 
+	#* Knative >= 1.18 exports metrics via OpenTelemetry with metrics-protocol defaulting to 'none', so the
+	#* control-plane components serve nothing on :9090. Enable the Prometheus exporter and restart them to pick it up.
+	server_exec "kubectl patch configmap config-observability -n knative-serving --type merge -p '{\"data\":{\"metrics-protocol\":\"prometheus\"}}'"
+	server_exec 'kubectl rollout restart deployment -n knative-serving autoscaler activator controller webhook'
+	server_exec 'kubectl rollout status deployment -n knative-serving autoscaler activator controller webhook --timeout=300s'
+
 	#* Bind addresses of the control manager and scheduler to "0.0.0.0" so that prometheus can scrape them from any domains.
 	server_exec 'sudo kubeadm init phase control-plane controller-manager --config ~/loader/scripts/setup/configs/prometheus/kubeadm_init.yaml --v=7'
 	server_exec 'sudo kubeadm init phase control-plane scheduler --config ~/loader/scripts/setup/configs/prometheus/kubeadm_init.yaml --v=7'
