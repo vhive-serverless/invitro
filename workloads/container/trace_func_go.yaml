@@ -18,6 +18,8 @@ spec:
         autoscaling.knative.dev/target: $AUTOSCALING_TARGET
     spec:
       containerConcurrency: 1
+      timeoutSeconds: 600  # Default 300s kills Azure2021 invocations longer than 5 min. Must be <= max-revision-timeout-seconds (600).
+      responseStartTimeoutSeconds: 600  # gRPC replies only on completion, so this must also cover the full runtime.
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
