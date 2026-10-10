@@ -35,13 +35,15 @@ Tried the vHive profile with 1 node. (Emulab d430)
 ### Connecting to CloudLab Nodes
 Connect to node
 `ssh -o ServerAliveInterval=60 -A <user@url>`
-`ssh -o ServerAliveInterval=60 -A bryanFB@pc499.emulab.net` (node-000)
-`ssh -o ServerAliveInterval=60 -A bryanFB@pc560.emulab.net`
+`ssh -o ServerAliveInterval=60 -A bryanFB@apt180.apt.emulab.net` (Master)
+`ssh -o ServerAliveInterval=60 -A bryanFB@apt178.apt.emulab.net` (Loader)
 
-ssh bryanFB@pc499.emulab.net
-ssh bryanFB@pc560.emulab.net
-ssh bryanFB@pc552.emulab.net
-ssh bryanFB@pc536.emulab.net
+ssh bryanFB@apt180.apt.emulab.net
+ssh bryanFB@apt178.apt.emulab.net
+ssh bryanFB@apt183.apt.emulab.net
+ssh bryanFB@apt175.apt.emulab.net
+ssh bryanFB@apt177.apt.emulab.net
+ssh bryanFB@apt179.apt.emulab.net
 
 Check if node detects ssh-agent
 `echo "$SSH_AUTH_SOCK"`
@@ -69,7 +71,7 @@ Run single_node_installer
 # 3 nodes (Emulab d430)
 cd invitro/
 bash ./scripts/setup/create_multinode.sh <master_node@IP> <loader_node@IP> <worker_node@IP> ...
-bash ./scripts/setup/create_multinode.sh bryanFB@pc499.emulab.net bryanFB@pc560.emulab.net bryanFB@pc552.emulab.net bryanFB@pc536.emulab.net
+bash ./scripts/setup/create_multinode.sh bryanFB@apt180.apt.emulab.net bryanFB@apt178.apt.emulab.net bryanFB@apt183.apt.emulab.net bryanFB@apt175.apt.emulab.net bryanFB@apt177.apt.emulab.net bryanFB@apt179.apt.emulab.net
 
 # Tests
 ## Monitor deployments (everything should be running)
@@ -188,6 +190,19 @@ python -m sampler sample -t data/datasets/azure2021/preprocessed_120 -orig data/
 
 python -m sampler filter2021 -t data/datasets/azure2021/AzureFunctionsInvocationTraceForTwoWeeksJan2021.txt -st data/datasets/azure2021/sampled_120/samples/35 -o data/datasets/azure2021/filtered_120_35 -s 00:09:00 -dur 120
 ```
+
+``` bash
+python -m sampler filter2021 -t data/datasets/azure2021/AzureFunctionsInvocationTraceForTwoWeeksJan2021.txt -st data/datasets/azure2021/preprocessed_120 -o data/datasets/azure2021/filtered_120_full -s 00:09:00 -dur 120
+```
+preprocessed_120/
+- 541 to 660 minute (09:00 to 11:00)
+- 6050 invocations
+- 38 functions
+
+filtered_120_full/SampledAzure2021.csv
+- 541 to 660 minute (09:00 to 11:00) 
+- 6050 invocations
+- 38 functions
 
 Information about trace (Likely can just put whole trace in)
 - Preprocessed Trace
