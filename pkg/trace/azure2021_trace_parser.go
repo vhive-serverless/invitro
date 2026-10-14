@@ -180,8 +180,8 @@ func GenerateFunctionSpecification(invocationSlice Invocations, durationMinutes 
 	var previousInvocationTimestamp = 0.0
 
 	for _, invocation := range invocationSlice {
-		// truncate if function invocation ends after durationMinutes.
-		if (invocation.startTime + invocation.duration) > float64(durationMinutes*60) {
+		// truncate if function invocation starts after durationMinutes.
+		if (invocation.startTime) >= float64(durationMinutes*60) {
 			continue
 		}
 
