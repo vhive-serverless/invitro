@@ -30,20 +30,25 @@ Consider running with more nodes.
 ## Node Setup
 ### Renting CloudLab Nodes
 Tried the vHive profile with 1 node. (Emulab d430)
+()
 [Renting with vHive Profile](https://www.cloudlab.us/p/ntu-cloud/vhive-ubuntu24)
 
 ### Connecting to CloudLab Nodes
 Connect to node
 `ssh -o ServerAliveInterval=60 -A <user@url>`
-`ssh -o ServerAliveInterval=60 -A bryanFB@apt180.apt.emulab.net` (Master)
-`ssh -o ServerAliveInterval=60 -A bryanFB@apt178.apt.emulab.net` (Loader)
+`ssh -o ServerAliveInterval=60 -A bryanFB@apt109.apt.emulab.net` (Master)
+`ssh -o ServerAliveInterval=60 -A bryanFB@apt113.apt.emulab.net` (Loader)
 
-ssh bryanFB@apt180.apt.emulab.net
-ssh bryanFB@apt178.apt.emulab.net
-ssh bryanFB@apt183.apt.emulab.net
-ssh bryanFB@apt175.apt.emulab.net
-ssh bryanFB@apt177.apt.emulab.net
-ssh bryanFB@apt179.apt.emulab.net
+ssh bryanFB@apt109.apt.emulab.net
+ssh bryanFB@apt113.apt.emulab.net
+ssh bryanFB@apt105.apt.emulab.net
+ssh bryanFB@apt114.apt.emulab.net
+ssh bryanFB@apt112.apt.emulab.net
+ssh bryanFB@apt104.apt.emulab.net
+ssh bryanFB@apt102.apt.emulab.net
+ssh bryanFB@apt117.apt.emulab.net
+ssh bryanFB@apt103.apt.emulab.net
+ssh bryanFB@apt094.apt.emulab.net
 
 Check if node detects ssh-agent
 `echo "$SSH_AUTH_SOCK"`
@@ -71,7 +76,7 @@ Run single_node_installer
 # 3 nodes (Emulab d430)
 cd invitro/
 bash ./scripts/setup/create_multinode.sh <master_node@IP> <loader_node@IP> <worker_node@IP> ...
-bash ./scripts/setup/create_multinode.sh bryanFB@apt180.apt.emulab.net bryanFB@apt178.apt.emulab.net bryanFB@apt183.apt.emulab.net bryanFB@apt175.apt.emulab.net bryanFB@apt177.apt.emulab.net bryanFB@apt179.apt.emulab.net
+bash ./scripts/setup/create_multinode.sh bryanFB@apt109.apt.emulab.net bryanFB@apt113.apt.emulab.net bryanFB@apt105.apt.emulab.net bryanFB@apt114.apt.emulab.net bryanFB@apt112.apt.emulab.net bryanFB@apt104.apt.emulab.net bryanFB@apt102.apt.emulab.net bryanFB@apt117.apt.emulab.net bryanFB@apt103.apt.emulab.net bryanFB@apt094.apt.emulab.net
 
 # Tests
 ## Monitor deployments (everything should be running)
@@ -108,10 +113,12 @@ kubectl -n default get podautoscalers   # should show 3 desired/actual
 
 kn service delete myfunc
 
-
 ```
 
 ## Setup On Loader 
+### SSH
+`ssh -o ServerAliveInterval=60 -A bryanFB@apt113.apt.emulab.net` (Loader)
+
 ### UV Install
 `curl -LsSf https://astral.sh/uv/install.sh | sh`
 `source $HOME/.local/bin/env`
@@ -129,7 +136,7 @@ kn service delete myfunc
 Copy over essential configs (In PowerShell)
 `scp -r "C:\Users\toomu\Desktop\Projects\Projects\Actual_Invitro_Development\remote_setup" bryanFB@pc827.emulab.net:~/invitro/`
 In Multinode
-`scp -r "D:\FYP\Projects\Actual_Invitro_Development\remote_setup" bryanFB@pc560.emulab.net:~/loader/`
+`scp -r "D:\FYP\Projects\Actual_Invitro_Development\remote_setup" bryanFB@apt113.apt.emulab.net:~/loader/`
 
 Install
 `sudo apt install rclone`
@@ -295,8 +302,19 @@ Push csv data into G-cloud
 Ensure git progress pushed to GitHub
 
 # Perfrom Experiments
-Make a shell executable
+tmux 
+`tmux new -s work` New session
+`tmux a -t work` Attach
+
+Execute job script
 `chmod +x multiple_runs.sh`
+`./multiple_runs.sh`
+
+Push data onto Drive
+`rclone sync ~/loader/data/out remote:RClone/test_1 --progress` (multi_node)
+
+## 14 Oct
+Run Azure2021 again, logging output to file so we can figure out why a trace failed.
+`go run cmd/loader.go --config cmd/config_fyp_test_2_2021.json --verbosity=debug 2>&1 | tee output.txt`
 
 
-`$ go run cmd/loader.go --config cmd/config_fyp_azure2021.json --verbosity=debug`
