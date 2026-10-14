@@ -10,7 +10,7 @@
   "OutputPathPrefix": "data/out/test_2_2019_shift/run",
   "IATDistribution": "exponential_shift",
   "CPULimit": "1vCPU",
-  "ExperimentDuration": 30,
+  "ExperimentDuration": 60,
   "WarmupDuration": 0,
   "IsPartiallyPanic": false,
   "EnableZipkinTracing": false,
