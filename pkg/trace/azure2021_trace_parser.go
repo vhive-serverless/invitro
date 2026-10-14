@@ -210,6 +210,9 @@ func GenerateFunctionSpecification(invocationSlice Invocations, durationMinutes 
 		if runtime_milliseconds == 0 {
 			runtime_milliseconds = 1
 		} // prevent 0.000s duration, set minimum to 1ms
+
+		runtime_milliseconds = common.MinOf(common.MaxExecTimeMilli, common.MaxOf(common.MinExecTimeMilli, runtime_milliseconds))
+
 		runtimeArray = append(runtimeArray, common.RuntimeSpecification{Runtime: runtime_milliseconds, Memory: common.Azure2021MemoryReferenceValue})
 	}
 
