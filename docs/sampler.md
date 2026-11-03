@@ -300,3 +300,9 @@ $ python -m sampler preprocessIBM2026 -t data/traces/ibm2026 -o data/traces/ibm2
 The output trace can then either:
 - Be used directly in [Loader](loader.md#ibm2026)
 - Be sub-sampled further, following instructions in [Azure2021](#using-azure2021-traces)
+
+Some invocations appear as duplicates in IBM2026 trace, however this is deemed the result of a granularity difference and not dataset error. Pass the `--no-deduplicate` flag when sub-sampling to preserve these invocations.
+``` Bash
+# Set --no-deduplicate flag 
+python -m sampler preprocess2021 -t data/traces/ibm2026/output/IBM2026AsAzure2021.csv -o data/traces/ibm2026/preprocessed_60 -s 00:00:00 -dur 60 -thresh 100 --no-deduplicate
+```

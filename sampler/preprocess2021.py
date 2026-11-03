@@ -33,7 +33,7 @@ import math
 
 import os
 
-def preprocess_file(trace_path: str, start_time: str, duration: str, output_dir: str, zero_ms_threshold_percent: str) -> pd.DataFrame:
+def preprocess_file(trace_path: str, start_time: str, duration: str, output_dir: str, zero_ms_threshold_percent: str, remove_duplicates: bool) -> pd.DataFrame:
     
     # Read CSV
     trace_file = glob(f"{trace_path}")
@@ -44,7 +44,8 @@ def preprocess_file(trace_path: str, start_time: str, duration: str, output_dir:
     df, start_td, end_td = filter_within_time_interval(df, start_time, duration)
 
     # Remove duplicate functions
-    df = remove_azure2021_duplicates(df)
+    if (remove_duplicates):
+        df = remove_azure2021_duplicates(df)
 
     # Filter functions with invocations below 1ms
     df = filter_functions_with_0ms_inovcations(df, threshold_percent=int(zero_ms_threshold_percent))

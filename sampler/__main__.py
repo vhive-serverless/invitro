@@ -71,7 +71,7 @@ def run(args):
     
     if args.cmd == 'preprocess2021':
         preprocess_file(trace_path=args.trace, start_time=args.start, duration=args.duration, 
-                        output_dir=args.output, zero_ms_threshold_percent=args.threshold)
+                        output_dir=args.output, zero_ms_threshold_percent=args.threshold, remove_duplicates=args.deduplicate)
         return
     
     if args.cmd == 'preprocessHuawei2023':
@@ -309,6 +309,14 @@ def main():
         default=50,
         metavar='threshold',
         help='Threshold in percentage, for which a function is ignored if the percentage of its 0ms invocations is equal or higher'
+    )
+    
+    pre2021_parser.add_argument(
+        "--deduplicate", 
+        required=False,
+        action=argparse.BooleanOptionalAction, 
+        default=True,
+        help='Perform deduplication of input Azure2021 trace. Unset if duplicate invocations are valid.'
     )
 
     ####################################################
