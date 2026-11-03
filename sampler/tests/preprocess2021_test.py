@@ -152,6 +152,68 @@ def test_generate_mem_df_fills_static_memory_values():
     mem_df = generate_mem_df(input_df)
 
     pd.testing.assert_frame_equal(mem_df, expected_df)
+    
+    
+# Validate deduplication
+def test_deduplication(tmp_path):
+    # Original DF
+    og_df = pd.DataFrame(
+        {
+            "app":           ["aa",  "ac",  "ac"],
+            "func":          ["fa",  "fd",  "fd"],
+            "end_timestamp": [1.00, 100.0, 100.0],
+            "duration":      [0.50,  40.0,  40.0],
+        }
+    )
+    dir_path = tmp_path / "og_df"
+    dir_path.mkdir()
+    orig_trace_path = dir_path / "AzureFunctionsInvocationTraceForTwoWeeksJan2021.txt"
+    og_df.to_csv(orig_trace_path, index=False)
+    
+    # Test Preprocess2021
+    out_dir = tmp_path / "output"
+    start_time = "00:00:00"
+    duration = 5
+    zero_ms_threshold_percent = 50
+    
+    # No Deduplicate
+    preprocess_file(orig_trace_path, start_time, str(duration), str(out_dir), str(zero_ms_threshold_percent), False)
+    preprocessed2021_df_path = out_dir / "invocations.csv"
+    preprocessed2021_df = pd.read_csv(preprocessed2021_df_path)
+    expected_preprocessed2021_df = pd.DataFrame(
+        {
+            "HashOwner":    [   0,    0],
+            "HashApp":      ["aa", "ac"],
+            "HashFunction": ["fa", "fd"],
+            "Trigger":      ["http", "http"],
+            "1":            [1, 0],
+            "2":            [0, 2],
+            "3":            [0, 0],
+            "4":            [0, 0],
+            "5":            [0, 0],
+        }
+    )
+    pd.testing.assert_frame_equal(preprocessed2021_df, expected_preprocessed2021_df)
+    
+    # Deduplicate
+    preprocess_file(orig_trace_path, start_time, str(duration), str(out_dir), str(zero_ms_threshold_percent), True)
+    preprocessed2021_df_path = out_dir / "invocations.csv"
+    preprocessed2021_df = pd.read_csv(preprocessed2021_df_path)
+    expected_preprocessed2021_df = pd.DataFrame(
+        {
+            "HashOwner":    [   0,    0],
+            "HashApp":      ["aa", "ac"],
+            "HashFunction": ["fa", "fd"],
+            "Trigger":      ["http", "http"],
+            "1":            [1, 0],
+            "2":            [0, 1],
+            "3":            [0, 0],
+            "4":            [0, 0],
+            "5":            [0, 0],
+        }
+    )
+    pd.testing.assert_frame_equal(preprocessed2021_df, expected_preprocessed2021_df)
+
 
 # Unit happy path test.
 def test_preprocess2021(tmp_path):
@@ -177,7 +239,7 @@ def test_preprocess2021(tmp_path):
     duration = 5
     zero_ms_threshold_percent = 50
     
-    preprocess_file(orig_trace_path, start_time, str(duration), str(out_dir), str(zero_ms_threshold_percent))
+    preprocess_file(orig_trace_path, start_time, str(duration), str(out_dir), str(zero_ms_threshold_percent), True)
 
     # Read and compare output preprocessed2021 (inv_df)
     preprocessed2021_df_path = out_dir / "invocations.csv"
