@@ -180,8 +180,8 @@ func GenerateFunctionSpecification(invocationSlice Invocations, durationMinutes 
 	var previousInvocationTimestamp = 0.0
 
 	for _, invocation := range invocationSlice {
-		// truncate if function invocation ends after durationMinutes.
-		if (invocation.startTime + invocation.duration) > float64(durationMinutes*60) {
+		// Keep only invocations with start time within duration.
+		if (invocation.startTime) >= float64(durationMinutes*60) {
 			continue
 		}
 
@@ -206,10 +206,10 @@ func GenerateFunctionSpecification(invocationSlice Invocations, durationMinutes 
 		minutesPassed := int(duration.Minutes())
 		perMinuteCount[minutesPassed]++
 
+		// Upper bound (60s) and Lower bound (1ms)
 		runtime_milliseconds := int(math.Round(invocation.duration * 1_000))
-		if runtime_milliseconds == 0 {
-			runtime_milliseconds = 1
-		} // prevent 0.000s duration, set minimum to 1ms
+		runtime_milliseconds = common.MinOf(common.MaxExecTimeMilli, common.MaxOf(common.MinExecTimeMilli, runtime_milliseconds))
+
 		runtimeArray = append(runtimeArray, common.RuntimeSpecification{Runtime: runtime_milliseconds, Memory: common.Azure2021MemoryReferenceValue})
 	}
 

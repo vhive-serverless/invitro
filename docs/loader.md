@@ -155,7 +155,7 @@ To run load generator with Azure2021 functions run the following:
 ```bash
 $ go run cmd/loader.go --config cmd/config_knative2021_trace.json
 ```
-To direct the loader to execute Azure2021 dataset functions, set `TracePath` in the loader configuration to the Azure2021 csv file path instead of a directory path. For more information, please refer to [Azure2021 Trace Usage](#azure2021-trace-usage).
+To direct the loader to execute Azure2021 dataset functions, set `TracePath` in the loader configuration to the Azure2021 csv file path instead of a directory path. For more information, please refer to [Azure2021 Trace Usage](#loader-handling-azure2021-trace).
 
 ### Huawei-2023 Private
 To run `Huawei-2023` functions, the trace must be preprocessed and converted to an equivalent `Azure2019` trace format first. 
@@ -389,10 +389,12 @@ Notes:
 - Current deployment is via ZIP
 - Python is used for deployment workload as Go is not supported in Consumption Plan
 
-## Azure2021 Trace Usage
+## Loader Handling Azure2021 Trace
 
 If `TracePath` is a file path, loader will interpret it as a valid Azure2021 trace.
 
 As Azure2021 traces do not indicate memory usage, a reference value of 200 was chosen.
 Sampler.md empirically found that the memory average for Azure2019 trace is 200MB, and we decided to follow it.
 This value is used as an estimate for `common.RuntimeSpecificationArray` and argument for `ColdStartBusyLoopMs`.
+
+Invocation duration are bounded to 60s and 1ms, invocations are truncated for start time within experiment duration.
