@@ -39,16 +39,21 @@ Connect to node
 `ssh -o ServerAliveInterval=60 -A bryanFB@pc737.emulab.net` (Master)
 `ssh -o ServerAliveInterval=60 -A bryanFB@pc722.emulab.net` (Loader)
 
-ssh bryanFB@pc737.emulab.net
+ssh bryanFB@pc748.emulab.net
+ssh bryanFB@pc815.emulab.net
+ssh bryanFB@pc856.emulab.net
 ssh bryanFB@pc722.emulab.net
-ssh bryanFB@pc730.emulab.net 
-ssh bryanFB@pc736.emulab.net
-ssh bryanFB@pc725.emulab.net
-ssh bryanFB@pc735.emulab.net
-ssh bryanFB@pc731.emulab.net
-ssh bryanFB@pc723.emulab.net
-ssh bryanFB@pc732.emulab.net
-ssh bryanFB@pc729.emulab.net
+ssh bryanFB@pc750.emulab.net
+ssh bryanFB@pc854.emulab.net
+ssh bryanFB@pc726.emulab.net
+ssh bryanFB@pc820.emulab.net
+
+### Copy over script
+In Multinode
+`scp -r "D:\FYP\Projects\Actual_Invitro_Development\remote_setup" bryanFB@pc722.emulab.net:~/`
+`chmod u+x setup_master.sh`
+`./setup_master.sh`
+
 
 Check if node detects ssh-agent
 `echo "$SSH_AUTH_SOCK"`
@@ -119,6 +124,12 @@ kn service delete myfunc
 ### SSH
 `ssh -o ServerAliveInterval=60 -A bryanFB@pc722.emulab.net` (Loader)
 
+### Copy over script
+In Multinode
+`scp -r "D:\FYP\Projects\Actual_Invitro_Development\remote_setup" bryanFB@pc815.emulab.net:~/`
+`chmod u+x setup_loader.sh`
+`./setup_loader.sh`
+
 ### UV Install
 `curl -LsSf https://astral.sh/uv/install.sh | sh`
 `source $HOME/.local/bin/env`
@@ -134,9 +145,17 @@ kn service delete myfunc
 ## Downloading Original Datasets To System
 ### RClone + Google Cloud
 Copy over essential configs (In PowerShell)
-`scp -r "C:\Users\toomu\Desktop\Projects\Projects\Actual_Invitro_Development\remote_setup" bryanFB@pc827.emulab.net:~/invitro/`
+`scp -r "C:\Users\toomu\Desktop\Projects\Projects\Actual_Invitro_Development\remote_setup" bryanFB@pc722.emulab.net:~/invitro/`
 In Multinode
-`scp -r "D:\FYP\Projects\Actual_Invitro_Development\remote_setup" bryanFB@pc722.emulab.net:~/loader/`
+`scp -r "D:\FYP\Projects\Actual_Invitro_Development\remote_setup" bryanFB@pc722.emulab.net:~/`
+
+### SETUP
+`scp -o "StrictHostKeyChecking=accept-new" -r "C:\Users\toomu\Desktop\Projects\Projects\Actual_Invitro_Development\remote_setup" bryanFB@pc815.emulab.net:~/`
+`ssh -o ServerAliveInterval=60 -A bryanFB@pc815.emulab.net`
+`cd ~/remote_setup`
+`chmod u+x setup_loader.sh`
+`./setup_loader.sh`
+
 
 Install
 `sudo apt install rclone`
@@ -146,7 +165,7 @@ Find location of local config file + make folder
 
 Save rclone.conf to that file location
 `cp ~/invitro/remote_setup/rclone.conf ~/.config/rclone/rclone.conf` (single_node)
-`cp ~/loader/remote_setup/remote_setup/rclone.conf ~/.config/rclone/rclone.conf` (multi_node)
+`cp ~/remote_setup/remote_setup/rclone.conf ~/.config/rclone/rclone.conf` (multi_node)
 
 Test, list directories in top level of your drive
 `rclone lsd remote:`
@@ -248,6 +267,18 @@ python -m sampler preprocess2021 -t data/datasets/ibm2026/converted_120/IBM2026A
 python -m sampler sample -t data/datasets/ibm2026/preprocessed_120 -orig data/datasets/ibm2026/preprocessed_120 -o data/datasets/ibm2026/sampled_120 -min 100 -st 20 -max 500 -tr 16
 
 python -m sampler filter2021 -t data/datasets/ibm2026/converted_120/IBM2026AsAzure2021.csv -st data/datasets/ibm2026/sampled_120/samples/480 -o data/datasets/ibm2026/filtered_120 -s 00:00:00 -dur 120
+
+#######
+# 14 Nov Re-Performed => (60 duration)
+# Convert IBM2026 to Azure2021 format
+python -m sampler preprocessIBM2026 -t data/datasets/ibm2026/pickle_data -o data/datasets/ibm2026/converted_60 -s 00:09:00 -dur 60
+
+# Sample IBM2026 (Azure2021 format) -> Azure2021 format for 240/400 functions
+python -m sampler preprocess2021 -t data/datasets/ibm2026/converted_60/IBM2026AsAzure2021.csv -o data/datasets/ibm2026/preprocessed_60 -s 00:00:00 -dur 60 -thresh 100
+python -m sampler sample -t data/datasets/ibm2026/preprocessed_60 -orig data/datasets/ibm2026/preprocessed_60 -o data/datasets/ibm2026/sampled_60 -min 100 -st 20 -max 480 -tr 16
+python -m sampler filter2021 -t data/datasets/ibm2026/converted_60/IBM2026AsAzure2021.csv -st data/datasets/ibm2026/sampled_60/samples/400 -o data/datasets/ibm2026/filtered_400 -s 00:00:00 -dur 60
+python -m sampler filter2021 -t data/datasets/ibm2026/converted_60/IBM2026AsAzure2021.csv -st data/datasets/ibm2026/sampled_60/samples/240 -o data/datasets/ibm2026/filtered_240 -s 00:00:00 -dur 60
+
 ```
 
 Information about trace
