@@ -64,7 +64,7 @@ mv *.json "data/out/$AZURE2021_DIRECTORY/iat"
 
 # Upload Dataset
 echo "===== Uploading data to Google Drive ====="
-rclone sync ~/loader/data/out remote:RClone/test_3 --progress
+rclone sync ~/loader/data/out remote:RClone/test_4 --progress
 
 echo "END"
 

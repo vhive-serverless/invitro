@@ -32,18 +32,17 @@ type IATArray []float64
 // ProbabilisticDuration used for testing the exponential distribution
 type ProbabilisticDuration []float64
 
+// Specification on how driver invokes deployed function
+// (IAT, Memory usage, runtime duration)
+type FunctionSpecification struct {
+	IAT                  IATArray                  `json:"IAT"`
+	PerMinuteCount       []int                     `json:"PerMinuteCount"`
+	RawDuration          ProbabilisticDuration     `json:"RawDuration"`
+	RuntimeSpecification RuntimeSpecificationArray `json:"RuntimeSpecification"`
+}
+
 type RuntimeSpecification struct {
 	Runtime int
 	Memory  int
 }
-
 type RuntimeSpecificationArray []RuntimeSpecification
-
-// Specification on how driver invokes deployed function (IAT, Memory usage, runtime duration)
-type FunctionSpecification struct {
-	IAT                  IATArray                  `json:"IAT"` // Inter-Arrival-Time between function invocations used by driver
-	PerMinuteCount       []int                     `json:"PerMinuteCount"`
-	RawDuration          ProbabilisticDuration     `json:"RawDuration"`
-	RuntimeSpecification RuntimeSpecificationArray `json:"RuntimeSpecification"` // Slice of memory usage and runtime duration for each invocation
-
-}

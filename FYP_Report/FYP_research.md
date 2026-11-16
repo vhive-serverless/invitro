@@ -37,7 +37,7 @@ Tried the vHive profile with 1 node. (Emulab d430)
 Connect to node
 `ssh -o ServerAliveInterval=60 -A <user@url>`
 `ssh -o ServerAliveInterval=60 -A bryanFB@pc737.emulab.net` (Master)
-`ssh -o ServerAliveInterval=60 -A bryanFB@pc722.emulab.net` (Loader)
+`ssh -o ServerAliveInterval=60 -A bryanFB@pc815.emulab.net` (Loader)
 
 ssh bryanFB@pc748.emulab.net
 ssh bryanFB@pc815.emulab.net
@@ -334,7 +334,8 @@ Ensure git progress pushed to GitHub
 
 # Perfrom Experiments
 tmux 
-`tmux new -s work` New session
+`tmux new -s work` New session 
+`Ctrl + b` `d` Detach
 `tmux a -t work` Attach
 
 Execute job script
