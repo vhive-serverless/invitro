@@ -10,26 +10,31 @@ cleanup() {
 
 cleanup
 
-echo "===== TEST 4 ====="
 
 # Variables
 ## Azure2019Expo Vars
-AZURE2019EXPO_JSON_FILE="config_fyp_test_4_2019_expo.json"
-AZURE2019EXPO_DIRECTORY="test_4_2019_expo"
+AZURE2019EXPO_JSON_FILE="config_fyp_test_5_2019_expo.json"
+AZURE2019EXPO_DIRECTORY="test_5_2019_expo"
 mkdir -p "data/out/$AZURE2019EXPO_DIRECTORY"
 mkdir -p "data/out/$AZURE2019EXPO_DIRECTORY/iat"
 
 ## Azure2019Shift Vars
-AZURE2019SHIFT_JSON_FILE="config_fyp_test_4_2019_shift.json"
-AZURE2019SHIFT_DIRECTORY="test_4_2019_shift"
+AZURE2019SHIFT_JSON_FILE="config_fyp_test_5_2019_shift.json"
+AZURE2019SHIFT_DIRECTORY="test_5_2019_shift"
 mkdir -p "data/out/$AZURE2019SHIFT_DIRECTORY"
 mkdir -p "data/out/$AZURE2019SHIFT_DIRECTORY/iat"
 
 ## Azure2021 Vars
-AZURE2021_JSON_FILE="config_fyp_test_4_2021.json"
-AZURE2021_DIRECTORY="test_4_2021"
+AZURE2021_JSON_FILE="config_fyp_test_5_2021.json"
+AZURE2021_DIRECTORY="test_5_2021"
 mkdir -p "data/out/$AZURE2021_DIRECTORY"
 mkdir -p "data/out/$AZURE2021_DIRECTORY/iat"
+
+## Test Number
+TEST_NUMBER="5"
+GOOGLE_DRIVE_TEST_FOLDER="test_$TEST_NUMBER"
+
+echo "===== TEST $TEST_NUMBER ====="
 
 # Azure2019 Expo
 echo "===== Azure2019 Expo ====="
@@ -64,7 +69,7 @@ mv *.json "data/out/$AZURE2021_DIRECTORY/iat"
 
 # Upload Dataset
 echo "===== Uploading data to Google Drive ====="
-rclone sync ~/loader/data/out remote:RClone/test_4 --progress
+rclone sync ~/loader/data/out "remote:RClone/$GOOGLE_DRIVE_TEST_FOLDER" --progress
 
 echo "END"
 
