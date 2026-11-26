@@ -46,7 +46,7 @@ echo "===== Azure2019 Expo - IAT Generation ====="
 go run cmd/loader.go --config "cmd/$AZURE2019EXPO_JSON_FILE" --verbosity=trace --iatGeneration=true
 mv *.json "data/out/$AZURE2019EXPO_DIRECTORY/iat"
 
-#make clean
+make clean
 
 # Azure2019 Shift
 echo "===== Azure2019 Shift ====="
@@ -58,7 +58,7 @@ echo "===== Azure2019 Shift - IAT Generation ====="
 go run cmd/loader.go --config "cmd/$AZURE2019SHIFT_JSON_FILE" --verbosity=trace --iatGeneration=true
 mv *.json "data/out/$AZURE2019SHIFT_DIRECTORY/iat"
 
-#make clean
+make clean
 
 # Azure2021
 echo "===== Azure2021 ====="
@@ -70,7 +70,7 @@ echo "===== Azure2021 - IAT Generation ====="
 go run cmd/loader.go --config "cmd/$AZURE2021_JSON_FILE" --verbosity=trace --iatGeneration=true
 mv *.json "data/out/$AZURE2021_DIRECTORY/iat"
 
-#make clean
+make clean
 
 # Upload Dataset
 echo "===== Uploading data to Google Drive ====="
