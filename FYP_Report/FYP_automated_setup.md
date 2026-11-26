@@ -2,18 +2,30 @@
 [Renting with vHive Profile](https://www.cloudlab.us/p/ntu-cloud/vhive-ubuntu24)
 
 ### Connecting to CloudLab Nodes
-`ssh -o ServerAliveInterval=60 -A yanFB@amd236.utah.cloudlab.us` (Master)
-`ssh -o ServerAliveInterval=60 -A bryanFB@amd102.utah.cloudlab.us` (Loader)
+`ssh -o ServerAliveInterval=60 -A bryanFB@hp142.utah.cloudlab.us` (Master)
+`ssh -o ServerAliveInterval=60 -A bryanFB@hp021.utah.cloudlab.us` (Loader)
 
 LIST OF NODES
-ssh bryanFB@amd236.utah.cloudlab.us
-ssh bryanFB@amd102.utah.cloudlab.us
+ssh bryanFB@hp142.utah.cloudlab.us
+ssh bryanFB@hp021.utah.cloudlab.us
 
-ssh bryanFB@amd114.utah.cloudlab.us
-ssh bryanFB@amd186.utah.cloudlab.us
-ssh bryanFB@amd103.utah.cloudlab.us
-ssh bryanFB@amd192.utah.cloudlab.us
-ssh bryanFB@amd225.utah.cloudlab.us
+ssh bryanFB@hp125.utah.cloudlab.us
+ssh bryanFB@hp126.utah.cloudlab.us
+ssh bryanFB@hp152.utah.cloudlab.us
+ssh bryanFB@hp131.utah.cloudlab.us
+ssh bryanFB@hp130.utah.cloudlab.us
+ssh bryanFB@hp015.utah.cloudlab.us
+ssh bryanFB@hp032.utah.cloudlab.us
+ssh bryanFB@hp122.utah.cloudlab.us
+ssh bryanFB@hp146.utah.cloudlab.us
+ssh bryanFB@hp149.utah.cloudlab.us
+ssh bryanFB@hp132.utah.cloudlab.us
+ssh bryanFB@hp160.utah.cloudlab.us
+ssh bryanFB@hp139.utah.cloudlab.us
+ssh bryanFB@hp121.utah.cloudlab.us
+ssh bryanFB@hp143.utah.cloudlab.us
+ssh bryanFB@hp158.utah.cloudlab.us
+ssh bryanFB@hp151.utah.cloudlab.us
 
 
 Update Node list on 
@@ -23,10 +35,10 @@ Update Node list on
 
 ## Master Node Setup
 Copy over script from Windows
-`scp -o "StrictHostKeyChecking=accept-new" -r "D:\FYP\Projects\Actual_Invitro_Development\remote_setup" yanFB@amd236.utah.cloudlab.us:~/` (Laptop)
+`scp -o "StrictHostKeyChecking=accept-new" -r "D:\FYP\Projects\Actual_Invitro_Development\remote_setup" bryanFB@hp142.utah.cloudlab.us:~/` (Laptop)
 
 Execute script on master node
-`ssh -o ServerAliveInterval=60 -A yanFB@amd236.utah.cloudlab.us`
+`ssh -o ServerAliveInterval=60 -A bryanFB@hp142.utah.cloudlab.us`
 
 `tmux new -s work` New session 
 `cd ~/remote_setup && chmod u+x ./setup_master.sh && ./setup_master.sh`
@@ -34,10 +46,10 @@ Execute script on master node
 
 ## Loader Node Setup
 Copy over script from Windows
-`scp -o "StrictHostKeyChecking=accept-new" -r "D:\FYP\Projects\Actual_Invitro_Development\remote_setup" bryanFB@amd102.utah.cloudlab.us:~/` (Laptop)
+`scp -o "StrictHostKeyChecking=accept-new" -r "D:\FYP\Projects\Actual_Invitro_Development\remote_setup" bryanFB@hp021.utah.cloudlab.us:~/` (Laptop)
 
 Execute script on loader node
-`ssh -o ServerAliveInterval=60 -A bryanFB@amd102.utah.cloudlab.us`
+`ssh -o ServerAliveInterval=60 -A bryanFB@hp021.utah.cloudlab.us`
 
 `tmux new -s work` New session 
 `cd ~/remote_setup && chmod u+x ./setup_loader.sh && ./setup_loader.sh`
