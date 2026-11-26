@@ -80,3 +80,14 @@ Execute job script
 `sudo crictl ps -a | grep -E "kube-apiserver|etcd"`
 `sudo crictl logs <container-id> 2>&1 | tail -200`
 `sudo ls -la /var/log/pods/ | grep -E "apiserver|etcd"`
+
+
+
+
+# AAAAAAAAA
+Loader download dataset
+`rclone copy remote:RClone/FYP_compressed ~/loader/data --progress`
+
+Loader update cmd jsons and multiple_runs.sh
+`git status`
+`git pull fyp_report`

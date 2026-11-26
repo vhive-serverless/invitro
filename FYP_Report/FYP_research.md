@@ -276,8 +276,11 @@ python -m sampler preprocessIBM2026 -t data/datasets/ibm2026/pickle_data -o data
 # Sample IBM2026 (Azure2021 format) -> Azure2021 format for 240/400 functions
 python -m sampler preprocess2021 -t data/datasets/ibm2026/converted_60/IBM2026AsAzure2021.csv -o data/datasets/ibm2026/preprocessed_60 -s 00:00:00 -dur 60 -thresh 100
 python -m sampler sample -t data/datasets/ibm2026/preprocessed_60 -orig data/datasets/ibm2026/preprocessed_60 -o data/datasets/ibm2026/sampled_60 -min 100 -st 20 -max 480 -tr 16
+# Filtered
 python -m sampler filter2021 -t data/datasets/ibm2026/converted_60/IBM2026AsAzure2021.csv -st data/datasets/ibm2026/sampled_60/samples/400 -o data/datasets/ibm2026/filtered_400 -s 00:00:00 -dur 60
 python -m sampler filter2021 -t data/datasets/ibm2026/converted_60/IBM2026AsAzure2021.csv -st data/datasets/ibm2026/sampled_60/samples/240 -o data/datasets/ibm2026/filtered_240 -s 00:00:00 -dur 60
+
+python -m sampler filter2021 -t data/datasets/ibm2026/converted_60/IBM2026AsAzure2021.csv -st data/datasets/ibm2026/sampled_60/samples/100 -o data/datasets/ibm2026/filtered_100 -s 00:00:00 -dur 60
 
 ```
 
